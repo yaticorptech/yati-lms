@@ -55,6 +55,7 @@ const EventRow = ({ e, onDelete, showName = true }) => (
                 {e.place && <span className="inline-flex items-center gap-0.5"><MapPin size={11} />{e.place}</span>}
             </p>
         </div>
+        {e.completed && <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">✓ Completed</span>}
         {e.present !== null && e.present !== undefined && (
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${e.present ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{e.present ? 'Present' : 'Absent'}</span>
         )}
@@ -182,7 +183,7 @@ export const ActivityCalendar = ({ memberId, canAdd = false, title = 'Calendar' 
 };
 
 /** On the dashboard: what the student is in, with their posts, and the next few events. Nothing until they are in something. */
-export const MyClubsCard = () => {
+export const MyClubsCard = ({ className = '', fallback = null }) => {
     const [memberships, setMemberships] = useState(null);
     // The next two months, fixed when the card first shows.
     const [[from, to]] = useState(() => [new Date(), new Date(Date.now() + 60 * 86400000)]);
@@ -192,24 +193,61 @@ export const MyClubsCard = () => {
         api.get(BASE).then((r) => { if (live) setMemberships((r.data.memberships || []).filter((m) => m.status === 'active')); }).catch(() => { if (live) setMemberships([]); });
         return () => { live = false; };
     }, []);
-    if (!memberships?.length) return null;
+    // Not in anything (yet): whatever the page puts in this place instead.
+    if (memberships && !memberships.length) return fallback;
+    if (!memberships) return null;
+    // The next fourteen days as a strip, each with a dot per event that day.
+    const byDay = {};
+    (events || []).forEach((e) => { (byDay[dayKey(e.date)] = byDay[dayKey(e.date)] || []).push(e); });
+    const strip = Array.from({ length: 14 }, (_, i) => new Date(from.getFullYear(), from.getMonth(), from.getDate() + i));
+    const nextFor = (m) => (events || []).find((e) => e.name === m.name);
+    const leads = memberships.find((m) => m.role === 'president');
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className={`flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
             <div className="flex items-center justify-between gap-3">
                 <h2 className="flex items-center gap-2 font-black text-slate-900"><Users size={18} className="text-indigo-600" /> My clubs & activities</h2>
                 <Link to="/extracurricular" className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700">Open <ArrowRight size={13} /></Link>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-                {memberships.map((m) => (
-                    <Link key={m._id} to={`/extracurricular/${m._id}`} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-indigo-300 hover:bg-indigo-50">
-                        <span className={`h-2 w-2 rounded-full ${TONE[m.scheme] || TONE.CLUB}`} />{m.name}
-                        {ROLE_LABEL[m.role] && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">{ROLE_LABEL[m.role]}</span>}
-                    </Link>
-                ))}
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {memberships.map((m) => {
+                    const next = nextFor(m);
+                    return (
+                        <Link key={m._id} to={`/extracurricular/${m._id}`} className="group rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:border-indigo-300 hover:bg-indigo-50">
+                            <div className="flex items-center gap-1.5">
+                                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${TONE[m.scheme] || TONE.CLUB}`} />
+                                <span className="truncate font-bold text-slate-800">{m.name}</span>
+                                {ROLE_LABEL[m.role] && <span className="ml-auto shrink-0 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">{ROLE_LABEL[m.role]}</span>}
+                            </div>
+                            <p className="mt-1.5 truncate text-xs text-slate-500">{next ? <>Next: <span className="font-semibold text-slate-700">{next.title}</span> · {fmtDay(next.date)}</> : 'No upcoming events'}</p>
+                        </Link>
+                    );
+                })}
             </div>
-            <p className="mt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">Coming up</p>
+            <p className="mt-5 text-[11px] font-bold uppercase tracking-wider text-slate-400">Next two weeks</p>
+            <div className="mt-2 grid grid-cols-7 gap-1">
+                {strip.map((d) => {
+                    const on = byDay[dayKey(d)] || [];
+                    const today = dayKey(d) === dayKey(from);
+                    return (
+                        <div key={dayKey(d)} className={`flex flex-col items-center rounded-lg py-1.5 ${today ? 'bg-indigo-600 text-white' : on.length ? 'bg-indigo-50 text-slate-800' : 'text-slate-500'}`}>
+                            <span className={`text-[10px] font-bold uppercase ${today ? 'text-indigo-100' : 'text-slate-400'}`}>{WEEKDAYS[(d.getDay() + 6) % 7].slice(0, 2)}</span>
+                            <span className="text-sm font-bold">{d.getDate()}</span>
+                            <span className="mt-0.5 flex h-1.5 gap-0.5">{on.slice(0, 3).map((e) => <span key={e._id} className={`h-1.5 w-1.5 rounded-full ${today ? 'bg-white' : TONE[e.scheme] || TONE.CLUB}`} />)}</span>
+                        </div>
+                    );
+                })}
+            </div>
+            <p className="mt-5 text-[11px] font-bold uppercase tracking-wider text-slate-400">Coming up</p>
             {events === null ? <div className="mt-2 h-14 animate-pulse rounded-xl bg-slate-100" /> : events.length === 0 ? (
-                <p className="mt-1 text-sm text-slate-500">Nothing scheduled yet.</p>
+                <div className="mt-2 flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-center">
+                    <CalendarDays size={28} className="text-indigo-300" />
+                    <p className="mt-2 text-sm font-semibold text-slate-700">Nothing scheduled in the next two months</p>
+                    {leads ? (
+                        <Link to={`/extracurricular/${leads._id}`} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700"><Plus size={15} /> Plan an event for {leads.name}</Link>
+                    ) : (
+                        <p className="mt-1 text-xs text-slate-500">Your teachers will add events here — check back soon.</p>
+                    )}
+                </div>
             ) : (
                 <ul className="divide-y divide-slate-100">{events.slice(0, 4).map((e) => <EventRow key={e._id} e={e} />)}</ul>
             )}

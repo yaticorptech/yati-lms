@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../utils/api';
+import StudentDevicesCard from '../components/StudentDevicesCard';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { UserCheck, UserSearch, Upload, Download, QrCode, Lock, Camera, Keyboard, Eye, EyeOff, Copy } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -432,7 +433,9 @@ const Users = () => {
             _id: user._id,
             name: user.name || '',
             email: user.email || '',
-            phone: user.phone || '',
+            // Imported accounts held the phone as a number, which crashed the
+            // form on open (phone.replace is not a function, 2026-10-28).
+            phone: user.phone == null ? '' : String(user.phone),
             password: '', // Keep empty, only send if they want to change it
             // Rewards: money eligibility and leaderboard cohorts
             accountType: user.accountType || 'school_student',
@@ -887,6 +890,9 @@ const Users = () => {
                                     </button>
 
                                 </div>
+
+                                {/* Devices: where they sign in, residential card, reset (services/deviceRoutes.js). */}
+                                <StudentDevicesCard key={selectedUser._id} base={`/admin/users/${selectedUser._id}/devices`} />
 
                                 <div>
                                     <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Current Active Enrollments</h3>
@@ -1445,7 +1451,7 @@ const Users = () => {
                                             type="tel"
                                             required
                                             placeholder="Phone number"
-                                            value={editUserForm.phone.replace(/^\+\d+\s?/, '')}
+                                            value={String(editUserForm.phone ?? '').replace(/^\+\d+\s?/, '')}
                                             onChange={(e) => {
                                                 const digits = e.target.value.replace(/\D/g, '');
                                                 setEditUserForm({ ...editUserForm, phone: digits });

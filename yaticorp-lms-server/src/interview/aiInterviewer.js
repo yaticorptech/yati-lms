@@ -113,14 +113,20 @@ ${transcript || '(nothing yet)'}
 ${judge && lastTurn?.answer ? `FIRST, judge the answer just given:
   You asked: "${lastTurn.question}"
   They said: "${lastTurn.answer}"
-Set "addressed" false ONLY if that plainly does not respond to what you asked — a different subject altogether, or a statement that ignores the question. A short, vague, weak, partial or mistaken answer still counts as addressed: set true. When it is false, leave "question" empty and write "redirect": one or two warm sentences in your own voice saying that this does not answer what you asked, and putting the same question again more plainly. Otherwise set addressed true, leave redirect empty, and ask the next thing:
+Set "addressed" false ONLY if that plainly does not respond to what you asked — a different subject altogether, or a statement that ignores the question. A short, vague, weak, partial or mistaken answer still counts as addressed: set true. When it is false, leave "question" empty and write "redirect": one or two warm sentences in your own voice saying that this does not answer what you asked, and putting the same question again more plainly. Otherwise set addressed true, leave redirect empty, and ask the next thing.
+Also grade it as "quality":
+  "incorrect" — it states something factually or technically wrong (a wrong definition, a wrong fact, a wrong approach);
+  "weak" — on topic but not satisfying: too short, too vague, missing the key point an interviewer expects;
+  "good" — a reasonable answer for this candidate's level.
+Judge an opinion or personal question (about themselves, their goals) only on substance, never as "incorrect". When "incorrect" or "weak", write "feedback": ONE short, direct sentence in your own voice that says plainly what is wrong or missing (for example "That's not correct — an index speeds up reads, it doesn't store a second copy of the table." or "That's too brief — tell me what you built and the result."). When "good", "feedback" is empty.
+
 
 ` : ''}NOW: ${canFollowUp && lastTurn
         ? `The candidate just answered a "${lastTurn.stage}" question. If that answer mentions something worth probing (a project, a decision, a claim, something vague), ask ONE natural follow-up about it and set isFollowUp true and stage "${lastTurn.stage}". Otherwise move on: stage "${stage}" — ${STAGE_GUIDE[stage]} — with isFollowUp false and stage "${stage}".`
         : `Stage "${stage}". ${STAGE_GUIDE[stage]} isFollowUp is false and stage is "${stage}".`}
 Adjust difficulty to their answers so far: stronger answers earn harder questions. Keep the message under 60 words.
 
-Answer ONLY with JSON: {${judge && lastTurn?.answer ? '"addressed": boolean, "redirect": string, ' : ''}"question": string, "stage": string, "isFollowUp": boolean, "difficulty": "easy" | "medium" | "hard"}`;
+Answer ONLY with JSON: {${judge && lastTurn?.answer ? '"addressed": boolean, "redirect": string, "quality": "good" | "weak" | "incorrect", "feedback": string, ' : ''}"question": string, "stage": string, "isFollowUp": boolean, "difficulty": "easy" | "medium" | "hard"}`;
     try {
         const out = await call(prompt, { userId, kind: 'interview-question', maxOutputTokens: 400 });
         // Off topic: hand back the redirect instead of a question. A missing
@@ -132,7 +138,10 @@ Answer ONLY with JSON: {${judge && lastTurn?.answer ? '"addressed": boolean, "re
         const question = String(out.question || '').trim();
         if (!question || question.length > 600) throw new Error('empty question');
         const isFollowUp = !!(canFollowUp && lastTurn && out.isFollowUp);
-        return { addressed: true, question, stage: isFollowUp ? lastTurn.stage : stage, isFollowUp, difficulty: ['easy', 'medium', 'hard'].includes(out.difficulty) ? out.difficulty : 'medium', interviewer: MODEL };
+        // The grade of the answer just given, when it was judged.
+        const quality = judge && lastTurn?.answer && ['good', 'weak', 'incorrect'].includes(out.quality) ? out.quality : '';
+        const feedback = quality && quality !== 'good' ? String(out.feedback || '').trim().slice(0, 300) : '';
+        return { addressed: true, quality, feedback, question, stage: isFollowUp ? lastTurn.stage : stage, isFollowUp, difficulty: ['easy', 'medium', 'hard'].includes(out.difficulty) ? out.difficulty : 'medium', interviewer: MODEL };
     } catch (err) {
         console.warn('[interview] question fell back to the template interviewer:', err.message);
         return { addressed: true, ...fallback(), interviewer: 'template' };

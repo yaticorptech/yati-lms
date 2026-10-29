@@ -1,303 +1,325 @@
 /**
- * The climb to the goal, after the supplied design: a twilight mountain scene
- * — sunlit peaks, clouds, a golden flag in the sun's glow at the top — with a
- * glass staircase rising through it from the foot at bottom-left to the summit
- * at top-right. One slab per roadmap phase, smaller and further right as it
- * goes up, as a staircase seen from its foot; each slab has a plaque with the
- * step's short name and state (done, NOW, locked) and a landing on its left
- * to stand on. The plaques open the Roadmap; the mascot stands on the last
- * slab done.
+ * The climb to the goal (redesigned 2026-10-27, after the supplied reference): a cinematic
+ * sunset mountain (public/illustrations/career-climb-scene.jpg) with the robot on its rocky
+ * ledges, an illuminated trail winding up to a golden flag on the summit, and the student's own
+ * milestones laid on the trail — real cards and numbered pins placed exactly over the painted
+ * ones, so they carry the roadmap's actual phases, states and links.
  *
- * Progress is the roadmap's own: the phases marked complete (by index), and
- * the current one — the first not complete, as the Roadmap page decides it.
+ * Progress is the roadmap's own: the phases marked complete (by index), and the current one — the
+ * first not complete, as the Roadmap page decides it. Five places on the trail: every phase when
+ * there are five or fewer; otherwise step 1, the current step and its neighbours, and the goal,
+ * with "View all steps" for the rest (trailSlots).
  *
- * Each newly finished phase, it climbs: one slab per hop, a rest on each, then
- * still. The last phase this device showed is remembered, so the climb is the
- * progress since the last visit (the first visit climbs from the ground once).
+ * Positions are in % of the picture, measured from its pixels. The picture keeps its own
+ * proportions inside the frame (cropped at the sides only on a phone), so every card and pin
+ * stays on its ledge — on a phone too, where everything scales with the scene.
  *
- * Two drawings share one box: the scene, an SVG that keeps its shape; and the
- * slabs, an SVG stretched to the box so its percentages are the box's — which
- * is how the HTML plaques and the mascot land exactly on their slabs.
- *
- * `compact` (the phone band) shows the steps around the current one and folds
- * the rest: thirteen slabs do not fit a phone's width with their words.
+ * The summit celebrates when the final step is reached and when it is completed (see below).
  */
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Lock, Sparkles, MoreHorizontal } from 'lucide-react';
+import {
+    Check, Lock, Sparkles, ArrowRight, Flag, GraduationCap, BriefcaseBusiness, FileText, Users, Code2, BookOpen, Award, Lightbulb
+} from 'lucide-react';
 import { phaseTitle, parseChoices } from '../../utils/roadmap';
+import { summitPlan } from './summitPlan';
+import { trailSlots, robotPlace } from './trailSlots';
 
-// The phase the mascot last reached, on this device.
-const SEEN_KEY = 'career:climb-step';
-const lerp = (a, b, t) => a + (b - a) * t;
+const SCENE = '/illustrations/career-climb-scene.jpg';
+// The same scene without its painted robot, cards, pins and goal pill. When this file is there, the
+// page uses it and draws the climbing robot itself, standing beside the student's current step;
+// until then the painted scene is used as it is (it has its own robot, which cannot move).
+const CLEAN_SCENE = '/illustrations/career-climb-clean.jpg';
+const CLIMBER = '/mascot/climber.png';          // 403 × 640, transparent
+const CLIMBER_RATIO = 403 / 640;
+// The robot's height on each of the five places (in % of the scene's height), smaller higher up the
+// mountain, as the cards are; and where it stands once every step is done, below the flag.
+const TALL_CLIMBER_HEIGHT = [24, 20, 17, 14.5, 12.5];
+const TALL_SUMMIT_LEDGE = { feet: [84.5, 16], height: 11 };
+const TALL_RATIO = 2400 / 1478;
+// The painted places on the trail, bottom to top: each card's box [left, right, top, bottom] and
+// its pin's head [x, y], in % of the picture; and the colour its pin is painted when locked.
+const TALL_SPOTS = [
+    { card: [21.8, 52.8, 82.9, 90.9], pin: [16.5, 80.6], locked: 'bg-slate-400' },
+    { card: [40.1, 79.0, 62.5, 70.8], pin: [38.1, 61.7], locked: 'bg-slate-400' },
+    { card: [51.9, 81.6, 48.3, 56.0], pin: [49.6, 48.3], locked: 'bg-blue-500' },
+    { card: [61.3, 89.8, 36.2, 43.9], pin: [59.85, 35.6], locked: 'bg-violet-500' },
+    { card: [67.3, 94.9, 24.6, 31.9], pin: [66.1, 24.6], locked: 'bg-rose-500' }
+];
+const TALL_GOAL_PILL = [62.3, 84.4, 7.1, 12.4];
+const TALL_SUMMIT = [87.6, 6.6];
+// The trail, through the foot of each pin to the summit (picture pixels), for the light that travels it.
+const TALL_TRAIL = 'M 400 1296 C 470 1220, 600 1190, 760 1160 C 880 1130, 960 1100, 940 1070 C 925 1045, 915 1030, 912 1024 C 980 960, 1140 920, 1230 880 C 1250 860, 1210 830, 1192 820 C 1300 760, 1440 690, 1470 660 C 1480 650, 1440 640, 1436 636 C 1520 580, 1600 520, 1584 464 C 1660 420, 1800 330, 1960 230 C 2010 200, 2050 170, 2072 150';
+
+// The wide sunset (public/illustrations/career-climb-wide.jpg, 2030 × 775): the whole Overview
+// banner from lg, the words on its sky and the trail on its right (2026-10-29). Nothing is painted
+// on it, so the robot is always drawn. Same shapes as above, in % of this picture.
+const WIDE = {
+    scene: '/illustrations/career-climb-wide.jpg',
+    RATIO: 2030 / 775,
+    VIEW: '0 0 2030 775',
+    // As the original: a numbered pin on the trail, its card just to the right, the robot on the
+    // pin's left. Small, so no card covers a number.
+    SPOTS: [
+        { card: [50.4, 64.4, 75.8, 82.4], pin: [48.8, 79.1], locked: 'bg-slate-400' },
+        { card: [63.6, 77.6, 57.7, 64.3], pin: [62.0, 61.0], locked: 'bg-slate-400' },
+        { card: [71.5, 85.5, 44.3, 50.9], pin: [69.9, 47.6], locked: 'bg-blue-500' },
+        { card: [76.7, 90.7, 31.9, 38.5], pin: [75.1, 35.2], locked: 'bg-violet-500' },
+        { card: [80.5, 94.5, 21.2, 27.8], pin: [78.9, 24.5], locked: 'bg-rose-500' }
+    ],
+    GOAL_PILL: [76.5, 89.9, 7.0, 12.6],
+    SUMMIT: [92.5, 13],
+    SUMMIT_LEDGE: { feet: [89.5, 18], height: 10 },
+    CLIMBER_HEIGHT: [17, 15, 13, 11.5, 10],
+    ROBOT_SIDE: -1,
+    PIN: 'h-[2.3cqw] w-[2.3cqw] text-[1.1cqw] ring-[0.18cqw]',
+    CARD_FONT: 'clamp(7px, 0.82cqw, 15px)',
+    PILL_FONT: 'clamp(7px, 0.95cqw, 17px)',
+    TRAIL: 'M 991 650 C 1080 580, 1180 520, 1259 490 C 1320 450, 1380 410, 1419 385 C 1460 340, 1500 300, 1525 285 C 1550 250, 1580 220, 1602 200 C 1700 170, 1800 140, 1878 117'
+};
 
 /** A phase's name, short enough for its plaque: the lead before a colon, no bracketed detail, capped. */
 const shortTitle = (phase) => {
     const full = phaseTitle(phase);
     const lead = (parseChoices(full)?.lead || full).replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
-    return lead.length > 30 ? `${lead.slice(0, 29).trim()}…` : lead;
+    return lead.length > 44 ? `${lead.slice(0, 43).trim()}…` : lead;
 };
 
-/** The slabs on show: every phase; on a phone, the ones around the current, a folded gap, and the goal. */
-const visibleSlots = (total, current, compact) => {
-    if (!compact || total <= 6) return Array.from({ length: total }, (_, i) => i);
-    const start = Math.max(0, Math.min(current - 2, total - 6));
-    const end = Math.min(total - 2, start + 4);
-    const slots = [];
-    for (let i = start; i <= end; i += 1) slots.push(i);
-    if (end < total - 2) slots.push({ gap: total - 2 - end });
-    slots.push(total - 1);
-    return slots;
+
+// Five or fewer phases stand on the top of the trail, so the summit is always the goal's (spotFor, below).
+
+// What kind of step a phase is, from its name: the first match wins.
+const ICONS = [
+    [/intern|industry|exposure|experience|company|workplace/i, BriefcaseBusiness],
+    [/application|placement|resume|portfolio|hiring|interview|job/i, Users],
+    [/exam|test|entrance|aptitude|recruitment|\bgate\b|nimcet|\bjee\b|\bneet\b|\bcat\b|\bgre\b/i, FileText],
+    [/\brole\b|developer|engineer|career|position|professional/i, Code2],
+    [/certif|award|badge/i, Award],
+    [/skill|learn|project|foundation|fundamental|practice|build/i, Lightbulb],
+    [/year|degree|semester|class|grade|school|college|university|tech\b|\bmca\b|\bbca\b|\bbsc\b|\bmsc\b|diploma|course|\bstd\b/i, GraduationCap]
+];
+const iconFor = (title) => ICONS.find(([re]) => re.test(title))?.[1] || BookOpen;
+
+const box = ([l, r, t, b]) => ({ left: `${l}%`, width: `${r - l}%`, top: `${t}%`, height: `${b - t}%` });
+
+/* ── The summit celebration (2026-10-27) ─────────────────────────────────
+ * When the final step is reached (it becomes the current one) and again when it is completed:
+ * the summit glows brighter, golden waves radiate from behind the badge, paper confetti bursts
+ * and falls, the goal pill catches a golden highlight, a shimmer crosses the final step's card,
+ * and everything settles into a quiet golden glow. Each of those two moments plays once per
+ * goal (remembered on this device); a goal already completed gets a brief highlight once per
+ * browser session; otherwise the summit just keeps its ambient glow.
+ */
+const SUMMIT_KEY = 'career:summit-celebrated';   // { goal, state: 'unlocked' | 'completed' }
+const SUMMIT_SESSION = 'career:summit-seen';     // this session has seen the summit
+// Each plan: [what begins, when (ms after the start)]. 'ambient' ends the celebration.
+const PLANS = {
+    full: [['glow', 0], ['waves', 300], ['confetti', 650], ['pill', 1100], ['sheen', 1500], ['ambient', 3900]],
+    brief: [['glow', 0], ['waves', 300], ['pill', 600], ['ambient', 2300]],
+    // Reduced motion: the same moments, still — a brighter glow and the pill's highlight, nothing moving.
+    still: [['glow', 0], ['pill', 200], ['ambient', 2000]],
+    settled: [['ambient', 0]]
 };
+// The paper: [colour, angle (deg, 0 = right, -90 = up), distance, shape]. Gold and champagne
+// first, then coral, pink and a few cool notes; 18 pieces, spread all the way round.
+const PAPER = [
+    ['#f5c84c', -90, 1, 'r'], ['#f3e2b3', -70, 0.85, 'c'], ['#ff7f6b', -50, 1, 'r'], ['#f472b6', -30, 0.9, 'r'],
+    ['#fbbf24', -10, 1, 'c'], ['#a78bfa', 10, 0.8, 'r'], ['#f5c84c', 30, 0.95, 'r'], ['#5eead4', 50, 0.75, 'c'],
+    ['#ff7f6b', 75, 0.7, 'r'], ['#f3e2b3', 105, 0.7, 'r'], ['#f472b6', 130, 0.8, 'c'], ['#fbbf24', 150, 0.95, 'r'],
+    ['#f5c84c', 170, 1, 'r'], ['#a78bfa', 190, 0.85, 'c'], ['#ff7f6b', 210, 1, 'r'], ['#f3e2b3', 230, 0.9, 'r'],
+    ['#f472b6', 250, 1, 'c'], ['#fde68a', 270, 0.8, 'r']
+];
+// Tiny golden particles drifting up from the summit: [left %, delay s, size px].
+const MOTES = [[30, 0, 3], [52, 0.9, 2], [70, 1.7, 3], [42, 2.5, 2], [62, 3.2, 2]];
 
 /**
- * Where each slab sits, in % of the box (x to the right, `bottom` up from the
- * floor). A slab is its riser — the lit front face — with its tread on top;
- * the plaque sits on the tread from labelLeft to labelRight, leaving the
- * landing from slabLeft to stand on. Taken from the design: the bottom slab is
- * the biggest and nearest, each one up is a little smaller and further right.
+ * Runs the summit's moments on a timeline and says which are on. Only the copy of the stairs on
+ * screen celebrates (the hero draws a hidden second one); the moment is recorded as seen only when
+ * it actually starts, so React's double-run of effects in development cannot use it up unseen.
+ * Every timer is cleared on the way out.
  */
-const geometry = (n, compact) => {
-    const t = (i) => (n > 1 ? i / (n - 1) : 0);
-    const scales = Array.from({ length: n }, (_, i) => lerp(1, 0.6, t(i)));
-    const unit = Math.min(compact ? 16 : 11, (compact ? 86 : 85) / scales.reduce((a, b) => a + b, 0));
-    let bottom = compact ? 1 : 2;
-    return scales.map((s, i) => {
-        const pitch = unit * s;
-        const k = t(i);
-        const slab = {
-            bottom, pitch, riser: pitch * 0.28, tread: pitch * 0.72, scale: s,
-            slabLeft: compact ? lerp(2, 34, k) : lerp(26, 72, k),
-            labelLeft: compact ? lerp(9, 38, k) : lerp(33, 74.5, k),
-            labelRight: compact ? lerp(93, 97, k) : lerp(75, 92.5, k),
-            slabRight: compact ? lerp(95, 98, k) : lerp(78, 94, k),
-            font: compact ? lerp(12, 10, k) : lerp(15, 10, k)
-        };
-        bottom += pitch;
-        return slab;
-    });
-};
+function useSummitCelebration({ rootRef, finalState, goal, startAfter, reduced }) {
+    const [marks, setMarks] = useState({});
+    useEffect(() => {
+        const el = rootRef.current;
+        if (!finalState || !el || el.offsetParent === null) return undefined;
+        let stored = null;
+        try { stored = JSON.parse(localStorage.getItem(SUMMIT_KEY) || 'null'); } catch { /* none */ }
+        let seenThisSession = false;
+        try { seenThisSession = sessionStorage.getItem(SUMMIT_SESSION) === '1'; } catch { /* none */ }
+        const { kind, fresh } = summitPlan({ finalState, goal, stored, seenThisSession, reduced });
+        const timers = PLANS[kind].map(([name, ms], i) => setTimeout(() => {
+            if (i === 0) {
+                try { if (fresh) localStorage.setItem(SUMMIT_KEY, JSON.stringify({ goal, state: finalState })); } catch { /* replays next time */ }
+                try { sessionStorage.setItem(SUMMIT_SESSION, '1'); } catch { /* replays next time */ }
+            }
+            setMarks(name === 'ambient' ? { ambient: true } : (m) => ({ ...m, [name]: true }));
+        }, (kind === 'settled' ? 0 : startAfter) + ms));
+        return () => timers.forEach(clearTimeout);
+    }, [rootRef, finalState, goal, startAfter, reduced]);
+    return marks;
+}
 
-// The slab faces, per state: [tread, riser top, riser bottom, side].
-const FACES = {
-    locked: ['#efeafd', '#d9d1f5', '#fbf9ff', '#e5ddfb', '#a99cde'],
-    done: ['#f6fdff', '#c5f1fa', '#ffffff', '#e1f7fb', '#8fd3e6'],
-    current: ['#cdbdf8', '#b39df0', '#f3edff', '#dccfff', '#7c5fd3']
-};
-
-export default function JourneyStairs({ phases = [], completedPhases = [], compact = false, goal = '' }) {
+export default function JourneyStairs({ phases = [], completedPhases = [], goal = '', wide = false }) {
+    // The wide banner's picture and places, or the original scene's.
+    /* eslint-disable no-shadow */
+    const { SPOTS, GOAL_PILL, SUMMIT, SUMMIT_LEDGE, CLIMBER_HEIGHT, RATIO, TRAIL, VIEW, ROBOT_SIDE, PIN, CARD_FONT, PILL_FONT } = wide
+        ? WIDE
+        : { ROBOT_SIDE: -1, PIN: 'h-[3.5cqw] w-[3.5cqw] text-[1.7cqw] ring-[0.25cqw]', CARD_FONT: 'clamp(5.5px, 1.15cqw, 22px)', PILL_FONT: 'clamp(6px, 1.32cqw, 24px)', SPOTS: TALL_SPOTS, GOAL_PILL: TALL_GOAL_PILL, SUMMIT: TALL_SUMMIT, SUMMIT_LEDGE: TALL_SUMMIT_LEDGE, CLIMBER_HEIGHT: TALL_CLIMBER_HEIGHT, RATIO: TALL_RATIO, TRAIL: TALL_TRAIL, VIEW: '0 0 2400 1478' };
+    const spotFor = (i, n) => SPOTS[SPOTS.length - n + i];
+    /* eslint-enable no-shadow */
     const total = phases.length;
     const finished = new Set(completedPhases.map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < total));
     let done = 0;
     while (done < total && finished.has(done)) done += 1;
-    // Ids of its own: the hero draws this twice (wide and narrow, one hidden), and a
-    // gradient or filter found in the hidden copy paints nothing in the visible one.
-    const uid = useId().replace(/:/g, '');
-    const id = (name) => `${name}-${uid}`;
 
-    // Whether the painted scene loaded: it has its own sun and flag, so the drawn ones step aside.
-    const [painted, setPainted] = useState(false);
+    // The summit celebration: the final step reached (current) or completed, once the scene has arrived.
+    const rootRef = useRef(null);
+    const [reduced] = useState(() => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+    const finalState = !total ? null : done >= total ? 'completed' : done === total - 1 ? 'unlocked' : null;
+    const celebrate = useSummitCelebration({ rootRef, finalState, goal, startAfter: 900, reduced });
+    const settle = celebrate.ambient;
 
-    const [fromPhase] = useState(() => {
-        if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return done;
-        try {
-            const raw = localStorage.getItem(SEEN_KEY);
-            return raw !== null && Number.isFinite(Number(raw)) ? Math.min(Number(raw), done) : 0;
-        } catch { return 0; }
-    });
-    // The phase the mascot stands on: phase r reached = standing on phase r-1; -1 is the ground.
-    const [stair, setStair] = useState(fromPhase - 1);
+    // The clean scene, if it has been added: only then is the robot drawn (and moved) by the page.
+    const [clean, setClean] = useState(false);
     useEffect(() => {
-        if (stair >= done - 1) {
-            try { localStorage.setItem(SEEN_KEY, String(done)); } catch { /* the climb replays next time */ }
-            return undefined;
-        }
-        const timer = setTimeout(() => setStair((s) => s + 1), stair === fromPhase - 1 ? 700 : 950);
-        return () => clearTimeout(timer);
-    }, [stair, done, fromPhase]);
+        const probe = new Image();
+        probe.onload = () => setClean(true);
+        probe.src = CLEAN_SCENE;
+        return () => { probe.onload = null; };
+    }, []);
 
     if (!total) return null;
-    const slots = visibleSlots(total, done, compact);
-    const slabs = geometry(slots.length, compact);
-    const stateOf = (slot) => (typeof slot === 'object' ? 'locked' : finished.has(slot) ? 'done' : slot === done ? 'current' : 'locked');
-    // The slab the mascot stands on; below the first shown is the ground; folded away, the gap.
-    const slotOf = (phase) => {
-        const i = slots.indexOf(phase);
-        if (i >= 0) return i;
-        return phase < slots[0] ? -1 : slots.findIndex((s) => typeof s === 'object');
-    };
-    const on = stair < 0 ? -1 : slotOf(stair);
-    const foot = slabs[0];
-    const stand = on < 0
-        ? { left: foot.slabLeft - 9, bottom: compact ? 0 : 1, height: foot.pitch * 3 }
-        : { left: slabs[on].slabLeft + 0.5, bottom: slabs[on].bottom + slabs[on].pitch, height: slabs[on].pitch * 3.4 };
-    stand.height = Math.max(compact ? 24 : 17, Math.min(compact ? 44 : 38, stand.height));
-    const top = slabs[slabs.length - 1];
-    // The side faces: a slanted parallelogram right of each slab (y is in box %, which is half an x %, so twice the lean).
-    const SIDE_W = compact ? 1.2 : 1.6;
-    const SIDE_UP = SIDE_W * 1.4;
-    // The goal, marked by a trophy: on the painting's summit (about 88% across, 2% down, where
-    // the scene is cropped to the box), else on the top slab's far corner, with the sun behind it.
-    const poleX = painted ? 88.5 : top.slabRight - 1;
-    const poleTop = painted ? 1.5 : 100 - (top.bottom + top.pitch) - 14;
-    const reached = total - finished.size === 0;
+    const slots = trailSlots(total, done);
+    const stateOf = (k) => (finished.has(k) ? 'done' : k === done ? 'current' : 'locked');
+    const reached = done >= total;
 
     return (
-        <div className="relative h-full w-full overflow-hidden" role="img" aria-label={`Career steps: ${done} of ${total} done, ${total - finished.size} to go`}>
-            {/* ---- The scene: twilight sky, stars, three ranges with sunlit faces, trees, clouds, mist ---- */}
-            <svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMax slice" className="absolute inset-0 h-full w-full" aria-hidden>
-                <defs>
-                    <linearGradient id={id('sky')} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stopColor="#2a2370" /><stop offset="0.38" stopColor="#5a46b8" />
-                        <stop offset="0.62" stopColor="#9a80d8" /><stop offset="0.86" stopColor="#e4b6dc" /><stop offset="1" stopColor="#fbd8bf" />
-                    </linearGradient>
-                    <linearGradient id={id('haze')} x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0" stopColor="#efe6fa" stopOpacity="0.95" /><stop offset="0.45" stopColor="#efe6fa" stopOpacity="0" />
-                    </linearGradient>
-                    <linearGradient id={id('far')} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#8470d0" /><stop offset="1" stopColor="#5b4aad" /></linearGradient>
-                    <linearGradient id={id('peak')} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#4d3ca3" /><stop offset="1" stopColor="#241c5f" /></linearGradient>
-                    <linearGradient id={id('mist')} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#fff" stopOpacity="0.9" /></linearGradient>
-                    <filter id={id('soft')} x="-30%" y="-60%" width="160%" height="220%"><feGaussianBlur stdDeviation="1.7" /></filter>
-                </defs>
-                <rect width="200" height="100" fill={`url(#${id('sky')})`} />
-                <g fill="#fff">
-                    {[[60, 10, 0.7], [90, 18, 0.5], [112, 7, 0.8], [130, 22, 0.5], [72, 30, 0.45], [150, 12, 0.7], [42, 20, 0.5], [100, 33, 0.4], [164, 6, 0.5]].map(([x, y, r]) => <circle key={`${x}-${y}`} cx={x} cy={y} r={r} opacity="0.85" />)}
-                </g>
-                {/* The far range, in the haze */}
-                <polygon points="0,62 14,50 26,56 40,44 52,52 66,40 80,48 94,36 106,46 120,30 134,42 150,26 164,38 178,28 200,40 200,100 0,100" fill={`url(#${id('far')})`} opacity="0.7" />
-                {/* The main peaks, their right faces lit by the setting sun */}
-                <polygon points="60,100 84,56 96,40 108,52 122,30 136,16 150,34 160,24 176,46 190,36 200,46 200,100" fill={`url(#${id('peak')})`} />
-                <polygon points="136,16 150,34 145,40 137,29" fill="#d9966c" opacity="0.72" />
-                <polygon points="122,30 131,45 126,49 121,38" fill="#c98b62" opacity="0.6" />
-                <polygon points="160,24 176,46 168,49 161,34" fill="#e2a97e" opacity="0.66" />
-                <polygon points="96,40 108,52 102,56 97,48" fill="#b57a5a" opacity="0.5" />
-                <polygon points="190,36 200,46 200,54 191,44" fill="#e2a97e" opacity="0.5" />
-                {/* The near range on the left, dark, under the clouds */}
-                <polygon points="0,74 10,64 22,70 34,60 46,68 58,58 72,72 86,66 100,82 100,100 0,100" fill="#3d2f8e" opacity="0.88" />
-                {/* Trees on the right slope */}
-                <polygon points="172,100 176,88 180,82 184,86 187,72 191,78 193,64 197,70 200,58 200,100" fill="#1f3a2d" />
-                <polygon points="182,100 185,92 189,85 193,90 195,78 198,82 200,74 200,100" fill="#2f5c3b" opacity="0.9" />
-                {/* Clouds: big and soft on the left, where the scene melts into the words; small ones at the right */}
-                <g filter={`url(#${id('soft')})`}>
-                    <ellipse cx="24" cy="70" rx="30" ry="12" fill="#fff" opacity="0.95" />
-                    <ellipse cx="46" cy="60" rx="20" ry="9" fill="#fbe4ee" opacity="0.9" />
-                    <ellipse cx="12" cy="90" rx="38" ry="13" fill="#fff" />
-                    <ellipse cx="62" cy="80" rx="16" ry="7" fill="#fff" opacity="0.75" />
-                    <ellipse cx="80" cy="46" rx="12" ry="5" fill="#ffe6ee" opacity="0.8" />
-                    <ellipse cx="184" cy="90" rx="24" ry="10" fill="#fff" opacity="0.92" />
-                    <ellipse cx="166" cy="99" rx="34" ry="9" fill="#f1e6ff" opacity="0.95" />
-                    <ellipse cx="120" cy="98" rx="44" ry="8" fill="#fff" opacity="0.6" />
-                </g>
-                <rect x="0" y="82" width="200" height="18" fill={`url(#${id('mist')})`} />
-                <rect width="200" height="100" fill={`url(#${id('haze')})`} />
-            </svg>
+        // The frame: the picture's own proportions from a tablet up; a little taller on a phone, cropped at the sides.
+        <div ref={rootRef} className={wide ? 'absolute inset-0 overflow-hidden bg-[#2b2350]' : 'relative aspect-[1.35] w-full overflow-hidden bg-[#2b2350] sm:aspect-[2400/1478]'}
+            role="group" aria-label={`Career steps: ${finished.size} of ${total} done, ${total - finished.size} to go`}>
+            {/* Wide: anchored right, so a banner taller than the picture crops its sky, never the trail. */}
+            <div className={`@container/scene absolute top-0 h-full ${wide ? 'right-0' : 'left-1/2 -translate-x-1/2'}`} style={{ aspectRatio: `${RATIO}` }}>
+                <img src={wide ? WIDE.scene : clean ? CLEAN_SCENE : SCENE} alt="A robot climbing a sunlit mountain trail toward a golden flag on the summit"
+                    className="absolute inset-0 h-full w-full select-none" draggable={false} style={{ maxWidth: 'none', objectFit: 'cover' }} />
 
-            {/* The painted scene, when its file is there (public/illustrations/career-climb-bg.jpg):
-                it covers the drawn one above. Missing, it hides itself and the drawn scene shows.
-                Sized inline: the section's stylesheet gives every img `height: auto`. */}
-            <img src="/illustrations/career-climb-bg.jpg" alt="" aria-hidden className="absolute inset-0"
-                style={{ width: '100%', height: '100%', maxWidth: 'none', objectFit: 'cover', objectPosition: 'right bottom' }}
-                onLoad={() => setPainted(true)} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                {/* A light travelling up the trail, slow and faint. */}
+                <svg viewBox={VIEW} className="ch-trail pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
+                    <defs>
+                        <radialGradient id="ch-trail-glint"><stop offset="0" stopColor="#fffbe6" /><stop offset="0.4" stopColor="#fde68a" stopOpacity="0.9" /><stop offset="1" stopColor="#fbbf24" stopOpacity="0" /></radialGradient>
+                    </defs>
+                    <circle r="16" fill="url(#ch-trail-glint)">
+                        <animateMotion dur="7s" repeatCount="indefinite" path={TRAIL} keyPoints="0;1" keyTimes="0;1" calcMode="linear" />
+                        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="7s" repeatCount="indefinite" />
+                    </circle>
+                </svg>
 
-            {/* The sun, behind the flag — drawn only while the scene is */}
-            {!painted && <div aria-hidden className="pointer-events-none absolute h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,243,196,0.95),rgba(255,214,150,0.45)_38%,transparent_70%)]"
-                style={{ left: `${poleX + 3}%`, top: `${poleTop + 4}%` }} />}
-
-            {/* ---- The slabs, stretched to the box so these percentages are the box's ---- */}
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
-                <defs>
-                    {Object.entries(FACES).map(([state, [t1, t2, r1, r2]]) => (
-                        <g key={state}>
-                            <linearGradient id={id(`tread-${state}`)} x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor={t1} /><stop offset="1" stopColor={t2} /></linearGradient>
-                            <linearGradient id={id(`riser-${state}`)} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={r1} /><stop offset="1" stopColor={r2} /></linearGradient>
-                        </g>
+                {/* ---- The summit: aura, waves, confetti and motes around the painted flag ---- */}
+                <div className="pointer-events-none absolute" style={{ left: `${SUMMIT[0]}%`, top: `${SUMMIT[1]}%` }} aria-hidden>
+                    <span className={`absolute top-0 left-0 h-[12cqw] w-[12cqw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/40 blur-2xl ${celebrate.glow && !settle ? 'ch-aura-burst' : settle ? 'ch-aura' : ''}`} />
+                    {celebrate.glow && !settle && <span className="ch-summit-flare absolute top-0 left-0 -mt-[4cqw] -ml-[4cqw] h-[8cqw] w-[8cqw] rounded-full bg-[radial-gradient(circle,rgba(253,224,71,0.95)_0%,rgba(251,191,36,0.55)_40%,rgba(251,191,36,0)_70%)]" />}
+                    {celebrate.waves && !settle && [0, 0.35, 0.7].map((d) => (
+                        <span key={d} className="ch-wave-once absolute top-0 left-0 -mt-[3.5cqw] -ml-[3.5cqw] h-[7cqw] w-[7cqw] rounded-full border-2 border-amber-200/90 shadow-[0_0_14px_rgba(251,191,36,0.6)]" style={{ animationDelay: `${d}s` }} />
                     ))}
-                    <filter id={id('edge')} x="-10%" y="-200%" width="120%" height="500%"><feGaussianBlur stdDeviation="0.6" /></filter>
-                    <filter id={id('under')} x="-10%" y="-100%" width="120%" height="300%"><feGaussianBlur stdDeviation="1.4" /></filter>
-                </defs>
-                {/* Top slab first: the lower, nearer slabs overlap the ones above */}
-                {[...slabs].map((s, i) => ({ s, i })).reverse().map(({ s, i }) => {
-                    const state = stateOf(slots[i]);
-                    const side = FACES[state][4];
-                    const treadTop = 100 - (s.bottom + s.pitch);
-                    const treadBot = 100 - (s.bottom + s.riser);
-                    const riserBot = 100 - s.bottom;
-                    return (
-                        <g key={i}>
-                            {/* A soft shadow under the slab, on the one below */}
-                            <rect x={s.slabLeft + 1} y={riserBot - 0.4} width={s.slabRight - s.slabLeft} height="2.2" fill="#3b2a7a" opacity="0.28" filter={`url(#${id('under')})`} />
-                            <polygon points={`${s.slabRight},${treadTop} ${s.slabRight + SIDE_W},${treadTop - SIDE_UP} ${s.slabRight + SIDE_W},${riserBot - SIDE_UP} ${s.slabRight},${riserBot}`} fill={side} />
-                            <polygon points={`${s.slabLeft},${treadTop} ${s.slabLeft + SIDE_W},${treadTop - SIDE_UP} ${s.slabRight + SIDE_W},${treadTop - SIDE_UP} ${s.slabRight},${treadTop}`} fill="#fff" opacity="0.55" />
-                            <rect x={s.slabLeft} y={treadTop} width={s.slabRight - s.slabLeft} height={s.tread} fill={`url(#${id(`tread-${state}`)})`} />
-                            <rect x={s.slabLeft} y={treadBot} width={s.slabRight - s.slabLeft} height={s.riser} fill={`url(#${id(`riser-${state}`)})`} />
-                            {/* The lit front edge: warm near the foot, where the light comes from; violet above */}
-                            <rect x={s.slabLeft} y={riserBot - 0.5} width={s.slabRight - s.slabLeft} height="0.9" fill={i < 3 ? '#ffd27a' : state === 'done' ? '#a5f3fc' : '#c4b5fd'} opacity="0.95" filter={`url(#${id('edge')})`} />
-                            <rect x={s.slabLeft} y={treadBot - 0.25} width={s.slabRight - s.slabLeft} height="0.5" fill="#fff" opacity="0.8" />
-                        </g>
-                    );
-                })}
-            </svg>
-
-            {/* The goal on the summit: a glowing trophy, named; a celebration once every step is done */}
-            <div className="absolute z-[6] flex items-center gap-1.5" style={{ right: `calc(${100 - poleX}% - ${compact ? 0.9 : 1.15}rem)`, top: `${poleTop}%` }}>
-                <span className={`whitespace-nowrap rounded-full px-2 py-0.5 font-black shadow-md ring-1 ${compact ? 'text-[0.55rem]' : 'text-[0.66rem]'} ${
-                    reached ? 'bg-emerald-500 text-white ring-emerald-200' : 'bg-white/92 text-amber-700 ring-amber-300'}`}>
-                    {reached ? `You reached ${goal || 'your goal'}! 🎉` : <><span className="uppercase tracking-wide">Goal</span>{goal ? ` · ${goal}` : ''}</>}
-                </span>
-                <span className="relative flex shrink-0 items-center justify-center">
-                    <span aria-hidden className={`absolute rounded-full bg-amber-300/70 blur-md animate-pulse ${compact ? 'h-12 w-12' : 'h-16 w-16'}`} />
-                    {/* Waves spreading out from the trophy, one after another */}
-                    {[0, 0.8, 1.6].map((delay) => (
-                        <span key={delay} aria-hidden className={`ch-wave absolute rounded-full border-2 border-amber-300 ${compact ? 'h-10 w-10' : 'h-14 w-14'}`} style={{ animationDelay: `${delay}s` }} />
+                    {settle && <span className="ch-wave-soft absolute top-0 left-0 -mt-[3.5cqw] -ml-[3.5cqw] h-[7cqw] w-[7cqw] rounded-full border border-amber-100/80" />}
+                    {celebrate.confetti && !settle && PAPER.map(([color, deg, reach, shape], i) => {
+                        const a = (deg * Math.PI) / 180; const r = 7 * reach;
+                        return (
+                            <span key={i} className="ch-paper absolute top-0 left-0"
+                                style={{ width: shape === 'c' ? '0.45cqw' : '0.38cqw', height: shape === 'c' ? '0.45cqw' : '0.8cqw', borderRadius: shape === 'c' ? 9999 : 1, background: color,
+                                    '--dx': `${(Math.cos(a) * r).toFixed(2)}cqw`, '--dy': `${(Math.sin(a) * r - 0.8).toFixed(2)}cqw`, '--fall': '7cqw', '--spin': `${(i % 2 ? 1 : -1) * (260 + i * 23)}deg`,
+                                    animationDelay: `${(i % 6) * 0.03}s` }} />
+                        );
+                    })}
+                    {(celebrate.confetti || settle) && MOTES.map(([left, delay, size]) => (
+                        <span key={left} className="ch-gold-mote absolute rounded-full bg-amber-200 shadow-[0_0_6px_rgba(251,191,36,0.9)]"
+                            style={{ left: `${(left - 50) / 12}cqw`, top: '1cqw', width: size, height: size, animationDelay: `${delay}s`, '--rise': '-5cqw' }} />
                     ))}
-                    {/* The trophy (public/illustrations/goal-trophy.png), sized inline: the section's stylesheet gives every img `height: auto`. */}
-                    <img src="/illustrations/goal-trophy.png" alt="" className="relative drop-shadow-[0_4px_10px_rgba(180,83,9,0.45)]"
-                        style={{ height: compact ? '2.6rem' : '3.7rem', width: 'auto', maxWidth: 'none' }} />
-                </span>
-            </div>
+                </div>
 
-            {/* ---- The plaques on the treads: number, short name, state; each opens the Roadmap ---- */}
-            {slots.map((slot, i) => {
-                const s = slabs[i];
-                const state = stateOf(slot);
-                const style = {
-                    left: `${s.labelLeft}%`, width: `${s.labelRight - s.labelLeft}%`,
-                    top: `${100 - (s.bottom + s.pitch) + s.tread * 0.08}%`, height: `${s.tread * 0.84}%`,
-                    fontSize: `${s.font}px`
-                };
-                if (typeof slot === 'object') {
+                {/* ---- The robot, beside the current step (or on the summit once every step is done) ----
+                    From the same progress as the cards (robotPlace), on the ledge just left of that
+                    step's pin. It glides to a new ledge when the step changes, with a hop as it lands. */}
+                {(clean || wide) && (() => {
+                    const place = robotPlace(slots, total, done);
+                    if (place == null) return null;
+                    const n = slots.length;
+                    const ledge = place === 'summit' ? SUMMIT_LEDGE : (() => {
+                        const spot = spotFor(place, n);
+                        const height = CLIMBER_HEIGHT[SPOTS.length - n + place];
+                        const width = (height * CLIMBER_RATIO) / RATIO;
+                        return { feet: [spot.pin[0] + ROBOT_SIDE * (width / 2 + 1.2), spot.pin[1] + (wide ? 5 : 7.8)], height };
+                    })();
                     return (
-                        <div key="gap" style={style} className="absolute flex items-center gap-[0.5em] rounded-[0.55em] border border-dashed border-indigo-300 bg-white/70 px-[0.8em] font-semibold text-indigo-600">
-                            <MoreHorizontal className="h-[1.1em] w-[1.1em] shrink-0" /> {slot.gap} more step{slot.gap === 1 ? '' : 's'}
+                        <div aria-hidden className="ch-climber pointer-events-none absolute z-[1]"
+                            style={{ left: `${ledge.feet[0]}%`, top: `${ledge.feet[1]}%`, height: `${ledge.height}%`, aspectRatio: `${CLIMBER_RATIO}`, transform: 'translate(-50%, -100%)' }}>
+                            <img key={place} src={CLIMBER} alt="" draggable={false} className="ch-hop h-full w-full select-none drop-shadow-[0_1cqw_1.2cqw_rgba(40,20,60,0.45)]" style={{ maxWidth: 'none', animationDuration: '0.7s' }} />
                         </div>
                     );
-                }
-                const k = slot;
-                return (
-                    <Link key={k} to="/career/roadmap" title={`Step ${k + 1}: ${phaseTitle(phases[k])}`} style={style}
-                        className={`absolute flex items-center gap-[0.55em] rounded-[0.55em] px-[0.7em] font-semibold transition-transform duration-200 hover:-translate-y-px ${
-                            state === 'done' ? 'bg-[linear-gradient(90deg,#ffffff_0%,#f0fbff_45%,#b6f0fb_100%)] text-indigo-950 shadow-[0_0_16px_rgba(125,211,252,0.75)]'
-                                : state === 'current' ? 'z-[5] bg-[linear-gradient(90deg,#5b21b6_0%,#7c3aed_55%,#9b5cf6_100%)] text-white shadow-[0_0_24px_rgba(139,92,246,0.95)] ring-1 ring-white/50'
-                                    : 'bg-[linear-gradient(90deg,rgba(255,255,255,0.94),rgba(240,236,254,0.94))] text-indigo-950 shadow-[0_2px_8px_rgba(76,29,149,0.18)]'}`}>
-                        <span className={`flex h-[1.55em] min-w-[1.55em] shrink-0 items-center justify-center rounded-full px-[0.3em] text-[0.82em] font-bold ${
-                            state === 'current' ? 'bg-amber-200 text-violet-800' : 'bg-slate-200/90 text-slate-600'}`}>{k + 1}</span>
-                        <span className="min-w-0 flex-1 truncate">{shortTitle(phases[k])}</span>
-                        {state === 'done' && <Check className="h-[1.25em] w-[1.25em] shrink-0 text-emerald-500" strokeWidth={3.5} />}
-                        {state === 'current' && <span className="flex shrink-0 items-center gap-[0.3em] rounded-full bg-violet-400/70 px-[0.65em] py-[0.12em] text-[0.82em] font-bold uppercase ring-1 ring-white/60"><Sparkles className="h-[1em] w-[1em]" />Now</span>}
-                        {state === 'locked' && <Lock className="h-[1.05em] w-[1.05em] shrink-0 text-slate-500" />}
-                    </Link>
-                );
-            })}
+                })()}
 
-            {/* The mascot on the last slab done; each hop (keyed on the slab) is one step up.
-                Its size is set inline: the section's stylesheet gives every img `height: auto`. */}
-            <div className="pointer-events-none absolute z-10 transition-all duration-300 ease-out"
-                style={{ left: `${stand.left}%`, bottom: `${stand.bottom}%`, height: `${stand.height}%` }}>
-                {/* The climbing robot (public/mascot/climber.png) when its file is there; the mascot until then. */}
-                <img key={stair} src="/mascot/climber.png" alt=""
-                    className={`${stair !== fromPhase - 1 ? 'ch-hop ' : ''}drop-shadow-[0_8px_16px_rgba(59,30,120,0.5)]`}
-                    style={{ height: '100%', width: 'auto', maxWidth: 'none', animationDuration: '0.6s' }}
-                    onError={(e) => { if (!e.currentTarget.dataset.fallback) { e.currentTarget.dataset.fallback = '1'; e.currentTarget.src = '/mascot/point.png'; } }} />
+                {/* ---- The goal, over the painted pill: a gold GOAL tab with a flag, the student's own goal,
+                    and an arrow toward the summit flag — filling the pill whatever the goal's length. ---- */}
+                <span className={`absolute z-[3] flex items-stretch overflow-hidden rounded-full bg-white font-black whitespace-nowrap text-indigo-950 ring-[0.16em] shadow-[0_0_0_0.3em_rgba(252,211,77,0.35),0_0.7em_1.8em_-0.5em_rgba(120,72,10,0.5)] ${reached ? 'ring-emerald-300' : 'ring-amber-300'} ${celebrate.pill && !settle ? 'ch-goal-glow' : ''}`}
+                    style={{ ...box(GOAL_PILL), fontSize: PILL_FONT }}>
+                    <span className={`flex shrink-0 items-center gap-[0.45em] px-[0.95em] text-[0.78em] tracking-[0.14em] text-white uppercase ${reached ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500'}`}>
+                        {reached ? <Check className="h-[1.25em] w-[1.25em]" strokeWidth={3} /> : <Flag className="h-[1.2em] w-[1.2em] fill-white/30" strokeWidth={2.4} />}
+                        {reached ? 'Reached' : 'Goal'}
+                    </span>
+                    <span className="flex min-w-0 flex-1 items-center px-[0.9em]">
+                        <span className="min-w-0 truncate bg-gradient-to-r from-indigo-950 via-indigo-800 to-violet-700 bg-clip-text text-transparent">{goal || 'Your goal'}</span>
+                    </span>
+                    {/* Toward the flag on the summit. */}
+                    <span aria-hidden className="flex shrink-0 items-center pr-[0.55em]">
+                        <span className={`flex h-[1.65em] w-[1.65em] items-center justify-center rounded-full ${reached ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                            <ArrowRight className="h-[1em] w-[1em] -rotate-[25deg]" strokeWidth={2.8} />
+                        </span>
+                    </span>
+                </span>
+
+                {/* ---- The milestones on the trail: a numbered pin on each ledge, and its card ---- */}
+                {slots.map((slot, i) => {
+                    const spot = spotFor(i, slots.length);
+                    const state = stateOf(slot);
+                    const delay = { animationDelay: `${0.15 + i * 0.1}s` };
+                    const pin = (
+                        <span key={`pin-${i}`} aria-hidden className={`ch-step absolute z-[2] flex ${PIN} -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-black text-white shadow-[0_0.3cqw_0.8cqw_rgba(30,27,75,0.45)] ring-white ${
+                            state === 'done' ? 'bg-emerald-500' : state === 'current' ? 'bg-amber-400 !text-indigo-950' : spot.locked}`}
+                            style={{ left: `${spot.pin[0]}%`, top: `${spot.pin[1]}%`, ...delay }}>
+                            {slot + 1}
+                        </span>
+                    );
+                    const k = slot;
+                    const Icon = iconFor(phaseTitle(phases[k]));
+                    return [pin,
+                        <Link key={k} to="/career/roadmap" title={`Step ${k + 1}: ${phaseTitle(phases[k])}`} style={{ ...box(spot.card), ...delay, fontSize: CARD_FONT }}
+                            aria-label={`Step ${k + 1}: ${phaseTitle(phases[k])}${state === 'done' ? ', done' : state === 'current' ? ', now' : ', locked'}`}
+                            aria-current={state === 'current' ? 'step' : undefined}
+                            className={`ch-step absolute z-[2] flex items-center gap-[0.8em] overflow-hidden rounded-[0.9em] px-[0.9em] font-bold text-indigo-950 transition-transform duration-200 hover:-translate-y-0.5 ${
+                                state === 'done' ? 'bg-white ring-2 ring-emerald-300 shadow-[0_0_1.4em_rgba(52,211,153,0.55)]'
+                                    : state === 'current' ? 'ch-now bg-white ring-[0.18em] ring-amber-300'
+                                        : 'bg-white ring-1 ring-white shadow-[0_0.8em_1.8em_-0.8em_rgba(30,27,75,0.45)]'}`}>
+                            {state === 'current' && <span aria-hidden className="ch-sheen pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-amber-200/70 to-transparent" />}
+                            {/* The final step, as the summit celebrates: one golden light sweep across its card. */}
+                            {k === total - 1 && celebrate.sheen && !settle && <span aria-hidden className="ch-gold-sheen pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-amber-300/80 to-transparent" />}
+                            <span className={`relative flex h-[2.3em] w-[2.3em] shrink-0 items-center justify-center rounded-full ${
+                                state === 'done' ? 'bg-emerald-100 text-emerald-600' : state === 'current' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-50 text-indigo-500'}`}>
+                                <Icon className="h-[1.15em] w-[1.15em]" strokeWidth={2.2} />
+                            </span>
+                            <span className="relative min-w-0 flex-1 truncate">{shortTitle(phases[k])}</span>
+                            {state === 'done' && <span className="relative flex h-[1.8em] w-[1.8em] shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-[0_0.2em_0.6em_rgba(16,185,129,0.5)]"><Check className="h-[1.1em] w-[1.1em]" strokeWidth={3.5} /></span>}
+                            {state === 'current' && <span className="relative flex shrink-0 items-center gap-[0.35em] rounded-full bg-amber-400 px-[0.8em] py-[0.25em] text-[0.9em] font-black text-indigo-950 uppercase shadow-[0_0.2em_0.6em_rgba(217,119,6,0.45)]"><Sparkles className="h-[1em] w-[1em]" />Now</span>}
+                            {state === 'locked' && <span className="relative flex h-[1.8em] w-[1.8em] shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400"><Lock className="h-[0.95em] w-[0.95em]" /></span>}
+                        </Link>];
+                })}
+
+                {/* Some phases are not on the trail: the whole roadmap, one tap away. */}
+                {total > slots.length && (
+                    <Link to="/career/roadmap" className="ch-step absolute right-[2.5%] bottom-[3%] z-[3] inline-flex items-center gap-[0.45em] rounded-full bg-white px-[1em] py-[0.45em] font-black text-indigo-950 shadow-[0_0.6em_1.4em_-0.5em_rgba(30,27,75,0.5)] ring-1 ring-white transition-transform hover:-translate-y-0.5"
+                        style={{ fontSize: 'clamp(7px, 1.1cqw, 18px)', animationDelay: '0.7s' }}>
+                        View all {total} steps <ArrowRight className="h-[1.1em] w-[1.1em]" />
+                    </Link>
+                )}
             </div>
         </div>
     );

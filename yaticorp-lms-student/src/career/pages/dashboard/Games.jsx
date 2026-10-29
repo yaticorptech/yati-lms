@@ -1,57 +1,63 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { Brain, Puzzle, Type, Zap, Play, Layers, Star, Sparkles, History, Timer, Moon } from 'lucide-react';
+import { lazy, Suspense, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Brain, Puzzle, Type, Zap, Play, Layers, Star, Sparkles, History, Timer, Moon, User, Users, Loader2, Link2, DoorOpen, Globe, Wallet, Trophy, X } from 'lucide-react';
 import api from '../../services/api';
 import useBackClose from '../../../native/useBackClose';
 import { useToast } from '../../components/ui/Toast';
 import GameThumb from '../../components/games/GameThumb';
 import { GameTokensArt, HeroScene, PlayLearnGrow } from '../../components/games/GamesHeroArt';
-import MemoryMatch from '../../components/games/MemoryMatch';
-import SequenceRecall from '../../components/games/SequenceRecall';
-import NumberRecall from '../../components/games/NumberRecall';
-import CodeBreaker from '../../components/games/CodeBreaker';
-import NextInSequence from '../../components/games/NextInSequence';
-import OddOneOut from '../../components/games/OddOneOut';
-import WordScramble from '../../components/games/WordScramble';
-import SynonymMatch from '../../components/games/SynonymMatch';
-import SentenceGap from '../../components/games/SentenceGap';
-import MathSprint from '../../components/games/MathSprint';
-import QuickCompare from '../../components/games/QuickCompare';
-import MissingOperator from '../../components/games/MissingOperator';
-import ColourMatch from '../../components/games/ColourMatch';
-import SpotTheChange from '../../components/games/SpotTheChange';
-import Deduction from '../../components/games/Deduction';
-import LightsOut from '../../components/games/LightsOut';
-import SpellingFix from '../../components/games/SpellingFix';
-import WordRoots from '../../components/games/WordRoots';
-import PercentSnap from '../../components/games/PercentSnap';
-import RunningTotal from '../../components/games/RunningTotal';
-import GridRecall from '../../components/games/GridRecall';
-import TicTacToe from '../../components/games/TicTacToe';
-import MiniSudoku from '../../components/games/MiniSudoku';
-import TypingSprint from '../../components/games/TypingSprint';
-import BinaryBlitz from '../../components/games/BinaryBlitz';
-import SpeedSort from '../../components/games/SpeedSort';
+// Each game is downloaded when it is first opened, not with the hub: most visits play one or two.
+const MemoryMatch = lazy(() => import('../../components/games/MemoryMatch'));
+const SequenceRecall = lazy(() => import('../../components/games/SequenceRecall'));
+const NumberRecall = lazy(() => import('../../components/games/NumberRecall'));
+const CodeBreaker = lazy(() => import('../../components/games/CodeBreaker'));
+const NextInSequence = lazy(() => import('../../components/games/NextInSequence'));
+const OddOneOut = lazy(() => import('../../components/games/OddOneOut'));
+const WordScramble = lazy(() => import('../../components/games/WordScramble'));
+const SynonymMatch = lazy(() => import('../../components/games/SynonymMatch'));
+const SentenceGap = lazy(() => import('../../components/games/SentenceGap'));
+const MathSprint = lazy(() => import('../../components/games/MathSprint'));
+const QuickCompare = lazy(() => import('../../components/games/QuickCompare'));
+const MissingOperator = lazy(() => import('../../components/games/MissingOperator'));
+const ColourMatch = lazy(() => import('../../components/games/ColourMatch'));
+const SpotTheChange = lazy(() => import('../../components/games/SpotTheChange'));
+const Deduction = lazy(() => import('../../components/games/Deduction'));
+const LightsOut = lazy(() => import('../../components/games/LightsOut'));
+const SpellingFix = lazy(() => import('../../components/games/SpellingFix'));
+const WordRoots = lazy(() => import('../../components/games/WordRoots'));
+const PercentSnap = lazy(() => import('../../components/games/PercentSnap'));
+const RunningTotal = lazy(() => import('../../components/games/RunningTotal'));
+const GridRecall = lazy(() => import('../../components/games/GridRecall'));
+const TicTacToe = lazy(() => import('../../components/games/TicTacToe'));
+const MiniSudoku = lazy(() => import('../../components/games/MiniSudoku'));
+const TypingSprint = lazy(() => import('../../components/games/TypingSprint'));
+const BinaryBlitz = lazy(() => import('../../components/games/BinaryBlitz'));
+const SpeedSort = lazy(() => import('../../components/games/SpeedSort'));
 // The second wave.
-import ReverseRecall from '../../components/games/ReverseRecall';
-import SeenBefore from '../../components/games/SeenBefore';
-import ScaleBalance from '../../components/games/ScaleBalance';
-import ShapeMatrix from '../../components/games/ShapeMatrix';
-import AntonymMatch from '../../components/games/AntonymMatch';
-import IdiomSense from '../../components/games/IdiomSense';
-import NumberBonds from '../../components/games/NumberBonds';
-import RoundingRush from '../../components/games/RoundingRush';
-import DotCount from '../../components/games/DotCount';
-import MatchBack from '../../components/games/MatchBack';
-import SpinMatch from '../../components/games/SpinMatch';
-import LastStone from '../../components/games/LastStone';
-import TensePick from '../../components/games/TensePick';
-import SoundAlike from '../../components/games/SoundAlike';
-import FractionMatch from '../../components/games/FractionMatch';
-import ClockRead from '../../components/games/ClockRead';
+const ReverseRecall = lazy(() => import('../../components/games/ReverseRecall'));
+const SeenBefore = lazy(() => import('../../components/games/SeenBefore'));
+const ScaleBalance = lazy(() => import('../../components/games/ScaleBalance'));
+const ShapeMatrix = lazy(() => import('../../components/games/ShapeMatrix'));
+const AntonymMatch = lazy(() => import('../../components/games/AntonymMatch'));
+const IdiomSense = lazy(() => import('../../components/games/IdiomSense'));
+const NumberBonds = lazy(() => import('../../components/games/NumberBonds'));
+const RoundingRush = lazy(() => import('../../components/games/RoundingRush'));
+const DotCount = lazy(() => import('../../components/games/DotCount'));
+const MatchBack = lazy(() => import('../../components/games/MatchBack'));
+const SpinMatch = lazy(() => import('../../components/games/SpinMatch'));
+const LastStone = lazy(() => import('../../components/games/LastStone'));
+const TensePick = lazy(() => import('../../components/games/TensePick'));
+const SoundAlike = lazy(() => import('../../components/games/SoundAlike'));
+const FractionMatch = lazy(() => import('../../components/games/FractionMatch'));
+const ClockRead = lazy(() => import('../../components/games/ClockRead'));
 import GameLeaderboard from '../../components/games/GameLeaderboard';
 import { starsForGame, levelReached, pullProgress, markPlayed, lastPlayed, setGameXpTable, GAME_XP } from '../../components/games/levels';
 import { useHideLoop } from '../../../components/loopVisibility';
 import { PlayClockContext, clock } from '../../components/games/playClock';
+
+// Group Brain (asked 2026-10-27): the group games, played in rooms with a code.
+import { roomsApi, GROUP_GAMES, DIFFICULTIES, ROOM_SIZES } from '../../../competitions/api';
+import Portal from '../../../components/Portal';
 
 /**
  * Today's play time against the admin's daily limit.
@@ -331,7 +337,7 @@ const SPARKS = [
  * measures work on the roadmap, and a card promising some would be making a
  * promise the product does not keep.
  */
-function GameCard({ game, theme, index, reached, stars, recent, onPlay }) {
+function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = null, chip = null, playLabel = null, disabled = false }) {
   const started = reached > 1;
   const ref = useRef(null);
   const frame = useRef(0);
@@ -371,13 +377,14 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay }) {
       ref={ref}
       type="button"
       onClick={() => onPlay(game)}
+      disabled={disabled}
       onPointerMove={track}
       onPointerLeave={release}
       onBlur={release}
       data-settling={settling ? 'true' : undefined}
       data-game={game.id}
       style={{ '--fp-game-glow': theme.glow, '--fp-i': index }}
-      className={`fp-press fp-game-card group flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br text-left ring-1 ring-inset ${theme.wash} ${theme.ring} ${recent ? 'fp-game-recent' : ''}`}
+      className={`fp-press fp-game-card group flex h-full flex-col overflow-hidden rounded-3xl bg-gradient-to-br text-left ring-1 ring-inset ${theme.wash} ${theme.ring} ${recent ? 'fp-game-recent' : ''}`}
       aria-label={recent ? `${game.name}, your last game` : undefined}
     >
       {/* ---- The artwork, floating over a lit disc ---------------------- */}
@@ -407,36 +414,311 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay }) {
         ))}
 
         <span className="fp-game-float">
-          <GameThumb id={game.id} className="fp-game-art h-24 w-24" />
+          <GameThumb id={game.thumb || game.id} className="fp-game-art h-24 w-24" />
         </span>
 
         {/* The reward, in a white pill, exactly where the sheet puts it. */}
-        <span className="fp-game-pill absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[0.7rem] font-black text-ink-800 tabular-nums">
-          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-          {stars}
-        </span>
+        {/* `pill={false}`: none (the group games). */}
+        {pill !== false && (
+          <span className="fp-game-pill absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[0.7rem] font-black text-ink-800 tabular-nums">
+            {pill || <><Star className="h-3 w-3 fill-amber-400 text-amber-400" />{stars}</>}
+          </span>
+        )}
       </span>
 
       {/* ---- The words and the two controls ---------------------------- */}
       <span className="flex flex-1 flex-col px-4 pb-4">
-        <span className="block text-base leading-tight font-black text-[#173a63]">{game.name}</span>
-        <span className="mt-1.5 block min-h-8 text-xs leading-snug text-slate-500">{game.blurb}</span>
+        <span className="block truncate text-base leading-tight font-black text-[#173a63]">{game.name}</span>
+        {/* Two lines at most, and room for two always: every card the same height. */}
+        <span className="mt-1.5 line-clamp-2 block min-h-[2.1rem] text-xs leading-snug text-slate-500">{game.blurb}</span>
 
-        <span className="mt-3.5 flex items-center justify-between gap-2">
-          <span className={`fp-game-chip inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-black ${theme.chip}`}>
-            <Layers className="h-3.5 w-3.5" />
-            Level {started ? reached : 1}
-          </span>
+        <span className="mt-auto flex items-center justify-between gap-2 pt-3.5">
+          {/* `chip={false}`: none (a group game that is on); the play button keeps its place on the right. */}
+          {chip !== false ? (
+            <span className={`fp-game-chip inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-black ${theme.chip}`}>
+              {chip || <><Layers className="h-3.5 w-3.5" />Level {started ? reached : 1}</>}
+            </span>
+          ) : <span />}
 
           <span className={`fp-game-play inline-flex items-center gap-1.5 rounded-full py-2 pr-4 pl-2 text-sm font-black text-white transition-colors ${theme.play}`}>
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/25">
               <Play className="h-2.5 w-2.5 fill-current" />
             </span>
-            {recent ? 'Continue' : 'Play'}
+            {playLabel || (recent ? 'Continue' : 'Play')}
           </span>
         </span>
       </span>
     </button>
+  );
+}
+
+/* ---- Group games (Group Brain) ------------------------------------------
+ *
+ * The same page as the solo games — the banner over the sky, the category
+ * pills, the very same cards — for the ten games played with friends in
+ * rooms. A card's button makes a room (after picking how many play); the
+ * banner's panel, where the solo games show their leaderboard, joins a
+ * friend's room by its code. The room's lobby and its game are the live
+ * game page (competitions/GamePage.jsx). Each game pays XP by finishing
+ * place: 1st the most.
+ */
+// The ten, mixed rather than grouped by kind: a memory game, a logic game,
+// a word game, a strategy game, and round again.
+const GROUP_ORDER = ['memorymatrix', 'patternmaster', 'wordlogic', 'chess', 'sequence', 'numberlogic', 'spatialiq', 'sudoku', 'deduction', 'finalvault', 'lostkingdom'];
+// The artwork each group game borrows from the solo games' set.
+const GROUP_THUMBS = { chess: 'chess', memorymatrix: 'grid-recall', sequence: 'sequence-recall', patternmaster: 'next-in-sequence', numberlogic: 'missing-operator', sudoku: 'mini-sudoku', deduction: 'scale-balance', lostkingdom: 'compass', finalvault: 'vault', wordlogic: 'word-scramble', spatialiq: 'spin-match' };
+const playRoom = (navigate, id) => navigate(`/games/play/${id}`, { state: { from: 'group' } });
+
+function GroupHub() {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState(null);
+  const [room, setRoom] = useState(null);
+  const [catalog, setCatalog] = useState({});
+  const [picking, setPicking] = useState(null);     // the game whose room is being made
+  const [level, setLevel] = useState('medium');
+  const [size, setSize] = useState(4);              // how many the room is for: 2, 4 or 6
+  const [choosing, setChoosing] = useState(null);   // the game whose card was pressed: Create room or Play online
+  const [online, setOnline] = useState(null);       // Play online: { game, players, fee }
+  const [fees, setFees] = useState({ fees: [0, 10, 25, 50], prizeShare: 0.9, waitSeconds: 30 });
+
+  useEffect(() => {
+    roomsApi.mine().then(setRoom).catch(() => {});
+    roomsApi.games().then((rows) => setCatalog(Object.fromEntries(rows.map((g) => [g.id, g])))).catch(() => {});
+    roomsApi.onlineInfo().then(setFees).catch(() => {});
+  }, []);
+  const fail = (e) => setError({ message: e.message, roomId: e.roomId });
+
+  // An invitation link (/games?mode=group&join=CODE) joins that room at once.
+  const invited = (params.get('join') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  useEffect(() => {
+    if (invited.length !== 6) return;
+    const next = new URLSearchParams(params); next.delete('join'); setParams(next, { replace: true });
+    roomsApi.join(invited).then((r) => playRoom(navigate, r.game.id)).catch(fail);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invited]);
+
+  const join = (e) => {
+    e.preventDefault();
+    setBusy('join'); setError(null);
+    roomsApi.join(code).then((r) => playRoom(navigate, r.game.id)).catch(fail).finally(() => setBusy(''));
+  };
+  const allowed = (id) => DIFFICULTIES.filter(([k]) => !catalog[id]?.difficulties || catalog[id].difficulties.includes(k));
+  const pick = (game) => {
+    // Chess is always one against one, on the standard clock: no choices to make.
+    if (game.id === 'chess') {
+      setBusy('create'); setError(null);
+      roomsApi.create('chess', { difficulty: 'medium', players: 2 }).then((r) => playRoom(navigate, r.game.id)).catch(fail).finally(() => setBusy(''));
+      return;
+    }
+    const levels = allowed(game.id);
+    setLevel(levels.some(([k]) => k === 'medium') ? 'medium' : levels[0]?.[0] || 'medium');
+    setSize(game.id === 'chess' ? 2 : 4);
+    setError(null);
+    setPicking(game);
+  };
+  // Play online: a seat at a table of 2 or 4 at the chosen fee; the page then shows the search.
+  const playOnline = () => {
+    setBusy('online'); setError(null);
+    roomsApi.online(online.game.id, online.players, online.fee).then((r) => { setOnline(null); playRoom(navigate, r.game.id); })
+      .catch((e) => { setOnline(null); fail(e); }).finally(() => setBusy(''));
+  };
+  const create = () => {
+    setBusy('create'); setError(null);
+    roomsApi.create(picking.id, { difficulty: level, players: size }).then((r) => playRoom(navigate, r.game.id)).catch((e) => { setPicking(null); fail(e); }).finally(() => setBusy(''));
+  };
+
+  return (
+    <>
+      {/* ---- The banner: the pitch, and Join a room where the leaderboard sits ---- */}
+      <section className="relative isolate overflow-hidden rounded-3xl shadow-card ring-1 ring-sky-200/70 ring-inset" data-group-hero>
+        <HeroScene className="absolute inset-0 h-full w-full" />
+        <div className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_20.5rem]">
+          <div className="flex items-end gap-4">
+            <GameTokensArt className="hidden h-[10.5rem] w-[10.5rem] shrink-0 self-end lg:block" />
+            <div className="min-w-0 flex-1 pb-1">
+              <span className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3.5 py-1.5 text-[0.68rem] font-black tracking-[0.12em] text-white uppercase shadow-md shadow-violet-500/30">
+                Group games
+              </span>
+              <h1 className="mt-2.5 text-2xl leading-[1.15] font-black text-[#173a63] sm:text-3xl lg:text-[2.1rem]">
+                <span className="block">Bring your friends.</span>
+                <span className="block"><span className="text-violet-600">Battle</span> <span className="text-pink-500">brains</span> together!</span>
+              </h1>
+              <p className="mt-2.5 hidden max-w-md text-sm leading-relaxed text-slate-700 sm:block">
+                11 <span className="font-bold text-[#173a63]">live</span> games to play with friends — two of them treasure-hunt adventures. Make a room, share the code, and win <span className="font-bold text-[#173a63]">XP by your place</span>: 1st 50 · 2nd 30 · 3rd 20 · 4th 10.
+              </p>
+              {room && (
+                <button type="button" onClick={() => playRoom(navigate, room.id)} data-my-room
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-emerald-700 shadow-sm ring-1 ring-emerald-200 ring-inset">
+                  <DoorOpen className="h-3.5 w-3.5" /> You are in a {room.label} room ({room.code}) — open it
+                </button>
+              )}
+            </div>
+          </div>
+          <form onSubmit={join} className="rounded-2xl bg-white/80 p-4 shadow-lg ring-1 ring-white/70 backdrop-blur-md ring-inset" data-join-room>
+            <p className="flex items-center gap-2 text-base font-black text-[#173a63]"><Link2 className="h-4 w-4 text-violet-600" /> Join a room</p>
+            <p className="mt-0.5 text-xs text-slate-600">Paste the 6-character code your friend shared.</p>
+            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="e.g. K7Q2XM" autoCapitalize="characters" aria-label="Room code" data-room-code-input
+              className="mt-2.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] text-slate-900 shadow-sm placeholder:font-sans placeholder:text-sm placeholder:tracking-normal placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/30" />
+            <button type="submit" disabled={code.length !== 6 || !!busy}
+              className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-violet-600 py-2.5 text-sm font-black text-white shadow-md shadow-violet-500/30 transition-colors hover:bg-violet-700 disabled:opacity-50">
+              {busy === 'join' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />} Join room
+            </button>
+          </form>
+        </div>
+        <PlayLearnGrow className="pointer-events-none absolute top-[6%] left-[46%] hidden h-24 w-24 xl:block" />
+      </section>
+
+      {error && (
+        <p role="alert" className="flex flex-wrap items-center gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ring-1 ring-rose-200 ring-inset">
+          {error.message}
+          {error.roomId && <button type="button" onClick={() => playRoom(navigate, error.roomId)} className="rounded-full bg-white px-3 py-1 text-xs font-black text-rose-700 ring-1 ring-rose-200">Open my room</button>}
+        </p>
+      )}
+
+      {/* ---- All ten, four to a row, in the solo games' cards ---- */}
+      <div className="fp-game-stage grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-4" data-group-games>
+        {GROUP_ORDER.map((id, i) => {
+          const g = GROUP_GAMES[id];
+          const off = catalog[id]?.enabled === false;
+          return (
+            <GameCard key={id} index={i} theme={CARD_THEMES[i % CARD_THEMES.length]}
+              game={{ id, thumb: GROUP_THUMBS[id], name: g.label, blurb: g.blurb }}
+              pill={false} chip={off ? <span className="whitespace-nowrap">Not available</span> : false}
+              playLabel={<span className="whitespace-nowrap">Play</span>} disabled={off || !!busy} onPlay={(game) => { setError(null); setChoosing(game); }} />
+          );
+        })}
+      </div>
+
+      {/* ---- A card pressed: Create room (friends, with a code) or Play online (random players, an entry fee) ---- */}
+      {choosing && (
+        <Portal>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onClick={() => setChoosing(null)}>
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Play ${GROUP_GAMES[choosing.id].label}`} className="relative w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl" data-play-choice>
+            <button type="button" onClick={() => setChoosing(null)} aria-label="Close" className="absolute top-3 right-3 rounded-full p-1.5 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+            <div className="flex items-center gap-3">
+              <GameThumb id={GROUP_THUMBS[choosing.id]} className="h-14 w-14" />
+              <div className="min-w-0">
+                <p className="text-lg font-black text-[#173a63]">{GROUP_GAMES[choosing.id].label}</p>
+                <p className="text-xs font-semibold text-slate-500">How do you want to play?</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => { const g = choosing; setChoosing(null); pick(g); }} data-choice="room"
+                className="flex flex-col items-start gap-1.5 rounded-2xl border-2 border-violet-200 bg-violet-50/60 p-4 text-left transition-colors hover:border-violet-500 hover:bg-violet-50">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white"><Users className="h-5 w-5" /></span>
+                <span className="text-base font-black text-[#173a63]">Create room</span>
+                <span className="text-xs text-slate-600">Play with friends. Share the room code; you start when everyone is ready. Free.</span>
+              </button>
+              <button type="button" onClick={() => { const g = choosing; setChoosing(null); setOnline({ game: g, players: g.id === 'chess' ? 2 : 4, fee: fees.fees[0] ?? 0 }); }} data-choice="online"
+                className="flex flex-col items-start gap-1.5 rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-4 text-left transition-colors hover:border-emerald-500 hover:bg-emerald-50">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white"><Globe className="h-5 w-5" /></span>
+                <span className="text-base font-black text-[#173a63]">Play online</span>
+                <span className="text-xs text-slate-600">Play with random players. Pick an entry fee; the winner takes the prize.</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        </Portal>
+      )}
+
+      {/* ---- Play online: table size and entry fee, then the search ---- */}
+      {online && (
+        <Portal>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onClick={() => busy !== 'online' && setOnline(null)}>
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Play ${GROUP_GAMES[online.game.id].label} online`} className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl" data-online-setup>
+            <div className="flex items-center gap-3">
+              <GameThumb id={GROUP_THUMBS[online.game.id]} className="h-14 w-14" />
+              <div className="min-w-0">
+                <p className="text-lg font-black text-[#173a63]">{GROUP_GAMES[online.game.id].label}</p>
+                <p className="flex items-center gap-1 text-xs font-semibold text-emerald-700"><Globe className="h-3.5 w-3.5" /> Play online</p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs font-black tracking-wide text-slate-500 uppercase">Players</p>
+            {online.game.id === 'chess' ? (
+              <p className="mt-1.5 rounded-xl bg-slate-100 py-2 text-center text-sm font-black text-slate-600">2 players — Chess is one against one</p>
+            ) : (
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Players">
+                {(fees.sizes || [2, 4]).map((n) => (
+                  <button key={n} type="button" role="radio" aria-checked={online.players === n} onClick={() => setOnline((o) => ({ ...o, players: n }))} data-online-size={n}
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-black ${online.players === n ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                    <Users className="h-3.5 w-3.5" /> {n} players
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="mt-4 text-xs font-black tracking-wide text-slate-500 uppercase">Entry fee</p>
+            <div className="mt-1.5 grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Entry fee">
+              {fees.fees.map((f) => (
+                <button key={f} type="button" role="radio" aria-checked={online.fee === f} onClick={() => setOnline((o) => ({ ...o, fee: f }))} data-online-fee={f}
+                  className={`rounded-xl py-2 text-sm font-black ${online.fee === f ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  {f ? `₹${f}` : 'Free'}
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between rounded-2xl bg-amber-50 px-3.5 py-2.5 ring-1 ring-amber-200">
+              <span className="flex items-center gap-1.5 text-sm font-bold text-amber-900"><Trophy className="h-4 w-4" /> Winner gets</span>
+              <span className="text-lg font-black text-amber-900">{online.fee ? `₹${Math.round(online.fee * online.players * fees.prizeShare * 100) / 100}` : 'XP only'}</span>
+            </div>
+            <p className="mt-2 text-[11px] leading-snug text-slate-500">
+              {online.fee ? <><Wallet className="mr-1 inline h-3 w-3" />₹{online.fee} is taken from your wallet when you sit down. </> : null}
+              We look for players for {fees.waitSeconds || 30} seconds. If the table isn't full, it starts with whoever is there; if nobody comes{online.fee ? ', your fee comes back' : ''}.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={() => setOnline(null)} disabled={busy === 'online'} className="flex-1 rounded-full py-2.5 text-sm font-bold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={playOnline} disabled={busy === 'online'} data-find-players
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-emerald-600 py-2.5 text-sm font-black text-white shadow-md shadow-emerald-500/30 hover:bg-emerald-700 disabled:opacity-60">
+                {busy === 'online' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />} {online.fee ? `Pay ₹${online.fee} & play` : 'Find players'}
+              </button>
+            </div>
+          </div>
+        </div>
+        </Portal>
+      )}
+
+      {/* ---- Make a room: how many players, then the room (no level to pick: medium, or the game's own) ---- */}
+      {/* In a portal on the body: the page's entrance animation (a transform)
+          would otherwise hold this "fixed" layer to the page, leaving part of
+          the screen uncovered. */}
+      {picking && (
+        <Portal>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onClick={() => setPicking(null)}>
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Create a ${GROUP_GAMES[picking.id].label} room`} className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <GameThumb id={GROUP_THUMBS[picking.id]} className="h-14 w-14" />
+              <div className="min-w-0">
+                <p className="text-lg font-black text-[#173a63]">{GROUP_GAMES[picking.id].label}</p>
+                <p className="text-xs font-semibold text-slate-500">{picking.id === 'chess' ? '2 players' : `${size} players`} · XP by place</p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs font-black tracking-wide text-slate-500 uppercase">Players</p>
+            {picking.id === 'chess' ? (
+              <p className="mt-1.5 rounded-xl bg-slate-100 py-2 text-center text-sm font-black text-slate-600">2 players — Chess is one against one</p>
+            ) : (
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Players">
+                {ROOM_SIZES.map((n) => (
+                  <button key={n} type="button" role="radio" aria-checked={size === n} onClick={() => setSize(n)} data-size={n}
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-black ${size === n ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                    <Users className="h-3.5 w-3.5" /> {n}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="mt-1.5 text-[11px] text-slate-500">Only this many can join the room.</p>
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={() => setPicking(null)} className="flex-1 rounded-full py-2.5 text-sm font-bold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={create} disabled={busy === 'create'} data-create-room={picking.id}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-violet-600 py-2.5 text-sm font-black text-white shadow-md shadow-violet-500/30 hover:bg-violet-700 disabled:opacity-60">
+                {busy === 'create' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-3.5 w-3.5 fill-current" />} Create room
+              </button>
+            </div>
+          </div>
+        </div>
+        </Portal>
+      )}
+    </>
   );
 }
 
@@ -454,6 +736,15 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay }) {
  */
 export default function Games() {
   const [active, setActive] = useState(null);
+  // Solo games (Brain Boosters, below) or Group games (Group Brain): in the
+  // address (?mode=group), so a room's Back lands on the group games.
+  const [params, setParams] = useSearchParams();
+  const group = params.get('mode') === 'group';
+  const setMode = (m) => {
+    const next = new URLSearchParams(params);
+    if (m === 'group') next.set('mode', 'group'); else next.delete('mode');
+    setParams(next, { replace: true });
+  };
   const toast = useToast();
   // Android's back button leaves the game for the hub, the same as the
   // game's own exit — not the Games page, and never the app.
@@ -571,7 +862,9 @@ export default function Games() {
             </p>
           )}
           <PlayClockContext.Provider value={playClock}>
-            <Game onExit={() => setActive(null)} />
+            <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><span className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" aria-label="Loading the game" /></div>}>
+              <Game onExit={() => setActive(null)} />
+            </Suspense>
           </PlayClockContext.Provider>
         </div>
       )}
@@ -585,6 +878,24 @@ export default function Games() {
           middle of the most important thing on the page. The scene now runs
           under both, and the board sits on it as a panel of frosted glass, so
           the whole strip reads as one object. */}
+        {/* ---- Solo or group ---------------------------------------------- */}
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" role="tablist" aria-label="Games">
+          {[['solo', 'Solo games', User, `${totalGames} Brain Boosters`], ['group', 'Group games', Users, '11 games · play with friends']].map(([m, label, Icon, sub]) => {
+            const on = (m === 'group') === group;
+            return (
+              <button key={m} type="button" role="tab" aria-selected={on} onClick={() => setMode(m)} data-games-mode={m}
+                className={`inline-flex min-h-12 items-center gap-2.5 rounded-2xl px-4 py-2 text-left transition-colors ${on ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-500/30' : 'bg-white text-ink-700 ring-1 ring-line-200 hover:ring-violet-300'}`}>
+                <span className={`flex h-8 w-8 items-center justify-center rounded-full ${on ? 'bg-white/20' : 'bg-violet-50 text-violet-600'}`}><Icon className="h-4 w-4" /></span>
+                <span>
+                  <span className="block text-sm font-black leading-tight">{label}</span>
+                  <span className={`block text-[11px] font-semibold leading-tight ${on ? 'text-white/80' : 'text-ink-500'}`}>{sub}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {!group && (
         <section className="relative isolate overflow-hidden rounded-3xl shadow-card ring-1 ring-sky-200/70 ring-inset">
           <HeroScene className="absolute inset-0 h-full w-full" />
 
@@ -640,9 +951,12 @@ export default function Games() {
           {/* The lettering, floating over the sky between the two halves. */}
           <PlayLearnGrow className="pointer-events-none absolute top-[6%] left-[46%] hidden h-24 w-24 xl:block" />
         </section>
+        )}
+
+        {group && <GroupHub />}
 
         {/* ---- Categories ------------------------------------------------- */}
-        {CATEGORIES.map((category) => {
+        {!group && CATEGORIES.map((category) => {
           const Icon = category.icon;
 
           return (
@@ -663,7 +977,7 @@ export default function Games() {
               </div>
 
               {/* Five across on a wide screen, as on the sheet. */}
-              <div className="fp-game-stage grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <div className="fp-game-stage grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {category.games.map((game, i) => (
                   <GameCard
                     key={game.id}
@@ -681,7 +995,7 @@ export default function Games() {
           );
         })}
 
-        <p className="hidden px-1 text-xs leading-relaxed text-ink-400 sm:block">
+        <p className={`hidden px-1 text-xs leading-relaxed text-ink-400 ${group ? '' : 'sm:block'}`}>
           Your level and stars in each game are saved to your account when a level ends, so they follow you between devices and count on the leaderboard. A level pays XP for its best stars, once per star — replaying at the same stars pays nothing.
         </p>
       </div>

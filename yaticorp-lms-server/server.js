@@ -101,6 +101,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/i18n', require('./src/routes/i18nMissing'));        // text the app could not translate yet
 app.use('/api/auth', require('./src/routes/authRoutes'));       // All credential/auth routes
 app.use('/api/admin/teachers', require('./src/teacher/admin'));   // before /api/admin's own routes
+app.use('/api/admin/demo-cards', require('./src/routes/demoCardRoutes'));   // presentation cards (Admin → Demo cards)
 app.use('/api/admin', require('./src/routes/adminRoutes'));
 app.use('/api/user', require('./src/routes/userRoutes'));
 app.use('/api/sync', require('./src/routes/syncRoutes'));
@@ -138,6 +139,8 @@ app.use('/api/linguistic', require('./src/linguistic'));
 // Games & Competitions: online Chess, Ludo, Carrom and UNO, friendly rooms and
 // inter-college competitions run by the platform admin (src/competitions).
 app.use('/api/competitions', require('./src/competitions'));
+// Live updates: competitions, games and leaderboards refresh on open pages without a reload.
+app.use('/api/live', require('./src/live'));
 
 // The teacher dashboard: research methodologies, research path, publications,
 // thesis writing, plagiarism and independent writing (src/teacher).
@@ -155,7 +158,14 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, '0.0.0.0', () => {
+// An HTTP server of our own, so Socket.IO (live games, src/competitions/realtime.js)
+// shares the port with the API. It allows the same origins as the API's CORS.
+const httpServer = require('http').createServer(app);
+require('./src/competitions/realtime').init(httpServer, {
+    allowOrigin: (origin) => origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')
+        || origin === 'capacitor://localhost' || origin === 'https://localhost' || allowedOrigins.includes(origin)
+});
+httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
 

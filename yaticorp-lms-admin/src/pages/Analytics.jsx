@@ -230,7 +230,7 @@ const Analytics = () => {
 
                     {/* LEFT: Title */}
                     <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3">
-                        <BarChart2 size={28} className="text-indigo-600" /> Analytics
+                        <BarChart2 size={28} className="text-indigo-600" /> Course analytics
                     </h1>
 
                     {/* RIGHT: Buttons */}

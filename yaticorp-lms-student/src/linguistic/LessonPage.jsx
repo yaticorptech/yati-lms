@@ -3,10 +3,10 @@
  * the same day to work like Duolingo): learn the concept → practise with the
  * answer after each → the quiz, with hearts → the result, the answers to look
  * back on, and the next lesson open on the path. Where the student is (learn,
- * practice, quiz) is saved; one who has reached the quiz before can skip to it.
+ * practice, quiz) is saved (2026-10-28: no skipping to the quiz — every question is answered).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Zap, Target, Timer, Award, Download, MessageSquareText } from 'lucide-react';
 import { saveBlob } from '../native/saveFile';
 import { linguisticApi, announceRewards } from './api';
@@ -49,8 +49,13 @@ function LessonPage() {
 
     const steps = useMemo(() => (lesson ? buildLesson(lesson) : []), [lesson]);
     const toPath = () => navigate('/linguistic');
+    // The ✕ opens the section's dashboard, wherever it is pressed (2026-10-29, "directly show the dashboard only").
+    const toDashboard = () => navigate('/linguistic/dashboard');
 
     if (lesson === undefined) return <SessionFrame label="Lesson"><Loading label="Opening your lesson…" /></SessionFrame>;
+    // A lesson not in the course they are on (another course's, or one their plan leaves out, 2026-10-27):
+    // straight to their own lessons, not an error.
+    if (!lesson && error?.code === 'NOT_IN_COURSE') return <Navigate to="/linguistic" replace />;
     if (!lesson) {
         const locked = error?.code === 'LESSON_LOCKED';
         return (
@@ -74,7 +79,7 @@ function LessonPage() {
                 : linguisticApi.check(id, 'items', step.item.id, given).then((r) => { announceRewards(r.events); return r; });
         }
         if (step.kind === 'write') return linguisticApi.writing(id, step.task.id, given);
-        if (step.kind === 'speak') return linguisticApi.speaking(id, value.ticks, value.recorded);
+        if (step.kind === 'speak') return linguisticApi.speaking(id, value.said, value.seconds, value.recorded);
         if (step.kind === 'talk') return linguisticApi.talk(id, given).then((r) => { talked.current = r; return r; });
         return Promise.resolve({ correct: true });
     };
@@ -127,12 +132,11 @@ function LessonPage() {
         );
     }
 
-    const reached = lesson.progress.status === 'completed' || lesson.progress.step === 'quiz';
     return (
         <SessionFrame label={lesson.title}>
-            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={toPath}
+            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={toDashboard}
                 onEnterPart={(part) => { if (part === 'practice' || part === 'quiz') linguisticApi.step(id, part).catch(() => {}); }}
-                canSkipToQuiz={reached} label={lesson.title} />
+                label={lesson.title} />
         </SessionFrame>
     );
 }

@@ -33,6 +33,11 @@ const MISSPELT = {
 
 const sentencesOf = (text) => String(text).replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
 const wordCount = (text) => (String(text).trim().match(/[\p{L}\p{N}'’-]+/gu) || []).length;
+// A paragraph, email or letter needs three sentences or more (2026-10-28): each ends with a full stop (or ? or !)
+// and has two words or more. The student's page counts them the same way (session/logic.js).
+const OPEN_WRITING = ['paragraph', 'email', 'letter'];
+const LEAST_SENTENCES = 3;
+const sentenceCount = (text) => (String(text || '').match(/[^.!?\n]+[.!?]+/g) || []).filter((s) => wordCount(s) >= 2).length;
 
 /**
  * @param {string} text   what the student wrote
@@ -99,4 +104,4 @@ const checkWriting = (text, task = {}) => {
     return { findings, ok: !blocking, words: n };
 };
 
-module.exports = { checkWriting, wordCount, sentencesOf, MISSPELT };
+module.exports = { checkWriting, wordCount, sentencesOf, sentenceCount, OPEN_WRITING, LEAST_SENTENCES, MISSPELT };

@@ -6,14 +6,18 @@
  * What it can and cannot see is said on the page: it compares with what is
  * written on this platform and with the papers the teacher has uploaded
  * (PlagiarismSources), not the whole internet or the journals.
+ *
+ * Each report downloads as a PDF (asked 2026-10-27; server: plagiarismPdf.js),
+ * which says the same about what was compared.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ShieldCheck, Loader2, FileText, PenLine, ClipboardPaste, Trash2, Info, Quote, History } from 'lucide-react';
+import { ShieldCheck, Loader2, FileText, PenLine, ClipboardPaste, Trash2, Info, Quote, History, FileDown } from 'lucide-react';
 import teacherApi, { messageOf } from '../teacherSession';
 import { PageHeader, Card, CardTitle, ErrorNote, Badge } from '../ui';
-import { btn, inputClass, selectClass, countWords, fmtDate, fmtNum } from '../kit';
+import { btn, inputClass, selectClass, countWords, fmtDate, fmtNum, fileStem } from '../kit';
 import useConfirmDialog from '../../components/useConfirmDialog';
+import { saveBlob } from '../../native/saveFile';
 import StepGuide from '../StepGuide';
 import PlagiarismSources from '../PlagiarismSources';
 import { PLAGIARISM_STEPS } from '../content/plagiarism';
@@ -124,6 +128,22 @@ export default function Plagiarism() {
     const isGuideOpen = guideOpen ?? false;
     const [sourceCount, setSourceCount] = useState(0);
     const [confirm, confirmDialog] = useConfirmDialog();
+    const [downloading, setDownloading] = useState('');     // the report whose PDF is being made
+    const [pdfError, setPdfError] = useState('');
+
+    const downloadPdf = async (r) => {
+        setDownloading(r._id); setPdfError('');
+        try {
+            const res = await teacherApi.get(`/plagiarism/reports/${r._id}/pdf`, { responseType: 'blob' });
+            await saveBlob(new Blob([res.data], { type: 'application/pdf' }), `Similarity_report_${fileStem(r.title, 'check')}.pdf`, { title: `Similarity report: ${r.title}` });
+        } catch { setPdfError('The PDF could not be made just now. Please try again.'); } finally { setDownloading(''); }
+    };
+    const pdfButton = (r, compact) => (
+        <button type="button" onClick={() => downloadPdf(r)} disabled={Boolean(downloading)} aria-label={`Download the report for ${r.title} as PDF`} title="Download as PDF"
+            className={compact ? 'rounded-lg p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-40' : btn.secondary}>
+            {downloading === r._id ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}{!compact && ' Download PDF'}
+        </button>
+    );
 
     const loadHistory = useCallback(() => teacherApi.get('/plagiarism/reports').then((r) => setHistory(r.data.reports)).catch(() => {}), []);
     useEffect(() => {
@@ -230,9 +250,10 @@ export default function Plagiarism() {
 
             <PlagiarismSources onCount={setSourceCount} />
 
+            <ErrorNote>{pdfError}</ErrorNote>
             {report && (
                 <Card id="plagiarism-result" className="scroll-mt-24">
-                    <CardTitle icon={ShieldCheck} color="indigo">Result</CardTitle>
+                    <CardTitle icon={ShieldCheck} color="indigo" right={pdfButton(report, false)}>Result</CardTitle>
                     <Report report={report} />
                 </Card>
             )}
@@ -248,6 +269,7 @@ export default function Plagiarism() {
                                     <span className="text-xs text-slate-500">{fmtDate(r.createdAt)} · {fmtNum(r.words)} words</span>
                                 </button>
                                 <Badge tone={tone(r.score).chip}>{r.score}%</Badge>
+                                {pdfButton(r, true)}
                                 <button type="button" onClick={() => removeReport(r)} aria-label={`Delete report ${r.title}`} className="rounded-lg p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
                             </li>
                         ))}

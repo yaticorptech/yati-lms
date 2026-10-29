@@ -4,8 +4,7 @@
  */
 import React, { useState } from 'react';
 import api from '../utils/api';
-import { Users, BookOpen, UserPlus, Activity, TrendingUp, CheckCircle2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Users, BookOpen, UserPlus, Activity, CheckCircle2 } from 'lucide-react';
 import { useAuth } from "../context/AuthContext";
 import useAutoRefresh from '../hooks/useAutoRefresh';
 
@@ -69,9 +68,6 @@ const Dashboard = () => {
                     <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight break-words">{getGreeting()}, {userName}! 👋</h1>
                     <p className="text-sm lg:text-base text-slate-500 mt-1">Here's what's happening with YATICORP LMS today.</p>
                 </div>
-                <Link to="/analytics" className="self-start sm:self-auto shrink-0 py-1 text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
-                    <TrendingUp size={16} /> Full Analytics →
-                </Link>
             </div>
 
             {/* Stat Cards: four across only once each has room for its label and number */}

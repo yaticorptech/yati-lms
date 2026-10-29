@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Compass, Target, Route, ListChecks, PenLine } from 'lucide-react';
 import { YatiOrbit } from '../../../components/YatiLoader';
 
 /**
- * ✨ What the student watches while their roadmap is being written.
+ * What the student watches while their roadmap is being written.
  *
  * Generation takes about half a minute — long enough that a bare spinner reads
  * as a stall, and long enough that the moment is worth something. This names
@@ -17,11 +17,11 @@ import { YatiOrbit } from '../../../components/YatiLoader';
  * only a description of the work, which is true whenever it is on screen.
  */
 const STAGES = [
-  { emoji: '🧭', label: 'Reading where you are today' },
-  { emoji: '🎯', label: 'Working out the real route to your goal' },
-  { emoji: '🗺️', label: 'Putting every stage in the right order' },
-  { emoji: '✅', label: 'Checking each exam comes before what it opens' },
-  { emoji: '✨', label: 'Writing up every stage' }
+  { icon: Compass, label: 'Reading where you are today' },
+  { icon: Target, label: 'Working out the real route to your goal' },
+  { icon: Route, label: 'Putting every stage in the right order' },
+  { icon: ListChecks, label: 'Checking each exam comes before what it opens' },
+  { icon: PenLine, label: 'Writing up every stage' }
 ];
 
 // Paced to a roughly 25-second generation, so the last step is the one
@@ -85,8 +85,10 @@ export default function GeneratingRoadmap() {
                     <span className="h-1.5 w-1.5 rounded-full bg-line-300" />
                   )}
                 </span>
-                <span aria-hidden className={done || active ? '' : 'opacity-50'}>
-                  {stage.emoji}
+                {/* The stage's own icon, in a chip tinted by where it stands. */}
+                <span aria-hidden className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                  done ? 'bg-emerald-100 text-emerald-600' : active ? 'bg-journey-100 text-journey-600' : 'bg-surface-100 text-ink-300'}`}>
+                  <stage.icon className="h-4 w-4" strokeWidth={2.3} />
                 </span>
                 <span className="min-w-0">{stage.label}</span>
               </li>

@@ -30,10 +30,27 @@ const { shuffle, seeded } = require('./vocabQuiz');
 const parts = require('./parts');
 
 const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'translation'];
-const LEVEL_REVIEWS = ['words', 'listen', 'sentences', 'checkpoint'];
+const LEVEL_REVIEWS = ['words', 'listen', 'sentences', 'checkpoint', 'assessment'];
 const WARMUP_WORDS = 4;
 
 const topicOf = (title) => String(title || '').split(':')[0].trim();
+
+/**
+ * Advanced practised by skill (2026-10-29, the user chose "Skill practice (Duolingo style)": "don't give the same
+ * pattern for basic and advanced"): its lessons in a track for each skill instead of topic units — the student
+ * picks any track and works through it, each lesson after the one before in the same track. Beginner keeps its
+ * topic units.
+ */
+const TRACK_LEVELS = ['advanced'];
+const TRACKS = [
+    { id: 'stories', title: 'Stories', note: 'Articles to read, with questions on them.', has: (l) => l.module === 'reading' && !l.review },
+    { id: 'listening', title: 'Listening', note: 'Conversations to listen to, with questions and a role-play.', has: (l) => l.module === 'speaking' && !l.review },
+    { id: 'speaking', title: 'Speaking', note: 'Speak on a topic: every sentence corrected, with the reason.', has: (l) => l.review === 'talk' },
+    { id: 'writing', title: 'Writing', note: 'Letters, emails and paragraphs, checked here.', has: (l) => l.review === 'write' },
+    { id: 'translation', title: 'Translation', note: 'Passages and sentences, both ways.', has: (l) => l.module === 'translation' },
+    { id: 'words', title: 'Words & grammar', note: 'The section’s words and grammar, and their reviews.', has: (l) => ['vocabulary', 'grammar'].includes(l.module) }
+];
+const isTracked = (level) => TRACK_LEVELS.includes(level);
 
 /**
  * A level's lessons in units, in path order: [{ index, order, part, kind:
@@ -41,6 +58,16 @@ const topicOf = (title) => String(title || '').split(':')[0].trim();
  * the student has them.
  */
 const unitsOf = (levelLessons) => {
+    const topics = topicUnitsOf(levelLessons);
+    if (!levelLessons.length || !isTracked(levelLessons[0].level)) return topics;
+    // A track's lessons in the order the topic units had them (topic by topic), its level reviews last.
+    const all = topics.flatMap((u) => u.lessons);
+    return TRACKS.map((t) => ({ order: null, kind: 'track', track: t.id, title: t.title, note: t.note, lessons: all.filter(t.has) }))
+        .filter((u) => u.lessons.length).map((u, i) => ({ index: i + 1, ...u }));
+};
+
+/** A level's lessons in topic units (Beginner's way, and Advanced's before 2026-10-29). */
+const topicUnitsOf = (levelLessons) => {
     const byUnit = new Map();
     const levelReviews = [];
     for (const l of levelLessons) {
@@ -50,7 +77,8 @@ const unitsOf = (levelLessons) => {
         byUnit.get(key).lessons.push(l);
     }
     // A talk (talks.js) comes after the unit's Speaking lesson.
-    const rank = (l) => (l.review === 'unit' ? 99 : l.review === 'hear' ? 50 : l.review === 'talk' ? 3.5 : MODULE_ORDER.indexOf(l.module));
+    // A section's assessment (2026-10-29) is its very last stop.
+    const rank = (l) => (l.review === 'assessment' ? 100 : l.review === 'unit' ? 99 : l.review === 'hear' ? 50 : l.review === 'talk' ? 3.5 : MODULE_ORDER.indexOf(l.module));
     const units = [...byUnit.values()].sort((a, b) => a.order - b.order || a.part - b.part).map(({ order, part, lessons: ls }, i) => {
         const sorted = ls.sort((a, b) => rank(a) - rank(b) || String(a.direction || '').localeCompare(String(b.direction || '')));
         const words = sorted.find((l) => l.module === 'vocabulary' && !l.review);
@@ -68,7 +96,8 @@ const typeOf = (l) => {
     // Speak on a topic, corrected (talks.js): an Advanced unit's own speaking task.
     if (l.review === 'talk') return 'talk';
     if (l.review === 'hear' || l.review === 'listen') return 'listening';
-    if (l.review === 'checkpoint') return 'checkpoint';
+    if (l.review === 'checkpoint' || l.review === 'assessment') return 'checkpoint';
+    if (l.review === 'write') return 'writing';
     if (l.review) return 'review';
     return { reading: 'story', speaking: 'speaking' }[l.module] || 'lesson';
 };
@@ -94,7 +123,7 @@ const warmupFor = (doc, helper) => {
     const words = (unit?.words || []).filter((w) => w.word && w.kannada);
     if (words.length < 2) return null;
     return shuffle(words, seeded(`${doc.seedKey || doc._id}:warmup`)).slice(0, WARMUP_WORDS)
-        .map((w) => ({ word: w.word, kannada: w.kannada, audio: w.audio || null, locale: unit.targetLocale || 'en-IN' }));
+        .map((w) => ({ word: w.word, kannada: w.kannada, audio: w.audio || null, locale: unit.targetLocale || 'en-IN', say: w.say || null }));
 };
 
-module.exports = { MODULE_ORDER, LEVEL_REVIEWS, unitsOf, pathOrder, warmupFor, topicOf, typeOf };
+module.exports = { MODULE_ORDER, LEVEL_REVIEWS, TRACKS, TRACK_LEVELS, isTracked, unitsOf, pathOrder, warmupFor, topicOf, typeOf };

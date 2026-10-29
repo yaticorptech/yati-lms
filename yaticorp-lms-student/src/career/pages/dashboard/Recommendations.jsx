@@ -1,14 +1,11 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 import { ResourceRow } from '../../components/recommendations/ResourceAccordion';
-import ResourceSidebar from '../../components/recommendations/ResourceSidebar';
-import IdeasHeroArt from '../../components/recommendations/IdeasHeroArt';
 import {
   Search, Sparkles, X, Lightbulb, Target, BookMarked,
-  Hammer, GraduationCap, Briefcase, MonitorPlay, BadgeCheck, BookOpen, Coins,
-  Code2, TvMinimalPlay, Compass, ChevronRight, RotateCw
+  Hammer, GraduationCap, Briefcase, MonitorPlay, BadgeCheck, BookOpen,
+  Code2, TvMinimalPlay, ChevronRight, RotateCw
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
@@ -16,8 +13,9 @@ import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
-import PriceTag from '../../../components/rewards/PriceTag';
 import useBackClose from '../../../native/useBackClose';
+import { isWalletCancel } from '../../../utils/walletCharge';
+import GeminiCreditTip from '../../../components/GeminiCreditTip';
 
 /*
  * Tile palettes. Written out in full because Tailwind scans source for literal
@@ -34,7 +32,7 @@ const TONES = {
   indigo: { card: 'bg-gradient-to-br from-indigo-50 to-surface ring-indigo-100 hover:ring-indigo-300', icon: 'from-indigo-400 to-violet-600 shadow-indigo-500/40', count: 'bg-indigo-600', text: 'text-indigo-700', wash: 'bg-indigo-300' }
 };
 
-/** One category as a tile: what it is, how much of it there is, and a way in. */
+/** One category as a compact card: icon, name, one line about it, how many, and an arrow. The whole card opens it. */
 function CategoryTile({ icon: Icon, title, description, count, tone, onOpen }) {
   const t = TONES[tone] || TONES.violet;
   return (
@@ -42,42 +40,28 @@ function CategoryTile({ icon: Icon, title, description, count, tone, onOpen }) {
       type="button"
       onClick={onOpen}
       aria-haspopup="dialog"
-      className={`group relative flex min-h-[10.5rem] flex-col overflow-hidden rounded-2xl p-4 text-left shadow-card ring-1 transition-all duration-300 ring-inset hover:-translate-y-1 hover:shadow-card-hover ${t.card}`}
+      className="group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl bg-surface p-3 text-left shadow-card ring-1 ring-line-200/80 transition-all duration-300 ring-inset hover:-translate-y-0.5 hover:shadow-card-hover sm:gap-3.5 sm:p-4"
     >
-      {/* A soft wash of the tile's colour in the corner, stronger on hover. */}
-      <span
-        aria-hidden
-        className={`pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full opacity-30 blur-2xl transition-opacity duration-300 group-hover:opacity-60 ${t.wash}`}
-      />
-      <span className="relative flex items-start justify-between gap-2">
-        <span className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md transition-transform duration-300 group-hover:scale-110 ${t.icon}`}>
-          <Icon className="h-5 w-5" strokeWidth={2.2} />
-        </span>
-        <span className={`rounded-full px-2 py-0.5 text-[0.68rem] font-black text-white shadow-sm tabular-nums ${t.count}`}>
-          {count}
-        </span>
+      <span aria-hidden className={`pointer-events-none absolute -top-10 -left-10 h-24 w-24 rounded-full opacity-20 blur-2xl transition-opacity duration-300 group-hover:opacity-50 ${t.wash}`} />
+      <span className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6 ${t.icon}`}>
+        <Icon className="h-5 w-5" strokeWidth={2.2} />
       </span>
-      <span className="relative mt-3 block text-sm leading-tight font-black text-ink-900">{title}</span>
-      {description && (
-        <span className="relative mt-1 hidden text-xs leading-relaxed text-ink-500 min-[400px]:block">{description}</span>
-      )}
-      <span className={`relative mt-auto inline-flex items-center gap-1 pt-3 text-xs font-black ${t.text}`}>
-        Explore
-        <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+      <span className="relative min-w-0 flex-1">
+        <span className="block truncate text-sm font-black text-ink-900">{title}</span>
+        {description && <span className="mt-0.5 block truncate text-xs text-ink-500">{description}</span>}
       </span>
+      <span className={`relative shrink-0 rounded-full px-2 py-0.5 text-[0.7rem] font-black text-white tabular-nums ${t.count}`}>{count}</span>
+      <ChevronRight className={`relative h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5 ${t.text}`} />
     </button>
   );
 }
 
 /** A heading over a run of tiles. Just the title: the line under each was removed (asked 2026-10-15). */
-function GroupHeading({ title }) {
+function GroupHeading({ title, hint }) {
   return (
-    <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-      <div className="min-w-0">
-        <h2 className="bg-gradient-to-r from-journey-700 to-brand-600 bg-clip-text text-lg font-black text-transparent">
-          {title}
-        </h2>
-      </div>
+    <div className="mb-3">
+      <h2 className="text-base font-black text-ink-900 sm:text-lg">{title}</h2>
+      {hint && <p className="mt-0.5 text-xs text-ink-500 sm:text-sm">{hint}</p>}
     </div>
   );
 }
@@ -214,12 +198,10 @@ function CategoryPanel({ category, labelled = false }) {
 }
 
 export default function Recommendations() {
-  const { user } = useContext(AuthContext);
   const [data, setData] = useState(null);
   // The roadmap carries its own reference lists — skills, subjects, projects,
   // exams, advice. This is the page for looking things up, so they live here.
   const [roadmap, setRoadmap] = useState(null);
-  const [badges, setBadges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -251,10 +233,7 @@ export default function Recommendations() {
     // recommendations and vice versa. Either one alone is still a usable page.
     Promise.allSettled([
       api.get('/recommendations').then((res) => setData(res.data), noneOn404),
-      api.get('/roadmap').then((res) => setRoadmap(res.data?.roadmapData || null), noneOn404),
-      // The sidebar's badges are decoration; failing to load them is not a
-      // reason to hide the page or block generating.
-      api.get('/badges').then((res) => setBadges(res.data || []))
+      api.get('/roadmap').then((res) => setRoadmap(res.data?.roadmapData || null), noneOn404)
     ]).finally(() => setLoading(false));
   };
 
@@ -269,7 +248,7 @@ export default function Recommendations() {
       await fetchRecs();
       toast.success('Your resource list has been rebuilt.', 'Recommendations ready');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not generate recommendations.');
+      if (!isWalletCancel(err)) toast.error(err.response?.data?.message || 'Could not generate recommendations.');
     } finally {
       setGenerating(false);
     }
@@ -292,7 +271,7 @@ export default function Recommendations() {
     { key: 'Exams & certifications', icon: GraduationCap, tone: 'amber', description: 'Top exams & certs to boost your profile.',
       // One unlabelled group: a heading over a single list only repeats itself.
       groups: [['Entrance exams', roadmap?.entranceExams], ['Certifications', roadmap?.certifications]] },
-    { key: 'Advice worth keeping', icon: Lightbulb, tone: 'pink', description: 'Mentor tips & career advice.',
+    { key: 'Mentor tips', icon: Lightbulb, tone: 'pink', description: 'Career advice from your mentor.',
       groups: [[null, roadmap?.careerTips]] }
   ];
 
@@ -310,29 +289,24 @@ export default function Recommendations() {
   // No colleges section: where to apply is a decision made once, not a
   // resource looked up while studying.
   const curatedDefs = data ? [
-    { key: 'Internships & Programmes', icon: Briefcase, tone: 'violet', items: data.internships,
+    { key: 'Internships & Programmes', icon: Briefcase, tone: 'violet', description: 'Real openings to apply to.', items: data.internships,
       render: (item) => ({ tag: item.stage, title: item.title, subtitle: item.organisation,
         badges: [item.mode, item.duration, item.stipend], description: item.eligibility, link: item.link,
         details: (<>{item.whenToApply && (<p><strong>When to apply:</strong> {item.whenToApply}</p>)}{item.stipend && (<p><strong>Stipend:</strong> {item.stipend}</p>)}</>) }) },
-    { key: 'Recommended Courses', icon: MonitorPlay, tone: 'blue', items: data.courses,
+    { key: 'Courses', icon: MonitorPlay, tone: 'blue', description: 'Online courses with links.', items: data.courses,
       render: (item) => ({ title: item.title, subtitle: item.provider, badges: [item.difficulty, item.pricing],
         description: item.skills ? `Skills: ${item.skills}` : null, link: item.link,
         details: item.duration ? (<p><strong>Duration:</strong> {item.duration}</p>) : null }) },
-    { key: 'Certifications', icon: BadgeCheck, tone: 'teal', items: data.certifications,
+    { key: 'Certifications', icon: BadgeCheck, tone: 'teal', description: 'Certificates worth earning.', items: data.certifications,
       render: (item) => ({ title: item.title, subtitle: item.provider, description: item.description, link: item.link }) },
-    { key: 'Must-Read Books', icon: BookOpen, tone: 'amber', items: data.books,
+    { key: 'Books', icon: BookOpen, tone: 'amber', description: 'Must-reads for your goal.', items: data.books,
       render: (item) => ({ title: item.title, subtitle: item.author ? `By ${item.author}` : null,
         description: item.description, link: item.link,
         details: item.why ? (<p><strong>Why read this:</strong> {item.why}</p>) : null }) },
-    { key: 'Scholarships', icon: Coins, tone: 'pink', items: data.scholarships,
-      render: (item) => ({ title: item.name, badges: [item.deadline ? `Deadline: ${item.deadline}` : null],
-        description: item.eligibility, link: item.link }) },
-    { key: 'Practice Platforms', icon: Code2, tone: 'emerald', items: data.practiceResources,
+    { key: 'Practice Platforms', icon: Code2, tone: 'emerald', description: 'Sites to code and practise on.', items: data.practiceResources,
       render: (item) => ({ title: item.name, badges: [item.type], link: item.link }) },
-    { key: 'Educational Channels', icon: TvMinimalPlay, tone: 'indigo', items: data.youtubeChannels,
+    { key: 'YouTube Channels', icon: TvMinimalPlay, tone: 'indigo', description: 'Channels to learn from.', items: data.youtubeChannels,
       render: (item) => ({ title: item.name, description: item.description, link: item.link }) },
-    { key: 'Career Advice', icon: Compass, tone: 'sky', items: data.careerTips,
-      render: (item) => ({ title: item.title, description: item.description }) }
   ] : [];
 
   const curatedCategories = curatedDefs
@@ -361,12 +335,12 @@ export default function Recommendations() {
 
   // Column count per group, so the five roadmap tiles sit on one row rather
   // than wrapping a lone fifth tile onto a line of its own.
-  const renderGroup = (categories, title, cols) => {
+  const renderGroup = (categories, title, hint, cols) => {
     if (categories.length === 0) return null;
     return (
       <section>
-        <GroupHeading title={title} />
-        <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${cols}`}>
+        <GroupHeading title={title} hint={hint} />
+        <div className={`grid gap-2.5 sm:grid-cols-2 sm:gap-3 ${cols}`}>
           {categories.map((c) => (
             <CategoryTile
               key={c.title}
@@ -385,103 +359,37 @@ export default function Recommendations() {
 
   return (
     <div className="fp-enter space-y-6">
-      {/* ---- Hero ------------------------------------------------------- */}
-      {/* One deep violet banner, the same family as the Enrolled Courses hero,
-          with the bulb glowing on it rather than boxed in a pale panel of its
-          own: a lit idea reads best against the dark. The words, the search
-          and the shortcuts sit in one column so nothing floats apart. */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-violet-700 to-fuchsia-700 px-5 py-6 text-white shadow-float sm:px-7 sm:py-6 lg:py-5">
-        {/* A faint dot grid and two soft glows give the colour some depth. */}
-        <span aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.12)_1px,transparent_1px)] [background-size:18px_18px] [mask-image:linear-gradient(to_right,black,transparent_75%)]" />
-        <span aria-hidden className="fp-float pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-fuchsia-400/30 blur-3xl" />
-        <span aria-hidden className="fp-float-slow pointer-events-none absolute -right-10 -bottom-24 h-72 w-72 rounded-full bg-amber-300/30 blur-3xl" />
-        <span aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent" />
-
-        {/* Phones and tablets get the idea as a small glowing badge instead of
-            the full scene, which needs the width of a laptop. */}
-        <span aria-hidden className="fp-bob-soft absolute top-5 right-5 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-300 to-orange-500 shadow-[0_0_32px_rgb(251_191_36/0.6)] sm:top-6 sm:right-6 lg:hidden">
-          <Lightbulb className="h-5 w-5 text-white" strokeWidth={2.4} />
-        </span>
-
-        <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,23rem)]">
-          <div className="min-w-0">
-            <p className="inline-flex items-center gap-2 pr-16 text-[0.7rem] font-black tracking-[0.14em] text-amber-200 uppercase lg:pr-0">
-              <Sparkles aria-hidden className="h-3.5 w-3.5" strokeWidth={2.5} />
-              Ideas &amp; Resources
-            </p>
-
-            <h1 className="mt-2 text-2xl leading-[1.1] font-black tracking-tight sm:text-3xl xl:text-4xl">
-              Fuel your{' '}
-              <span className="relative bg-gradient-to-r from-amber-200 via-amber-300 to-orange-300 bg-clip-text whitespace-nowrap text-transparent">
-                future
-                <svg
-                  aria-hidden
-                  viewBox="0 0 120 10"
-                  preserveAspectRatio="none"
-                  className="absolute -bottom-1.5 left-0 h-2.5 w-full text-amber-300"
-                >
-                  <path d="M2 7 C30 2, 90 2, 118 6" stroke="currentColor" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-                </svg>
+      {/* The banner that stood here went on 2026-10-27 (this is the Skills tab's
+          "What to learn" view now, under its switch); its search stays. */}
+      {!nothingAtAll && (
+        <div className="flex items-center gap-3 rounded-2xl bg-white py-2 pr-2 pl-4 shadow-sm ring-1 ring-slate-200 transition-shadow focus-within:ring-4 focus-within:ring-amber-200">
+          <Search className="pointer-events-none h-5 w-5 shrink-0 text-amber-500" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search every resource…"
+            aria-label="Search resources"
+            className="fp-search-field min-h-7 min-w-0 flex-1 border-0 bg-transparent py-0.5 text-sm text-ink-900 text-ellipsis placeholder:text-ink-400 focus:ring-0 focus:outline-none"
+          />
+          {searching ? (
+            <span className="flex shrink-0 items-center gap-1.5">
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 tabular-nums">
+                {matchCount} {matchCount === 1 ? 'match' : 'matches'}
               </span>
-            </h1>
-            <p className="mt-3 max-w-lg text-sm leading-relaxed text-violet-100">
-              Explore handpicked resources to level up your skills, knowledge &amp; career.
-            </p>
-
-            {!nothingAtAll && (
-              <>
-                {/* One white bar: the icon, the field, and beside it — never over
-                    it — what the box is searching through or how much it found.
-                    The field takes whatever width the pill leaves, so nothing
-                    is ever clipped; a placeholder that still will not fit ends
-                    in an ellipsis. */}
-                <div className="mt-4 flex max-w-xl items-center gap-3 rounded-2xl bg-white py-2 pr-2 pl-4 shadow-[0_12px_30px_-10px_rgb(30_27_75/0.55)] transition-shadow focus-within:ring-4 focus-within:ring-amber-300/60">
-                  <Search className="pointer-events-none h-5 w-5 shrink-0 text-violet-500" />
-                  <input
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search every resource…"
-                    aria-label="Search resources"
-                    className="fp-search-field min-h-7 min-w-0 flex-1 border-0 bg-transparent py-0.5 text-sm text-ink-900 text-ellipsis placeholder:text-ink-400 focus:ring-0 focus:outline-none"
-                  />
-                  {searching ? (
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700 tabular-nums">
-                        {matchCount} {matchCount === 1 ? 'match' : 'matches'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSearchQuery('')}
-                        aria-label="Clear search"
-                        className="rounded-md p-1 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 tabular-nums">
-                      {matchCount} ideas
-                    </span>
-                  )}
-                </div>
-
-              </>
-            )}
-          </div>
-
-          {/* The scene, glowing on the banner. */}
-          <div aria-hidden className="pointer-events-none relative hidden lg:block">
-            <span className="absolute inset-[18%] rounded-full bg-amber-300/40 blur-3xl" />
-            <div className="relative">
-              <IdeasHeroArt />
-            </div>
-          </div>
+              <button type="button" onClick={() => setSearchQuery('')} aria-label="Clear search"
+                className="rounded-md p-1 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700">
+                <X className="h-4 w-4" />
+              </button>
+            </span>
+          ) : (
+            <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 tabular-nums">{matchCount} ideas</span>
+          )}
         </div>
-      </section>
+      )}
 
       {/* ---- Body + sidebar --------------------------------------------- */}
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+      <div>
         <div className="min-w-0 space-y-6">
           {loadFailed && (
             <Card className="flex flex-wrap items-center justify-between gap-4 border-rose-200 bg-rose-50" role="alert">
@@ -507,9 +415,9 @@ export default function Recommendations() {
                 ? 'Let your AI mentor put together internships, courses, books and scholarships that fit your goal.'
                 : 'Build your roadmap first, then let your AI mentor put together internships, courses, books and scholarships that fit your goal.'}
               action={
-                <Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
-                  Get recommendations <PriceTag action="generate_ideas" />
-                </Button>
+                <span className="inline-flex items-center gap-2"><Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
+                  Get recommendations
+                </Button><GeminiCreditTip /></span>
               }
             />
           )}
@@ -517,16 +425,8 @@ export default function Recommendations() {
           {/* No list of the platform's own courses here: Enrolled Courses is
               the page for those. */}
 
-          {renderGroup(
-            visibleRoadmap,
-            'From your roadmap',
-            'xl:grid-cols-5'
-          )}
-          {renderGroup(
-            visibleCurated,
-            'Curated for you',
-            'xl:grid-cols-4'
-          )}
+          {renderGroup(visibleRoadmap, 'Your learning plan', 'What your roadmap says to learn, build and prepare for.', 'lg:grid-cols-3')}
+          {renderGroup(visibleCurated, 'Resources with links', 'Courses, books and sites your mentor picked. Tap one to open the list.', 'lg:grid-cols-3')}
 
           {/* Roadmap material but nothing curated yet: offer the second half
               rather than leaving the page looking finished. */}
@@ -538,9 +438,9 @@ export default function Recommendations() {
                   Your mentor can add real internships, courses, books and scholarships with links.
                 </p>
               </div>
-              <Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
-                Get recommendations <PriceTag action="generate_ideas" />
-              </Button>
+              <span className="inline-flex items-center gap-2"><Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
+                Get recommendations
+              </Button><GeminiCreditTip /></span>
             </Card>
           )}
 
@@ -563,7 +463,6 @@ export default function Recommendations() {
 
         </div>
 
-        <ResourceSidebar user={user} badges={badges} />
       </div>
 
       {dialog && (

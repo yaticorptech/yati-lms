@@ -6,6 +6,7 @@ import saveToDrive from '../integrations/google/saveToDrive';
 import CertificatesFrame from '../components/CertificatesFrame';
 import ResumeSection from '../components/ResumeSection';
 import AiKeySettings from '../components/AiKeySettings';
+import MyDevices from '../components/MyDevices';
 import GoogleConnectionCard from '../integrations/google/GoogleConnectionCard';
 import {
     Award, Loader2, Check, X,
@@ -23,11 +24,11 @@ import { useDashboard } from '../shared/hooks/useDashboard';
 import { useRewards } from '../context/useRewards';
 import ProgressCard from '../components/rewards/ProgressCard';
 import LeaderboardCard from '../components/rewards/LeaderboardCard';
-import WalletCard from '../components/rewards/WalletCard';
+import RankClimbCard from '../components/rewards/RankClimbCard';
 import Portal from '../components/Portal';
 import { saveBlob } from '../native/saveFile';
 import { pictureUrl } from '../native/pictures';
-import { isShortOfFunds, serverMessage } from '../utils/walletCharge';
+import { isShortOfFunds, serverMessage, isWalletCancel } from '../utils/walletCharge';
 import PhotoPicker from '../components/PhotoPicker';
 import WeeklyActivityCard from '../components/WeeklyActivityCard';
 import { MyClubsCard } from '../nccnss/ActivityCalendar';
@@ -124,7 +125,7 @@ const Profile = ({ view = 'dashboard' }) => {
     const rememberStudent = (fresh) => {
         if (!fresh) return;
         const latest = {};
-        for (const k of ['name', 'email', 'phone', 'cardNumber', 'profilePicture', 'credits']) {
+        for (const k of ['name', 'email', 'phone', 'cardNumber', 'qrNumber', 'profilePicture', 'credits']) {
             if (fresh[k] != null) latest[k] = fresh[k];
         }
         if (fresh.level != null) Object.assign(latest, { xp: Number(fresh.xp) || 0, level: Number(fresh.level) || 1 });
@@ -261,7 +262,7 @@ const Profile = ({ view = 'dashboard' }) => {
                 reason: 'So the certificates you earn here are kept in your own Google Drive.'
             });
         } catch (e) {
-            setCertError(isShortOfFunds(e) ? serverMessage(e) : 'Failed to download certificate. Please try again.');
+            if (!isWalletCancel(e)) setCertError(isShortOfFunds(e) ? serverMessage(e) : 'Failed to download certificate. Please try again.');
         } finally {
             setDownloadingId(null);
         }
@@ -439,20 +440,26 @@ const Profile = ({ view = 'dashboard' }) => {
 
             {onProfile && rw && <ProgressCard summary={rw} courses={courses} />}
 
-            {/* ── Dashboard: leaderboard beside wallet ──────────────────── */}
+            {/* ── Dashboard: the leaderboard (Wallet & Rewards moved to the top of
+                My Courses, 2026-10-26), and beside it on a wide screen the clubs,
+                NCC/NSS and Scouts the student is in, with their posts and what
+                is coming up (asked 2026-10-27). One under the other on a phone.
+                Side by side they are the same size: half the row each, the
+                height of the taller, the same corners and padding ("make it
+                same size"). Without any club the clubs card is not drawn and
+                the leaderboard takes the whole row. ──────────────────────────── */}
             {!onProfile && rw && (
-                // grid-cols-1 is minmax(0, 1fr): without it the one phone
-                // column is as wide as the leaderboard's content and runs it
-                // off a narrow screen, where it could not shrink to fit.
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                    <LeaderboardCard />
-                    <WalletCard />
+                <div className="flex flex-col gap-4 lg:flex-row">
+                    {/* min-w-0: the leaderboard shrinks to its share instead of
+                        insisting on its content's width and running off. The
+                        card fills its half's height when the clubs are taller. */}
+                    <div className="min-w-0 lg:flex lg:flex-1 lg:basis-0 lg:flex-col lg:[&>section]:flex-1"><LeaderboardCard /></div>
+                    {/* In no club: the other half is how to climb the board instead. */}
+                    <MyClubsCard className="min-w-0 lg:flex-1 lg:basis-0 lg:rounded-3xl lg:p-6"
+                        fallback={<RankClimbCard className="min-w-0 lg:flex-1 lg:basis-0" />} />
                 </div>
             )}
-
-            {/* ── Dashboard: the clubs, NCC/NSS and Scouts the student is in, with
-                their posts and what is coming up (nothing until they join one). ── */}
-            {!onProfile && <MyClubsCard />}
+            {!onProfile && !rw && <MyClubsCard />}
 
             {/* ── Dashboard: My Learning — the tabs and enrol flow ── */}
             {!onProfile && <DashboardCourses
@@ -499,6 +506,9 @@ const Profile = ({ view = 'dashboard' }) => {
                     <AiKeySettings />
                 </div>
             )}
+
+            {/* Where this account is signed in: 1 mobile + 1 computer (services/deviceGuard.js). */}
+            {onProfile && <MyDevices />}
 
             {/* ── Photo Viewer Modal ── */}
             {photoOpen && (

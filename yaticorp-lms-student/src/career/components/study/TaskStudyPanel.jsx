@@ -13,8 +13,9 @@ import { useHideLoop } from '../../../components/loopVisibility';
 import { QuizMarkArt } from '../ui/PanelArt';
 import { useCelebrate } from '../ui/Celebration';
 import { useMascot } from '../../mascot/useMascot';
-import PriceTag from '../../../components/rewards/PriceTag';
 import LoadError from '../ui/LoadError';
+import { isWalletCancel } from '../../../utils/walletCharge';
+import GeminiCreditTip from '../../../components/GeminiCreditTip';
 
 // How often the seconds watched are saved while a video plays. Often enough
 // that a reload loses little; rare enough to be a trickle, not a stream.
@@ -262,7 +263,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
         setStudy(err.response.data.lesson);
         onLessonReady?.(task._id);
         toast.info('This task already has its lesson — here it is.', 'Lesson ready');
-      } else {
+      } else if (!isWalletCancel(err)) {
         toast.error(err.response?.data?.message || 'Could not build this lesson.');
       }
     } finally {
@@ -352,14 +353,14 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               This one does not need a video. You&apos;ll get an explanation with worked examples,
               then a 5-question quiz.
             </p>
-            <Button
+            <span className="inline-flex items-center gap-2"><Button
               icon={BookOpen}
               loading={generating === 'read'}
               loadingText="Writing your lesson…"
               onClick={() => handleGenerate('read')}
             >
-              Build this lesson <PriceTag action="build_task_lesson" />
-            </Button>
+              Build this lesson
+            </Button><GeminiCreditTip /></span>
           </div>
         </div>
       );
@@ -394,7 +395,6 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
                     {generating === `lang-${code}` && <RefreshCw className="h-4 w-4 animate-spin text-link" />}
                     {label}
                   </span>
-                  <PriceTag action="build_task_lesson" className="text-xs text-link" />
                   <span className="text-xs text-ink-500">
                     {generating === `lang-${code}` ? 'Finding your video…' : hint}
                   </span>
@@ -428,7 +428,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
             <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-link">
               <Sparkles className="h-5 w-5" />
             </span>
-            <h4 className="font-bold text-ink-900">How do you want to learn this?</h4>
+            <h4 className="inline-flex items-center gap-2 font-bold text-ink-900">How do you want to learn this? <GeminiCreditTip /></h4>
             <p className="mx-auto mt-1 mb-5 max-w-md text-sm leading-relaxed text-ink-500">
               Either way you finish with revision notes and a 5-question quiz.
             </p>
@@ -460,7 +460,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
                 <BookOpen className="h-4.5 w-4.5" />
               </span>
               <span className="block text-sm font-bold text-ink-900">
-                {generating === 'read' ? 'Writing your lesson…' : <>Just read it <PriceTag action="build_task_lesson" className="text-link" /></>}
+                {generating === 'read' ? 'Writing your lesson…' : 'Just read it'}
               </span>
               <span className="mt-0.5 block text-xs leading-relaxed text-ink-500">
                 A written lesson with worked examples — no video to sit through.
@@ -508,7 +508,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               loadingText="Looking…"
               onClick={() => handleGenerate('video', currentLang, { replaceVideo: true })}
             >
-              Find another video <PriceTag action="build_task_lesson" />
+              Find another video
             </Button>
           </div>
         </section>
@@ -531,7 +531,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               loadingText="Finding one…"
               onClick={() => handleGenerate('video', currentLang, { replaceVideo: true })}
             >
-              Different video <PriceTag action="build_task_lesson" />
+              Different video
             </Button>
           </div>
 

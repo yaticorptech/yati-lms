@@ -107,3 +107,18 @@ background widens it leftwards to 3400 px the same way as the Career Path
 hero, so `cover` never crops the trophy. The headline, the sentence and the
 four feature pills are real elements, not paint. The "2 Players" pill painted
 into each photo sits under a real one with the same words.
+
+## My Courses — the banner
+
+| File | Where it appears |
+|---|---|
+| `courses-hero-scene.jpg` | the middle of the My Courses banner: Yati reading on the books, the bulb and the path |
+| `courses-hero-gift.png` | the gift box on the corner of the banner's Wallet & Rewards card |
+
+Both are cut from the supplied design, `Pick Up Where You Left Off.png`
+(2172x724, 2026-10-27). The scene is the strip x 942–1505, y 94–618 of that
+picture: the painted words to its left and the painted wallet to its right are
+left out, because the page renders both as real elements. The gift is the box
+at about x 1987, y 60 with its lavender ground made transparent. The page fades
+the scene's sides into the banner, and shows it only where the words, the
+scene and the wallet all fit side by side.

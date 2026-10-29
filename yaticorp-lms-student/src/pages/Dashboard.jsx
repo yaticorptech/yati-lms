@@ -27,7 +27,9 @@ import { money } from '../components/rewards/format';
 import useBackClose from '../native/useBackClose';
 
 
-const getInitials = (title = '') => title.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+// The instructor is text on a course; an older shape kept it as { name }.
+const nameOf = (instructor) => (typeof instructor === 'string' ? instructor : instructor?.name) || 'YATICORP';
+const getInitials = (title = '') => String(title).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
 
 /** The completed empty state: a rosette with ribbon tails on a lavender arch,
  *  with rays and sparkles; drawn to the mock. */
@@ -253,6 +255,8 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
     const [enrollModal, setEnrollModal] = useState(null); // { _id, title }
     // The available course whose Preview (what is inside it) is open.
     const [previewCourse, setPreviewCourse] = useState(null);
+    // Available Courses shows three rows at a time; See more adds three more.
+    const [visibleCount, setVisibleCount] = useState(9);
     // Learning Bio's Preview sends a student here to enrol (?enroll=<course>):
     // the confirmation opens on that course once the list has it. A course
     // that is not on the list (already theirs) just drops the request.
@@ -300,6 +304,16 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
     // Completed courses (100%)
     const completedCourses = activeCourses.filter(c => getProgressVal(c._id) === 100);
     const completedCount = completedCourses.length;
+
+    // Available Courses lists the student's own courses too (2026-10-28):
+    // those not yet theirs first, with Enroll Now; then the ones they are
+    // enrolled in, marked Enrolled, which open the course and are never
+    // offered for enrolment again (the server refuses a second one as well).
+    const availableIds = new Set(availableCourses.map((c) => String(c._id)));
+    const catalogue = [
+        ...availableCourses,
+        ...courses.filter((c) => !availableIds.has(String(c._id))).map((c) => ({ ...c, enrolled: true }))
+    ];
 
     const handleRetry = refresh;
 
@@ -465,10 +479,11 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
                         </div>
                     )
                 ) : activeTab === 'available' ? (
-                    availableCourses.length > 0 ? (
+                    catalogue.length > 0 ? (
+                        <>
                         <div data-explain="pricing" className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {availableCourses.map(course => (
-                                <div key={course._id} className="group relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100">
+                            {catalogue.slice(0, visibleCount).map(course => (
+                                <div key={course._id} className={`group relative flex flex-col overflow-hidden rounded-3xl border bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${course.enrolled ? 'border-emerald-200 hover:shadow-emerald-100' : 'border-slate-200 hover:border-indigo-200 hover:shadow-indigo-100'}`}>
                                     {/* cover */}
                                     <div className="relative h-44 overflow-hidden">
                                         {course.thumbnail ? (
@@ -492,6 +507,11 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
                                         <span className="absolute bottom-3 left-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-indigo-100 backdrop-blur">
                                             <Clock size={12} className="text-indigo-500" /> Self-paced
                                         </span>
+                                        {course.enrolled && (
+                                            <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                                                <CheckCircle2 size={13} /> Enrolled
+                                            </span>
+                                        )}
                                     </div>
 
                                     {/* body */}
@@ -505,15 +525,25 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
 
                                         <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
                                             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-black text-indigo-600">
-                                                {getInitials(course.instructor || 'YATICORP')}
+                                                {getInitials(nameOf(course.instructor))}
                                             </span>
-                                            <span className="truncate font-semibold text-slate-700">{course.instructor || 'YATICORP'}</span>
+                                            <span className="truncate font-semibold text-slate-700">{nameOf(course.instructor)}</span>
                                             <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-700">
                                                 <Award size={12} /> Certificate
                                             </span>
                                         </div>
 
                                         <div className="mt-auto flex items-center gap-2">
+                                            {course.enrolled ? (
+                                                // Already theirs: no enrolling again, just the way in.
+                                                <Link
+                                                    to={`/learn/${course._id}`}
+                                                    title="Open this course"
+                                                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 py-3 font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                                                >
+                                                    <CheckCircle2 size={18} /> Enrolled
+                                                </Link>
+                                            ) : (
                                             <button
                                                 onClick={() => handleEnrollClick(course)}
                                                 disabled={buyingCourseId === course._id}
@@ -521,6 +551,7 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
                                             >
                                                 {buyingCourseId === course._id ? 'Enrolling...' : <>Enroll Now <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" /></>}
                                             </button>
+                                            )}
                                             {/* What is inside the course before paying for it:
                                                 its sections and lessons (CourseOutlineDialog). It
                                                 once opened the admin preview, which a student's
@@ -539,6 +570,18 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
                                 </div>
                             ))}
                         </div>
+                        {catalogue.length > visibleCount && (
+                            <div className="mt-8 flex justify-center">
+                                <button
+                                    type="button"
+                                    onClick={() => setVisibleCount((n) => n + 9)}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-6 py-3 font-semibold text-indigo-600 transition-colors hover:bg-indigo-50"
+                                >
+                                    See more courses ({catalogue.length - visibleCount})
+                                </button>
+                            </div>
+                        )}
+                        </>
                     ) : (
                         <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-white">
                             <CompletedScene />

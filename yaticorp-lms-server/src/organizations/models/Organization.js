@@ -146,6 +146,19 @@ const organizationSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
+    // The state or union territory it is in (nccnss/bsg.js INDIA_STATES), or
+    // blank. A BSG state office's notices reach the Scouts and Guides of the
+    // institutions in its state.
+    state: { type: String, default: '', trim: true, maxlength: 60 },
+    /**
+     * A Bharat Scouts & Guides office rather than an institution: 'national'
+     * or 'state' (blank for every institution). Made by a superadmin, one per
+     * state and one national, each with one user. An office publishes exams,
+     * camps and events for Scouts and Guides to see (nccnss/notices.js). The
+     * national office is also where Scouts and Guides with no institution
+     * belong: they join it with its code, as they would a school.
+     */
+    bsgOffice: { type: String, enum: ['', 'national', 'state'], default: '' },
     // Whether this organization may publish its own courses, and how many.
     // Only a superadmin changes it. Off until they switch it on.
     courseAccess: {
@@ -170,6 +183,8 @@ const organizationSchema = new mongoose.Schema({
 // The superadmin list searches on name and code, and filters on type.
 organizationSchema.index({ name: 1 });
 organizationSchema.index({ organizationType: 1 });
+// One national office, and one office per state.
+organizationSchema.index({ bsgOffice: 1, state: 1 }, { unique: true, name: 'one_bsg_office', partialFilterExpression: { bsgOffice: { $in: ['national', 'state'] } } });
 
 /** Only an active organization may be joined or administered. */
 organizationSchema.methods.isUsable = function () {

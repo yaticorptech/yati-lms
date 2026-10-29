@@ -34,16 +34,10 @@ const hasKey = (obj, keys) => JSON.stringify(obj).match(new RegExp(`"(${keys.joi
 /**
  * Since 2026-10-24 the path opens one lesson after another (units.js); a
  * lesson once started stays open. Tests of what a lesson does start the
- * lessons they use, as a student who had reached them would have.
+ * lessons they use, as a student who had reached them would have (unlock.js:
+ * since 2026-10-28, with the sections before a later lesson finished).
  */
-const unlock = async (user, keys) => {
-    const { LinguisticProgress } = require('../../src/linguistic/models');
-    await svc.progressOf(user._id);
-    const ls = await LinguisticLesson.find({ seedKey: { $in: keys } }).select('_id module level').lean();
-    const had = new Set(((await LinguisticProgress.findOne({ userId: user._id }).lean())?.lessons || []).map((e) => String(e.lessonId)));
-    const add = ls.filter((l) => !had.has(String(l._id))).map((l) => ({ lessonId: l._id, module: l.module, level: l.level, status: 'started', step: 'learn' }));
-    if (add.length) await LinguisticProgress.updateOne({ userId: user._id }, { $push: { lessons: { $each: add } } });
-};
+const { unlock } = require('./unlock');
 
 before(async () => {
     await connect();
@@ -85,7 +79,7 @@ describe('a new student', () => {
     });
     test('Beginner is open; the level above is closed; along the path, each lesson waits for the one before (2026-10-24)', async () => {
         const p = (await api('GET', '/path')).body;
-        assert.deepEqual(p.levels.map((l) => l.open), [true, false, false]);
+        assert.deepEqual(p.levels.map((l) => l.open), [true, false]);
         const unit = p.levels[0].units[0];
         assert.equal(unit.title, 'Family', 'the first unit of the topic Home and family');
         assert.deepEqual(unit.lessons.map((l) => l.stop || l.review || l.module), ['vocabulary', 'grammar', 'chest', 'translation', 'hear', 'practice', 'unit'], 'words, grammar, a chest, sentences, listening, practice, then the unit review');
@@ -208,24 +202,48 @@ describe('vocabulary, translation, writing and speaking', () => {
         const jumbled = await api('POST', `/lessons/${l._id}/writing/w1`, { answer: 'I wake up at six o\'clock' });
         assert.equal(jumbled.body.correct, true);
         const sentence = await api('POST', `/lessons/${l._id}/writing/w3`, { answer: 'i am happy' });
-        assert.equal(sentence.body.correct, false); assert.ok(sentence.body.findings.some((f) => /capital letter/.test(f.text)));
+        assert.equal(sentence.body.correct, false); assert.ok(sentence.body.findings.some((f) => /ದೊಡ್ಡ ಅಕ್ಷರ/.test(f.text)), "capital letter, in Kannada");
         const para = await api('POST', `/lessons/${l._id}/writing/w4`, { answer: 'I wake up at six. Then I brush my teeth and drink milk. After that he go to college by bus. I recieve my notes from Sneha. My mornings are happy and busy every day.' });
         assert.deepEqual([para.body.checked, para.body.review, para.body.correct], [true, undefined, null]);
-        assert.ok(para.body.findings.some((f) => /"recieve" should be "receive"/.test(f.text)));
+        // In the student's language (Kannada, the default; 2026-10-27), the student's words kept.
+        assert.ok(para.body.findings.some((f) => /ಕಾಗುಣಿತ ನೋಡಿ: "recieve" ಬದಲು "receive"/.test(f.text)), JSON.stringify(para.body.findings));
         const fixed = para.body.sentences.filter((x) => x.mistakes.length).map((x) => x.corrected);
         assert.deepEqual(fixed, ['After that he goes to college by bus.', 'I receive my notes from Sneha.'], 'the grammar (and the spelling), corrected here');
         assert.equal(para.body.total, 5); assert.equal(para.body.clean, 3);
         assert.equal(para.body.submission.status, 'checked', 'kept for the Writing tab, not sent to a teacher');
-        const again = await api('POST', `/lessons/${l._id}/writing/w4`, { answer: 'I wake up at six every morning and help my mother before I take the bus to college with my friend Sneha.' });
+        const short = await api('POST', `/lessons/${l._id}/writing/w4`, { answer: 'Thankyou for the fever.' });
+        assert.equal(short.status, 400, 'one sentence: not taken (2026-10-28)'); assert.match(short.body.message, /at least 3 sentences/);
+        const noStops = await api('POST', `/lessons/${l._id}/writing/w4`, { answer: 'I wake up at six every morning and I help my mother and I take the bus' });
+        assert.equal(noStops.status, 400, 'no full stops: no sentences');
+        const again = await api('POST', `/lessons/${l._id}/writing/w4`, { answer: 'I wake up at six every morning. I help my mother before college. I take the bus with my friend Sneha.' });
         assert.equal(again.body.submission.id, para.body.submission.id, 'written again, the one checked before is replaced');
         const mine = (await api('GET', '/submissions')).body.submissions.find((x) => x.id === para.body.submission.id);
         assert.equal(mine.status, 'checked');
         assert.equal((await api('POST', `/lessons/${l._id}/writing/w9`, { answer: 'x' })).status, 400);
     });
-    test('speaking: the self-assessment is saved with the sample answer', async () => {
+    test('speaking (2026-10-28): the checklist is ticked from what was said, not by hand; saved with the sample answer', async () => {
         const l = await lessonBy('speaking-beginner-1');
-        const r = await api('POST', `/lessons/${l._id}/speaking`, { checklist: [true, true, false, true, true, true], recorded: true });
-        assert.deepEqual([r.body.ticked, r.body.total], [5, 6]); assert.match(r.body.sample, /Kiran/);
+        const said = 'Hello, my name is Asha. I am from Mysuru. I am studying in the first year of BCom. In my free time, I like reading stories. Nice to meet you.';
+        const r = await api('POST', `/lessons/${l._id}/speaking`, { said, seconds: 15, recorded: true, checklist: [false, false, false, false, false, false] });
+        assert.equal(r.status, 200);
+        assert.deepEqual(r.body.ticks, [true, true, true, true, true, true], 'every point heard; the ticks sent are not taken');
+        assert.deepEqual([r.body.ticked, r.body.total], [6, 6]); assert.match(r.body.sample, /Kiran/);
+        const fast = await api('POST', `/lessons/${l._id}/speaking`, { said, seconds: 5, recorded: true });
+        assert.deepEqual(fast.body.ticks, [true, true, true, true, true, false], 'too fast to be slow and clear');
+        const seen = (await api('GET', `/lessons/${l._id}`)).body.speaking;
+        assert.equal(seen.checks.length, 6, 'the page gets the checks, to tick as the student speaks');
+        assert.equal(seen.need, 3);
+    });
+    test('speaking must be answered by voice (2026-10-28): not unrecorded, not under five words, not with under half the points heard', async () => {
+        const l = await lessonBy('speaking-beginner-1');
+        const none = await api('POST', `/lessons/${l._id}/speaking`, { said: 'Hello, my name is Asha and I study in Mysuru.', seconds: 6, recorded: false, checklist: [true, true, true, true, true, true] });
+        assert.equal(none.status, 400); assert.match(none.body.message, /microphone/);
+        const short = await api('POST', `/lessons/${l._id}/speaking`, { said: 'Hello I am', seconds: 3, recorded: true });
+        assert.equal(short.status, 400, 'fewer than five words said');
+        const off = await api('POST', `/lessons/${l._id}/speaking`, { said: 'The weather is very nice and cloudy.', seconds: 4, recorded: true, checklist: [true, true, true, true, true, true] });
+        assert.equal(off.status, 400); assert.match(off.body.message, /0 of 6 heard, 3 needed/);
+        const some = await api('POST', `/lessons/${l._id}/speaking`, { said: 'Hello, my name is Asha and I am from Mysuru. I study in college.', seconds: 30, recorded: true });
+        assert.equal(some.status, 200); assert.equal(some.body.ticked, 3, 'name, place, studies; 14 words in 30 seconds is too slow for a steady pace');
     });
     test('resume: the dashboard offers the lesson where the student stopped', async () => {
         const l = await lessonBy('speaking-beginner-1');
@@ -236,15 +254,17 @@ describe('vocabulary, translation, writing and speaking', () => {
 });
 
 describe('the learning path and the step-by-step lesson', () => {
-    test('the path: three levels as sections, topic units with a lesson of each kind, the level review, and the lesson to take next', async () => {
+    test('the path: two sections (Intermediate hidden, 2026-10-29), topic units with a lesson of each kind, the level review with the assessment, and the lesson to take next', async () => {
         const p = (await api('GET', '/path')).body;
-        assert.deepEqual(p.levels.map((l) => l.level), ['beginner', 'intermediate', 'advanced']);
-        assert.deepEqual(p.levels[0].units.map((u) => u.title), ['Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Level review'], 'three topics (the third added 2026-10-24), each in two shorter units');
-        assert.deepEqual(p.levels[0].units.map((u) => u.lessons.length), [7, 8, 7, 8, 7, 8, 4], 'each unit with its two stops; the level review');
-        assert.deepEqual(p.levels[0].units.map((u) => u.id), ['beginner-1', 'beginner-1-2', 'beginner-2', 'beginner-2-2', 'beginner-3', 'beginner-3-2', 'beginner-review']);
-        assert.deepEqual(p.levels.map((l) => l.units.length), [7, 7, 7], 'the same in every section');
+        assert.deepEqual(p.levels.map((l) => l.level), ['beginner', 'advanced']);
+        assert.deepEqual(p.levels[0].units.map((u) => u.title), ['Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Time and days', 'My day', 'Level review'], 'four topics (the third added 2026-10-24, the fourth 2026-10-28), each in two shorter units');
+        assert.deepEqual(p.levels[0].units.map((u) => u.lessons.length), [7, 8, 7, 8, 7, 8, 7, 8, 5], 'each unit with its two stops; the level review, the assessment last');
+        assert.equal(p.levels[0].units.at(-1).lessons.at(-1).title, 'Beginner assessment');
+        assert.deepEqual(p.levels[0].units.map((u) => u.id), ['beginner-1', 'beginner-1-2', 'beginner-2', 'beginner-2-2', 'beginner-3', 'beginner-3-2', 'beginner-4', 'beginner-4-2', 'beginner-review']);
+        assert.deepEqual(p.levels.map((l) => l.units.length), [9, 6], 'Beginner: eight units and the review; Advanced: a track for each skill (2026-10-29)');
+        assert.deepEqual(p.levels[1].units.map((u) => [u.id, u.kind, u.title]), [['advanced-stories', 'track', 'Stories'], ['advanced-listening', 'track', 'Listening'], ['advanced-speaking', 'track', 'Speaking'], ['advanced-writing', 'track', 'Writing'], ['advanced-translation', 'track', 'Translation'], ['advanced-words', 'track', 'Words & grammar']]);
         assert.equal(p.levels[0].units[0].open, true);
-        assert.equal(p.levels[1].open, false, 'Intermediate is shut before placement');
+        assert.equal(p.levels[1].open, false, 'Advanced is shut before Beginner is finished');
         const all = p.levels[0].units.flatMap((u) => u.lessons);
         const first = all.find((l) => !l.stop && l.open && l.status !== 'completed');
         assert.equal(p.current, first.id, 'the next lesson is the first open one not done (a chest is not a lesson)');
@@ -273,8 +293,11 @@ describe('the learning path and the step-by-step lesson', () => {
         assert.equal(units[2].lessons[0].open, false);
         assert.equal((await kiranApi('GET', '/path')).body.levels[1].open, false);
         await LinguisticProgress.updateOne({ userId: kiran.user._id }, { $push: { levelsCompleted: { level: 'beginner', completedAt: new Date(), average: 80, course: 'en' } } });
+        assert.equal((await kiranApi('GET', '/path')).body.levels[1].open, false, 'Beginner finished before its new units came: Advanced waits for the assessment (2026-10-29)');
+        const gate = await LinguisticLesson.findOne({ seedKey: 'review-assessment-beginner' }).lean();
+        await LinguisticProgress.updateOne({ userId: kiran.user._id }, { $push: { lessons: { lessonId: gate._id, module: gate.module, level: 'beginner', status: 'completed', step: 'done', bestScore: 90, completedAt: new Date() } } });
         const p = (await kiranApi('GET', '/path')).body;
-        assert.deepEqual([p.levels[1].open, p.levels[1].units[0].lessons[0].open], [true, true], 'Beginner finished before its new units came');
+        assert.deepEqual([p.levels[1].open, p.levels[1].units[0].lessons[0].open], [true, true], 'and the assessment passed: open');
     });
     test('a quiz answer is checked as it is given, and nothing is saved until the quiz is submitted', async () => {
         const l = await lessonBy('grammar-beginner-2');
@@ -285,7 +308,7 @@ describe('the learning path and the step-by-step lesson', () => {
         assert.equal(wrong.body.correct, false); assert.match(wrong.body.explanation, /subject/);
         assert.equal(await require('../../src/linguistic/models').LinguisticAttempt.countDocuments({ userId: asha.user._id }), before, 'no attempt recorded');
         assert.equal((await api('POST', `/lessons/${l._id}/quiz/check`, { id: 'q99', given: 'x' })).status, 400);
-        const locked = await lessonBy('grammar-intermediate-1');
+        const locked = await lessonBy('grammar-advanced-1');
         assert.equal((await api('POST', `/lessons/${locked._id}/quiz/check`, { id: 'q1', given: 'x' })).status, 403, 'not for a locked lesson');
     });
     test('translations come with a word bank: the answer\'s words and a few others; tapped in order, it is right', async () => {
@@ -332,15 +355,15 @@ describe('the daily challenge', () => {
 });
 
 describe('the placement test', () => {
-    test('questions without answers; all right places the student at Advanced and opens every level', async () => {
+    test('questions without answers; all right shows Advanced, but the student starts at Section 1 (2026-10-28)', async () => {
         const g = (await api('GET', '/placement')).body;
         assert.equal(g.questions.length, 15); assert.equal(hasKey(g.questions, ['answer', 'explanation']), null);
         const right = Object.fromEntries(require('../../src/linguistic/content/placement').map((q) => [q.id, q.answer]));
         const r = await api('POST', '/placement', { answers: right });
-        assert.equal(r.body.level, 'advanced'); assert.equal(r.body.score, 15);
-        assert.deepEqual((await api('GET', '/modules/translation')).body.levels.map((l) => l.open), [true, true, true]);
+        assert.equal(r.body.level, 'advanced'); assert.equal(r.body.score, 15); assert.equal(r.body.kept, 'beginner', 'the level found, not where they start');
+        assert.deepEqual((await api('GET', '/modules/translation')).body.levels.map((l) => l.open), [true, false], 'sections open by finishing the one before');
         const d = (await api('GET', '/')).body;
-        assert.equal(d.level, 'advanced'); assert.equal(d.achievements.find((a) => a.key === 'first_step').earned, true);
+        assert.deepEqual([d.level, d.placement.found], ['beginner', 'advanced']); assert.equal(d.achievements.find((a) => a.key === 'first_step').earned, true);
     });
     test('a weak result recommends Beginner', async () => {
         const r = await raviApi('POST', '/placement', { answers: { b1: 'is', b2: 'small' } });
@@ -367,10 +390,10 @@ describe('a whole level: completion and its certificate', () => {
             if (!todo.length) break;
             for (const l of todo) last = await raviApi('POST', `/lessons/${l.id}/quiz`, { answers: await rightAnswers(l.id) });
         }
-        assert.equal(beginner.length, 37, 'fifteen lessons (three topics), six more for the topics\' second units, a listening stop and a review for each of the six units, and the level\'s four reviews');
+        assert.equal(beginner.length, 49, 'twenty lessons (four topics), eight more for the topics\' second units, a listening stop and a review for each of the eight units, the level\'s four reviews, and its assessment (2026-10-29)');
         assert.equal(last.body.certificate?.level, 'beginner', 'the last lesson completes the level');
         const d = (await raviApi('GET', '/')).body;
-        assert.equal(d.level, 'intermediate');
+        assert.equal(d.level, 'advanced', 'the assessment passed with the rest: on to Advanced (Intermediate hidden, 2026-10-29)');
         assert.equal(d.levels[0].complete, true); assert.match(d.levels[0].certificate.number, /^YATI-ENG-B-/);
         assert.equal(d.achievements.find((a) => a.key === 'level_beginner').earned, true);
         const certs = (await raviApi('GET', '/certificates')).body.certificates;
@@ -437,10 +460,10 @@ describe('administrators', () => {
     test('progress: every student, with their level and results', async () => {
         const list = (await adminApi('GET', `/admin/students?search=${encodeURIComponent('Ling Ravi')}`)).body;
         assert.equal(list.students.length, 1);
-        assert.deepEqual([list.students[0].level, list.students[0].completed, list.students[0].certificates], ['intermediate', 37, ['beginner']]);
+        assert.deepEqual([list.students[0].level, list.students[0].completed, list.students[0].certificates], ['advanced', 49, ['beginner']]);
         const one = (await adminApi('GET', `/admin/students/${ravi.user._id}`)).body;
         assert.ok(one.attempts.some((a) => a.kind === 'quiz' && a.passed));
-        assert.ok(one.lessons.filter((l) => l.status === 'completed').length === 37);
+        assert.ok(one.lessons.filter((l) => l.status === 'completed').length === 49);
     });
     test('reviews: writing sent before 2026-10-26 waits; a score and comment reach the student, with points at the passing score; writing checked in a lesson never shows', async () => {
         // Since 2026-10-26 nothing new is sent to a teacher: these stand for writing sent before then.

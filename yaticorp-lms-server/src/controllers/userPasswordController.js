@@ -8,6 +8,7 @@ const { sendEmail } = require('../utils/emailService');
 const { findUserByCardNumber } = require('../utils/cardNumber');
 const { validatePasswordStrength } = require('../middleware/validatePassword');
 const generateToken = require('../utils/generateToken');
+const { accountPreview } = require('../utils/accountPreview');
 
 /**
  * Only the SHA-256 of a reset token is stored (as in services/adminPasswordReset.js),
@@ -22,6 +23,24 @@ const hashToken = (token) => crypto.createHash('sha256').update(String(token)).d
 
 /** The same answer whether or not the card exists, so it cannot be used to find out. */
 const FORGOT_REPLY = 'If this card number exists, a reset link has been sent to the associated email.';
+
+// @desc    Who a card's account is, partly hidden, to confirm before a reset link is sent
+// @route   POST /api/auth/student/forgot-password/preview
+// @access  Public (rate limited)
+const forgotPasswordPreview = async (req, res) => {
+    try {
+        const { cardNumber } = req.body || {};
+        if (!cardNumber) return res.status(400).json({ message: 'Card number is required' });
+        const user = await findUserByCardNumber(cardNumber);
+        if (!user) return res.status(404).json({ message: 'No account was found for this card number. Check the number, or scan the card.' });
+        const preview = accountPreview(user);
+        if (!preview) return res.status(409).json({ message: 'This account has no email on file, so a reset link cannot be sent. Ask your administrator to reset your password.' });
+        res.json(preview);
+    } catch (error) {
+        console.error('Forgot Password Preview Error:', error);
+        res.status(500).json({ message: 'Could not look up that card. Please try again.' });
+    }
+};
 
 // @desc    Request a password reset link
 // @route   POST /api/user/forgot-password
@@ -173,11 +192,11 @@ const updatePassword = async (req, res) => {
         // token comes back for the device the student is using right now.
         await User.updateOne({ _id: user._id }, { $set: { password: newPassword, passwordChangedAt: new Date() } });
 
-        res.json({ message: 'Password updated successfully', token: generateToken(user._id, 'student') });
+        res.json({ message: 'Password updated successfully', token: generateToken(user._id, 'student', { did: require('../services/deviceGuard').deviceOf(req).deviceId, sid: await require('../services/deviceGuard').startSession(user) }) });
     } catch (error) {
         console.error('Update Password Error:', error);
         res.status(500).json({ message: 'Failed to update password' });
     }
 };
 
-module.exports = { forgotPassword, resetPassword, updatePassword };
+module.exports = { forgotPassword, forgotPasswordPreview, resetPassword, updatePassword };

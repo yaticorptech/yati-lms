@@ -40,6 +40,7 @@ router.get('/', wrap(async (req, res) => {
     // which is run from Host competitions. (A team another college entered in
     // a college's competition before they became college-only still shows.)
     const comps = await Competition.find({
+        game: { $nin: ['quiz', 'hackathon'] },  // Quiz and Hackathon removed 2026-10-28
         hostOrganizationId: { $ne: orgId },
         $or: [{ status: 'registration', hostOrganizationId: null }, { _id: { $in: ours.map((t) => t.competitionId) }, status: { $ne: 'draft' } }]
     }).sort({ startsAt: 1 }).lean();
@@ -70,6 +71,39 @@ const findCompetition = async (id, req) => {
     return c;
 };
 
+/**
+ * Everyone taking part, for the competition's pop-up (asked 2026-10-28): each
+ * player of each approved team — name, college, team, registration number —
+ * and, once the results are published, the team's place and prize. Another
+ * college's students' numbers are shown only by their last four digits.
+ */
+const ORD = { 1: '1st', 2: '2nd', 3: '3rd' };
+const maskCard = (n) => (n ? `••••${String(n).slice(-4)}` : '');
+router.get('/:id/participants', wrap(async (req, res) => {
+    const c = await findCompetition(req.params.id, req);
+    const teams = await Team.find({ competitionId: c._id, status: 'approved' }).lean();
+    const users = await User.find({ _id: { $in: teams.flatMap((t) => t.players.map((p) => p.userId)) } }).select('name cardNumber').lean();
+    const card = new Map(users.map((u) => [String(u._id), u.cardNumber || '']));
+    const shown = !views.resultsHidden(c);
+    const rows = teams.flatMap((t) => {
+        const ours = String(t.organizationId) === String(req.organization._id);
+        const place = shown ? t.place || null : null;
+        const prize = place ? (c.prizes || []).find((p) => p.place === place) : null;
+        return t.players.map((p) => ({
+            name: p.name, college: t.collegeName, team: t.teamName, ours,
+            cardNumber: ours ? card.get(String(p.userId)) || '' : maskCard(card.get(String(p.userId))),
+            place, placeLabel: place ? ORD[place] : null,
+            prize: prize ? [prize.title, prize.xp ? `${prize.xp} XP` : '', prize.rewardPoints ? `${prize.rewardPoints} pts` : ''].filter(Boolean).join(' · ') : null
+        }));
+    }).sort((a, b) => (a.place || 99) - (b.place || 99) || a.college.localeCompare(b.college) || a.name.localeCompare(b.name));
+    res.json({
+        dates: { registrationOpensAt: c.registrationOpensAt || c.createdAt || null, registrationDeadline: c.registrationDeadline, startsAt: c.startsAt, completedAt: c.completedAt || null },
+        resultsPublished: shown,
+        total: rows.length, colleges: new Set(rows.map((r) => r.college)).size,
+        rows
+    });
+}));
+
 router.get('/:id', wrap(async (req, res) => {
     const c = await findCompetition(req.params.id, req);
     const out = await views.detail(c._id, { organizationId: req.organization._id });
@@ -97,6 +131,8 @@ router.put('/:id/team', wrap(async (req, res) => {
     const students = await User.find({ _id: { $in: ids }, organizationId: req.organization._id }).select('name').lean();
     if (students.length !== ids.length) throw fail(400, 'Every player must be one of your own students.');
 
+    const phone = String(body.coordinatorPhone || '').trim();
+    if (!/^\d{10}$/.test(phone)) throw fail(400, 'Enter the coordinator\'s 10-digit phone number.');
     const existing = await Team.findOne({ competitionId: c._id, organizationId: req.organization._id });
     if (!existing || existing.status === 'withdrawn' || existing.status === 'rejected') {
         const taken = await Team.countDocuments({ competitionId: c._id, status: { $in: ['pending', 'approved'] }, ...(existing ? { _id: { $ne: existing._id } } : {}) });
@@ -111,7 +147,7 @@ router.put('/:id/team', wrap(async (req, res) => {
             adminId: req.admin?._id || null,
             name: String(body.coordinatorName || req.admin?.name || '').trim().slice(0, 80),
             email: req.admin?.email || '',
-            phone: String(body.coordinatorPhone || '').trim().slice(0, 20)
+            phone
         },
         // Any change goes back to the platform admin to approve.
         status: 'pending',

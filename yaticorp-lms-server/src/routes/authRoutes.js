@@ -20,8 +20,10 @@ router.post('/register', authLimiter, registerStudent);
 
 // ── Student Login ────────────────────────────────────────────────────────────
 // Failed attempts only, counted per IP and per card (see rateLimiter.js).
-const { loginUser } = require('../controllers/userAuthController');
+const { loginUser, replaceDeviceLogin } = require('../controllers/userAuthController');
 router.post('/student/login', loginLimiter, loginCardLimiter, loginUser);
+// A 3rd device: remove one of the two (once a year) and sign in here instead (services/deviceGuard.js).
+router.post('/student/login/replace-device', loginLimiter, replaceDeviceLogin);
 
 // ── Admin view-as-student ────────────────────────────────────────────────────
 // The admin panel opens the student app with a short-lived, single-use code
@@ -31,7 +33,8 @@ const { exchangeAdminAccess } = require('../controllers/adminUserController');
 router.post('/admin-access/exchange', authLimiter, exchangeAdminAccess);
 
 // ── Student Password Reset ───────────────────────────────────────────────────
-const { forgotPassword, resetPassword } = require('../controllers/userPasswordController');
+const { forgotPassword, forgotPasswordPreview, resetPassword } = require('../controllers/userPasswordController');
+router.post('/student/forgot-password/preview', cardLookupLimiter, forgotPasswordPreview);
 router.post('/student/forgot-password', authLimiter, forgotPassword);
 router.post('/student/reset-password', authLimiter, resetPassword);
 

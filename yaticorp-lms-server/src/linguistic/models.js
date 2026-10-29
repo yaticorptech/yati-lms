@@ -93,7 +93,8 @@ const progressSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     placement: {
         // `chosen`: the student picked their level themselves instead of taking the test (asked 2026-10-23).
-        type: new Schema({ level: { type: String, enum: LEVELS }, score: Number, total: Number, bands: Schema.Types.Mixed, takenAt: Date, chosen: { type: Boolean, default: false } }, { _id: false }),
+        // `found`: the level the test showed (2026-10-28: it no longer moves the student; `level` is where they are).
+        type: new Schema({ level: { type: String, enum: LEVELS }, found: { type: String, enum: LEVELS }, score: Number, total: Number, bands: Schema.Types.Mixed, takenAt: Date, chosen: { type: Boolean, default: false } }, { _id: false }),
         default: null
     },
     lessons: { type: [lessonProgressSchema], default: [] },
@@ -128,7 +129,10 @@ const progressSchema = new Schema({
     aim: { type: String, default: null },
     style: { type: String, default: null },
     ageBand: { type: String, default: null },
-    practiceMinutes: { type: Number, default: null }
+    practiceMinutes: { type: Number, default: null },
+    // The languages the student already speaks, writes and reads (asked last on the start screens, 2026-10-28),
+    // by language code; shown on the section's dashboard. Null until they have said.
+    knows: { type: new Schema({ speak: [String], write: [String], read: [String] }, { _id: false }), default: null }
 }, { timestamps: true });
 
 const attemptSchema = new Schema({

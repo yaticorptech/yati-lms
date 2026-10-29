@@ -28,4 +28,17 @@ const walletSchema = new mongoose.Schema({
   rewardPointsRedeemed: { type: Number, default: 0 }
 }, { timestamps: true });
 
+// Every change to a balance tells that student's open pages (services/walletEvents).
+const announce = function announce(doc) {
+  const userId = doc?.userId || this.getQuery?.()?.userId;
+  require('../services/walletEvents').walletChanged(userId);
+};
+walletSchema.post('save', announce);
+walletSchema.post('findOneAndUpdate', announce);
+walletSchema.post('updateOne', announce);
+walletSchema.post('updateMany', function announceMany() {
+  const q = this.getQuery?.() || {};
+  if (q.userId && typeof q.userId !== 'object') require('../services/walletEvents').walletChanged(q.userId);
+});
+
 module.exports = mongoose.model('RewardWallet', walletSchema, 'rewards_wallets');

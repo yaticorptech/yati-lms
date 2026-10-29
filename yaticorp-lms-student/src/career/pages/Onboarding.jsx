@@ -23,6 +23,8 @@ import {
   coursesFor,
   statesFor
 } from '../utils/profileOptions';
+import { isWalletCancel } from '../../utils/walletCharge';
+import GeminiCreditTip from '../../components/GeminiCreditTip';
 
 const EDUCATION_LEVELS = [
   'Primary School (Class 1–5)',
@@ -306,7 +308,7 @@ export default function Onboarding() {
       setIsGenerating(false);
       setDone(true);
     } catch (err) {
-      setError(err.response?.data?.message || 'Something went wrong');
+      if (!isWalletCancel(err)) setError(err.response?.data?.message || 'Something went wrong');
       setIsGenerating(false);
     }
   };
@@ -747,10 +749,11 @@ export default function Onboarding() {
           </div>
         )}
 
-        <div className="mt-8 flex justify-between gap-3">
+        {/* A phone: the main action full width on top, Back under it. From sm: one row. */}
+        <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* On the first step it leaves the wizard instead: a student who
               came to change their goal had no way out but the menu. */}
-          <Button variant="secondary" icon={ArrowLeft} onClick={step > 1 ? prevStep : leave} className="shrink-0">
+          <Button variant="secondary" icon={ArrowLeft} onClick={step > 1 ? prevStep : leave} className="w-full shrink-0 sm:w-auto">
             Back
           </Button>
 
@@ -758,23 +761,27 @@ export default function Onboarding() {
             <Button
               onClick={nextStep}
               data-mascot-target="enroll"
-              className="shrink-0 bg-gradient-to-r from-journey-600 to-indigo-600 hover:from-journey-700 hover:to-indigo-700"
+              className="w-full shrink-0 bg-gradient-to-r from-journey-600 to-indigo-600 hover:from-journey-700 hover:to-indigo-700 sm:w-auto"
             >
               Next
             </Button>
           ) : (
-            /* The generating label is long, so let this button shrink and centre */
-            <Button
-              variant="accent"
-              icon={Sparkles}
-              onClick={handleSubmit}
-              data-mascot-target="enroll"
-              loading={isGenerating}
-              loadingText="Generating roadmap (about 30s)…"
-              className="min-w-0 bg-gradient-to-r from-journey-600 via-fuchsia-600 to-indigo-600"
-            >
-              ✨ Build my roadmap
-            </Button>
+            /* Takes the rest of the row beside Back, on one line; the AI-credits note sits just before it. */
+            <span className="flex w-full min-w-0 items-center gap-2.5 sm:w-auto">
+              <Button
+                variant="accent"
+                icon={Sparkles}
+                onClick={handleSubmit}
+                data-mascot-target="enroll"
+                loading={isGenerating}
+                loadingText="Building your roadmap…"
+                className="min-w-0 flex-1 whitespace-nowrap bg-gradient-to-r from-journey-600 via-fuchsia-600 to-indigo-600 sm:flex-none"
+              >
+                Build my roadmap
+              </Button>
+              {/* After the button, opening back over it: never off the edge of a phone. */}
+              <GeminiCreditTip side="left" />
+            </span>
           )}
         </div>
       </div>

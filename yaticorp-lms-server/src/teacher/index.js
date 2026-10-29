@@ -9,8 +9,10 @@
  *   theses              Thesis Writing: chapters, PDF (the chapter guides are in the app)
  *   writing             Independent Writing: pieces, daily goal, the last 14 days
  *   plagiarism          the similarity check, its reports, and the teacher's uploaded sources
+ *   questionnaires      Research Methodologies → Questionnaire builder: surveys, as Word files
  *   organization        joining a college or school (organization.js)
  *   clubs               the organization's clubs this teacher is in charge of: their events (../nccnss/teacher.js)
+ *   scout-units         the Scouts & Guides units this teacher leads: requests, events, attendance (../nccnss/leader.js)
  *
  * Every route past auth/ reads req.teacher only: a teacher can never reach
  * another's records (the plagiarism check compares against other documents,
@@ -21,12 +23,14 @@ const mongoose = require('mongoose');
 const { authLimiter, cardLookupLimiter, loginLimiter, loginCardLimiter } = require('../middleware/rateLimiter');
 const { dayKey, addDays } = require('../rewards/config/constants');
 const auth = require('./auth');
-const { Teacher, ResearchProject, Publication, Thesis, WritingPiece, WritingLog, PlagiarismReport, TextVersion, PlagiarismSource, PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS } = require('./models');
+const { Teacher, ResearchProject, Publication, Thesis, WritingPiece, WritingLog, PlagiarismReport, TextVersion, PlagiarismSource, PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS, QUESTION_TYPES } = require('./models');
 const { newStages, fitToTopic, pathKey, progressOf, STAGES, KINDS } = require('./researchPath');
 const { compare, citationCheck, wordCount, SHINGLE } = require('./similarity');
 const { renderThesisPdf } = require('./thesisPdf');
+const { renderPlagiarismPdf } = require('./plagiarismPdf');
 const { renderThesisDocx } = require('./thesisDocx');
 const { references, referencesDocx, publicationsXlsx } = require('./apa');
+const { SCALES, LIMITS, cleanQuestionnaire, renderQuestionnaireDocx } = require('./questionnaire');
 const { unzip } = require('./zip');
 require('../organizations/models/Organization');
 
@@ -106,6 +110,7 @@ const writingStats = async (teacher) => {
 router.post('/auth/register', authLimiter, auth.register);
 router.post('/auth/login', loginLimiter, loginCardLimiter, auth.login);
 router.post('/auth/card-scan', cardLookupLimiter, auth.cardScan);
+router.post('/auth/forgot-password/preview', cardLookupLimiter, auth.forgotPasswordPreview);
 router.post('/auth/forgot-password', authLimiter, auth.forgotPassword);
 router.post('/auth/reset-password', authLimiter, auth.resetPassword);
 
@@ -125,15 +130,62 @@ router.post('/me/picture', (req, res, next) => require('../middleware/uploadMidd
 
 /* ── Overview ──────────────────────────────────────────────────────────── */
 
-router.get('/overview', async (req, res) => {
+/**
+ * The last few things the teacher worked on, newest first, for the
+ * dashboard's "Continue where you left off" (asked 2026-10-27): the latest
+ * chapter of each recent thesis, writing pieces, research projects and
+ * questionnaires. Three, to keep the card small.
+ *
+ * A thesis's chapter is the last one written in. Chapters made together
+ * carry times a millisecond apart, so an untouched thesis seemed to have
+ * been left at its empty Appendices; with nothing written yet, it is the
+ * first chapter not done. Blank lines alone are not writing (an Appendices
+ * holding only line breaks was taken for the last chapter written).
+ */
+const recentWork = async (teacherId) => {
+    const [theses, pieces, projects, holder] = await Promise.all([
+        Thesis.aggregate([
+            { $match: { teacherId } },
+            { $sort: { updatedAt: -1 } },
+            { $limit: 3 },
+            { $project: { title: 1, updatedAt: 1, chapters: { $map: { input: '$chapters', as: 'c', in: { _id: '$$c._id', title: '$$c.title', status: '$$c.status', updatedAt: '$$c.updatedAt', written: { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ['$$c.content', ''] } } } }, 0] } } } } } }
+        ]),
+        WritingPiece.find({ teacherId }).sort({ updatedAt: -1 }).limit(3).select('title kind updatedAt').lean(),
+        ResearchProject.find({ teacherId }).sort({ updatedAt: -1 }).limit(2).select('title updatedAt').lean(),
+        Teacher.findById(teacherId).select('+questionnaires').lean()
+    ]);
+    const items = [];
+    for (const t of theses) {
+        const chapters = t.chapters || [];
+        const written = chapters.filter((c) => c.written).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0];
+        const c = written || chapters.find((x) => x.status !== 'done') || chapters[0];
+        if (c) items.push({ kind: 'chapter', id: c._id, parentId: t._id, title: c.title, context: t.title, at: written ? c.updatedAt : t.updatedAt });
+    }
+    for (const p of pieces) items.push({ kind: 'writing', id: p._id, title: p.title, context: WRITING_KINDS.includes(p.kind) ? p.kind : '', at: p.updatedAt });
+    for (const p of projects) items.push({ kind: 'project', id: p._id, title: p.title, context: '', at: p.updatedAt });
+    for (const q of holder?.questionnaires || []) items.push({ kind: 'questionnaire', id: q._id, title: q.title, context: '', at: q.updatedAt });
+    return items.sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 3);
+};
+
+/**
+ * The research side (everything from the overview on, bar the clubs and units)
+ * is opened by an AI card. A teacher added without one — a club or Scouts
+ * leader — reaches only their profile, organization, clubs and units.
+ */
+const needsCard = (req, res, next) => (req.teacher.cardNumber
+    ? next()
+    : res.status(403).json({ code: 'NO_RESEARCH', message: 'The research tools come with an AI card. Your account runs your clubs and Scouts units.' }));
+
+router.get('/overview', needsCard, async (req, res) => {
     try {
         const t = req.teacher;
-        const [project, pubs, thesis, stats, lastReport] = await Promise.all([
+        const [project, pubs, thesis, stats, lastReport, recent] = await Promise.all([
             ResearchProject.findOne({ teacherId: t._id }).sort({ updatedAt: -1 }).then(fitted),
             Publication.find({ teacherId: t._id }).select('status type year').lean(),
             Thesis.findOne({ teacherId: t._id }).sort({ updatedAt: -1 }).lean(),
             writingStats(t),
-            PlagiarismReport.findOne({ teacherId: t._id }).sort({ createdAt: -1 }).select('title score createdAt').lean()
+            PlagiarismReport.findOne({ teacherId: t._id }).sort({ createdAt: -1 }).select('title score createdAt').lean(),
+            recentWork(t._id)
         ]);
         const byStatus = Object.fromEntries(PUBLICATION_STATUSES.map((s) => [s, 0]));
         pubs.forEach((p) => { byStatus[p.status] = (byStatus[p.status] || 0) + 1; });
@@ -149,16 +201,97 @@ router.get('/overview', async (req, res) => {
                 chapters: thesis.chapters.length, chaptersDone: thesis.chapters.filter((c) => c.status === 'done').length
             } : null,
             writing: stats,
-            plagiarism: lastReport ? { _id: lastReport._id, title: lastReport.title, score: lastReport.score, at: lastReport.createdAt } : null
+            plagiarism: lastReport ? { _id: lastReport._id, title: lastReport.title, score: lastReport.score, at: lastReport.createdAt } : null,
+            recent
         });
     } catch (error) { fail(res, 'overview', error); }
 });
 
 /* ── Research Methodologies ────────────────────────────────────────────── */
 
-// Nothing here: the guides and the advisor run in the app, and there is no
-// "studied" mark to keep (removed 2026-10-26). No outside service anywhere on
-// the teacher side (the user's rule, 2026-10-22).
+// The guides and the advisor run in the app, and there is no "studied" mark
+// to keep (removed 2026-10-26). No outside service anywhere on the teacher
+// side (the user's rule, 2026-10-22).
+//
+// The questionnaire builder (asked 2026-10-27): Likert-scale, multiple-choice
+// and open questions, saved as the teacher writes them, downloaded as Word.
+
+// Each teacher's questionnaires are kept in their own record (models.js says
+// why), changed in place with one update each, so two quick saves never undo
+// each other.
+const questionnaireId = (req) => (validId(req.params.id) ? new mongoose.Types.ObjectId(req.params.id) : null);
+const ownQuestionnaire = async (req) => {
+    const id = questionnaireId(req);
+    if (!id) return null;
+    const t = await Teacher.findById(req.teacher._id).select({ questionnaires: { $elemMatch: { _id: id } } }).lean();
+    return t?.questionnaires?.[0] || null;
+};
+const questionnaireSummary = (q) => ({ _id: q._id, title: q.title, questions: (q.questions || []).filter((x) => x.type !== 'section').length, updatedAt: q.updatedAt, createdAt: q.createdAt });
+
+router.get('/questionnaires', async (req, res) => {
+    try {
+        const t = await Teacher.findById(req.teacher._id).select('+questionnaires').lean();
+        const list = [...(t?.questionnaires || [])].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        res.json({ questionnaires: list.map(questionnaireSummary), scales: SCALES, types: QUESTION_TYPES, limits: LIMITS });
+    } catch (error) { fail(res, 'questionnaires', error); }
+});
+
+router.post('/questionnaires', async (req, res) => {
+    try {
+        const { out, error } = cleanQuestionnaire(req.body || {}, false);
+        if (error) return bad(res, error[1], error[0]);
+        const now = new Date();
+        const q = { _id: new mongoose.Types.ObjectId(), intro: '', questions: [], ...out, createdAt: now, updatedAt: now };
+        // Only while there is room: the limit is checked in the same update.
+        const r = await Teacher.updateOne({ _id: req.teacher._id, [`questionnaires.${LIMITS.questionnaires - 1}`]: { $exists: false } }, { $push: { questionnaires: q } }, { timestamps: false });
+        if (!r.modifiedCount) return bad(res, `You can keep up to ${LIMITS.questionnaires} questionnaires. Delete one you no longer need.`);
+        res.status(201).json(await ownQuestionnaire({ ...req, params: { id: String(q._id) } }));
+    } catch (error) { fail(res, 'new questionnaire', error); }
+});
+
+router.get('/questionnaires/:id', async (req, res) => {
+    try {
+        const q = await ownQuestionnaire(req);
+        return q ? res.json(q) : notFound(res, 'That questionnaire');
+    } catch (error) { fail(res, 'questionnaire', error); }
+});
+
+router.put('/questionnaires/:id', async (req, res) => {
+    try {
+        const id = questionnaireId(req);
+        if (!id) return notFound(res, 'That questionnaire');
+        const { out, error } = cleanQuestionnaire(req.body || {}, true);
+        if (error) return bad(res, error[1], error[0]);
+        const now = new Date();
+        const set = { 'questionnaires.$.updatedAt': now };
+        for (const [k, v] of Object.entries(out)) set[`questionnaires.$.${k}`] = v;
+        const r = await Teacher.updateOne({ _id: req.teacher._id, 'questionnaires._id': id }, { $set: set }, { runValidators: true, timestamps: false });
+        if (!r.matchedCount) return notFound(res, 'That questionnaire');
+        const q = await ownQuestionnaire(req);
+        res.json({ ...questionnaireSummary(q), savedAt: now });
+    } catch (error) { fail(res, 'save questionnaire', error); }
+});
+
+router.delete('/questionnaires/:id', async (req, res) => {
+    try {
+        const id = questionnaireId(req);
+        if (!id) return notFound(res, 'That questionnaire');
+        const r = await Teacher.updateOne({ _id: req.teacher._id, 'questionnaires._id': id }, { $pull: { questionnaires: { _id: id } } }, { timestamps: false });
+        return r.matchedCount ? res.json({ ok: true }) : notFound(res, 'That questionnaire');
+    } catch (error) { fail(res, 'delete questionnaire', error); }
+});
+
+router.get('/questionnaires/:id/docx', async (req, res) => {
+    try {
+        const q = await ownQuestionnaire(req);
+        if (!q) return notFound(res, 'That questionnaire');
+        const name = `${q.title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_').slice(0, 60) || 'Questionnaire'}.docx`;
+        const file = renderQuestionnaireDocx(q, req.teacher.name);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+        res.send(file);
+    } catch (error) { if (!res.headersSent) fail(res, 'questionnaire docx', error); }
+});
 
 /* ── Organization ──────────────────────────────────────────────────────── */
 
@@ -167,6 +300,13 @@ router.use('/organization', require('./organization'));
 /* ── Clubs in my charge (src/nccnss/teacher.js) ───────────────────────── */
 
 router.use('/clubs', require('../nccnss/teacher'));
+
+/* ── Scouts & Guides units I lead (src/nccnss/leader.js) ──────────────── */
+
+router.use('/scout-units', require('../nccnss/leader'));
+
+// Everything below is the research side.
+router.use(needsCard);
 
 /* ── Research Path ─────────────────────────────────────────────────────── */
 
@@ -878,6 +1018,19 @@ router.get('/plagiarism/reports', async (req, res) => {
         const list = await PlagiarismReport.find({ teacherId: req.teacher._id }).select('-text -matches -flags').sort({ createdAt: -1 }).limit(100).lean();
         res.json({ reports: list });
     } catch (error) { fail(res, 'plagiarism reports', error); }
+});
+
+// The report as a PDF, to keep with a draft or show a supervisor (plagiarismPdf.js).
+router.get('/plagiarism/reports/:id/pdf', async (req, res) => {
+    try {
+        if (!validId(req.params.id)) return notFound(res, 'That report');
+        const r = await PlagiarismReport.findOne({ _id: req.params.id, teacherId: req.teacher._id }).lean();
+        if (!r) return notFound(res, 'That report');
+        const name = `Similarity_report_${String(r.title || '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_').slice(0, 50) || 'check'}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+        renderPlagiarismPdf(r, req.teacher.name, res);
+    } catch (error) { if (!res.headersSent) fail(res, 'plagiarism report pdf', error); }
 });
 
 router.get('/plagiarism/reports/:id', async (req, res) => {

@@ -6,6 +6,49 @@ const User = require('../models/User');
 const { findUserByCardNumber } = require('../utils/cardNumber');
 const Enrollment = require('../models/Enrollment');
 const generateToken = require('../utils/generateToken');
+const jwt = require('jsonwebtoken');
+const { deviceOf, admitDevice, replaceDevice, startSession } = require('../services/deviceGuard');
+
+/** 409 with the devices in the way and a short ticket to swap one out (replaceDeviceLogin). */
+const refuseDevice = (res, user, device, conflict) => res.status(409).json({
+    code: 'DEVICE_LIMIT',
+    message: `New device found. You can sign in on only 1 ${conflict.kind === 'mobile' ? 'mobile' : `computer${conflict.residential ? ' (2 with your residential card)' : ''}`} at a time.`,
+    ...conflict,
+    ticket: jwt.sign({ id: String(user._id), purpose: 'device-swap', did: device.deviceId }, process.env.JWT_SECRET, { expiresIn: '15m' })
+});
+
+/** A sign-in that got through: counted, joined to its organization, answered with the token. */
+const finishLogin = async (req, res, user) => {
+    const { deviceId } = deviceOf(req);
+    // Counted before the response is shaped, so `loginCount` below is
+    // this sign-in's number rather than the previous one — the client
+    // uses it to tell a returning student from a brand new one.
+    // A targeted $inc, not save(): save() validates the whole record,
+    // and an older account missing a field today's schema requires
+    // (a phone, say) failed it — so a right password answered 500.
+    await User.updateOne({ _id: user._id }, { $inc: { loginCount: 1 } });
+    const loginCount = (user.loginCount || 0) + 1;
+    // A card an organization scanned in brings its student into it (organizations/services/cardLink.js).
+    await require('../organizations/services/cardLink').joinByCard(user);
+
+    res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        cardNumber: user.cardNumber,
+        profilePicture: user.profilePicture || '',
+        credits: user.credits || 0,
+        // Saved with the rest on the device, so the Dashboard's
+        // banner opens on the student's own level rather than on
+        // "Level 1" until the profile has loaded.
+        xp: user.xp || 0,
+        level: user.level || 1,
+        loginCount,
+        role: 'student',
+        token: generateToken(user._id, 'student', { did: deviceId, sid: await startSession(user) })
+    });
+};
 
 // @desc    Auth user & get token
 // @route   POST /api/user/login
@@ -21,39 +64,21 @@ const loginUser = async (req, res) => {
                 return res.status(401).json({ message: 'User account is not active' });
             }
 
-            // Counted before the response is shaped, so `loginCount` below is
-            // this sign-in's number rather than the previous one — the client
-            // uses it to tell a returning student from a brand new one.
-            // A targeted $inc, not save(): save() validates the whole record,
-            // and an older account missing a field today's schema requires
-            // (a phone, say) failed it — so a right password answered 500.
-            await User.updateOne({ _id: user._id }, { $inc: { loginCount: 1 } });
-            const loginCount = (user.loginCount || 0) + 1;
-            // A card an organization scanned in brings its student into it (organizations/services/cardLink.js).
-            await require('../organizations/services/cardLink').joinByCard(user);
+            // Only 2 devices (services/deviceGuard.js): a new one past the limit is stopped here,
+            // with what the student needs to swap it in.
+            const device = deviceOf(req);
+            const admitted = await admitDevice(user, device);
+            if (!admitted.ok) return refuseDevice(res, user, device, admitted.conflict);
 
-            res.json({
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                phone: user.phone,
-                cardNumber: user.cardNumber,
-                profilePicture: user.profilePicture || '',
-                credits: user.credits || 0,
-                // Saved with the rest on the device, so the Dashboard's
-                // banner opens on the student's own level rather than on
-                // "Level 1" until the profile has loaded.
-                xp: user.xp || 0,
-                level: user.level || 1,
-                loginCount,
-                role: 'student',
-                token: generateToken(user._id, 'student')
-            });
+            return finishLogin(req, res, user);
         } else if (!user && await require('../teacher/auth').findTeacherByCard(cardNumber)) {
             // A teacher's card, at the student sign-in: say where it belongs.
             res.status(401).json({ code: 'TEACHER_CARD', message: 'This card is registered to a teacher account. Choose Teacher to sign in.' });
+        } else if (user) {
+            // The card is right: say it is the password, so they reset it rather than re-scan.
+            res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });
         } else {
-            res.status(401).json({ message: 'Invalid card number or password' });
+            res.status(401).json({ code: 'NO_ACCOUNT', message: 'No account found with this card number. Check the number or sign up.' });
         }
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -76,8 +101,14 @@ const getUserProfile = async (req, res) => {
             .populate('courseId', 'title thumbnail isPublished')
             .populate('bundleId', 'title thumbnail isPublished');
 
+        // The number in the card's QR code: on the account, or else the card's own record.
+        let qrNumber = user.qrNumber || '';
+        if (!qrNumber && user.cardNumber) {
+            qrNumber = (await require('../models/Card').findOne({ CardNumber: String(user.cardNumber).trim() }).select('qrCodeNumber').lean())?.qrCodeNumber || '';
+        }
+
         res.json({
-            user,
+            user: { ...user.toObject(), qrNumber },
             enrollments
         });
     } catch (error) {
@@ -269,8 +300,31 @@ const uploadProfilePicture = async (req, res) => {
     }
 };
 
+// @desc    Remove one device (the yearly removal) and sign in on this one in its place
+// @route   POST /api/auth/student/login/replace-device
+// @access  Public, with the ticket from a DEVICE_LIMIT refusal
+const replaceDeviceLogin = async (req, res) => {
+    try {
+        const { ticket, removeDeviceId } = req.body || {};
+        let claim;
+        try { claim = jwt.verify(String(ticket || ''), process.env.JWT_SECRET); } catch { claim = null; }
+        if (!claim || claim.purpose !== 'device-swap') return res.status(401).json({ message: 'That took too long. Sign in again.' });
+        const device = deviceOf(req);
+        if (device.deviceId !== claim.did) return res.status(401).json({ message: 'Sign in again on this device.' });
+        const user = await User.findById(claim.id);
+        if (!user || user.status !== 'active') return res.status(401).json({ message: 'User account is not active' });
+        const done = await replaceDevice(user._id, String(removeDeviceId || ''), device);
+        if (done.error) return res.status(done.status).json({ message: done.error, canRemoveAt: done.canRemoveAt || null });
+        return finishLogin(req, res, user);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
+    finishLogin,
     loginUser,
+    replaceDeviceLogin,
     getUserProfile,
     updateUserProfile,
     uploadProfilePicture,

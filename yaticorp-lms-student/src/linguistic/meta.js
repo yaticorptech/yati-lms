@@ -28,10 +28,15 @@ export const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'tr
 // Each level is a section of the path, named the Duolingo way with its CEFR level (asked 2026-10-24).
 export const LEVELS = [
     { id: 'beginner', label: 'Beginner', section: 'Rookie', cefr: 'A1', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-    { id: 'intermediate', label: 'Intermediate', section: 'Explorer', cefr: 'A2–B1', chip: 'bg-amber-50 text-amber-700 ring-amber-200' },
+    // Hidden (2026-10-29, the server's levels.js): its lessons and old certificates are still named by it.
+    { id: 'intermediate', label: 'Intermediate', section: 'Explorer', cefr: 'A2–B1', chip: 'bg-amber-50 text-amber-700 ring-amber-200', hidden: true },
     { id: 'advanced', label: 'Advanced', section: 'Achiever', cefr: 'B2', chip: 'bg-rose-50 text-rose-700 ring-rose-200' }
 ];
 export const levelOf = (id) => LEVELS.find((l) => l.id === id) || LEVELS[0];
+/** The sections a course shows: Beginner and Advanced (Intermediate hidden, 2026-10-29). */
+export const SHOWN_LEVELS = LEVELS.filter((l) => !l.hidden);
+/** Whether a section of the path ends with an assessment that opens the next (2026-10-29). */
+export const hasAssessment = (section) => !!section?.units?.some((u) => u.lessons?.some((l) => l.review === 'assessment'));
 /* ── The student's own language ───────────────────────────────────────── */
 
 /**
@@ -138,9 +143,35 @@ export const chime = (kind) => {
 
 /* ── Recordings ───────────────────────────────────────────────────────── */
 
+/*
+ * The device's voices. The browser lists them a moment after the page opens
+ * (Chrome only after 'voiceschanged'), so the list is read again then.
+ */
+let voices = [];
+const readVoices = () => { try { voices = window.speechSynthesis.getVoices() || []; } catch { voices = []; } };
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+    readVoices();
+    window.speechSynthesis.addEventListener?.('voiceschanged', readVoices);
+}
+const norm = (l) => String(l || '').toLowerCase().replace('_', '-');
+/** The device's voice for a language ('kn-IN': a Kannada voice), or null. */
+const voiceFor = (lang) => {
+    if (!voices.length) readVoices();
+    const want = norm(lang), base = want.split('-')[0];
+    return voices.find((v) => norm(v.lang) === want) || voices.find((v) => norm(v.lang).split('-')[0] === base) || null;
+};
+/**
+ * Whether the browser can read text in `lang` (2026-10-26: Kannada was silent
+ * on a computer with no Kannada voice, with nothing said). While the voices
+ * are not listed yet, it is given the benefit of the doubt.
+ */
+export const canSpeakIn = (lang) => typeof window !== 'undefined' && !!window.speechSynthesis && (!voices.length || !!voiceFor(lang));
+
 /**
  * Play a recording; with none, the browser's own voice reads the text, where
- * the browser has one. Returns the Audio element (to stop it) or null.
+ * the browser has one — that language's voice, chosen by name rather than
+ * left to the browser, which read Kannada with an English voice, i.e. not at
+ * all. Returns the Audio element (to stop it) or null.
  */
 export const play = (src, text, lang = 'en-IN') => {
     if (src) {
@@ -151,6 +182,8 @@ export const play = (src, text, lang = 'en-IN') => {
     if (text && typeof window !== 'undefined' && window.speechSynthesis) {
         const u = new SpeechSynthesisUtterance(text);
         u.lang = lang;
+        const v = voiceFor(lang);
+        try { if (v) u.voice = v; } catch { /* not one of this browser's voices: its own pick */ }
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
     }

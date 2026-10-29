@@ -9,6 +9,8 @@ import EmptyState from '../ui/EmptyState';
 import NotesReader from './NotesReader';
 import VideoList from './VideoList';
 import QuizRunner from './QuizRunner';
+import { isWalletCancel } from '../../../utils/walletCharge';
+import GeminiCreditTip from '../../../components/GeminiCreditTip';
 
 /**
  * Notes, videos, and quiz for the skill the student picks.
@@ -56,7 +58,8 @@ export default function StudyPanel({ mode, skills = [] }) {
       setMaterials((prev) => [...prev.filter((m) => m.skillName !== activeSkill), data]);
       toast.success(`Notes, videos, and a quiz for ${activeSkill}.`, 'Study pack ready');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not build your study pack.');
+      // Cancelled at the wallet's price: nothing to report.
+      if (!isWalletCancel(err)) toast.error(err.response?.data?.message || 'Could not build your study pack.');
     } finally {
       setGenerating(false);
     }
@@ -161,7 +164,7 @@ export default function StudyPanel({ mode, skills = [] }) {
           </div>
 
           {material && (
-            <Button
+            <span className="inline-flex items-center gap-2"><Button
               variant="secondary"
               size="sm"
               icon={RefreshCw}
@@ -170,7 +173,7 @@ export default function StudyPanel({ mode, skills = [] }) {
               onClick={handleGenerate}
             >
               Regenerate
-            </Button>
+            </Button><GeminiCreditTip /></span>
           )}
         </div>
 
@@ -180,14 +183,14 @@ export default function StudyPanel({ mode, skills = [] }) {
             title={`No study pack for ${activeSkill} yet`}
             description="Your AI mentor will write revision notes, suggest videos worth watching, and set a 5-question quiz for this skill."
             action={
-              <Button
+              <span className="inline-flex items-center gap-2"><Button
                 icon={Sparkles}
                 loading={generating}
                 loadingText="Building your pack…"
                 onClick={handleGenerate}
               >
                 Build study pack
-              </Button>
+              </Button><GeminiCreditTip /></span>
             }
           />
         ) : (

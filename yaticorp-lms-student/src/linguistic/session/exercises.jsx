@@ -4,16 +4,16 @@
  * type, tap the word tiles, match pairs, translate, write, speak). Each draws
  * a step from logic.js; the session around it holds the answer and checks it.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Keyboard, LayoutGrid, Lightbulb, BookOpen, Headphones, ChevronDown, Square, Volume2, Eye } from 'lucide-react';
 import { COLORS, directionLabel, langOf, langFor, isRtl, play, chime, soundOn, canSpeak } from '../meta';
 import { Mascot, Speaker } from '../ui';
-import { tilesOf, usesTiles } from './logic';
+import { tilesOf, usesTiles, OPEN_WRITING, LEAST_SENTENCES, sentenceCount } from './logic';
 import { tr, line } from '../say';
 import Dialogue from '../parts/Dialogue';
-import VoiceRecorder from '../parts/VoiceRecorder';
 import TalkRecorder from '../parts/TalkRecorder';
-import LetterKeys from '../parts/LetterKeys';
+import { ticksOf, needOf, canTranscribe } from '../parts/speakTicks';
+import { KeysPopup } from '../parts/LetterKeys';
 import { hasLetters } from '../parts/letters';
 
 /* ── Shared pieces ────────────────────────────────────────────────────── */
@@ -37,14 +37,15 @@ const Bubble = ({ pose = 'point-right', children, lang, speaker }) => (
 );
 
 /** A typed answer, in the grey box. Enter checks it (the session listens), except where noted `multiline`. */
-function AnswerBox({ value, onChange, locked, placeholder, rows = 3, lang, multiline = false, label, center = false, inputRef }) {
+function AnswerBox({ value, onChange, locked, placeholder, rows = 3, lang, multiline = false, label, center = false, inputRef, wrong = false }) {
     const own = useRef(null);
     const ref = inputRef || own;
     useEffect(() => { if (!locked) ref.current?.focus({ preventScroll: true }); }, [locked, ref]);
     return (
         <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} disabled={locked} rows={rows} lang={lang} dir={isRtl(lang) ? 'rtl' : undefined} aria-label={label || placeholder}
             data-multiline={multiline ? '' : undefined} autoCapitalize={lang && lang !== 'en' && !['es', 'fr', 'de', 'pt', 'ru'].includes(lang) ? 'none' : 'sentences'} autoCorrect="off" spellCheck={false} placeholder={placeholder}
-            className={`w-full resize-none rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-[17px] font-semibold text-[#4b4b4b] placeholder:text-[#AFAFAF] focus:border-[#84D8FF] focus:bg-white focus:outline-none disabled:opacity-80 ${center ? 'text-center text-xl tracking-wide' : ''}`} />
+            className={`w-full resize-none rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-[17px] font-semibold text-[#4b4b4b] placeholder:text-[#AFAFAF] focus:border-[#84D8FF] focus:bg-white focus:outline-none disabled:opacity-80 ${center ? 'text-center text-xl tracking-wide' : ''}`}
+            style={wrong ? { borderColor: COLORS.red.face, background: COLORS.red.light, color: COLORS.red.ink, opacity: 1 } : undefined} data-wrong={wrong || undefined} />
     );
 }
 
@@ -125,7 +126,11 @@ export function WordsStep({ step }) {
                     className="lingo-tile flex min-h-60 min-w-0 flex-1 flex-col items-center justify-center gap-2 p-5 text-center">
                     {!flipped ? (
                         <>
-                            <span className="text-xs font-extrabold uppercase tracking-widest text-[#AFAFAF]">{w.pos || 'word'}</span>
+                            {/* How the word sounds, in English letters, in place of "noun" for a language not written
+                                in English, Hindi or Kannada letters (2026-10-27). */}
+                            {w.say
+                                ? <span className="break-words text-lg font-extrabold" style={{ color: COLORS.blue.ink }} data-say>{w.say}</span>
+                                : <span className="text-xs font-extrabold uppercase tracking-widest text-[#AFAFAF]">{w.pos || 'word'}</span>}
                             <span className="break-words text-4xl font-black text-[#3c3c3c]" lang={target === 'en' ? undefined : target} dir="auto">{w.word}</span>
                             <span className="mt-1 text-sm font-bold text-[#AFAFAF]">{T('Tap to flip')}</span>
                         </>
@@ -205,7 +210,7 @@ export function DialogueStep({ step }) {
 const isTyping = (e) => ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName) || e.target?.isContentEditable;
 
 /** Options as tall cards, numbered for the keyboard (1, 2, 3…). After checking: the right one green, a wrong pick red. */
-function Choices({ options, value, onChange, locked, result, language }) {
+function Choices({ options, value, onChange, locked, result, language, says = null }) {
     useEffect(() => {
         if (locked) return undefined;
         const onKey = (e) => {
@@ -229,7 +234,11 @@ function Choices({ options, value, onChange, locked, result, language }) {
                     <button key={o} type="button" role="radio" aria-checked={chosen} disabled={locked} onClick={() => onChange(o)} data-option={i}
                         className={`lingo-tile flex min-h-14 items-center gap-3 px-3 py-2.5 text-left text-[17px] text-[#4b4b4b] ${locked && !right && !wrong ? 'opacity-60' : ''}`} style={look}>
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 text-sm font-extrabold" style={{ borderColor: chosen || right || wrong ? 'currentColor' : '#E5E5E5', color: chosen || right || wrong ? undefined : '#AFAFAF' }}>{i + 1}</span>
-                        <span className="min-w-0 flex-1 break-words" lang={langFor(o, language)} dir="auto">{o}</span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block break-words" lang={langFor(o, language)} dir="auto">{o}</span>
+                            {/* How the choice sounds, in English letters (a course's language, 2026-10-27). */}
+                            {says?.[o] && <span className="mt-0.5 block break-words text-sm font-bold" style={{ color: right || wrong ? undefined : COLORS.blue.ink }} data-say>{says[o]}</span>}
+                        </span>
                     </button>
                 );
             })}
@@ -242,7 +251,14 @@ function Choices({ options, value, onChange, locked, result, language }) {
  * it back. A tile used leaves its shape behind in the bank, as a grey slot.
  * `value` is the tiles' places in `words`, in the order chosen.
  */
-function Tiles({ words, value, onChange, locked, tone, language }) {
+/**
+ * Word tiles to put in order. `correction`: after a wrong answer, the right
+ * one in green inside the answer box, on its own line under the tiles
+ * (2026-10-27), while the student puts the words in order again.
+ */
+function Tiles({ words, value, onChange, locked, tone, language, correction = null, says = null, correctionSay = null }) {
+    // How each tile sounds, in English letters, under it (a course's language, 2026-10-27).
+    const face = (w) => (says?.[w] ? <><span className="block">{w}</span><span className="block text-[11px] font-bold" style={{ color: COLORS.blue.ink }} data-tile-say>{says[w]}</span></> : w);
     const placed = value;
     // Tiles in Urdu or Arabic are placed right to left.
     const dir = words.some((w) => langFor(w, language) && isRtl(langFor(w, language))) ? 'rtl' : undefined;
@@ -253,8 +269,13 @@ function Tiles({ words, value, onChange, locked, tone, language }) {
                 style={{ backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent 3.45rem, ${line} 3.45rem, ${line} 3.6rem)` }}>
                 {placed.map((i, k) => (
                     <button key={`${i}-${k}`} type="button" disabled={locked} onClick={() => onChange(placed.filter((_, x) => x !== k))}
-                        className="lingo-tile lingo-pop h-12 px-3.5 text-[17px] text-[#4b4b4b]" lang={langFor(words[i], language)}>{words[i]}</button>
+                        className={`lingo-tile lingo-pop h-12 px-3.5 text-[17px] text-[#4b4b4b] ${says ? 'flex flex-col items-center justify-center leading-tight' : ''}`} lang={langFor(words[i], language)}
+                        style={tone === 'wrong' ? { borderColor: COLORS.red.face, background: COLORS.red.light, color: COLORS.red.ink } : undefined}>{face(words[i])}</button>
                 ))}
+                {/* Full width, so always a line of its own: the second line while the first is still empty. */}
+                {correction && !placed.length && <span aria-hidden="true" className="h-12 basis-full" />}
+                {correction && <p className="flex min-h-12 basis-full items-center break-words px-1 text-[17px] font-extrabold" style={{ color: COLORS.green.ink }} lang={langFor(correction, language)} data-correction>{correction}</p>}
+                {correction && correctionSay && <p className="-mt-2 basis-full break-words px-1 text-sm font-bold" style={{ color: COLORS.green.ink }} data-correction-say>{correctionSay}</p>}
             </div>
             <div className="flex flex-wrap justify-center gap-2" data-tiles dir={dir}>
                 {words.map((w, i) => {
@@ -262,7 +283,7 @@ function Tiles({ words, value, onChange, locked, tone, language }) {
                     return (
                         <span key={`${w}-${i}`} className="inline-flex rounded-[0.9rem] bg-[#E5E5E5]">
                             <button type="button" disabled={locked || used} onClick={() => onChange([...placed, i])} aria-hidden={used ? 'true' : undefined} tabIndex={used ? -1 : 0}
-                                className={`lingo-tile h-12 px-3.5 text-[17px] text-[#4b4b4b] ${used ? 'invisible' : ''}`} lang={langFor(w, language)}>{w}</button>
+                                className={`lingo-tile h-12 px-3.5 text-[17px] text-[#4b4b4b] ${says ? 'flex flex-col items-center justify-center leading-tight' : ''} ${used ? 'invisible' : ''}`} lang={langFor(w, language)}>{face(w)}</button>
                         </span>
                     );
                 })}
@@ -331,7 +352,7 @@ function ListenPrompt({ q }) {
     );
 }
 
-export function QuestionStep({ step, value, onChange, locked, result }) {
+export function QuestionStep({ step, value, onChange, locked, result, correction }) {
     const q = step.q;
     const T = tr(step.language);
     const tone = result ? (result.correct ? 'right' : 'wrong') : null;
@@ -341,19 +362,27 @@ export function QuestionStep({ step, value, onChange, locked, result }) {
         body = (
             <>
                 <Title><Blanks text={title} /></Title>
+                {/* The word asked about, to hear and to read in English letters (2026-10-27): a course's word in letters
+                    the student may not read ("What does 食べ物 mean?") is the word they had on its card, "tabemono". */}
+                {q.promptSay && (
+                    <Bubble pose="point-right" lang={q.promptSay.locale} speaker={<Speaker text={q.promptSay.text} lang={q.promptSay.locale} size="sm" />}>
+                        <span className="block text-2xl" data-prompt-word>{q.promptSay.text}</span>
+                        <span className="mt-1 block text-[15px] font-bold" style={{ color: COLORS.blue.ink }} lang="en" data-prompt-say>{q.promptSay.say}</span>
+                    </Bubble>
+                )}
                 {q.say && <ListenPrompt q={q} />}
                 {sentence && <p className="rounded-2xl border-2 border-[#E5E5E5] px-4 py-3 text-lg font-bold text-[#4b4b4b]"><Blanks text={sentence} fill={value} /></p>}
-                <Choices options={q.options || []} value={value} onChange={onChange} locked={locked} result={result} language={step.language} />
+                <Choices options={q.options || []} value={value} onChange={onChange} locked={locked} result={result} language={step.language} says={q.says} />
             </>
         );
     } else if (q.type === 'rearrange') {
-        body = <><Title>{q.prompt}</Title><Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={tone} language={step.language} /></>;
+        body = <><Title>{q.prompt}</Title><Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={tone} language={step.language} correction={correction} /></>;
     } else if (q.type === 'fill') {
         body = (
             <>
                 <Title>{T('Fill in the blank')}</Title>
                 <Bubble pose="thinking"><Blanks text={q.prompt} fill={value} /></Bubble>
-                <AnswerBox value={value} onChange={onChange} locked={locked} rows={1} placeholder={T('Type the missing word')} />
+                <AnswerBox value={value} onChange={onChange} locked={locked} rows={1} placeholder={T('Type the missing word')} wrong={tone === 'wrong'} />
             </>
         );
     } else if (q.type === 'correction') {
@@ -361,7 +390,7 @@ export function QuestionStep({ step, value, onChange, locked, result }) {
             <>
                 <Title>{T('Correct this sentence')}</Title>
                 <Bubble pose="curious-question">{q.prompt}</Bubble>
-                <AnswerBox value={value} onChange={onChange} locked={locked} rows={2} placeholder={T('Write the correct sentence')} label="Your corrected sentence" />
+                <AnswerBox value={value} onChange={onChange} locked={locked} rows={2} placeholder={T('Write the correct sentence')} label="Your corrected sentence" wrong={tone === 'wrong'} />
             </>
         );
     } else {
@@ -371,7 +400,7 @@ export function QuestionStep({ step, value, onChange, locked, result }) {
                 <Title>{q.prompt}</Title>
                 {q.kannada && <Bubble pose="point-right" lang={step.language || 'kn'} speaker={<Speaker src={q.audio} text={step.word?.word} size="sm" label={T('Hear it in English')} />}><span className="text-2xl">{q.kannada}</span></Bubble>}
                 {q.hint && <p className="text-center font-mono text-lg font-bold tracking-[0.3em] text-[#AFAFAF]" aria-label={`Hint: ${q.hint}`}>{q.hint}</p>}
-                <AnswerBox value={value} onChange={onChange} locked={locked} rows={1} placeholder={T('Type in English')} center />
+                <AnswerBox value={value} onChange={onChange} locked={locked} rows={1} placeholder={T('Type in English')} center wrong={tone === 'wrong'} />
             </>
         );
     }
@@ -384,7 +413,64 @@ export function QuestionStep({ step, value, onChange, locked, result }) {
     );
 }
 
-export function TranslateStep({ step, value, onChange, locked, result }) {
+/**
+ * A sentence to read in a course (2026-10-27): its sound in English letters under it, each word of which
+ * shows its own English when tapped, as Duolingo's word hints, and under it the whole sentence's English
+ * (asked the same day); the sentence itself, tapped, its whole English.
+ */
+function SourceHints({ it }) {
+    const [open, setOpen] = useState(null);     // 'all' | a word's place
+    const [left, setLeft] = useState(0);
+    const box = useRef(null);
+    const words = it.sourceWords;
+    // A tap anywhere outside closes the box (2026-10-27), and so does Escape.
+    useEffect(() => {
+        if (open === null) return undefined;
+        const away = (e) => { if (!box.current?.contains(e.target)) setOpen(null); };
+        const key = (e) => { if (e.key === 'Escape') setOpen(null); };
+        document.addEventListener('pointerdown', away, true);
+        window.addEventListener('keydown', key);
+        return () => { document.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', key); };
+    }, [open]);
+    const show = (k, e) => {
+        if (open === k) { setOpen(null); return; }
+        const a = box.current?.getBoundingClientRect(), b = e.currentTarget.getBoundingClientRect();
+        setLeft(a ? Math.max(0, Math.min(b.left - a.left, a.width - 260)) : 0);
+        setOpen(k);
+    };
+    const tip = open === 'all' ? ['English', it.sourceEn] : typeof open === 'number' && words?.[open] ? words[open] : null;
+    // With a word's English, the whole sentence's too (not for a one-word item: there the word is the sentence).
+    const whole = typeof open === 'number' && words?.length > 1 ? it.sourceEn : null;
+    const word = 'break-words font-bold underline decoration-dotted decoration-2 underline-offset-4';
+    return (
+        <span className="relative block" ref={box}>
+            {it.sourceEn
+                ? <button type="button" onClick={(e) => show('all', e)} aria-expanded={open === 'all'} className="text-left" data-source>{it.source}</button>
+                : <span data-source>{it.source}</span>}
+            {it.sourceSay && (words
+                ? <span className="mt-1 block text-[15px]" style={{ color: COLORS.blue.ink }} data-source-say>
+                    {words.map(([w], k) => <Fragment key={k}>{k > 0 && ' '}<button type="button" onClick={(e) => show(k, e)} aria-expanded={open === k} className={word} data-say-word={k}>{w}</button></Fragment>)}
+                </span>
+                : it.sourceEn
+                    ? <button type="button" onClick={(e) => show('all', e)} aria-expanded={open === 'all'} className={`mt-1 block text-left text-[15px] ${word}`} style={{ color: COLORS.blue.ink }} data-source-say>{it.sourceSay}</button>
+                    : <span className="mt-1 block break-words text-[15px] font-bold" style={{ color: COLORS.blue.ink }} data-source-say>{it.sourceSay}</span>)}
+            {tip && (
+                <span role="tooltip" style={{ left }} className="lingo-pop absolute top-full z-10 mt-2 block w-max max-w-[260px] rounded-xl border-2 border-[#E5E5E5] bg-white px-3 py-2 text-left text-[15px] font-bold text-[#4b4b4b] shadow-lg" lang="en" data-source-meaning>
+                    <span className="block text-[11px] font-extrabold uppercase tracking-wider text-[#AFAFAF]">{tip[0]}</span>
+                    {tip[1]}
+                    {whole && (
+                        <span className="mt-2 block border-t-2 border-[#F0F0F0] pt-2" data-source-whole>
+                            <span className="block text-[11px] font-extrabold uppercase tracking-wider text-[#AFAFAF]">Full sentence</span>
+                            <span className="block font-semibold" style={{ color: COLORS.blue.ink }}>{whole}</span>
+                        </span>
+                    )}
+                </span>
+            )}
+        </span>
+    );
+}
+
+export function TranslateStep({ step, value, onChange, locked, result, correction }) {
     const it = step.item;
     // 'en-kn' is always "the language learnt → the student's language", whichever they are.
     const toHelper = step.direction === 'en-kn';
@@ -393,9 +479,13 @@ export function TranslateStep({ step, value, onChange, locked, result }) {
     const target = step.target || 'en';
     const T = langOf(target);
     const writeIn = toHelper ? code : target;
+    // The letters on screen: the answer's language's; and where the answer is English, the course language's too
+    // (2026-10-29: "don't give only English typing, give the keyboard of the Japanese letters on screen").
+    const keysIn = writeIn !== 'en' ? writeIn : target !== 'en' && hasLetters(target) ? target : null;
     const Tr = tr(code);
     const bank = usesTiles(step);
     const ref = useRef(null);
+    // The language's letters as a keyboard that pops up when the keyboard icon is tapped (2026-10-29).
     const [keys, setKeys] = useState(false);
     const typing = !Array.isArray(value);
     const tone = result ? (result.correct ? 'right' : 'wrong') : null;
@@ -403,17 +493,19 @@ export function TranslateStep({ step, value, onChange, locked, result }) {
     return (
         <div className="lingo-in space-y-5" data-translation={it.id}>
             <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full px-3 py-1 text-xs font-extrabold" style={{ background: COLORS.red.light, color: COLORS.red.ink }}>{directionLabel(step.direction, code, target)}</span>
+                {/* The course, as the student says it (2026-10-28, "I learn English to German"): their language → the one
+                    learnt, on every sentence; the title says which language to write in. */}
+                <span className="rounded-full px-3 py-1 text-xs font-extrabold" style={{ background: COLORS.red.light, color: COLORS.red.ink }} data-course-pair>{directionLabel('kn-en', code, target)}</span>
                 {it.topic && <span className="rounded-full bg-[#F7F7F7] px-3 py-1 text-xs font-extrabold capitalize text-[#777]">{it.topic}</span>}
             </div>
             <Title>{it.open ? Tr('Translate this passage') : line(code, 'writeIn', (toHelper ? L : T).name)}</Title>
             <Bubble pose="point-right" lang={toHelper ? target : code} speaker={toHelper ? <Speaker text={it.source} lang={step.targetLocale || 'en-IN'} size="sm" /> : null}>
-                <span data-source>{it.source}</span>
+                {it.sourceSay || it.sourceEn ? <SourceHints it={it} /> : <span data-source>{it.source}</span>}
             </Bubble>
             {!typing
-                ? <Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={tone} language={writeIn} />
-                : <AnswerBox inputRef={ref} value={value} onChange={onChange} locked={locked} rows={it.open ? 7 : 3} multiline={!!it.open} lang={writeIn}
-                    placeholder={writeIn === 'en' ? Tr('Type in English') : langOf(writeIn).placeholder} label={`Your translation of: ${it.source}`} />}
+                ? <Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={tone} language={writeIn} correction={correction} says={it.bankSays} correctionSay={result?.answerSay} />
+                : <AnswerBox inputRef={ref} value={value} onChange={onChange} locked={locked} rows={it.open ? 7 : 3} multiline={!!it.open} lang={writeIn} wrong={tone === 'wrong'}
+                    placeholder={writeIn === 'en' ? (keysIn ? `${Tr('Type in English')} · ${langOf(keysIn).placeholder}` : Tr('Type in English')) : langOf(writeIn).placeholder} label={`Your translation of: ${it.source}`} />}
             {!locked && (
                 <div className="flex flex-wrap gap-2">
                     {bank && (
@@ -421,16 +513,17 @@ export function TranslateStep({ step, value, onChange, locked, result }) {
                             {typing ? <><LayoutGrid size={15} /> {Tr('Use word bank')}</> : <><Keyboard size={15} /> {Tr('Use keyboard')}</>}
                         </button>
                     )}
-                    {typing && writeIn !== 'en' && hasLetters(writeIn) && (
+                    {typing && keysIn && hasLetters(keysIn) && (
                         <button type="button" onClick={() => setKeys((k) => !k)} aria-expanded={keys} className="lingo-btn inline-flex h-10 items-center gap-2 px-3 text-xs" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.red.ink }} data-letters-toggle>
-                            <Keyboard size={15} /> {line(code, 'letters', langOf(writeIn).name, keys)}
+                            <Keyboard size={15} /> {line(code, 'letters', langOf(keysIn).name, keys)}
                         </button>
                     )}
                 </div>
             )}
-            {typing && keys && !locked && writeIn !== 'en' && <LetterKeys code={writeIn} inputRef={ref} value={value} onChange={onChange} />}
+            {typing && keys && !locked && keysIn && <KeysPopup code={keysIn} title={line(code, 'letters', langOf(keysIn).name, false)} onClose={() => setKeys(false)} inputRef={ref} value={value} onChange={onChange} />}
+            {/* Its sound in English letters is an answer too (the server's spellingsOf, 2026-10-29). */}
+            {typing && !locked && writeIn !== 'en' && it.bankSays && <p className="text-sm font-bold text-[#777]" data-both-letters>{line(code, 'bothLetters', langOf(writeIn).name)}</p>}
             {it.open && !locked && <p className="text-sm font-bold text-[#AFAFAF]">A passage is not marked by the computer: you will see the model{writeIn === 'en' ? ', and your English is checked sentence by sentence' : ''}.</p>}
-            {result?.sentences?.length > 0 && <Corrections r={result} T={Tr} />}
         </div>
     );
 }
@@ -438,47 +531,76 @@ export function TranslateStep({ step, value, onChange, locked, result }) {
 const WRITE_LABEL = { jumbled: 'Put the words in order', sentence: 'Make a sentence', paragraph: 'Write a paragraph', email: 'Write an email', letter: 'Write a letter' };
 const wordCount = (t) => (String(t).trim().match(/[\p{L}\p{N}'’-]+/gu) || []).length;
 
-export function WriteStep({ step, value, onChange, locked, result }) {
+export function WriteStep({ step, value, onChange, locked, result, correction }) {
     const t = step.task;
     const T = tr(step.language);
     if (t.type === 'jumbled') {
         return (
             <div className="lingo-in space-y-5" data-writing={t.id}>
                 <Title>{T(WRITE_LABEL.jumbled)}</Title>
-                <Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={result ? (result.correct ? 'right' : 'wrong') : null} />
+                <Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={result ? (result.correct ? 'right' : 'wrong') : null} correction={correction} />
             </div>
         );
     }
-    const open = ['paragraph', 'email', 'letter'].includes(t.type);
+    const open = OPEN_WRITING.includes(t.type);
     const n = wordCount(value);
+    const said = sentenceCount(value);
     return (
         <div className="lingo-in space-y-4" data-writing={t.id}>
             <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.blue.ink }}>{T(WRITE_LABEL[t.type] || 'Write')}</p>
             <Title>{t.prompt}</Title>
             {t.mustInclude?.length > 0 && <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold text-[#777]">Use: {t.mustInclude.map((w) => <span key={w} className="rounded-lg px-2 py-0.5 font-extrabold" style={{ background: COLORS.green.light, color: COLORS.green.ink }}>{w}</span>)}</p>}
-            <AnswerBox value={value} onChange={onChange} locked={locked} rows={open ? (t.type === 'paragraph' ? 7 : 10) : 3} multiline={open}
+            <AnswerBox value={value} onChange={onChange} locked={locked} rows={open ? (t.type === 'paragraph' ? 7 : 10) : 3} multiline={open} wrong={!open && result?.correct === false}
                 placeholder={t.type === 'email' ? 'Subject: …\n\nDear …,\n\n…\n\nRegards,\nYour name' : t.type === 'letter' ? 'To\n…\n\nDate\n\nSubject: …\n\nRespected Sir / Madam,\n\n…\n\nYours faithfully,\nYour name' : 'Write here…'}
                 label={t.prompt} />
             <div className="flex flex-wrap items-start justify-between gap-2">
                 {t.checklist?.length > 0 ? <ul className="space-y-0.5 text-sm font-semibold text-[#777]">{t.checklist.map((c) => <li key={c}>☐ {c}</li>)}</ul> : <span />}
-                <span className="text-sm font-extrabold tabular-nums" style={{ color: t.minWords && n < t.minWords ? '#AFAFAF' : COLORS.green.ink }}>{n} word{n === 1 ? '' : 's'}{t.minWords ? ` · at least ${t.minWords}` : ''}</span>
+                <span className="flex flex-col items-end gap-0.5 text-sm font-extrabold tabular-nums">
+                    {open && <span style={{ color: said >= LEAST_SENTENCES ? COLORS.green.ink : n ? COLORS.red.ink : '#AFAFAF' }} data-sentences={said}>{line(step.language, 'sentences', said, LEAST_SENTENCES)}</span>}
+                    <span style={{ color: t.minWords && n < t.minWords ? '#AFAFAF' : COLORS.green.ink }}>{line(step.language, 'wordsAtLeast', n, t.minWords || 0)}</span>
+                </span>
             </div>
-            {/* Checked here (2026-10-26), not sent to a teacher: each sentence, its grammar corrected. */}
-            {result?.sentences?.length > 0 && <Corrections r={result} T={T} said="You wrote" />}
+            {/* Three sentences or more, or no going on (2026-10-28). */}
+            {open && said < LEAST_SENTENCES && <p className="rounded-xl px-3 py-2 text-sm font-bold" style={{ background: n ? COLORS.red.light : COLORS.blue.light, color: n ? COLORS.red.ink : COLORS.blue.ink }} data-sentence-rule>{T('Write at least 3 sentences. End each one with a full stop.')}</p>}
         </div>
     );
 }
 
+/**
+ * Your turn to speak (asked 2026-10-28: "it will automatically tick based on his voice, don't give a tick option
+ * manually"): the microphone, what the browser heard, and the checklist, each point ticking by itself as it is
+ * said (parts/speakTicks.js). SAVE waits for a recording, five words or more, and half the points heard. With no
+ * speech-to-text in the browser (Firefox), the student records, then types what they said.
+ */
 export function SpeakStep({ step, value, onChange, locked }) {
     const s = step.speaking;
     const T = tr(step.language);
     const [sample, setSample] = useState(false);
+    const [listening, setListening] = useState(false);
+    const writes = canTranscribe();
+    const ticks = ticksOf(s, value.said, value.seconds);
+    const heard = ticks.filter(Boolean).length;
+    // A stretch of two seconds or more is a recording; the seconds add up, for the pace.
+    const stopped = (secs) => onChange({ ...value, seconds: (value.seconds || 0) + secs, recorded: value.recorded || secs >= 2 });
     return (
         <div className="lingo-in space-y-4">
             <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.orange.ink }}>{T('Speak')}</p>
             <Title>{T('Your turn to speak')}</Title>
             <Bubble pose="presenting">{s.prompt}</Bubble>
-            <VoiceRecorder onRecorded={() => onChange({ ...value, recorded: true })} disabled={locked} />
+            <TalkRecorder value={value.said} onChange={(said) => onChange({ ...value, said })} onStop={stopped} disabled={locked} onListening={setListening} T={T} />
+            {writes && value.said && (
+                <div className="rounded-2xl bg-[#F7F7F7] px-4 py-3" data-speak-said>
+                    <p className="mb-1 text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('What we heard')}</p>
+                    <p className="text-[16px] font-semibold leading-relaxed text-[#4b4b4b]" lang="en">{value.said}</p>
+                </div>
+            )}
+            {!writes && value.recorded && (
+                <label className="block" data-speak-typed>
+                    <span className="mb-1.5 block text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('Type what you said')}</span>
+                    <textarea value={value.said} onChange={(e) => onChange({ ...value, said: e.target.value })} readOnly={listening} disabled={locked} rows={4} lang="en" spellCheck={false}
+                        className="w-full rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-[17px] font-semibold text-[#4b4b4b] focus:border-[#84D8FF] focus:bg-white focus:outline-none" />
+                </label>
+            )}
             {s.sample && (
                 <div>
                     <button type="button" onClick={() => setSample((v) => !v)} aria-expanded={sample} className="inline-flex min-h-10 items-center gap-1.5 text-[15px] font-extrabold" style={{ color: COLORS.blue.ink }}>
@@ -493,23 +615,24 @@ export function SpeakStep({ step, value, onChange, locked }) {
                 </div>
             )}
             {s.checklist?.length > 0 && (
-                <fieldset>
-                    <legend className="mb-2 text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('After you listen back, tick what you did')}</legend>
-                    <div className="grid gap-2">
+                <div data-speak-points>
+                    <p className="mb-2 text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('They tick by themselves as you say them')}</p>
+                    <ul className="grid gap-2">
                         {s.checklist.map((c, i) => {
-                            const on = value.ticks[i];
+                            const on = ticks[i];
                             return (
-                                <button key={c} type="button" role="checkbox" aria-checked={on} disabled={locked} onClick={() => onChange({ ...value, ticks: value.ticks.map((x, k) => (k === i ? !x : x)) })}
-                                    className="lingo-tile flex min-h-12 items-center gap-3 px-3 text-left text-[15px] text-[#4b4b4b]" style={on ? { borderColor: COLORS.green.face, background: COLORS.green.light } : undefined}>
-                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2" style={{ borderColor: on ? COLORS.green.face : '#E5E5E5', background: on ? COLORS.green.face : '#fff' }}>{on && <Check size={15} strokeWidth={4} className="text-white" />}</span>
-                                    {c}
-                                </button>
+                                <li key={c} className="lingo-tile flex min-h-12 items-center gap-3 px-3 text-left text-[15px] text-[#4b4b4b]" style={on ? { borderColor: COLORS.green.face, background: COLORS.green.light } : undefined}
+                                    data-speak-point={i} data-on={on ? 'yes' : 'no'}>
+                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2" style={{ borderColor: on ? COLORS.green.face : '#E5E5E5', background: on ? COLORS.green.face : '#fff' }} aria-hidden="true">{on && <Check size={15} strokeWidth={4} className="text-white" />}</span>
+                                    <span className="flex-1">{c}</span>
+                                    <span className="sr-only">{on ? 'heard' : 'not heard yet'}</span>
+                                </li>
                             );
                         })}
-                    </div>
-                </fieldset>
+                    </ul>
+                    <p className="mt-2 text-sm font-extrabold tabular-nums" style={{ color: heard >= needOf(s) ? COLORS.green.ink : '#AFAFAF' }} aria-live="polite" data-speak-heard={heard}>{line(step.language, 'heard', heard, s.checklist.length, needOf(s))}</p>
+                </div>
             )}
-            <p className="text-sm font-semibold text-[#AFAFAF]">Nothing marks your pronunciation automatically: listen to yourself and be honest.</p>
         </div>
     );
 }
@@ -599,7 +722,6 @@ export function TalkStep({ step, value, onChange, locked, result }) {
                     placeholder={T('Fix any words the microphone heard wrong, or type here.')} aria-label={T('Your talk')}
                     className="w-full resize-y rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-[17px] font-semibold leading-relaxed text-[#4b4b4b] placeholder:text-[#AFAFAF] focus:border-[#84D8FF] focus:bg-white focus:outline-none disabled:opacity-80" data-talk-text />
             </label>
-            {result?.sentences && <Corrections r={result} T={T} />}
         </div>
     );
 }
@@ -655,7 +777,7 @@ export function PairsStep({ step, done, onDone }) {
         return () => window.removeEventListener('keydown', onKey);
     });
 
-    const cell = (side, i, label, number) => {
+    const cell = (side, i, label, number, say = null) => {
         const isDone = matched.includes(i);
         const isPick = pick && pick.side === side && pick.i === i;
         const isWrong = wrong && wrong[side === 'en' ? 0 : 1] === i;
@@ -665,7 +787,11 @@ export function PairsStep({ step, done, onDone }) {
             <button key={`${side}-${i}`} type="button" disabled={isDone || done} onClick={() => tap(side, i)} aria-pressed={isPick} data-pair={side}
                 className={`lingo-tile flex min-h-14 w-full items-center gap-2 px-2.5 text-left text-[16px] text-[#4b4b4b] sm:px-3 ${isWrong ? 'lingo-shake' : ''} ${isDone ? '!border-[#E5E5E5] !bg-white text-[#E5E5E5]' : ''}`} style={look}>
                 <span className={`hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 text-xs font-extrabold sm:flex ${isDone ? 'border-[#E5E5E5] text-[#E5E5E5]' : 'border-[#E5E5E5] text-[#AFAFAF]'}`}>{number}</span>
-                <span className="min-w-0 flex-1 break-words text-center" lang={side === 'kn' ? step.language || 'kn' : step.target && step.target !== 'en' ? step.target : undefined} dir="auto">{label}</span>
+                <span className="min-w-0 flex-1 text-center">
+                    <span className="block break-words" lang={side === 'kn' ? step.language || 'kn' : step.target && step.target !== 'en' ? step.target : undefined} dir="auto">{label}</span>
+                    {/* How the word sounds, in English letters, as on its card (2026-10-27). */}
+                    {say && <span className="mt-0.5 block break-words text-[13px] font-bold" style={{ color: isDone ? '#E5E5E5' : COLORS.blue.ink }} data-say>{say}</span>}
+                </span>
             </button>
         );
     };
@@ -674,7 +800,7 @@ export function PairsStep({ step, done, onDone }) {
             {step.warmup && <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.green.ink }} data-warmup>{tr(step.language)('Warm up: this unit’s words')}</p>}
             <Title>{tr(step.language)('Tap the matching pairs')}</Title>
             <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2.5">{words.map((w, i) => cell('en', i, w.word, i + 1))}</div>
+                <div className="space-y-2.5">{words.map((w, i) => cell('en', i, w.word, i + 1, w.say))}</div>
                 <div className="space-y-2.5">{right.map((i, k) => cell('kn', i, words[i].kannada, words.length + k + 1))}</div>
             </div>
         </div>

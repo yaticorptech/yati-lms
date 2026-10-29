@@ -11,6 +11,7 @@
  * the server looks the student up with the organization in the query, so it
  * cannot match a student who is not a member.
  */
+import useGoBack from '../../hooks/useGoBack';
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
@@ -18,6 +19,7 @@ import {
     CheckCircle2, UserMinus, AlertTriangle, Mail, Phone, Clock, ListChecks, CalendarDays, Trophy, Medal, UserPlus
 } from 'lucide-react';
 import api from '../../utils/api';
+import StudentDevicesCard from '../../components/StudentDevicesCard';
 import { CARD, Stat, Bar, Pill, Empty, Avatar, RemoveStudentDialog } from '../../components/orgUi';
 import { formatDate, relativeDay } from '../../utils/dates';
 
@@ -108,6 +110,8 @@ const StreakCard = ({ rewards }) => {
 
 const OrgStudentDetail = () => {
     const { studentId } = useParams();
+    // Back: to wherever they came from (the students list, the dashboard…).
+    const goBack = useGoBack();
     const navigate = useNavigate();
 
     /**
@@ -171,8 +175,8 @@ const OrgStudentDetail = () => {
     if (loaded.error || !loaded.data?.student) {
         return (
             <div className="space-y-4 animate-fade-in">
-                <Link to="/organization/students" className="inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600">
-                    <ArrowLeft size={16} />Back to students
+                <Link to="/organization/students" onClick={goBack} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600">
+                    <ArrowLeft size={16} />Back
                 </Link>
                 <div className={`${CARD} p-10 text-center`}>
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
@@ -191,8 +195,8 @@ const OrgStudentDetail = () => {
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            <Link to="/organization/students" className="inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600">
-                <ArrowLeft size={16} />Back to students
+            <Link to="/organization/students" onClick={goBack} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600">
+                <ArrowLeft size={16} />Back
             </Link>
 
             {/* ── Who they are ─────────────────────────────────────────────── */}
@@ -249,6 +253,9 @@ const OrgStudentDetail = () => {
                     </button>
                 </div>
             </div>
+
+            {/* ── Devices: where they sign in, residential card, reset ──────── */}
+            <StudentDevicesCard base={`/organizations/me/students/${studentId}/devices`} />
 
             {/* ── Overview ─────────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">

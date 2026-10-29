@@ -16,7 +16,7 @@
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, makeAdmin, startApp, cleanup, forgetAudit } = require('../helpers');
 
 const games = require('../../src/competitions/games');
 /**
@@ -102,7 +102,7 @@ after(async () => {
         Team.deleteMany({ competitionId: { $in: ids } }),
         Competition.deleteMany({ _id: { $in: ids } }),
         Organization.deleteMany({ _id: { $in: made.orgs } }),
-        Admin.deleteMany({ _id: { $in: made.admins } })
+        Admin.deleteMany({ _id: { $in: made.admins } }), forgetAudit({ orgs: made.orgs, admins: made.admins })
     ]);
     await cleanup(made.users, app.server);
 });
@@ -157,7 +157,7 @@ describe('an inter-college chess competition, start to finish', () => {
         // View mode is not read-only: a superadmin may change what the college
         // could change itself (organizations/middleware/authMiddleware.js), so
         // the request reaches the team rules, which refuse an empty team.
-        const put = await view('PUT', `/org/${comp.id}/team`, { teamName: 'Not theirs', players: [] });
+        const put = await view('PUT', `/org/${comp.id}/team`, { coordinatorPhone: '9876543210', teamName: 'Not theirs', players: [] });
         assert.equal(put.status, 400, JSON.stringify(put.body));
         assert.notEqual(put.body.code, 'READ_ONLY_VIEW');
     });
@@ -165,12 +165,12 @@ describe('an inter-college chess competition, start to finish', () => {
     test('a coordinator registers a team of their own students — and only their own', async () => {
         const students = await colleges[0].call('GET', '/org/students');
         assert.equal(students.body.students.length, 2);
-        const stranger = await colleges[0].call('PUT', `/org/${comp.id}/team`, { teamName: 'Alpha Knights', players: [String(playerOf(1).user._id)] });
+        const stranger = await colleges[0].call('PUT', `/org/${comp.id}/team`, { coordinatorPhone: '9876543210', teamName: 'Alpha Knights', players: [String(playerOf(1).user._id)] });
         assert.equal(stranger.status, 400, 'another college\'s student cannot be picked');
-        const tooMany = await colleges[0].call('PUT', `/org/${comp.id}/team`, { teamName: 'Alpha Knights', players: [...students.body.students.map((s) => s.id), String(playerOf(1).user._id)] });
+        const tooMany = await colleges[0].call('PUT', `/org/${comp.id}/team`, { coordinatorPhone: '9876543210', teamName: 'Alpha Knights', players: [...students.body.students.map((s) => s.id), String(playerOf(1).user._id)] });
         assert.equal(tooMany.status, 400);
         for (const [i, c] of colleges.entries()) {
-            const r = await c.call('PUT', `/org/${comp.id}/team`, { teamName: `Team ${i}`, coordinatorName: `Coach ${i}`, players: c.students.map((s) => String(s.user._id)) });
+            const r = await c.call('PUT', `/org/${comp.id}/team`, { coordinatorPhone: '9876543210', teamName: `Team ${i}`, coordinatorName: `Coach ${i}`, players: c.students.map((s) => String(s.user._id)) });
             assert.equal(r.status, 201, JSON.stringify(r.body));
             assert.equal(r.body.team.status, 'pending');
         }
@@ -348,6 +348,8 @@ describe('an inter-college chess competition, start to finish', () => {
             assert.equal(places[2], final.sides[0].teamId);
             const thirdMatch = r.body.rounds[1].matches.find((x) => x.kind === 'third-place');
             assert.equal(places[3], thirdMatch.winnerTeamId);
+            // Nothing is paid or shown to students until the results are published.
+            assert.equal((await boss('POST', `/admin/${comp.id}/publish-results`)).status, 200);
             assert.equal((await Competition.findById(comp.id).lean()).awardedAt ?? null, null, 'the prizes were still to come');
         } finally {
             release();
@@ -448,12 +450,12 @@ describe('a game for four teams a match (Ludo, from before it was removed)', () 
         assert.equal(r.status, 201, JSON.stringify(r.body));
         const id = r.body.competition.id;
         for (const [i, c] of colleges.entries()) {
-            await c.call('PUT', `/org/${id}/team`, { teamName: `L${i}`, players: [String(c.students[0].user._id)] });
+            await c.call('PUT', `/org/${id}/team`, { coordinatorPhone: '9876543210', teamName: `L${i}`, players: [String(c.students[0].user._id)] });
         }
         // A fifth college, with one student.
         const fifth = await makeCollege('Epsilon', 1);
         colleges.push(fifth);
-        await fifth.call('PUT', `/org/${id}/team`, { teamName: 'L4', players: [String(fifth.students[0].user._id)] });
+        await fifth.call('PUT', `/org/${id}/team`, { coordinatorPhone: '9876543210', teamName: 'L4', players: [String(fifth.students[0].user._id)] });
         for (const t of (await boss('GET', `/admin/${id}`)).body.teams) await boss('PUT', `/admin/${id}/teams/${t.id}`, { status: 'approved' });
         const drawn = (await boss('POST', `/admin/${id}/draw`)).body;
         assert.equal(drawn.rounds[0].matches.length, 2);
@@ -517,10 +519,10 @@ describe('an organization hosting its own competition (Carrom doubles, from befo
         const other = colleges[1];
         assert.ok(!(await other.call('GET', '/org')).body.competitions.some((c) => c.id === compId), 'not in another college\'s Take part');
         assert.equal((await other.call('GET', `/org/${compId}`)).status, 404);
-        const r = await other.call('PUT', `/org/${compId}/team`, { teamName: 'Beta Strikers', players: other.students.map((st) => String(st.user._id)) });
+        const r = await other.call('PUT', `/org/${compId}/team`, { coordinatorPhone: '9876543210', teamName: 'Beta Strikers', players: other.students.map((st) => String(st.user._id)) });
         assert.equal(r.status, 404, 'nor can it register');
         assert.ok(!(await host.call('GET', '/org')).body.competitions.some((c) => c.id === compId), 'the host runs it from Host, not Take part');
-        assert.equal((await host.call('PUT', `/org/${compId}/team`, { teamName: 'Ours', players: [String(host.students[0].user._id), String(host.students[1].user._id)] })).status, 404);
+        assert.equal((await host.call('PUT', `/org/${compId}/team`, { coordinatorPhone: '9876543210', teamName: 'Ours', players: [String(host.students[0].user._id), String(host.students[1].user._id)] })).status, 404);
 
         const ours = host.students[0].call, theirs = other.students[0].call;
         assert.ok((await ours('GET', '/')).body.competitions.some((c) => c.id === compId), 'the host\'s students see it');
@@ -611,7 +613,7 @@ describe('certificates when participation certificates are off', () => {
     test('the top three get theirs; the fourth team does not', async () => {
         const r = await boss('POST', '/admin', { name: `No Participation ${STAMP}`, game: 'chess', startsAt: inDays(3), registrationDeadline: inDays(2), participationCertificates: false, open: true });
         const id = r.body.competition.id;
-        for (const [i, c] of colleges.slice(0, 4).entries()) await c.call('PUT', `/org/${id}/team`, { teamName: `NP${i}`, players: [String(c.students[0].user._id)] });
+        for (const [i, c] of colleges.slice(0, 4).entries()) await c.call('PUT', `/org/${id}/team`, { coordinatorPhone: '9876543210', teamName: `NP${i}`, players: [String(c.students[0].user._id)] });
         for (const t of (await boss('GET', `/admin/${id}`)).body.teams) await boss('PUT', `/admin/${id}/teams/${t.id}`, { status: 'approved' });
         let d = (await boss('POST', `/admin/${id}/draw`)).body;
         for (const m of d.rounds[0].matches) await boss('POST', `/admin/${id}/matches/${m.id}/result`, { winnerTeamId: m.sides[0].teamId });
@@ -619,6 +621,7 @@ describe('certificates when participation certificates are off', () => {
         for (const m of d.rounds[1].matches) await boss('POST', `/admin/${id}/matches/${m.id}/result`, { winnerTeamId: m.sides[0].teamId });
         d = (await boss('GET', `/admin/${id}`)).body;
         assert.equal(d.competition.status, 'completed');
+        assert.equal((await boss('POST', `/admin/${id}/publish-results`)).status, 200);
         const teams = await Team.find({ competitionId: id }).lean();
         const fourth = teams.find((t) => !t.place);
         const second = teams.find((t) => t.place === 2);
@@ -635,13 +638,19 @@ describe('certificates when participation certificates are off', () => {
     });
 });
 
-describe('UNO, Ludo, Carrom and playing with friends are gone (2026-10-23)', () => {
-    test('a competition of UNO, Ludo or Carrom cannot be made; friendly rooms cannot be made', async () => {
+describe('UNO, Ludo and Carrom are gone (2026-10-23)', () => {
+    test('a competition of UNO, Ludo or Carrom cannot be made; a Group Brain game is not a competition game', async () => {
         for (const game of ['uno', 'ludo', 'carrom']) {
             const r = await boss('POST', '/admin', { name: `${game} ${STAMP}`, game, startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
-            assert.equal(r.status, 400, game); assert.match(r.body.message, /Choose the game: Chess, Rapid Fire, Code Clash, Brain Sprint, a Quiz or a Hackathon/);
+            assert.equal(r.status, 400, game); assert.match(r.body.message, /Choose the game: Chess, Rapid Fire, Code Clash or Brain Sprint/);
         }
-        assert.equal((await colleges[0].students[0].call('POST', '/rooms', { game: 'chess' })).status, 404);
+        // Quiz and Hackathon were removed on 2026-10-28.
+        for (const game of ['quiz', 'hackathon']) {
+            const r = await boss('POST', '/admin', { name: `${game} ${STAMP}`, game, startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
+            assert.equal(r.status, 400, game);
+        }
+        const room = await boss('POST', '/admin', { name: `Sudoku ${STAMP}`, game: 'sudoku', startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
+        assert.equal(room.status, 400, 'Group Brain games are played in rooms, not competitions');
     });
 });
 
@@ -649,7 +658,7 @@ describe('deleting a competition', () => {
     test('the organizer deletes one in any state: its teams, matches and games go with it', async () => {
         const r = await boss('POST', '/admin', { name: `Delete Me ${STAMP}`, game: 'chess', startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
         const id = r.body.competition.id;
-        for (const c of colleges.slice(0, 2)) await c.call('PUT', `/org/${id}/team`, { teamName: `Del ${c.org.name}`, players: [String(c.students[0].user._id)] });
+        for (const c of colleges.slice(0, 2)) await c.call('PUT', `/org/${id}/team`, { coordinatorPhone: '9876543210', teamName: `Del ${c.org.name}`, players: [String(c.students[0].user._id)] });
         for (const t of (await boss('GET', `/admin/${id}`)).body.teams) await boss('PUT', `/admin/${id}/teams/${t.id}`, { status: 'approved' });
         const match = (await boss('POST', `/admin/${id}/draw`)).body.rounds[0].matches[0];
         await boss('POST', `/admin/${id}/matches/${match.id}/start`);

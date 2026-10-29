@@ -47,13 +47,13 @@ const Notice = ({ notice, onClose }) => notice && (
 // What a student can join, in the order the picker shows them; the
 // organization's clubs follow.
 const SCHEMES = [
-    { scheme: 'NCC', name: 'NCC', hint: 'National Cadet Corps: drill, camps and the A, B, C certificates.', icon: Shield, tone: 'from-emerald-500 to-green-700 shadow-emerald-500/40' },
-    { scheme: 'NSS', name: 'NSS', hint: 'National Service Scheme: community service hours and special camps.', icon: HeartHandshake, tone: 'from-rose-400 to-red-600 shadow-rose-500/40' },
-    { scheme: 'SCOUTS', name: 'Scouts & Guides', hint: 'Camping, first aid, badges and service.', icon: Compass, tone: 'from-amber-400 to-orange-500 shadow-orange-500/40' }
+    { scheme: 'NCC', name: 'NCC', hint: 'National Cadet Corps: drill, camps and the A, B, C certificates.', icon: Shield, tone: 'from-emerald-500 to-green-700 shadow-emerald-500/40', soft: 'from-emerald-50 via-white to-teal-50', ring: 'ring-emerald-100', ink: 'text-emerald-700' },
+    { scheme: 'NSS', name: 'NSS', hint: 'National Service Scheme: community service hours and special camps.', icon: HeartHandshake, tone: 'from-rose-400 to-red-600 shadow-rose-500/40', soft: 'from-rose-50 via-white to-orange-50', ring: 'ring-rose-100', ink: 'text-rose-700' },
+    { scheme: 'SCOUTS', name: 'Scouts & Guides', hint: 'Camping, first aid, badges and service.', icon: Compass, tone: 'from-amber-400 to-orange-500 shadow-orange-500/40', soft: 'from-amber-50 via-white to-orange-50', ring: 'ring-amber-100', ink: 'text-amber-700' }
 ];
 // A club member's post; plain members show none.
 const ROLE_LABEL = { president: 'President', vice_president: 'Vice President', secretary: 'Secretary', treasurer: 'Treasurer', coordinator: 'Coordinator' };
-const CLUB_LOOK = { icon: Users, tone: 'from-violet-500 to-indigo-600 shadow-violet-500/40' };
+const CLUB_LOOK = { icon: Users, tone: 'from-violet-500 to-indigo-600 shadow-violet-500/40', soft: 'from-violet-50 via-white to-indigo-50', ring: 'ring-violet-100', ink: 'text-violet-700' };
 const lookOf = (m) => SCHEMES.find((x) => x.scheme === m.scheme) || CLUB_LOOK;
 const sameChoice = (m, c) => m.scheme === c.scheme && String(m.clubId?._id || m.clubId || '') === String(c.clubId || '');
 
@@ -63,7 +63,7 @@ const JoinPage = ({ data, onDone }) => {
         ...(data.clubs || []).map((c) => ({ scheme: 'CLUB', clubId: c._id, name: c.name, hint: c.description || 'A club in your organization.', ...CLUB_LOOK }))
     ];
     const [choice, setChoice] = useState(null);
-    const [form, setForm] = useState({ unit: '', enrolmentNo: '', year: 1, certStage: '', note: '' });
+    const [form, setForm] = useState({ unit: '', unitId: '', enrolmentNo: '', year: 1, certStage: '', note: '' });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -109,6 +109,8 @@ const JoinPage = ({ data, onDone }) => {
     }
 
     const club = choice.scheme === 'CLUB';
+    // Scouts: the organization's units to pick from, once it has added any; typed otherwise.
+    const scoutUnits = choice.scheme === 'SCOUTS' ? data.scoutUnits || [] : [];
     const rejected = data.memberships.find((m) => m.status === 'rejected' && sameChoice(m, choice));
     return (
         <form onSubmit={submit} className={`${CARD} space-y-4 p-5 sm:p-6`}>
@@ -122,7 +124,15 @@ const JoinPage = ({ data, onDone }) => {
             </div>
             {rejected && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">Your last request to join {choice.name} was not accepted. Check with your teacher or officer, then ask again.</p>}
             <div className="grid gap-3 sm:grid-cols-2">
-                {!club && <label><span className={LABEL}>{choice.scheme === 'SCOUTS' ? 'Troop / company' : 'Unit / company'}</span><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="As your officer calls it" /></label>}
+                {scoutUnits.length > 0 && (
+                    <label><span className={LABEL}>Your unit</span>
+                        <select className={INPUT} value={form.unitId} onChange={(e) => set('unitId', e.target.value)} required>
+                            <option value="">Choose your unit</option>
+                            {scoutUnits.map((u) => <option key={u._id} value={u._id}>{u.name} · {u.sectionLabel}</option>)}
+                        </select>
+                    </label>
+                )}
+                {!club && !scoutUnits.length && <label><span className={LABEL}>{choice.scheme === 'SCOUTS' ? 'Troop / company' : 'Unit / company'}</span><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="As your officer calls it" /></label>}
                 <label><span className={LABEL}>{club ? 'Membership no. (if you have one)' : 'Enrolment no. (if you have one)'}</span><input className={INPUT} value={form.enrolmentNo} onChange={(e) => set('enrolmentNo', e.target.value)} /></label>
                 <label><span className={LABEL}>Year in {choice.name}</span>
                     <select className={INPUT} value={form.year} onChange={(e) => set('year', e.target.value)}>{[1, 2, 3].map((y) => <option key={y} value={y}>Year {y}</option>)}</select>
@@ -170,7 +180,8 @@ const LogForm = ({ memberId, onDone, onCancel }) => {
                 <label><span className={LABEL}>Date</span><input type="date" className={INPUT} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} /></label>
                 <label><span className={LABEL}>Hours</span><input type="number" min="0" max="240" step="0.5" className={INPUT} value={form.hours} onChange={(e) => set('hours', e.target.value)} /></label>
                 <label><span className={LABEL}>Place</span><input className={INPUT} value={form.place} onChange={(e) => set('place', e.target.value)} /></label>
-                <label><span className={LABEL}>Photo proof (optional)</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] || null)} className="w-full text-sm" /></label>
+                <label><span className={LABEL}>Photo / certificate proof (optional)</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] || null)} className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100" />
+                    <span className="mt-1 block text-xs text-slate-500">Saved to your own Google Drive (if connected) — only your teacher gets the link to verify it. Once verified, it shows on your calendar as completed.</span></label>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex gap-2">
@@ -181,21 +192,229 @@ const LogForm = ({ memberId, onDone, onCancel }) => {
     );
 };
 
-const Tile = ({ icon: Icon, label, value, target, percent, bad }) => (
-    <div className={`${CARD} p-4`}>
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500"><Icon size={15} /> {label}</div>
-        <p className={`mt-1 text-2xl font-black tabular-nums ${bad ? 'text-red-600' : 'text-slate-900'}`}>{value}{target ? <span className="text-base font-semibold text-slate-400"> / {target}</span> : null}</p>
+/** One number in the header: an icon, the figure (and its target), a label, and a thin bar toward the target. */
+const Stat = ({ icon: Icon, label, value, target, percent, bad }) => (
+    <div className="rounded-2xl bg-white/80 px-3.5 py-3 ring-1 ring-white backdrop-blur">
+        <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-slate-500 uppercase"><Icon size={13} /> {label}</p>
+        <p className={`mt-0.5 text-xl font-black tabular-nums ${bad ? 'text-red-600' : 'text-slate-900'}`}>{value}{target ? <span className="text-sm font-semibold text-slate-400"> / {target}</span> : null}</p>
         {percent !== undefined && (
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-100">
                 <div className={`h-full rounded-full ${percent >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(100, percent)}%` }} />
             </div>
         )}
     </div>
 );
 
+/**
+ * The membership's header (simplified 2026-10-27): in the club's own colour, its name, the
+ * student's post, the organization, where they stand for the certificate, and the four numbers —
+ * one card where there were three.
+ */
+const Header = ({ m, organization }) => {
+    const look = lookOf(m);
+    const s = m.status === 'active' ? m.summary : null;
+    const checks = s ? [
+        s.requiredHours > 0 && { ok: s.hours >= s.requiredHours, text: `${s.requiredHours} hours` },
+        s.requiredCamps > 0 && { ok: s.camps >= s.requiredCamps, text: `${s.requiredCamps} camp${s.requiredCamps > 1 ? 's' : ''}` },
+        { ok: s.attendance === null || s.attendance >= s.minAttendance, text: `${s.minAttendance}% attendance` }
+    ].filter(Boolean) : [];
+    return (
+        <section className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${look.soft} p-5 shadow-sm ring-1 ${look.ring} sm:p-6`}>
+            <span aria-hidden className={`pointer-events-none absolute -top-16 -right-16 h-56 w-56 rounded-full bg-gradient-to-br opacity-15 blur-2xl ${look.tone}`} />
+            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                    <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg ${look.tone}`}><look.icon size={26} /></span>
+                    <div className="min-w-0">
+                        <h1 className="flex flex-wrap items-center gap-2 text-2xl font-black text-slate-900">
+                            {m.name}
+                            {/* A club member's post, given by the organization. */}
+                            {ROLE_LABEL[m.role] && <span className={`rounded-full bg-white px-2.5 py-0.5 text-xs font-black ring-1 ${look.ring} ${look.ink}`}>{ROLE_LABEL[m.role]}</span>}
+                            {/* Scouts & Guides: the rank passed most recently in their section. */}
+                            {m.rank && <span className={`rounded-full bg-white px-2.5 py-0.5 text-xs font-black ring-1 ${look.ring} ${look.ink}`}>{m.rank}</span>}
+                        </h1>
+                        <p className="truncate text-sm text-slate-500">{organization.name}{m.unit ? ` · ${m.unit}` : ''}{m.clubId?.description ? ` · ${m.clubId.description}` : ''}</p>
+                    </div>
+                </div>
+                {s && (
+                    <div className={`flex items-center gap-2 rounded-2xl px-3.5 py-2.5 lg:max-w-md ${s.eligible ? 'bg-emerald-100/80 text-emerald-900' : 'bg-white/80 text-indigo-900'}`}>
+                        {s.eligible ? <CheckCircle2 size={18} className="shrink-0 text-emerald-600" /> : <Target size={18} className="shrink-0 text-indigo-600" />}
+                        <span className="text-sm font-bold">{s.next}</span>
+                    </div>
+                )}
+            </div>
+
+            {s && (
+                <>
+                    <div className="relative mt-5 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+                        <Stat icon={Clock} label="Hours" value={s.hours} target={s.requiredHours || null} percent={s.requiredHours ? (s.hours / s.requiredHours) * 100 : undefined} />
+                        <Stat icon={Tent} label="Camps" value={s.camps} target={s.requiredCamps || null} percent={s.requiredCamps ? (s.camps / s.requiredCamps) * 100 : undefined} />
+                        <Stat icon={CalendarCheck} label="Attendance" value={s.attendance === null ? '—' : `${s.attendance}%`} bad={s.attendance !== null && s.attendance < s.minAttendance} />
+                        <Stat icon={Award} label="Awards" value={s.awards} />
+                    </div>
+                    {/* What the certificate asks for, as ticks. */}
+                    <div className="relative mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold text-slate-500">For the certificate:</span>
+                        {checks.map((c) => (
+                            <span key={c.text} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${c.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-white/80 text-slate-600 ring-1 ring-slate-200'}`}>
+                                {c.ok ? <CheckCircle2 size={13} /> : <span className="h-3 w-3 rounded-full border-2 border-slate-300" />} {c.text}
+                            </span>
+                        ))}
+                        {s.pendingActivities > 0 && <span className="text-xs font-semibold text-amber-700">· {s.pendingActivities} activit{s.pendingActivities > 1 ? 'ies' : 'y'} waiting for approval</span>}
+                    </div>
+                </>
+            )}
+        </section>
+    );
+};
+
+const AWARD_LABEL = { rank: 'Rank', badge: 'Badge', training: 'Training' };
+
+/** "I passed this exam": the rank (or badge, training) with a photo of the certificate, for the unit leader to verify. */
+const PromotionForm = ({ m, onDone, onCancel }) => {
+    const ranks = m.ranks || [];
+    const after = ranks.slice(m.rank ? ranks.indexOf(m.rank) + 1 : 0);
+    const [form, setForm] = useState({ type: after.length ? 'rank' : 'badge', name: after[0] || '', date: today(), examiner: '', certificateNo: '' });
+    const [file, setFile] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'type' ? { name: v === 'rank' ? after[0] || '' : '' } : {}) }));
+    const submit = async (e) => {
+        e.preventDefault();
+        if (!file) { setError('Add a photo of your certificate.'); return; }
+        setBusy(true); setError('');
+        const body = new FormData();
+        Object.entries({ ...form, memberId: m._id }).forEach(([k, v]) => body.append(k, v));
+        body.append('certificate', file);
+        try { onDone((await api.post(`${BASE}/awards`, body)).data.message); }
+        catch (err) { setError(errorOf(err, 'Could not send it.')); setBusy(false); }
+    };
+    return (
+        <form onSubmit={submit} className="mt-3 space-y-3 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+                <label><span className={LABEL}>What did you complete?</span>
+                    <select className={INPUT} value={form.type} onChange={(e) => set('type', e.target.value)}>
+                        {after.length > 0 && <option value="rank">Rank exam (promotion)</option>}
+                        <option value="badge">Proficiency badge</option>
+                        <option value="training">Training / camp</option>
+                    </select>
+                </label>
+                <label><span className={LABEL}>{form.type === 'rank' ? 'Promote me to' : 'Name'}</span>
+                    {form.type === 'rank' ? (
+                        <select className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} required>
+                            {after.map((r, i) => <option key={r} value={r}>{r}{i === 0 ? ' (next)' : ''}</option>)}
+                        </select>
+                    ) : <input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={form.type === 'badge' ? 'e.g. First Aid' : 'e.g. District camp'} required />}
+                </label>
+                <label><span className={LABEL}>Date passed</span><input type="date" className={INPUT} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} required /></label>
+                <label><span className={LABEL}>Certificate no. (optional)</span><input className={INPUT} value={form.certificateNo} onChange={(e) => set('certificateNo', e.target.value)} /></label>
+                <label><span className={LABEL}>Tested by (optional)</span><input className={INPUT} value={form.examiner} onChange={(e) => set('examiner', e.target.value)} /></label>
+                <label><span className={LABEL}>Certificate photo</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] || null)} required className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-amber-800" /></label>
+            </div>
+            <p className="text-xs text-slate-500">Your unit leader checks the certificate. Once they accept, {form.type === 'rank' ? 'your rank changes' : 'it is added to your record'} and you get a notification.</p>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-2">
+                <button type="submit" disabled={busy} className={BTN}>{busy && <Loader2 size={16} className="animate-spin" />}Send to my leader</button>
+                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>
+            </div>
+        </form>
+    );
+};
+
+/** Scouts & Guides: my ranks, badges and trainings, from every unit I have been in — and asking for the next one. */
+const ScoutRecord = ({ m, reload, say }) => {
+    const [asking, setAsking] = useState(false);
+    const ranks = m.ranks || [];
+    const next = ranks[m.rank ? ranks.indexOf(m.rank) + 1 : 0];
+    const withdraw = async (a) => {
+        try { say({ type: 'ok', text: (await api.delete(`${BASE}/awards/${a._id}`)).data.message }); reload(); }
+        catch (err) { say({ type: 'error', text: errorOf(err, 'Could not withdraw it.') }); }
+    };
+    return (
+        <div className={`${CARD} p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><Award size={16} className="text-amber-600" /> Ranks, badges &amp; training</h2>
+                {!asking && <button type="button" onClick={() => setAsking(true)} className="inline-flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600"><Plus size={14} /> I passed an exam</button>}
+            </div>
+            {ranks.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
+                    {ranks.map((r, i) => {
+                        const done = m.rank && i <= ranks.indexOf(m.rank);
+                        return (
+                            <React.Fragment key={r}>
+                                {i > 0 && <span className={done ? 'text-amber-500' : 'text-slate-300'}>→</span>}
+                                <span className={`rounded-full px-2.5 py-1 font-bold ${r === m.rank ? 'bg-amber-500 text-white' : done ? 'bg-amber-100 text-amber-800' : r === next ? 'border border-dashed border-amber-400 text-amber-700' : 'bg-slate-100 text-slate-400'}`}>{r}</span>
+                            </React.Fragment>
+                        );
+                    })}
+                </div>
+            )}
+            {asking && <PromotionForm m={m} onCancel={() => setAsking(false)} onDone={(text) => { setAsking(false); say({ type: 'ok', text }); reload(); }} />}
+            {!(m.awards || []).length ? (
+                <p className="mt-3 text-sm text-slate-500">Nothing yet. Passed a rank exam{next ? ` (next: ${next})` : ''}? Send your certificate and your unit leader promotes you.</p>
+            ) : (
+                <ul className="mt-2 divide-y divide-slate-100">
+                    {m.awards.map((a) => (
+                        <li key={a._id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                            <span className="min-w-0">
+                                <span className="block font-semibold text-slate-800">{a.name} <span className="font-normal text-slate-500">· {AWARD_LABEL[a.type]}</span></span>
+                                <span className="text-xs text-slate-500">{fmt(a.date)}{a.certificateNo ? ` · Certificate ${a.certificateNo}` : ''}</span>
+                            </span>
+                            <span className="flex shrink-0 items-center gap-2">
+                                {a.certificateUrl && <a href={a.certificateUrl} target="_blank" rel="noreferrer" className="text-indigo-600" aria-label="Certificate"><ImageIcon size={16} /></a>}
+                                {a.status === 'pending' ? (
+                                    <>
+                                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">Waiting for leader</span>
+                                        {a.requestedByUserId && <button type="button" onClick={() => withdraw(a)} className="p-1 text-slate-400 hover:text-red-600" aria-label="Withdraw"><Trash2 size={14} /></button>}
+                                    </>
+                                ) : <CheckCircle2 size={17} className="text-emerald-600" />}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+};
+
+const NOTICE_KIND = { exam: 'Exam / test', camp: 'Camp', training: 'Training', event: 'Event', rules: 'Rules & regulations', notice: 'Notice' };
+
+/**
+ * Scouts & Guides: the exams, camps and events BSG published (national, and my
+ * institution's state), for my section — with the rules: what I should know.
+ */
+const BsgNotices = ({ notices = [], section }) => {
+    const mine = notices.filter((n) => !n.sections?.length || !section || n.sections.includes(section));
+    if (!mine.length) return null;
+    return (
+        <div className={`${CARD} p-5`}>
+            <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><CalendarCheck size={16} className="text-indigo-600" /> BSG exams, camps, training &amp; rules</h2>
+            <ul className="mt-2 space-y-3">
+                {mine.map((n) => (
+                    <li key={n._id} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{NOTICE_KIND[n.kind] || 'Notice'} · {n.from}</p>
+                        <p className="flex flex-wrap items-center gap-2 font-bold text-slate-900">
+                            {n.title}
+                            {n.attended === true && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800"><CheckCircle2 size={12} /> Attended</span>}
+                            {n.attended === false && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">Not marked present</span>}
+                        </p>
+                        <p className="text-xs text-slate-600">{n.kind === 'rules' ? `In force since ${fmt(n.date)}` : `${fmt(n.date)}${n.endDate ? ` – ${fmt(n.endDate)}` : ''}`}{n.place ? ` · ${n.place}` : ''}{n.minRank ? ` · Rank needed: ${n.minRank}` : ''}</p>
+                        {n.rules?.length > 0 && (
+                            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm text-slate-700">{n.rules.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                        )}
+                        {n.details && <p className="mt-1.5 whitespace-pre-line text-sm text-slate-600">{n.details}</p>}
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+// Each kind of activity, as a small picture.
+const KIND_ICON = { social: HeartHandshake, camp: Tent, parade: Shield, drill: Shield, competition: Award, practice: Clock, performance: Sparkles, award: Award, other: Target };
+const KIND_LABEL = Object.fromEntries(KINDS);
+
 const Membership = ({ m, reload, say }) => {
     const [logging, setLogging] = useState(false);
-    const s = m.summary;
 
     if (m.status === 'pending') {
         return (
@@ -214,51 +433,33 @@ const Membership = ({ m, reload, say }) => {
         catch (err) { say({ type: 'error', text: errorOf(err, 'Could not withdraw it.') }); }
     };
 
-    const checks = s ? [
-        s.requiredHours > 0 && { ok: s.hours >= s.requiredHours, text: `${s.requiredHours} hours of service` },
-        s.requiredCamps > 0 && { ok: s.camps >= s.requiredCamps, text: `${s.requiredCamps} camp${s.requiredCamps > 1 ? 's' : ''}` },
-        { ok: s.attendance === null || s.attendance >= s.minAttendance, text: `${s.minAttendance}% attendance` }
-    ].filter(Boolean) : [];
-
     return (
         <div className="space-y-4">
-            {s && (
-                <>
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                        <Tile icon={Clock} label="Hours" value={s.hours} target={s.requiredHours || null} percent={s.requiredHours ? (s.hours / s.requiredHours) * 100 : undefined} />
-                        <Tile icon={Tent} label="Camps" value={s.camps} target={s.requiredCamps || null} percent={s.requiredCamps ? (s.camps / s.requiredCamps) * 100 : undefined} />
-                        <Tile icon={CalendarCheck} label="Attendance" value={s.attendance === null ? '—' : `${s.attendance}%`} bad={s.attendance !== null && s.attendance < s.minAttendance} />
-                        <Tile icon={Award} label="Awards" value={s.awards} />
+            <div className={`${CARD} p-5 space-y-4`}>
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <h2 className="font-black text-slate-900">My activities</h2>
+                        <p className="text-xs text-slate-500">Drives, camps, parades and practice — your organization approves each one.</p>
                     </div>
-                    <div className={`${CARD} p-5`}>
-                        <div className="flex items-center gap-2"><Target size={18} className="text-indigo-600" /><h2 className="font-black text-slate-900">Next step</h2></div>
-                        <p className={`mt-2 rounded-xl px-3 py-2 text-sm font-semibold ${s.eligible ? 'bg-emerald-50 text-emerald-800' : 'bg-indigo-50 text-indigo-800'}`}>{s.next}</p>
-                        <ul className="mt-3 space-y-1.5">
-                            {checks.map((c) => (
-                                <li key={c.text} className="flex items-center gap-2 text-sm text-slate-700">
-                                    {c.ok ? <CheckCircle2 size={16} className="text-emerald-600" /> : <span className="h-4 w-4 rounded-full border-2 border-slate-300" />}
-                                    {c.text}
-                                </li>
-                            ))}
-                        </ul>
-                        {s.pendingActivities > 0 && <p className="mt-2 text-xs text-amber-700">{s.pendingActivities} activit{s.pendingActivities > 1 ? 'ies' : 'y'} waiting for approval.</p>}
-                    </div>
-                </>
-            )}
-
-            <div className={`${CARD} p-5 space-y-3`}>
-                <div className="flex items-center justify-between">
-                    <h2 className="font-black text-slate-900">My activities</h2>
-                    {!logging && <button onClick={() => setLogging(true)} className={BTN}><Plus size={16} /> Log activity</button>}
+                    {!logging && <button onClick={() => setLogging(true)} className={`${BTN} shrink-0 !rounded-xl`}><Plus size={16} /> Log activity</button>}
                 </div>
                 {logging && <LogForm memberId={m._id} onCancel={() => setLogging(false)} onDone={(text) => { setLogging(false); say({ type: 'ok', text }); reload(); }} />}
-                {m.activities.length === 0 ? <p className="text-sm text-slate-500">Nothing logged yet. After a drive, camp or parade, log it here.</p> : (
-                    <ul className="divide-y divide-slate-100">
-                        {m.activities.map((a) => (
-                            <li key={a._id} className="flex items-center justify-between gap-3 py-2.5">
-                                <div className="min-w-0">
+                {m.activities.length === 0 ? (
+                    <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Sparkles size={20} /></span>
+                        <p className="mt-2 text-sm font-bold text-slate-800">Nothing logged yet</p>
+                        <p className="text-xs text-slate-500">After a drive, camp or parade, log it here.</p>
+                    </div>
+                ) : (
+                    <ul className="space-y-2">
+                        {m.activities.map((a) => {
+                            const KindIcon = KIND_ICON[a.kind] || Target;
+                            return (
+                            <li key={a._id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 ring-slate-100 transition-colors hover:bg-slate-50">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600"><KindIcon size={17} /></span>
+                                <div className="min-w-0 flex-1">
                                     <p className="truncate text-sm font-semibold text-slate-800">{a.title}</p>
-                                    <p className="text-xs text-slate-500">{fmt(a.date)} · {a.hours} h · {a.kind}{a.place ? ` · ${a.place}` : ''}</p>
+                                    <p className="text-xs text-slate-500">{fmt(a.date)} · {a.hours} h · {KIND_LABEL[a.kind] || a.kind}{a.place ? ` · ${a.place}` : ''}</p>
                                     {a.status === 'rejected' && a.reason && <p className="text-xs text-red-600">Reason: {a.reason}</p>}
                                 </div>
                                 <div className="flex shrink-0 items-center gap-2">
@@ -267,7 +468,8 @@ const Membership = ({ m, reload, say }) => {
                                     {a.status === 'pending' && <button onClick={() => withdraw(a)} className="text-slate-400 hover:text-red-600" aria-label="Withdraw"><Trash2 size={15} /></button>}
                                 </div>
                             </li>
-                        ))}
+                            );
+                        })}
                     </ul>
                 )}
             </div>
@@ -287,6 +489,24 @@ const Membership = ({ m, reload, say }) => {
         </div>
     );
 };
+
+/** Memberships that have ended — left, or moved to another unit or organization — kept as my record. */
+const PastMemberships = ({ rows }) => (
+    <div className={`${CARD} p-5`}>
+        <h2 className="text-sm font-black text-slate-900">Past memberships</h2>
+        <ul className="mt-2 divide-y divide-slate-100">
+            {rows.map((h) => (
+                <li key={h._id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                    <span className="min-w-0">
+                        <span className="block font-semibold text-slate-800">{h.name}{h.unit ? ` · ${h.unit}` : ''}</span>
+                        <span className="text-xs text-slate-500">{h.organization} · {fmt(h.startedAt)} – {h.endedAt ? fmt(h.endedAt) : ''}{h.endReason ? ` · ${h.endReason}` : ''}</span>
+                    </span>
+                    <span className="text-xs text-slate-600">{h.hours} h · {h.camps} camp{h.camps === 1 ? '' : 's'}{h.attendance !== null ? ` · ${h.attendance}%` : ''}</span>
+                </li>
+            ))}
+        </ul>
+    </div>
+);
 
 const ExtraCurricular = () => {
     const { id } = useParams();
@@ -335,17 +555,9 @@ const ExtraCurricular = () => {
                 <JoinPage data={data} onDone={(text, memberId) => { setNotice({ type: 'ok', text }); load().then(() => navigate(memberId ? `/extracurricular/${memberId}` : '/extracurricular')); }} />
             ) : m ? (
                 <>
-                    <div className={`${CARD} flex items-center gap-3 p-5`}>
-                        {(() => { const look = lookOf(m); return <span className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md ${look.tone}`}><look.icon size={21} /></span>; })()}
-                        <div>
-                            <h1 className="flex flex-wrap items-center gap-2 text-xl font-black text-slate-900">
-                                {m.name}
-                                {/* A club member's post, given by the organization. */}
-                                {ROLE_LABEL[m.role] && <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-black text-indigo-700">{ROLE_LABEL[m.role]}</span>}
-                            </h1>
-                            <p className="text-sm text-slate-500">{data.organization.name}{m.unit ? ` · ${m.unit}` : ''}{m.clubId?.description ? ` · ${m.clubId.description}` : ''}</p>
-                        </div>
-                    </div>
+                    <Header m={m} organization={data.organization} />
+                    {m.scheme === 'SCOUTS' && m.status === 'active' && <ScoutRecord m={m} reload={load} say={setNotice} />}
+                    {m.scheme === 'SCOUTS' && m.status === 'active' && <BsgNotices notices={data.bsgNotices} section={m.section} />}
                     {/* The club's (or unit's) own calendar; a club's president adds events on it. */}
                     {m.status === 'active' && <ActivityCalendar key={`cal-${m._id}`} memberId={m._id} canAdd={m.scheme === 'CLUB' && m.role === 'president'} title={m.name} />}
                     <Membership key={m._id} m={m} reload={load} say={setNotice} />
@@ -358,6 +570,7 @@ const ExtraCurricular = () => {
                     <Link to="/extracurricular/join" className={`${BTN} mt-6 !rounded-2xl !px-5 !py-3`}><Plus size={17} /> Request to enroll</Link>
                 </div>
             )}
+            {!joining && data?.history?.length > 0 && <PastMemberships rows={data.history} />}
         </div>
     );
 };

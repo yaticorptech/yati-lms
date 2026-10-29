@@ -25,6 +25,10 @@ const turnSchema = new mongoose.Schema({
     // How often the interviewer had to ask again because what came back was
     // not an answer (see answerCheck.js).
     clarifications: { type: Number, default: 0 },
+    // Sent back once to be improved (a wrong or weak answer); the second try is kept as given.
+    improved: { type: Boolean, default: false },
+    // How the interviewer judged the answer kept: 'good' | 'weak' | 'incorrect' ('' when not judged).
+    quality: { type: String, default: '' },
     // Delivery metrics for a spoken answer (see communicationService.js).
     voice: { type: { durationMs: Number, wordCount: Number, wpm: Number, longPauses: Number, pauseMs: Number, fillerCount: Number, fillers: [String], hedgeCount: Number, _id: false }, default: null }
 }, { _id: false });

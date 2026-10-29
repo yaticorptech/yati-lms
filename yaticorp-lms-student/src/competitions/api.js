@@ -5,6 +5,8 @@ const unwrap = (err) => {
     const body = err.response?.data;
     const e = new Error(body?.message || body?.error || (!err.response ? 'You appear to be offline.' : 'Something went wrong.'));
     e.status = err.response?.status;
+    // A Group Brain room I am already in, when that is why it was refused.
+    if (body?.roomId) e.roomId = body.roomId;
     throw e;
 };
 const get = (p, config) => client.get(`/competitions${p}`, config).then((r) => r.data).catch(unwrap);
@@ -49,6 +51,57 @@ export const competitionsApi = {
 };
 
 /**
+ * Group Brain rooms (asked 2026-10-27): make a room for a game and share its
+ * code; others join with it; each says Ready; the maker starts. The game is
+ * then played on the same page as a match (competitionsApi.play / act).
+ */
+export const roomsApi = {
+    games: () => get('/rooms/games').then((d) => d.games || []),
+    mine: () => get('/rooms/mine').then((d) => d.room || null),
+    create: (game, options) => post('/rooms', { game, options }),
+    join: (code) => post('/rooms/join', { code }),
+    // Play online (like online Ludo): the fees on offer, and a seat at a table (the fee comes from the wallet).
+    onlineInfo: () => get('/rooms/online'),
+    online: (game, players, fee) => post('/rooms/online', { game, players, fee }),
+    ready: (gameId, ready) => post(`/play/${gameId}/ready`, { ready }),
+    start: (gameId) => post(`/play/${gameId}/start`),
+    leave: (gameId) => post(`/play/${gameId}/leave`),
+    remove: (gameId, seat) => post(`/play/${gameId}/remove`, { seat }),
+    history: () => get('/rooms/history').then((d) => d.games || []),
+    // type: points | chess | xp; period: all | week; game: one game, or all.
+    leaderboard: ({ type = 'points', period = 'all', game } = {}) => get('/rooms/leaderboard', { params: { type, period, ...(game ? { game } : {}) } }),
+    // My dashboard: totals, games, Brain Performance Score, chess rating, XP, achievements, certificates.
+    profile: () => get('/rooms/profile'),
+    certificate: (certId) => client.get(`/competitions/rooms/certificates/${certId}`, { responseType: 'blob' }).then((r) => r.data).catch(unwrap),
+    // Anyone may check a certificate's ID (no sign-in needed).
+    verify: (certId) => get(`/group-brain/verify/${encodeURIComponent(certId)}`)
+};
+export const SKILL_LABELS = { memory: 'Memory', reasoning: 'Reasoning', spatial: 'Spatial', strategy: 'Strategy' };
+
+/**
+ * The ten Group Brain games, as the Games page shows them. `table` is which
+ * board plays it: the quiz board (games/QuizTable.jsx) for the question
+ * games, a board of its own for the rest. `players` is how many a room
+ * holds; `tone` the card's colours.
+ */
+export const GROUP_GAMES = {
+    chess: { label: 'Chess', emoji: '♟️', blurb: 'Full chess rules — castling, promotion, checkmate — with a clock each and the move list.', players: '2 players', tone: 'from-slate-700 to-slate-900', table: 'chess' },
+    memorymatrix: { label: 'Memory Matrix', emoji: '🟦', blurb: 'Cells light up, then go dark: pick the same ones. The grid grows as you go.', players: '2, 4 or 6 players', tone: 'from-sky-500 to-indigo-600', table: 'memorymatrix' },
+    patternmaster: { label: 'Pattern Master', emoji: '🔷', blurb: 'Find the missing shape, arrow or number in each sequence.', players: '2, 4 or 6 players', tone: 'from-fuchsia-500 to-violet-600', table: 'quiz' },
+    numberlogic: { label: 'Number Logic', emoji: '🔣', blurb: 'Number series, missing numbers and signs, and number puzzles.', players: '2, 4 or 6 players', tone: 'from-blue-500 to-cyan-600', table: 'quiz' },
+    wordlogic: { label: 'Word Logic', emoji: '📚', blurb: 'Anagrams, analogies, odd one out, opposites and spelling.', players: '2, 4 or 6 players', tone: 'from-emerald-500 to-teal-600', table: 'quiz' },
+    sudoku: { label: 'Sudoku Challenge', emoji: '🔢', blurb: 'Race to solve the same 9×9 Sudoku. Hints, mistakes and the clock all count.', players: '2, 4 or 6 players', tone: 'from-indigo-500 to-blue-700', table: 'sudoku' },
+    deduction: { label: 'Deduction Detective', emoji: '🕵️', blurb: 'Read the clues, rule things out, name the answer: logic grids and more.', players: '2, 4 or 6 players', tone: 'from-slate-700 to-indigo-700', table: 'quiz' },
+    spatialiq: { label: 'Spatial IQ', emoji: '🧊', blurb: 'Rotations, mirror images, paper folding and cube nets.', players: '2, 4 or 6 players', tone: 'from-amber-500 to-orange-600', table: 'quiz' },
+    sequence: { label: 'Sequence & Reaction', emoji: '🎯', blurb: 'Watch a sequence and tap it back, longer each round — and reaction rounds.', players: '2, 4 or 6 players', tone: 'from-pink-500 to-rose-600', table: 'sequence' },
+    lostkingdom: { label: 'The Lost Kingdom', emoji: '🧭', blurb: 'Five trials to the treasure of Aurelia — numbers, knowledge and logic, new every game.', players: '2, 4 or 6 players', tone: 'from-amber-700 to-emerald-800', table: 'kingdom' },
+    finalvault: { label: 'The Final Vault', emoji: '🏛️', blurb: 'Five temple chambers, the same puzzles for everyone — open the treasure vault first.', players: '2, 4 or 6 players', tone: 'from-amber-600 to-yellow-800', table: 'vault' }
+};
+export const DIFFICULTIES = [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']];
+// How many players a room is for (Chess: always 2).
+export const ROOM_SIZES = [2, 4, 6];
+
+/**
  * The games, as the lobby shows them before the server answers: Chess and the
  * three brain games (Ludo and Carrom were replaced by them on 2026-10-24; UNO
  * was removed on 2026-10-23). Each card's picture and icon (public/games/
@@ -66,13 +119,10 @@ export const GAMES = {
     rapidfire: { label: 'Rapid Fire', emoji: '⚡', blurb: 'Quick general-knowledge round: answer every question fast. Answers and scores are shown at the end.', players: '2–4 players', format: '15 questions · 8 s each', brain: true, tone: 'from-orange-500 to-rose-700', keywords: 'quiz speed fast general knowledge gk' },
     codeclash: { label: 'Code Clash', emoji: '💻', blurb: 'Hackathon-style coding round: predict the output, spot the bug, beat the clock.', players: '2–4 players', format: '8 challenges · 45 s each', brain: true, tone: 'from-slate-900 to-emerald-700', keywords: 'coding programming hackathon code javascript python developer' },
     brainsprint: { label: 'Brain Sprint', emoji: '🧩', blurb: 'IQ puzzles made fresh every match: series, logic, numbers. Fastest mind wins.', players: '2–4 players', format: '12 puzzles · 25 s each', brain: true, tone: 'from-cyan-600 to-indigo-600', keywords: 'iq puzzle logic reasoning series numbers brain' },
-    // A quiz and a hackathon (asked 2026-10-23): no photo, drawn instead (`art`).
-    quiz: { label: 'Quiz', emoji: '🧠', blurb: 'Timed questions, one go each. The highest score wins.', players: 'Teams or solo', tone: 'from-violet-600 to-fuchsia-500', button: 'bg-[#7c3aed] hover:bg-[#6d28d9] shadow-[#7c3aed]/30', pillWidth: 'min-w-[40%]', art: 'quiz' },
-    hackathon: { label: 'Hackathon', emoji: '💻', blurb: 'Build a project for the problem. The best marks win.', players: 'Teams or solo', tone: 'from-emerald-600 to-teal-500', button: 'bg-[#059669] hover:bg-[#047857] shadow-[#059669]/30', pillWidth: 'min-w-[40%]', art: 'hackathon' }
 };
 /** The games played as a quiz, by id. */
 export const BRAIN_GAMES = Object.keys(GAMES).filter((id) => GAMES[id].brain);
-export const gameImage = (id) => `/games/${id}-card.jpg?v=2`; // v2: without the painted players badge
+export const gameImage = (id) => `/games/${id}-card.jpg?v=3`; // v3: the sharper pictures from the design
 export const gameIcon = (id) => `/games/${id}-icon.png`;
 
 export const ORDINAL = { 1: '1st', 2: '2nd', 3: '3rd' };

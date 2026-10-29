@@ -60,6 +60,9 @@ const LOOK = {
 
 const money = (n, c = 'INR') => `${c === 'INR' ? '₹' : `${c} `}${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
+// Celebrations written before the server said "₹500" read "INR 500"; shown with the sign either way.
+const rupees = (text = '') => String(text).replace(/\bINR\s?(\d[\d,]*(?:\.\d+)?)/g, (_, n) => `₹${Number(n.replace(/,/g, '')).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`);
+
 export const CelebrationOverlay = ({ event, onClose, remaining = 0 }) => {
     const look = LOOK[event.kind] || LOOK.xp;
     const p = event.payload || {};
@@ -101,8 +104,13 @@ export const CelebrationOverlay = ({ event, onClose, remaining = 0 }) => {
                 <Confetti count={event.kind === 'xp' ? 20 : 70} />
                 <div className={`relative w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl ${leaving ? '' : 'rw-pop'}`} onClick={(e) => e.stopPropagation()}>
                     <button onClick={close} className="absolute right-3 top-3 rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X size={16} /></button>
-                    <div className={`rw-burst mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${look.ring} text-5xl shadow-lg`} aria-hidden="true">{emoji}</div>
-                    <p className="mt-5 text-2xl font-black tracking-tight text-slate-900">{event.title}</p>
+                    {/* Money shows the rupee sign as its mark, on a coin; everything else its emoji. */}
+                    <div className={`rw-burst mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${look.ring} text-5xl shadow-lg`} aria-hidden="true">
+                        {event.kind === 'wallet' && (p.currency || 'INR') === 'INR'
+                            ? <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-4xl font-black text-emerald-600 shadow-inner ring-4 ring-white/40">₹</span>
+                            : emoji}
+                    </div>
+                    <p className="mt-5 text-2xl font-black tracking-tight text-slate-900">{rupees(event.title)}</p>
                     {event.message && <p className="mt-1 text-sm text-slate-500">{event.message}</p>}
                     {chips.length > 0 && (
                         <div className="mt-4 flex flex-wrap justify-center gap-2">

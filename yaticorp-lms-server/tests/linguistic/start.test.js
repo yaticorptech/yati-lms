@@ -29,29 +29,33 @@ describe('starting out', () => {
         const t = d.timeline;
         const total = d.levels.reduce((n, l) => n + l.total, 0);
         assert.equal(t.remaining, total, 'nothing done yet: every lesson');
-        assert.equal(t.lessonsPerDay, t.goal / t.xpPerLesson);
-        assert.equal(t.days, Math.ceil(total / t.lessonsPerDay));
-        assert.deepEqual(t.levels.map((l) => l.level), ['beginner', 'intermediate', 'advanced']);
-        assert.equal(t.levels[2].days, t.days, 'the last level finishes on the last day');
-        assert.ok(t.levels[0].days < t.levels[1].days && t.levels[1].days < t.levels[2].days, 'one level after another');
+        // The lesson XP is the rewards setting in the database, which can be any number: rounded as the page shows it.
+        const perDay = Math.max(0.5, t.goal / t.xpPerLesson);
+        assert.equal(t.lessonsPerDay, Math.round(perDay * 10) / 10);
+        assert.equal(t.days, Math.ceil(total / perDay));
+        assert.deepEqual(t.levels.map((l) => l.level), ['beginner', 'advanced'], 'Intermediate hidden (2026-10-29)');
+        assert.equal(t.levels[1].days, t.days, 'the last level finishes on the last day');
+        assert.ok(t.levels[0].days < t.levels[1].days, 'one level after another');
         assert.equal(t.finishOn, new Date(Date.now() + t.days * 86400e3).toISOString().slice(0, 10));
         assert.deepEqual(t.goals.map((g) => g.xp), [10, 20, 30, 50]);
         assert.ok(t.goals[3].days < t.goals[0].days, 'a bigger goal, fewer days');
         assert.equal(t.pace, null, 'no pace before any lesson');
     });
 
-    test('choosing a level: it opens that level as the test would, but is not the test', async () => {
+    test('choosing a level: Beginner, where everyone starts; a later one is refused (2026-10-28), and it is not the test', async () => {
         assert.equal((await api('POST', '/level', { level: 'expert' })).status, 400);
-        const r = await api('POST', '/level', { level: 'intermediate' });
+        const later = await api('POST', '/level', { level: 'advanced' });
+        assert.equal(later.status, 409); assert.match(later.body.message, /Everyone starts at Section 1/);
+        const r = await api('POST', '/level', { level: 'beginner' });
         assert.equal(r.status, 200); assert.equal(r.body.placement.chosen, true);
         const d = (await api('GET', '/')).body;
-        assert.deepEqual([d.started, d.level], [true, 'intermediate']);
+        assert.deepEqual([d.started, d.level], [true, 'beginner']);
         const path = (await api('GET', '/path')).body;
-        assert.equal(path.levels.find((l) => l.level === 'intermediate').open, true, 'Intermediate is open');
+        assert.equal(path.levels.find((l) => l.level === 'intermediate'), undefined, 'Intermediate hidden (2026-10-29)');
         assert.equal(path.levels.find((l) => l.level === 'advanced').open, false);
         assert.equal(d.achievements.find((a) => a.key === 'first_step').earned, false, '"Take the placement test" is for the test');
-        assert.deepEqual([d.timeline.levels[0].skipped, d.timeline.levels[0].left], [true, 0], 'a level placed past is not owed');
-        assert.equal(d.timeline.remaining, d.levels[1].total + d.levels[2].total);
+        assert.deepEqual([d.timeline.levels[0].skipped, d.timeline.levels[0].left], [false, d.levels[0].total], 'Beginner to do, from the first unit');
+        assert.equal(d.timeline.remaining, d.levels[0].total + d.levels[1].total);
     });
 
     test('why they are learning, and how much English they know (0–4)', async () => {
@@ -92,5 +96,14 @@ describe('starting out', () => {
         const d = (await api('GET', '/')).body;
         assert.deepEqual([d.level, d.placement.chosen], ['beginner', false]);
         assert.equal(d.achievements.find((a) => a.key === 'first_step').earned, true);
+    });
+
+    test('the languages they speak, write and read (2026-10-28): one or more of each, known codes only; on the dashboard', async () => {
+        assert.equal((await api('GET', '/')).body.knows, null, 'not said yet');
+        assert.equal((await api('POST', '/knows', { speak: ['kn'], write: [], read: ['kn'] })).status, 400, 'each needs one');
+        assert.equal((await api('POST', '/knows', { speak: ['kn', 'tulu'], write: ['kn'], read: ['kn'] })).status, 400, 'a code the section does not know');
+        const r = await api('POST', '/knows', { speak: ['kn', 'hi', 'en', 'kn'], write: ['kn', 'en'], read: ['kn', 'en', 'hi'] });
+        assert.equal(r.status, 200);
+        assert.deepEqual((await api('GET', '/')).body.knows, { speak: ['kn', 'hi', 'en'], write: ['kn', 'en'], read: ['kn', 'en', 'hi'] }, 'kept, each once');
     });
 });

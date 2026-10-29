@@ -4,7 +4,7 @@
  *              the organization admin panel and public organization registration
  */
 import React from 'react';
-import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, Link, useLocation, useOutletContext } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { getViewedOrganization } from './utils/viewOrganization';
@@ -79,6 +79,10 @@ const OrgRoute = ({ children }) => {
 const Users = React.lazy(() => import('./pages/Users'));
 const Teachers = React.lazy(() => import('./pages/Teachers'));
 const VerifyCards = React.lazy(() => import('./pages/VerifyCards'));
+const DemoCards = React.lazy(() => import('./pages/DemoCards'));
+const WalletRecharge = React.lazy(() => import('./pages/WalletRecharge'));
+const OverallAnalytics = React.lazy(() => import('./pages/OverallAnalytics'));
+const AuditLog = React.lazy(() => import('./pages/AuditLog'));
 const Courses = React.lazy(() => import('./pages/Courses'));
 const CourseEditor = React.lazy(() => import('./pages/CourseEditor'));
 const LessonEditor = React.lazy(() => import('./pages/LessonEditor'));
@@ -105,6 +109,12 @@ const OrgNccNss = React.lazy(() => import('./pages/org/OrgNccNss'));
 // Research: a teacher's own teacher dashboard, inside the organization panel.
 const OrgResearch = React.lazy(() => import('./pages/org/OrgResearch'));
 const OrgSettings = React.lazy(() => import('./pages/org/OrgSettings'));
+const OrgUsers = React.lazy(() => import('./pages/org/OrgUsers'));
+const OrgAuditLog = React.lazy(() => import('./pages/org/OrgAuditLog'));
+const OrgBsgNotices = React.lazy(() => import('./pages/org/OrgBsgNotices'));
+const OrgBsgDashboard = React.lazy(() => import('./pages/org/OrgBsgDashboard'));
+// A BSG office's home is its Scouts & Guides overview; every other organization's is its dashboard.
+const OrgHome = () => (useOutletContext()?.organization?.bsgOffice ? <OrgBsgDashboard /> : <OrgDashboard />);
 import OrgNotFound from './pages/org/OrgNotFound';
 // Games & Competitions: the platform runs inter-college competitions; colleges enter teams.
 const Competitions = React.lazy(() => import('./pages/Competitions'));
@@ -132,7 +142,7 @@ function App() {
           rather than a page inside it, because it shares none of its navigation
           and none of its endpoints. */}
       <Route path="/organization" element={<OrgRoute><OrgAdminLayout /></OrgRoute>}>
-        <Route index element={<OrgDashboard />} />
+        <Route index element={<OrgHome />} />
         <Route path="students" element={<OrgStudents />} />
         <Route path="students/:studentId" element={<OrgStudentDetail />} />
         {/* Requests are the Students page's tab now; the old address still lands there. */}
@@ -151,6 +161,9 @@ function App() {
         <Route path="competitions/arena/:id" element={<QuizArenaCompetition />} />
         {/* English (Linguistic Ability) is no longer in the organization panel; an old link goes to the dashboard. */}
         <Route path="linguistic" element={<Navigate to="/organization" replace />} />
+        <Route path="users" element={<OrgUsers />} />
+        <Route path="audit" element={<OrgAuditLog />} />
+        <Route path="bsg-notices" element={<OrgBsgNotices />} />
         <Route path="settings" element={<OrgSettings />} />
         {/* Any other address in here: said inside the shell, menu and all. */}
         <Route path="*" element={<OrgNotFound />} />
@@ -159,6 +172,10 @@ function App() {
       <Route path="/" element={<PlatformRoute><AdminLayout /></PlatformRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="verify-cards" element={<SuperAdminRoute what="card verification"><VerifyCards /></SuperAdminRoute>} />
+        <Route path="demo-cards" element={<SuperAdminRoute what="demo cards"><DemoCards /></SuperAdminRoute>} />
+        <Route path="wallet-recharge" element={<SuperAdminRoute what="wallet recharges"><WalletRecharge /></SuperAdminRoute>} />
+        <Route path="overall-analytics" element={<OverallAnalytics />} />
+        <Route path="audit-log" element={<SuperAdminRoute what="the admin audit log"><AuditLog /></SuperAdminRoute>} />
         <Route path="users" element={<Users />} />
         <Route path="teachers" element={<Teachers />} />
         <Route path="courses" element={<Courses />} />

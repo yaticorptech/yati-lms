@@ -19,10 +19,10 @@ import BioPopup from '../learningbio/BioPopup';
 import { Sparkles as BioSparkles } from 'lucide-react';
 import Portal from './Portal';
 import { saveBlob } from '../native/saveFile';
-import PriceTag from './rewards/PriceTag';
-import { isShortOfFunds, serverMessage } from '../utils/walletCharge';
+import { isShortOfFunds, serverMessage, isWalletCancel } from '../utils/walletCharge';
 import useConfirmDialog from './useConfirmDialog';
 import useBackClose from '../native/useBackClose';
+import GeminiCreditTip from './GeminiCreditTip';
 
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
@@ -122,7 +122,7 @@ export default function ResumeSection() {
                 setNotice('Uploaded and saved. The skill reader was unavailable, so your ATS resume uses your courses for now.');
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'Upload failed. Please try again.');
+            if (!isWalletCancel(err)) setError(err.response?.data?.message || 'Upload failed. Please try again.');
         } finally {
             setUploading(false);
             if (inputRef.current) inputRef.current.value = '';
@@ -169,7 +169,7 @@ export default function ResumeSection() {
             });
         } catch (e) {
             // A short wallet balance says what the download costs; anything else is a failure.
-            setError(isShortOfFunds(e) ? serverMessage(e) : 'Could not generate your resume. Please try again.');
+            if (!isWalletCancel(e)) setError(isShortOfFunds(e) ? serverMessage(e) : 'Could not generate your resume. Please try again.');
         } finally {
             setDownloading(false);
         }
@@ -186,7 +186,7 @@ export default function ResumeSection() {
                 <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-200"><FileText size={20} /></span>
                     <div>
-                        <h2 id="your-resume-title" className="text-base font-black tracking-tight text-slate-900 sm:text-lg">Your Resume <span className="text-amber-400">✨</span></h2>
+                        <h2 id="your-resume-title" className="text-base font-black tracking-tight text-slate-900 sm:text-lg">Your Resume <span className="text-amber-400">✨</span> <GeminiCreditTip label="Gemini AI credits are used to read your resume" /></h2>
                         <p className="text-xs text-slate-500 sm:text-sm">Keep your resume updated and get noticed by top opportunities.</p>
                     </div>
                 </div>
@@ -198,7 +198,7 @@ export default function ResumeSection() {
                     </button>
                 <button type="button" onClick={download} disabled={downloading || loading}
                     className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:from-indigo-700 hover:to-violet-700 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2">
-                    {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Download Resume <PriceTag action="download_resume" />
+                    {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Download Resume
                 </button>
                 </div>
             </div>
@@ -261,7 +261,7 @@ export default function ResumeSection() {
                 "Remove" beside "Upload" used to greet every new student. */}
             <div className={`grid gap-2.5 px-4 py-3 sm:px-5 ${resume ? 'md:grid-cols-[1fr_1fr_1.5fr]' : 'md:grid-cols-[1fr_1.5fr]'}`}>
                 <Tile onClick={() => inputRef.current?.click()} disabled={uploading} icon={uploading ? Loader2 : Upload}
-                    title={resume ? 'Replace Resume' : 'Upload Resume'} sub={uploading ? 'Uploading…' : <>{resume ? 'Upload a new resume' : 'PDF or image, up to 5 MB'} <PriceTag action="upload_resume" /></>} tone="indigo" />
+                    title={resume ? 'Replace Resume' : 'Upload Resume'} sub={uploading ? 'Uploading…' : <>{resume ? 'Upload a new resume' : 'PDF or image, up to 5 MB'}</>} tone="indigo" />
                 {resume && <Tile onClick={remove} disabled={removing} icon={Trash2} title="Remove Resume" sub={removing ? 'Removing…' : 'Delete current resume'} tone="rose" />}
                 <Tile to="/jobs" icon={Briefcase} title={<>Find Matching Jobs <span aria-hidden="true">🚀</span></>} sub="Discover jobs that match your skills" tone="cta" />
             </div>

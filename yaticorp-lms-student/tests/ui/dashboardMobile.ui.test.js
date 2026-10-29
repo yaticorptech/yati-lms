@@ -201,9 +201,10 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.pageMoved, false, 'only the strip scrolled, not the page');
     });
 
-    test('there is no My Courses tab: the section opens on Available Courses, with no course list', async () => {
-        // The student's enrolled courses have their own page, Enrolled
-        // Courses; the Dashboard does not repeat them.
+    test('there is no My Courses tab: the section opens on Available Courses, which marks enrolled courses Enrolled', async () => {
+        // No separate My Courses tab or progress card. Since 2026-10-28 the
+        // student's enrolled courses are in Available Courses too, marked
+        // Enrolled (they open the course; there is no enrolling again).
         const { result, errors } = await screen({
             entry, api, width: DESKTOP, styles: true, script: `
                 await sleep(900);
@@ -213,12 +214,16 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
                          myCourses: /My Courses/.test(body),
                          continueCard: /Continue where you left off/.test(body),
                          courseListed: /Modern React from the Ground Up/.test(body),
+                         enrolledMarks: $$('a').filter((a) => /^Enrolled$/.test(a.innerText.trim())).map((a) => a.getAttribute('href')),
+                         enrollButtons: $$('button').filter((b) => /Enroll Now/.test(b.innerText)).length,
                          xpPill: /315 XP/.test(body) };` });
         assert.deepEqual(errors, []);
         assert.equal(result.selected, 'Available Courses', 'the first tab is the one open');
         assert.equal(result.myCourses, false, 'My Courses is nowhere on the section');
         assert.equal(result.continueCard, false, 'nor its Course progress card');
-        assert.equal(result.courseListed, false, 'nor its list of enrolled courses');
+        assert.equal(result.courseListed, true, 'enrolled courses are listed in Available Courses');
+        assert.deepEqual(result.enrolledMarks, ['/learn/c1', '/learn/c2', '/learn/c3'], 'each marked Enrolled, opening the course');
+        assert.equal(result.enrollButtons, 0, 'and none offered for enrolment again');
         assert.equal(result.xpPill, false, 'and no XP pill beside the tabs (the summary says 315 XP)');
     });
 

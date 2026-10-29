@@ -148,6 +148,39 @@ const refundCharge = async ({ userId, charge, action }) => {
   }
 };
 
+/**
+ * Ask first (2026-10-28): before a priced feature takes money, the student is
+ * shown what it costs and agrees. The app sends `X-Wallet-Ask: 1` on every
+ * request; a priced one is then answered 428 WALLET_CONFIRM with the price and
+ * the balance, and comes back with `X-Wallet-Confirm: <the price agreed to>`.
+ *
+ * Nothing is asked when nothing would be taken: a free feature, one already
+ * paid for under its reference (a job listing reopened), or a request `when`
+ * does not price (a first roadmap). Nor when the balance is short — the charge
+ * itself then says so (402), as before. An app from before this (no
+ * X-Wallet-Ask) is charged straight away, as it always was, rather than shown
+ * an answer it does not understand.
+ *
+ * Returns true when it has answered the request.
+ */
+const askFirst = async (req, res, { action, referenceKey = null }) => {
+  if (req.get?.('x-wallet-ask') !== '1' || !req.user?._id) return false;
+  const { amount, currency } = await priceOf(action);
+  if (!(amount > 0)) return false;
+  // Agreed to this price (a price changed in between is asked about again).
+  if (Number(req.get('x-wallet-confirm')) === amount) return false;
+  if (referenceKey && (await onceOnlyKey(req.user._id, action, referenceKey)).paid) return false;
+  await require('./walletService').grantStartingCredit(req.user._id);
+  const w = await Wallet.findOne({ userId: req.user._id }).select('available').lean();
+  const balance = money(w?.available || 0);
+  if (balance < amount) return false;
+  res.status(428).json({
+    code: 'WALLET_CONFIRM', action, label: LABELS[action] || 'This', amount, currency, balance,
+    message: `${LABELS[action] || 'This'} costs ${fmt(amount, currency)} from your wallet.`
+  });
+  return true;
+};
+
 const sendShort = (res, err) => res.status(402).json({ message: err.message, error: err.message, code: err.code, ...err.details });
 
 /**
@@ -160,7 +193,10 @@ const sendShort = (res, err) => res.status(402).json({ message: err.message, err
 const chargeWallet = (action, { when = null, ref = null } = {}) => async (req, res, next) => {
   try {
     if (!req.user?._id) return next();
+    // The demo (presentation) cards use every priced feature free (services/fullAccess.js).
+    if (require('../../services/fullAccess').hasFullAccess(req.user)) return next();
     if (when && !(await when(req))) return next();
+    if (await askFirst(req, res, { action, referenceKey: ref ? ref(req) : null })) return;
     const charge = await chargeFor({ userId: req.user._id, action, referenceKey: ref ? ref(req) : null });
     if (charge.charged > 0) {
       res.setHeader('X-Wallet-Charged', String(charge.charged));
@@ -175,4 +211,4 @@ const chargeWallet = (action, { when = null, ref = null } = {}) => async (req, r
   }
 };
 
-module.exports = { chargeFor, refundCharge, chargeWallet, sendShort, priceOf, LABELS };
+module.exports = { chargeFor, refundCharge, chargeWallet, askFirst, sendShort, priceOf, LABELS };

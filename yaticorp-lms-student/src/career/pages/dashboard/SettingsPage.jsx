@@ -16,7 +16,8 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import api from '../../services/api';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
-import PriceTag from '../../../components/rewards/PriceTag';
+import { isWalletCancel } from '../../../utils/walletCharge';
+import GeminiCreditTip from '../../../components/GeminiCreditTip';
 
 /**
  * `value` must stay byte-identical to the Goal schema's enum — it is what gets
@@ -337,7 +338,7 @@ export default function SettingsPage() {
       toast.success('Your new roadmap is ready.', 'Rebuilt');
       navigate('/career/roadmap');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not rebuild your roadmap.');
+      if (!isWalletCancel(err)) toast.error(err.response?.data?.message || 'Could not rebuild your roadmap.');
     } finally {
       setBusy(null);
     }
@@ -702,7 +703,7 @@ export default function SettingsPage() {
                 every task on your planner, your skill progress and your recommendations</strong>.
                 Change it only when your course or your goal has genuinely changed.
               </p>
-              <Button
+              <span className="inline-flex items-center gap-2"><Button
                 type="button"
                 variant="secondary"
                 size="sm"
@@ -713,8 +714,8 @@ export default function SettingsPage() {
                 onClick={handleRebuild}
                 className="mt-3.5"
               >
-                Save &amp; rebuild roadmap <PriceTag action="rebuild_roadmap" />
-              </Button>
+                Save &amp; rebuild roadmap
+              </Button><GeminiCreditTip /></span>
             </div>
           </div>
         </section>

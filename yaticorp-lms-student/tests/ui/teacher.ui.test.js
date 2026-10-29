@@ -62,6 +62,7 @@ export const SIGNIN_AS = 'yati:signinAs';
 export const TEACHER_SESSION_ENDED = 'yati:teacherSessionEnded';
 export const readTeacher = () => ROUTES['/me'];
 export const hasTeacherSession = () => !!window.__hasTeacher;
+export const isEmbedded = () => false;
 export const forgetTeacher = () => {};
 export const rememberSigninAs = (r) => localStorage.setItem('yati:signinAs', r);
 export const readSigninAs = () => { const v = localStorage.getItem('yati:signinAs'); return v === 'teacher' || v === 'student' ? v : null; };
@@ -187,13 +188,17 @@ createRoot(document.getElementById('root')).render(
             $$('button[type=submit]')[0].click(); await sleep(400);
             const onPassword = !!$('#signup-password');
             setVal($('#signup-password'), 'Teach-Pass1!'); setVal($('#signup-confirm-password'), 'Teach-Pass1!'); await sleep(100);
+            // Create Account waits for the Terms and Conditions to be agreed.
+            const lockedUntilAgreed = $$('button[type=submit]')[0].disabled;
+            $('#signup-password').closest('form').querySelector('input[type=checkbox]').click(); await sleep(100);
             $$('button[type=submit]')[0].click(); await sleep(500);
-            return { heading, step2, onPassword, register: window.__tcalls.find((c) => c[1] === '/auth/register'), entered: window.__entered, student: !!window.__studentEntered };` });
+            return { heading, step2, onPassword, lockedUntilAgreed, register: window.__tcalls.find((c) => c[1] === '/auth/register'), entered: window.__entered, student: !!window.__studentEntered };` });
         assert.deepEqual(errors, []);
         assert.equal(result.heading, 'Register your teacher card');
         assert.deepEqual({ ...result.step2, hint: undefined }, { institution: true, department: true, orgCode: false, hint: undefined });
         assert.match(result.step2.hint, /work or personal email/);
         assert.equal(result.onPassword, true, 'a college email is accepted');
+        assert.equal(result.lockedUntilAgreed, true, 'Create Account is locked until the terms are agreed');
         assert.equal(result.register[2].institution, 'Govt. First Grade College');
         assert.equal(result.register[2].email, 'meera@college.edu.in');
         assert.equal(result.register[2].CardNumber, '980000000001');

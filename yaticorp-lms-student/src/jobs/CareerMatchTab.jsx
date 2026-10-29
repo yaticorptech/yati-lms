@@ -8,8 +8,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Upload, FileText, Sparkles, ExternalLink, Loader2, RefreshCw, MapPin, Building2, Check, AlertCircle } from 'lucide-react';
 import { jobsApi, learnerSkills } from './api';
-import PriceTag from '../components/rewards/PriceTag';
 import usePricedJobLink from './usePricedJobLink';
+import { isWalletCancel } from '../utils/walletCharge';
+import GeminiCreditTip from '../components/GeminiCreditTip';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -51,7 +52,7 @@ export const MatchCard = ({ job, actionLabel = 'Find Job' }) => {
             <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                 <span className="min-w-0 truncate text-xs text-slate-500">{job.source ? `via ${job.source}` : ''}</span>
                 <a href={job.url} target="_blank" rel="noopener noreferrer" onClick={(e) => openJob(e, job)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700">
-                    {actionLabel} <PriceTag action="find_job" /> <ExternalLink size={14} />
+                    {actionLabel} <ExternalLink size={14} />
                 </a>
             </div>
             {openError && <p role="alert" className="mt-2 text-right text-xs font-semibold text-red-600">{openError}</p>}
@@ -103,7 +104,7 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
             onProfile(res.profile);
             setSource('upload');
         } catch (e) {
-            setError(e.message || 'Upload failed. Please try again.');
+            if (!isWalletCancel(e)) setError(e.message || 'Upload failed. Please try again.');
         } finally {
             setUploading(false);
             if (inputRef.current) inputRef.current.value = '';
@@ -131,7 +132,7 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
                 <div className="mx-auto max-w-2xl text-center">
                     <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-200"><Sparkles size={26} /></span>
-                    <h2 className="mt-4 text-2xl font-black text-slate-900">Career Match</h2>
+                    <h2 className="mt-4 inline-flex items-center gap-2 text-2xl font-black text-slate-900">Career Match <GeminiCreditTip /></h2>
                     <p className="mt-1 text-slate-500">Choose the resume to match against, and we'll find the jobs that fit it best.</p>
                 </div>
                 <div className="mx-auto mt-6 grid max-w-2xl gap-4 sm:grid-cols-2">

@@ -29,6 +29,8 @@ router.post('/users/bulk', protectAdmin, upload.single('file'), bulkAddUsers);
 router.route('/users/:id').get(protectAdmin, getUserById).put(protectAdmin, updateUser).delete(protectAdmin, deleteUser);
 router.route('/users/:id/status').put(protectAdmin, updateUserStatus);
 router.get('/users/:id/password', protectAdmin, getUserPassword);
+// A student's devices: list, residential card, reset (services/deviceRoutes.js).
+router.use('/users/:id/devices', protectAdmin, require('../services/deviceRoutes')((req) => require('../models/User').findById(req.params.id).select('_id').lean()));
 // Superadmins only: opens the student's own dashboard, signed in as them.
 router.post('/users/:id/dashboard-access', protectAdmin, superAdminOnly, openStudentDashboard);
 router.route('/users/:id/progress/:courseId')
@@ -105,6 +107,10 @@ router.route('/global-quiz/:id').put(protectAdmin, globalQuizCtrl.updateQuestion
 // Analytics Routes
 const { getAnalytics } = require('../controllers/adminAnalyticsController');
 router.get('/analytics', protectAdmin, getAnalytics);
+// Overall analytics (every admin) and the admin audit log (super admins).
+const { getOverallAnalytics, getAuditLog } = require('../controllers/adminInsightsController');
+router.get('/overall-analytics', protectAdmin, getOverallAnalytics);
+router.get('/audit-log', protectAdmin, superAdminOnly, getAuditLog);
 
 // Announcement Routes
 const { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } = require('../controllers/announcementController');

@@ -80,23 +80,23 @@ describe('the learning plan', () => {
         assert.equal(none.options.length, 5, 'the choices to make one again');
     });
 
-    test('a second language course takes the time already chosen, from today: the question is not asked again (2026-10-26)', async () => {
+    test('one language only (2026-10-27): a second course is refused, and the plan stays as it was', async () => {
         await api('POST', '/plan', { days: 30 });
         await api('POST', '/language', { language: 'kn' });
-        assert.equal((await api('POST', '/course', { course: 'hi', start: 'beginner' })).status, 200);
-        const p = (await api('GET', '/plan')).body.plan;
-        assert.deepEqual([p.days, p.day, (await api('GET', '/')).body.course.code], [30, 1, 'hi']);
-        await api('POST', '/course', { course: 'en' });
+        const r = await api('POST', '/course', { course: 'hi', start: 'beginner' });
+        assert.equal(r.status, 400);
+        assert.match(r.body.message, /You are learning English\. Finish all its sections, then choose your next language\./);
+        assert.equal((await api('GET', '/')).body.course.code, 'en');
         assert.equal((await api('GET', '/plan')).body.plan.days, 30, 'the English plan as it was');
     });
 
-    test('placed at Advanced after making the plan: the roadmap is made again from there', async () => {
+    test('the level test after making the plan: Advanced found, but the roadmap still starts at Beginner (2026-10-28)', async () => {
         await mayaApi('POST', '/level', { level: 'beginner' });
         assert.equal((await mayaApi('POST', '/plan', { days: 30 })).body.plan.tier, 'main');
         const right = Object.fromEntries(require('../../src/linguistic/content/placement').map((q) => [q.id, q.answer]));
-        await mayaApi('POST', '/placement', { answers: right });
+        assert.equal((await mayaApi('POST', '/placement', { answers: right })).body.level, 'advanced');
         const p = (await mayaApi('GET', '/plan')).body.plan;
-        assert.equal(p.tier, 'full', 'only Advanced is left: every lesson fits in a month');
-        assert.ok(p.schedule[0].lessons.every((x) => x.level === 'advanced'));
+        assert.equal(p.tier, 'main', 'every level still to do');
+        assert.ok(p.schedule[0].lessons.every((x) => x.level === 'beginner'), 'from the first unit');
     });
 });

@@ -16,6 +16,8 @@ import GeneratingRoadmap from '../../components/journey/GeneratingRoadmap';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
 import { useMascot } from '../../mascot/useMascot';
+import { isWalletCancel } from '../../../utils/walletCharge';
+import GeminiCreditTip from '../../../components/GeminiCreditTip';
 
 export default function RoadmapPage() {
   const [roadmap, setRoadmap] = useState(null);
@@ -113,6 +115,8 @@ export default function RoadmapPage() {
       setRoadmap(data.roadmapData);
       setCompletedPhases(data.completedPhases || []);
     } catch (err) {
+      // Cancelled at the wallet's price: nothing happened, nothing to say.
+      if (isWalletCancel(err)) return;
       // A spent allowance is not a failure to report in red. It gets its own
       // notice, which says when it comes back and that nothing has been lost.
       const budget = readAiBudgetError(err);
@@ -322,9 +326,9 @@ export default function RoadmapPage() {
                 something to build on. */}
             <div className="mt-8 flex flex-wrap gap-3">
               {goal ? (
-                <Button icon={Sparkles} onClick={handleGenerateRoadmap} size="lg">
+                <span className="inline-flex items-center gap-2"><Button icon={Sparkles} onClick={handleGenerateRoadmap} size="lg">
                   Map my journey
-                </Button>
+                </Button><GeminiCreditTip /></span>
               ) : (
                 <Link to="/career/onboarding">
                   <Button icon={Sparkles} size="lg">

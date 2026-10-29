@@ -14,6 +14,7 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AuthContext } from './AuthContext';
 import api from '../utils/api';
+import useLive from '../live/useLive';
 import { RewardToast, CelebrationOverlay } from '../components/rewards/RewardCelebration';
 
 import { RewardsContext } from './useRewards';
@@ -151,6 +152,18 @@ export const RewardsProvider = ({ children }) => {
             window.removeEventListener('yati:rewards', onRewards);
         };
     }, [refresh, celebrate, pullSoon]);
+
+    // Live wallet: the app's one live stream (useLive) says "your wallet
+    // changed" (an admin credit, a payment, a charge) the moment it happens.
+    // The balance is re-read, every wallet on screen is told, and the "added to
+    // your wallet" celebration is pulled — no reload.
+    const onWalletChange = useCallback(() => {
+        refresh();
+        announcing.current = true;
+        try { window.dispatchEvent(new CustomEvent('yati:progress-changed')); } finally { announcing.current = false; }
+        pullSoon();
+    }, [refresh, pullSoon]);
+    useLive('wallet', onWalletChange, { enabled });
 
     useEffect(() => () => { clearTimeout(toastTimer.current); clearTimeout(pullTimer.current); }, []);
 

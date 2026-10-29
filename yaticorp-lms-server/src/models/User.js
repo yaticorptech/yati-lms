@@ -18,7 +18,9 @@ const userSchema = new mongoose.Schema({
     },
     phone: {
         type: String,
-        required: true
+        required: true,
+        // Imported records held this as a number; keep every new write as text.
+        set: (v) => (v == null ? v : String(v).trim())
     },
     cardNumber: {
         type: String,
@@ -175,6 +177,26 @@ const userSchema = new mongoose.Schema({
     // selected by default, so no API response can carry it by accident.
     geminiApiKey: { type: String, default: '', select: false },
     geminiApiKeyAddedAt: { type: Date, default: null },
+
+    // ─── Device limit (services/deviceGuard.js) ──────────────────────────────
+    // The devices this student may sign in on: one mobile and one computer
+    // (laptop, desktop or tablet); a residential card adds a second computer,
+    // set by their organization. One removal a year frees a slot.
+    devices: {
+        type: [{
+            deviceId: { type: String, required: true },
+            kind: { type: String, enum: ['mobile', 'computer'], required: true },
+            name: { type: String, default: '' },
+            addedAt: { type: Date, default: Date.now },
+            lastSeenAt: { type: Date, default: Date.now }
+        }],
+        default: []
+    },
+    deviceRemovedAt: { type: Date, default: null },
+    // One active sign-in at a time: the session the latest sign-in started. A token
+    // carrying any other (or none, once this is set) is signed out (services/deviceGuard.js).
+    activeSessionId: { type: String, default: '', select: false },
+    residentialCard: { type: Boolean, default: false },
 
     // The current password, sealed with AES-256-GCM (jobboard/utils/secretBox),
     // so a platform admin can read it back on the student's page

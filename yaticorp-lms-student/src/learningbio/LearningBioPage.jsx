@@ -19,9 +19,10 @@ import BioSettings from './BioSettings';
 import { Section, Btn, ErrorBox, Avatar, Analyzing } from './ui';
 import BioText from './BioText';
 import { pictureUrl } from '../native/pictures';
-import PriceTag from '../components/rewards/PriceTag';
 import CourseOutlineDialog from '../components/course/CourseOutlineDialog';
 import ProfileImage from '../components/ProfileImage';
+import { isWalletCancel } from '../utils/walletCharge';
+import GeminiCreditTip from '../components/GeminiCreditTip';
 
 export default function LearningBioPage() {
     const [data, setData] = useState(undefined);
@@ -39,12 +40,13 @@ export default function LearningBioPage() {
 
     const act = (kind, call, doneText) => {
         setBusy(kind); setNotice('');
-        return call().then((d) => { setData(d); if (doneText) setNotice(doneText); }).catch((e) => setError(e)).finally(() => setBusy(''));
+        // Cancelled at the wallet's price (a rewrite): nothing happened, nothing to say.
+        return call().then((d) => { setData(d); if (doneText) setNotice(doneText); }).catch((e) => { if (!isWalletCancel(e)) setError(e); }).finally(() => setBusy(''));
     };
     const regenerate = () => act('regenerate', () => bioApi.regenerate(), 'Your bio was rewritten from today\'s learning data.');
     const refresh = () => act('refresh', () => bioApi.refresh(), 'Learning data refreshed.');
     const changeInterests = (body) => act('interests', () => bioApi.interests(body));
-    const download = () => { setBusy('download'); setNotice(''); bioApi.downloadPdf(data?.user?.name).catch(setError).finally(() => setBusy('')); };
+    const download = () => { setBusy('download'); setNotice(''); bioApi.downloadPdf(data?.user?.name).catch((e) => { if (!isWalletCancel(e)) setError(e); }).finally(() => setBusy('')); };
 
     if (data === undefined) return <div className="mx-auto max-w-5xl pb-12"><Analyzing /></div>;
     if (!data) return <div className="mx-auto max-w-5xl pb-12"><ErrorBox error={error} onRetry={load} /></div>;
@@ -68,7 +70,7 @@ export default function LearningBioPage() {
                         <div className="mt-3 max-w-md rounded-2xl bg-white/15 p-3 backdrop-blur"><BioStrength percent={data.strength.percent} compact /><p className="mt-1.5 text-xs text-indigo-50">{data.strength.nextStep}</p></div>
                     </div>
                     <div className="flex flex-wrap gap-2 sm:flex-col">
-                        <Btn icon={Download} onClick={download} loading={busy === 'download'} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Download Bio <PriceTag action="download_bio" /></Btn>
+                        <Btn icon={Download} onClick={download} loading={busy === 'download'} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Download Bio</Btn>
                         <Btn icon={RefreshCw} onClick={refresh} loading={busy === 'refresh'} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Refresh Learning Data</Btn>
                         <Btn icon={Settings} onClick={() => setModal('settings')} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Bio Settings</Btn>
                     </div>
@@ -81,7 +83,7 @@ export default function LearningBioPage() {
             {/* ── A. About Me: photo on the left, a first-person story on the right ── */}
             <Section id="about" icon={Sparkles} title="About Me"
                 hint={bio.source === 'custom' ? `Your own wording · edited ${new Date(bio.custom.editedAt).toLocaleDateString('en-IN')}` : bio.ai.generatedAt ? `${bio.ai.isMock ? 'Written from your learning data' : `Written by AI (${data.ai.model}) from your learning data`} · ${new Date(bio.ai.generatedAt).toLocaleDateString('en-IN')}${bio.ai.stale ? ' · data has changed since' : ''}` : ''}
-                action={<div className="flex flex-wrap gap-2"><Btn icon={Sparkles} onClick={regenerate} loading={generating}>Regenerate Bio <PriceTag action="regenerate_bio" /></Btn><Btn icon={PenLine} onClick={() => setModal('edit')}>Edit Bio</Btn></div>}>
+                action={<div className="flex flex-wrap gap-2"><span className="inline-flex items-center gap-2"><Btn icon={Sparkles} onClick={regenerate} loading={generating}>Regenerate Bio</Btn><GeminiCreditTip /></span><Btn icon={PenLine} onClick={() => setModal('edit')}>Edit Bio</Btn></div>}>
                 {(
                     <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
                         <div className="mx-auto w-full max-w-[260px] md:mx-0">

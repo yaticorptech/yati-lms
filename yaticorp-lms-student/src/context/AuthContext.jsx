@@ -138,10 +138,22 @@ export const AuthProvider = ({ children }) => {
             return {
                 success: false,
                 // TEACHER_CARD: the sign-in page offers the teacher sign-in instead.
+                // DEVICE_LIMIT: a 3rd device; `device` is what the popup shows (components/DeviceLimitDialog).
                 code: err.response?.data?.code,
+                device: err.response?.data?.code === 'DEVICE_LIMIT' ? err.response.data : null,
                 error: err.response?.data?.message
                     || (!err.response ? 'Check your connection and try again.' : 'Login failed')
             };
+        }
+    };
+
+    /** Swap this device in for one of the student's others (the yearly removal), then enter. */
+    const replaceDevice = async (ticket, removeDeviceId, next) => {
+        try {
+            enterApp(await authService.replaceDevice(ticket, removeDeviceId), next);
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.response?.data?.message || 'Could not remove that device. Try again.', canRemoveAt: err.response?.data?.canRemoveAt || null };
         }
     };
 
@@ -155,7 +167,7 @@ export const AuthProvider = ({ children }) => {
     return (
         // `loading` is kept for anything that still reads it; it now means
         // the settings, which only the section gates wait for.
-        <AuthContext.Provider value={{ user, setUser, loading: settingsLoading, settingsLoading, login, logout, enterApp, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isGlobalQuizEnabled, isRewardsEnabled, isLinguisticEnabled }}>
+        <AuthContext.Provider value={{ user, setUser, loading: settingsLoading, settingsLoading, login, replaceDevice, logout, enterApp, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isGlobalQuizEnabled, isRewardsEnabled, isLinguisticEnabled }}>
             {children}
         </AuthContext.Provider>
     );
