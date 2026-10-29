@@ -157,8 +157,9 @@ const numberbonds = race({
     id: 'numberbonds', label: 'Number Bonds', emoji: '🧷', summary: 'Tap the two tiles that make the target — the same targets for everyone.',
     seconds: { easy: 90, medium: 100, hard: 120 }, action: 'pair',
     make: (rng, d) => Array.from({ length: 10 }, () => {
-        const target = d === 1 ? int(rng, 8, 20) : d === 2 ? int(rng, 20, 60) : int(rng, 50, 150);
-        const a = int(rng, 1, target - 1);
+        // From 11 up there are always six tiles with only the one pair; `a` under half, so the pair is two tiles.
+        const target = d === 1 ? int(rng, 11, 20) : d === 2 ? int(rng, 20, 60) : int(rng, 50, 150);
+        const a = int(rng, 1, Math.ceil(target / 2) - 1);
         const tiles = new Set([a, target - a]);
         while (tiles.size < 6) { const x = int(rng, 1, target - 1); if (!tiles.has(target - x)) tiles.add(x); }
         return { target, tiles: shuffle([...tiles], rng) };
