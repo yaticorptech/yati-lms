@@ -93,8 +93,12 @@ router.get('/stream', protectUser, (req, res) => {
     bus.on('topic', onTopic);
     // This student's own wallet rides the same stream ('wallet'), so a page holds one connection, not two.
     const offWallet = require('../rewards/services/walletEvents').onWalletChange(req.user._id, () => onTopic('wallet'));
+    // And their devices ('devices'): a residential card or a reset shows on My devices at once.
+    const offDevices = require('../services/deviceGuard').onDevicesChange(req.user._id, () => onTopic('devices'));
+    // A sign-in elsewhere ('session'): this page checks its own session and signs out if it was the older one.
+    const offSession = require('../services/deviceGuard').onSessionChange(req.user._id, () => onTopic('session'));
     const ping = setInterval(() => res.write(': ping\n\n'), 25000);
-    req.on('close', () => { clearInterval(ping); bus.off('topic', onTopic); offWallet(); });
+    req.on('close', () => { clearInterval(ping); bus.off('topic', onTopic); offWallet(); offDevices(); offSession(); });
 });
 
 module.exports = router;

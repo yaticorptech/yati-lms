@@ -177,7 +177,15 @@ const submissionSchema = new Schema({
     reviewedAt: { type: Date, default: null }
 }, { timestamps: true });
 
+// The student's own notes (2026-10-29): the notepad on the Writing tab, formatted text kept as cleaned HTML.
+const noteSchema = new Schema({
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    title: { type: String, default: '', maxlength: 120 },
+    html: { type: String, default: '', maxlength: 100000 }
+}, { timestamps: true });
+
 module.exports = {
+    LinguisticNote: mongoose.model('LinguisticNote', noteSchema, 'linguistic_notes'),
     LinguisticLesson: mongoose.model('LinguisticLesson', lessonSchema, 'linguistic_lessons'),
     LinguisticProgress: mongoose.model('LinguisticProgress', progressSchema, 'linguistic_progress'),
     LinguisticAttempt: mongoose.model('LinguisticAttempt', attemptSchema, 'linguistic_attempts'),

@@ -534,7 +534,8 @@ const addAnotherTask = async (userId) => {
 
   // The day before an exam is kept clear, and asking for one by hand does not
   // change what tomorrow is.
-  const exams = await examsTomorrow(userId, today);
+  // Not for the demo (presentation) cards, which can always ask for another.
+  const exams = (await require('../../services/fullAccess').fullAccessForUserId(userId)) ? [] : await examsTomorrow(userId, today);
   if (exams.length > 0) {
     return { status: 'exam-eve', exams: exams.map((e) => e.title) };
   }

@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, ChevronDown } from 'lucide-react';
 import { linguisticApi } from './api';
-import { COLORS, langOf, LEVELS } from './meta';
+import { COLORS, langOf, SHOWN_LEVELS as LEVELS } from './meta';
 import { Chunky, Mascot } from './ui';
 
 const SELECT = 'w-full appearance-none rounded-2xl border-2 border-b-4 border-[#E5E5E5] bg-white py-3 pl-14 pr-10 text-[17px] font-extrabold text-[#3c3c3c] focus:border-[#84D8FF] focus:outline-none disabled:opacity-60';

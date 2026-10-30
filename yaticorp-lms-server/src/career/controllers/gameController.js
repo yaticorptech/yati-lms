@@ -371,4 +371,56 @@ const recordPlayTime = async (req, res) => {
   }
 };
 
-module.exports = { getProgress, saveProgress, getLeaderboard, getPlayTime, recordPlayTime, PERIODS, SCOPES };
+/* ---- Group games: 30 minutes a day (2026-10-29) ----------------------- */
+
+const GroupPlayTime = require('../models/GroupPlayTime');
+const GROUP_LIMIT_SECONDS = 30 * 60;
+
+/** Today's Group games time: used, left, and when it comes back. */
+const groupPlayState = async (userId) => {
+  const day = dayKey();
+  const doc = await GroupPlayTime.findOne({ userId, day }).lean();
+  const used = Math.round(doc?.seconds || 0);
+  return {
+    day,
+    usedSeconds: used,
+    limitSeconds: GROUP_LIMIT_SECONDS,
+    remainingSeconds: Math.max(0, GROUP_LIMIT_SECONDS - used),
+    resetsAt: startOfDay(addDays(day, 1))
+  };
+};
+
+/** True when today's Group games time is used up (rooms and online tables then refuse). */
+const groupTimeUp = async (userId) => (await groupPlayState(userId)).remainingSeconds <= 0;
+
+// @route GET /api/career/games/group-time
+const getGroupPlayTime = async (req, res) => {
+  try {
+    res.json(await groupPlayState(req.user._id));
+  } catch (error) {
+    fail(res, error, 'load group play time');
+  }
+};
+
+// @route POST /api/career/games/group-time   { seconds }
+// A heartbeat while a group game is being played. Clamped to the time that actually passed.
+const recordGroupPlayTime = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const day = dayKey();
+    const now = new Date();
+    const doc = await GroupPlayTime.findOneAndUpdate(
+      { userId, day },
+      { $setOnInsert: { seconds: 0 } },
+      { upsert: true, returnDocument: 'after' }
+    );
+    const sinceLast = doc.lastBeatAt ? (now - doc.lastBeatAt) / 1000 : MAX_BEAT_SECONDS;
+    const claim = Math.max(0, Math.min(Number(req.body?.seconds) || 0, MAX_BEAT_SECONDS, sinceLast + 2));
+    await GroupPlayTime.updateOne({ _id: doc._id }, { $inc: { seconds: claim }, $set: { lastBeatAt: now } });
+    res.json(await groupPlayState(userId));
+  } catch (error) {
+    fail(res, error, 'record group play time');
+  }
+};
+
+module.exports = { getProgress, saveProgress, getLeaderboard, getPlayTime, recordPlayTime, getGroupPlayTime, recordGroupPlayTime, groupTimeUp, PERIODS, SCOPES };

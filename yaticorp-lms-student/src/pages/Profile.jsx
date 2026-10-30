@@ -6,6 +6,7 @@ import saveToDrive from '../integrations/google/saveToDrive';
 import CertificatesFrame from '../components/CertificatesFrame';
 import ResumeSection from '../components/ResumeSection';
 import AiKeySettings from '../components/AiKeySettings';
+import MyDevices from '../components/MyDevices';
 import GoogleConnectionCard from '../integrations/google/GoogleConnectionCard';
 import {
     Award, Loader2, Check, X,
@@ -23,6 +24,7 @@ import { useDashboard } from '../shared/hooks/useDashboard';
 import { useRewards } from '../context/useRewards';
 import ProgressCard from '../components/rewards/ProgressCard';
 import LeaderboardCard from '../components/rewards/LeaderboardCard';
+import RankClimbCard from '../components/rewards/RankClimbCard';
 import Portal from '../components/Portal';
 import { saveBlob } from '../native/saveFile';
 import { pictureUrl } from '../native/pictures';
@@ -123,7 +125,7 @@ const Profile = ({ view = 'dashboard' }) => {
     const rememberStudent = (fresh) => {
         if (!fresh) return;
         const latest = {};
-        for (const k of ['name', 'email', 'phone', 'cardNumber', 'profilePicture', 'credits']) {
+        for (const k of ['name', 'email', 'phone', 'cardNumber', 'qrNumber', 'profilePicture', 'credits']) {
             if (fresh[k] != null) latest[k] = fresh[k];
         }
         if (fresh.level != null) Object.assign(latest, { xp: Number(fresh.xp) || 0, level: Number(fresh.level) || 1 });
@@ -452,7 +454,9 @@ const Profile = ({ view = 'dashboard' }) => {
                         insisting on its content's width and running off. The
                         card fills its half's height when the clubs are taller. */}
                     <div className="min-w-0 lg:flex lg:flex-1 lg:basis-0 lg:flex-col lg:[&>section]:flex-1"><LeaderboardCard /></div>
-                    <MyClubsCard className="min-w-0 lg:flex-1 lg:basis-0 lg:rounded-3xl lg:p-6" />
+                    {/* In no club: the other half is how to climb the board instead. */}
+                    <MyClubsCard className="min-w-0 lg:flex-1 lg:basis-0 lg:rounded-3xl lg:p-6"
+                        fallback={<RankClimbCard className="min-w-0 lg:flex-1 lg:basis-0" />} />
                 </div>
             )}
             {!onProfile && !rw && <MyClubsCard />}
@@ -502,6 +506,9 @@ const Profile = ({ view = 'dashboard' }) => {
                     <AiKeySettings />
                 </div>
             )}
+
+            {/* Where this account is signed in: 1 mobile + 1 computer (services/deviceGuard.js). */}
+            {onProfile && <MyDevices />}
 
             {/* ── Photo Viewer Modal ── */}
             {photoOpen && (

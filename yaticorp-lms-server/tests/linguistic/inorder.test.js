@@ -56,11 +56,14 @@ describe('units and sections in order', () => {
         const beginner = (await svc.lessonsFor(progress)).filter((l) => l.level === 'beginner');
         await finish(beginner.filter((l) => !l.review));
         let path = (await api('GET', '/path')).body;
-        assert.equal(path.levels[1].open, false, 'Intermediate stays shut while unit reviews, listening and the level review are left');
-        await finish(beginner.filter((l) => l.review));
+        assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'advanced'], 'Intermediate hidden (2026-10-29)');
+        assert.equal(path.levels[1].open, false, 'Advanced stays shut while unit reviews, listening and the level review are left');
+        await finish(beginner.filter((l) => l.review && l.review !== 'assessment'));
         path = (await api('GET', '/path')).body;
-        assert.equal(path.levels[1].open, true, 'every Beginner lesson done: Intermediate opens');
-        assert.equal(path.levels[2].open, false, 'Advanced still shut');
+        assert.equal(path.levels[1].open, false, 'every Beginner lesson done but the assessment: Advanced still shut (2026-10-29)');
+        await finish(beginner.filter((l) => l.review === 'assessment'));
+        path = (await api('GET', '/path')).body;
+        assert.equal(path.levels[1].open, true, 'the assessment passed: Advanced opens');
     });
 
     test('a student placed at Advanced before 2026-10-28, Advanced lessons begun and done: those sections stay shut until the ones before are finished', async () => {
@@ -75,19 +78,24 @@ describe('units and sections in order', () => {
         progress.lessons.push({ lessonId: adv[1]._id, module: adv[1].module, level: 'advanced', status: 'started', step: 'learn' });
         await progress.save();
         const path = (await oldApi('GET', '/path')).body;
-        assert.deepEqual(path.levels.map((l) => l.open), [true, false, false], 'only Section 1 open');
+        assert.deepEqual(path.levels.map((l) => l.open), [true, false], 'only Section 1 open');
         assert.equal(path.level, 'beginner', 'their level: Section 1, until it is finished');
-        const shut = path.levels[2].units.flatMap((u) => u.lessons).filter((x) => !x.stop);
+        const shut = path.levels[1].units.flatMap((u) => u.lessons).filter((x) => !x.stop);
         assert.ok(shut.every((x) => !x.open), 'every Advanced lesson shut, the begun and the done too');
         assert.equal((await oldApi('GET', `/lessons/${adv[1]._id}`)).status, 403);
     });
 
     test('once begun, the level test is shown but does not move the student ahead, nor does a level said', async () => {
+        // A student still in Beginner (the one above has finished it, assessment and all, 2026-10-29).
+        const fresh = await makeUser('Ling In Order Test');
+        others.push(fresh.user);
+        const api = app.call(fresh.token);
+        assert.equal((await api('POST', '/level', { level: 'beginner' })).status, 200);
         const answers = Object.fromEntries(placement.map((q) => [q.id, q.answer]));
         const r = await api('POST', '/placement', { answers });
         assert.equal(r.status, 200);
         assert.deepEqual([r.body.level, r.body.kept], ['advanced', 'beginner'], 'every answer right: Advanced found, Beginner kept');
-        assert.equal((await api('GET', '/path')).body.levels[2].open, false, 'Advanced not opened by the test');
+        assert.equal((await api('GET', '/path')).body.levels[1].open, false, 'Advanced not opened by the test');
         const said = await api('POST', '/level', { level: 'advanced' });
         assert.equal(said.status, 409);
         assert.match(said.body.message, /Finish your units and sections/);

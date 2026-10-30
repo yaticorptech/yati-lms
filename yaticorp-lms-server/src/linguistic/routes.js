@@ -26,6 +26,8 @@
  *   GET  /daily · POST /daily           today's vocabulary challenge
  *   GET  /review · POST /review/:id     mistakes kept for revision, and answering one again
  *   GET  /submissions                   the student's writing sent for review, with the teacher's feedback
+ *   GET  /notes · POST /notes           the student's notepad: their notes, and a new one { title, html }
+ *   POST /notes/:id · DELETE /notes/:id saving or deleting one
  *   GET  /history                       recent attempts
  *   GET  /certificates                  level certificates earned
  *   GET  /certificates/:level/pdf       one, as a PDF
@@ -36,7 +38,7 @@
  */
 const express = require('express');
 const mongoose = require('mongoose');
-const { LinguisticLesson, LinguisticAttempt, LinguisticSubmission, MODULES, LEVELS } = require('./models');
+const { LinguisticLesson, LinguisticAttempt, LinguisticSubmission, LinguisticNote, MODULES, LEVELS } = require('./models');
 const svc = require('./service');
 const { getConfig } = require('./config');
 const { ensureSeeded } = require('./seed');
@@ -52,6 +54,8 @@ const idOf = (x) => String(x?._id ?? x);
 const bad = (res, message, status = 400) => res.status(status).json({ message });
 
 router.use(async (_req, _res, next) => { await ensureSeeded(); next(); });
+// The account allowed every section and unit, for testing (service.js `noteOpenAll`, 2026-10-29).
+router.use((req, _res, next) => { svc.noteOpenAll(req.user); next(); });
 
 /** A published lesson the student may open — in their own language — or a reply saying why not. */
 const openLesson = async (req, res) => {
@@ -383,6 +387,54 @@ router.get('/submissions', async (req, res, next) => {
         const { localizeFeedback } = require('./content/feedback');
         const lessons = new Map((await LinguisticLesson.find({ _id: { $in: rows.map((r) => r.lessonId) } }).select('title module').lean()).map((l) => [idOf(l._id), l]));
         res.json({ submissions: rows.map((r) => ({ id: idOf(r._id), lessonId: idOf(r.lessonId), lessonTitle: lessons.get(idOf(r.lessonId))?.title || 'A lesson', open: own.has(idOf(r.lessonId)), module: r.module, level: r.level, kind: r.kind, taskType: r.taskType, prompt: r.prompt, answer: r.answer, model: r.model, ...localizeFeedback(code, { autoFeedback: r.autoFeedback || [], sentences: r.sentences || null }), status: r.status, score: r.score, comment: r.comment, reviewedBy: r.reviewedBy?.name || null, reviewedAt: r.reviewedAt, updatedAt: r.updatedAt })) });
+    } catch (err) { next(err); }
+});
+
+/* ── The notepad ──────────────────────────────────────────────────────── */
+
+const MAX_NOTES = 200;
+const noteOut = (n) => ({ id: idOf(n._id), title: n.title, html: n.html, createdAt: n.createdAt, updatedAt: n.updatedAt });
+/** A note's fields from the body; the HTML is cleaned again by the page before it is shown. */
+const noteIn = (body) => {
+    const title = String(body?.title ?? '').trim().slice(0, 120);
+    const html = String(body?.html ?? '');
+    if (html.length > 100000) return { error: 'That note is too long.' };
+    return { title, html: html.replace(/<\s*(script|style|iframe|object|embed)[^]*?<\s*\/\s*\1\s*>/gi, '') };
+};
+
+router.get('/notes', async (req, res, next) => {
+    try {
+        const rows = await LinguisticNote.find({ userId: req.user._id }).sort({ updatedAt: -1 }).limit(MAX_NOTES).lean();
+        res.json({ notes: rows.map(noteOut) });
+    } catch (err) { next(err); }
+});
+
+router.post('/notes', async (req, res, next) => {
+    try {
+        const v = noteIn(req.body);
+        if (v.error) return res.status(400).json({ message: v.error });
+        if (await LinguisticNote.countDocuments({ userId: req.user._id }) >= MAX_NOTES) return res.status(400).json({ message: `You can keep up to ${MAX_NOTES} notes. Delete one first.` });
+        const n = await LinguisticNote.create({ userId: req.user._id, ...v });
+        res.status(201).json({ note: noteOut(n) });
+    } catch (err) { next(err); }
+});
+
+router.post('/notes/:id', async (req, res, next) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'That note was not found.' });
+        const v = noteIn(req.body);
+        if (v.error) return res.status(400).json({ message: v.error });
+        const n = await LinguisticNote.findOneAndUpdate({ _id: req.params.id, userId: req.user._id }, { $set: v }, { new: true });
+        if (!n) return res.status(404).json({ message: 'That note was not found.' });
+        res.json({ note: noteOut(n) });
+    } catch (err) { next(err); }
+});
+
+router.delete('/notes/:id', async (req, res, next) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'That note was not found.' });
+        await LinguisticNote.deleteOne({ _id: req.params.id, userId: req.user._id });
+        res.json({ ok: true });
     } catch (err) { next(err); }
 });
 

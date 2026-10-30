@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { House, BookOpen, Route, BriefcaseBusiness, Gamepad2, Wallet, ChevronRight, UserRound } from 'lucide-react';
+import { House, BookOpen, Route, BriefcaseBusiness, Gamepad2, Wallet, ChevronRight, UserRound, Globe, Shield, Trophy } from 'lucide-react';
 import ProfileImage from './ProfileImage';
 import { money, balance } from './rewards/format';
 import useKeyboardOpen from '../native/useKeyboardOpen';
@@ -41,12 +41,18 @@ import './mobileBottomNav.css';
 // sections share one place here; Competitions is in the drawer. Each icon is
 // the plainest picture of its word: a house, a book, a route, a briefcase,
 // coins in a hand, a gamepad.
+// Home stays put on the left; the rest scroll (asked 2026-10-29): Career,
+// Multilingo and Games first, a › to say there is more, then Job Prep,
+// Courses and the activities, and Me (the profile) last.
+const HOME = { to: '/', label: 'Dashboard', short: 'Home', icon: House, exact: true };
 const ITEMS = [
-  { to: '/', label: 'Dashboard', short: 'Home', icon: House, exact: true },
-  { to: '/enrolled-courses', label: 'My Courses', short: 'Courses', icon: BookOpen },
-  { to: '/career', label: 'Career Path', short: 'Career', icon: Route, flag: 'career' },
-  { to: '/interview', label: 'Job Preparation', short: 'Job Prep', icon: BriefcaseBusiness, also: '/jobs' },
-  { to: '/games', label: 'Games', short: 'Games', icon: Gamepad2, also: '/competitions' }
+  { to: '/career', label: 'Career Path', short: 'Career Path', icon: Route, flag: 'career' },
+  { to: '/linguistic/dashboard', section: '/linguistic', label: 'Multilingo', short: 'Multilingo', icon: Globe, flag: 'linguistic' },
+  { to: '/games', label: 'Games', short: 'Games', icon: Gamepad2 },
+  { to: '/interview', label: 'Job Preparation', short: 'Job Preparation', icon: BriefcaseBusiness, also: '/jobs' },
+  { to: '/enrolled-courses', label: 'My Courses', short: 'My Courses', icon: BookOpen },
+  { to: '/extracurricular', label: 'Extra Curricular', short: 'Extra Curricular', icon: Shield },
+  { to: '/competitions', label: 'Competitions', short: 'Competitions', icon: Trophy }
 ];
 
 /** The visible word first, then the sidebar's name when it says something else. */
@@ -78,7 +84,7 @@ function MeTab({ user, rewards, onOpenWallet }) {
   const wallet = rewards?.wallet;
   const level = rewards?.level?.level;
   return (
-    <div ref={boxRef} className="relative z-10 flex min-w-0 flex-1">
+    <div ref={boxRef} className="relative z-10 flex w-[4.4rem] shrink-0">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label="Me (My Profile and wallet)"
         className={`mbn-press flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[22px] pt-2 pb-1.5 text-[0.6rem] tracking-tight transition-colors ${active || open ? 'font-bold text-indigo-700' : 'font-semibold text-slate-500'}`}>
         <span className={`flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-[0.55rem] font-black text-indigo-700 ring-2 transition-all ${active || open ? 'ring-indigo-500' : 'ring-slate-200'}`}>
@@ -88,7 +94,7 @@ function MeTab({ user, rewards, onOpenWallet }) {
       </button>
 
       {open && (
-        <div role="menu" aria-label="Me" className="mbn-pop absolute right-0 bottom-[calc(100%+0.9rem)] w-64 origin-bottom-right overflow-hidden rounded-3xl bg-white p-1.5 shadow-[0_18px_50px_-14px_rgba(30,27,75,0.45)] ring-1 ring-slate-900/5">
+        <div role="menu" aria-label="Me" className="mbn-pop fixed right-3 bottom-[calc(5.6rem+env(safe-area-inset-bottom))] w-64 origin-bottom-right overflow-hidden rounded-3xl bg-white p-1.5 shadow-[0_18px_50px_-14px_rgba(30,27,75,0.45)] ring-1 ring-slate-900/5">
           {/* The student, as a small member card: opens My Profile. */}
           <Link to="/profile" role="menuitem" className="group relative flex items-center gap-3 overflow-hidden rounded-[20px] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-3 text-white">
             <span aria-hidden="true" className="pointer-events-none absolute -top-8 -right-6 h-24 w-24 rounded-full bg-white/15 blur-xl" />
@@ -123,10 +129,33 @@ function MeTab({ user, rewards, onOpenWallet }) {
   );
 }
 
-export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, user, rewards, onOpenWallet }) {
+/** One tab: icon over a one-word label, lit as an indigo pill when on. */
+function Tab({ item, active, onClick, className = '' }) {
+  return (
+    <Link
+      to={item.to}
+      onClick={onClick}
+      data-active-tab={active || undefined}
+      aria-label={nameOf(item)}
+      aria-current={active ? 'page' : undefined}
+      className={`mbn-press relative z-10 flex shrink-0 flex-col items-center justify-center gap-1 rounded-[22px] pt-2 pb-1.5 text-[0.6rem] tracking-tight transition-colors ${
+        active ? 'font-bold text-indigo-600' : 'font-semibold text-slate-500 active:text-slate-700'
+      } ${className}`}
+    >
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+        <item.icon size={21} strokeWidth={active ? 2.4 : 1.9} />
+      </span>
+      <span className="whitespace-nowrap text-center leading-none">{item.short}</span>
+      {/* The only "you are here": a small dot under the label. */}
+      <span aria-hidden className={`h-1 w-1 rounded-full ${active ? 'bg-indigo-600' : 'bg-transparent'}`} />
+    </Link>
+  );
+}
+
+export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, isLinguisticEnabled = true, user, rewards, onOpenWallet }) {
   const { pathname } = useLocation();
-  const rowRef = useRef(null);
-  const [capsule, setCapsule] = useState(null);
+  const stripRef = useRef(null);
+  const [more, setMore] = useState(true);
   // In the app, the bar steps aside while the on-screen keyboard is up: it
   // sat on top of the field being typed in.
   const keyboardOpen = useKeyboardOpen();
@@ -134,30 +163,28 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, us
   const visible = ITEMS.filter((item) => {
     if (item.flag === 'jobs') return isJobsEnabled;
     if (item.flag === 'career') return isCareerPathEnabled;
+    if (item.flag === 'linguistic') return isLinguisticEnabled;
     return true;
   });
 
   const isActive = (item) =>
-    item.exact ? pathname === item.to : [item.to, item.also].filter(Boolean).some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    item.exact ? pathname === item.to : [item.section || item.to, item.also].filter(Boolean).some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
-  // Where the capsule sits: behind the active tab, re-measured when the
-  // route or the screen width changes. The CSS springs it there.
+  // Whether there is more to the right: the › shows until the end is reached.
+  const check = () => {
+    const el = stripRef.current;
+    if (el) setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+  // Home brings the strip back to its start; any other section scrolls its tab into view.
   useEffect(() => {
-    const measure = () => {
-      const row = rowRef.current;
-      const tab = row?.querySelector('[data-active-tab="true"]');
-      if (!row || !tab) {
-        setCapsule(null);
-        return;
-      }
-      const rowBox = row.getBoundingClientRect();
-      const box = tab.getBoundingClientRect();
-      setCapsule({ left: box.left - rowBox.left, width: box.width });
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [pathname, visible.length]);
+    const el = stripRef.current;
+    if (!el) return;
+    if (pathname === '/') el.scrollTo({ left: 0, behavior: 'smooth' });
+    else el.querySelector('[data-active-tab="true"]')?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    const t = setTimeout(check, 400);
+    window.addEventListener('resize', check);
+    return () => { clearTimeout(t); window.removeEventListener('resize', check); };
+  }, [pathname, visible.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <nav
@@ -170,40 +197,21 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, us
           so a blur was worked out again for every frame of every scroll, and
           the page scrolled unevenly on phones. A hairline border and a soft,
           low shadow lift it off the page instead. */}
-      <div className="mbn-island relative rounded-[28px] border border-slate-200/70 bg-white p-1.5">
-        <div ref={rowRef} className="relative flex items-stretch">
-          {capsule && (
-            <span aria-hidden className="mbn-capsule" style={{ left: capsule.left, width: capsule.width }} />
+      <div className="mbn-island relative flex items-stretch gap-1 rounded-[28px] border border-slate-200/70 bg-white p-1.5">
+        <Tab item={HOME} active={isActive(HOME)} className="w-[4.4rem]" onClick={() => stripRef.current?.scrollTo({ left: 0, behavior: 'smooth' })} />
+        <span aria-hidden className="my-2 w-px shrink-0 bg-slate-200" />
+        <div className="relative min-w-0 flex-1">
+          <div ref={stripRef} onScroll={check} className="flex h-full items-stretch gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {visible.map((item) => <Tab key={item.to} item={item} active={isActive(item)} className="min-w-[4.4rem] px-2.5" />)}
+            <MeTab user={user} rewards={rewards} onOpenWallet={onOpenWallet} />
+          </div>
+          {more && (
+            <button type="button" aria-label="More sections"
+              onClick={() => stripRef.current?.scrollBy({ left: stripRef.current.clientWidth * 0.8, behavior: 'smooth' })}
+              className="absolute inset-y-0 right-0 z-20 flex w-8 items-center justify-end bg-gradient-to-l from-white via-white/90 to-transparent pr-0.5 text-slate-400">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm"><ChevronRight size={15} strokeWidth={2.6} /></span>
+            </button>
           )}
-
-          {visible.map((item) => {
-            const active = isActive(item);
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                data-active-tab={active || undefined}
-                aria-label={nameOf(item)}
-                aria-current={active ? 'page' : undefined}
-                className={`mbn-press relative z-10 flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[22px] px-0 pt-2 pb-1.5 text-[0.6rem] tracking-tight transition-colors duration-300 ${
-                  active ? 'font-bold text-white' : 'font-semibold text-slate-500 active:text-slate-700'
-                }`}
-              >
-                <span
-                  key={active ? `${item.to}-on` : `${item.to}-off`}
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center ${active ? 'mbn-cap-icon' : ''}`}
-                >
-                  <item.icon size={21} strokeWidth={active ? 2.4 : 1.9} />
-                </span>
-
-                {/* Whole, never cut: on a 344px phone "Job Prep" runs a hair
-                    past its cell — into the gap its neighbour's shorter label
-                    leaves, not into the label. */}
-                <span className="whitespace-nowrap text-center leading-none">{item.short}</span>
-              </Link>
-            );
-          })}
-          <MeTab user={user} rewards={rewards} onOpenWallet={onOpenWallet} />
         </div>
       </div>
     </nav>

@@ -38,27 +38,33 @@ export default function JourneyHero({ goal, task, completedToday = 0, totalToday
   const target = careerGoal || 'your goal';
 
   return (
-    <section className="ch-hero relative overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_55%,#fff7ed_100%)] shadow-card ring-1 ring-slate-100 ring-inset lg:grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)] lg:items-center lg:bg-gradient-to-r lg:from-white lg:via-[#faf8ff] lg:to-[#f1ecff]">
+    <section className="ch-hero relative isolate overflow-hidden rounded-3xl bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_55%,#fff7ed_100%)] shadow-card ring-1 ring-slate-100 ring-inset lg:flex lg:aspect-[2030/775] lg:items-center lg:bg-[#2b1d55] lg:ring-0">
+      {/* From lg the sunset is the whole banner (2026-10-29): the sky runs behind the words, which
+          turn white, and a soft dusk on the left keeps them readable. */}
+      <div className="absolute inset-0 -z-10 hidden lg:block">
+        <JourneyStairs wide phases={phases} completedPhases={completedPhases} goal={careerGoal} />
+      </div>
+      <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 -z-10 hidden w-[55%] bg-gradient-to-r from-[#1c1040]/70 via-[#2a1650]/30 to-transparent lg:block" />
       {/* ---- The climb: the mountain, the robot, the milestones on the trail, the summit ----
           On top on a phone and a tablet; on the right from lg, fading into the words on its left. */}
-      <div className="lg:order-2 lg:self-center lg:[mask-image:linear-gradient(to_right,transparent,#000_9%)]">
+      <div className="lg:hidden">
         <JourneyStairs phases={phases} completedPhases={completedPhases} goal={careerGoal} />
       </div>
 
       {/* ---- What this section is for ---- */}
-      <div className="relative flex flex-col justify-center px-5 pt-5 pb-5 sm:px-8 sm:pb-6 lg:order-1 lg:px-10 lg:py-8">
+      <div className="relative z-10 flex flex-col justify-center px-5 pt-5 pb-5 sm:px-8 sm:pb-6 lg:w-[48%] lg:px-10 lg:py-8">
         <div className="min-w-0">
-        <span className="ch-badge hidden lg:inline-flex items-center gap-1.5 rounded-full bg-violet-100/80 px-2.5 py-1 text-[0.7rem] font-black text-violet-700 ring-1 ring-violet-200/70 ring-inset lg:gap-2 lg:px-3.5 lg:py-1.5 lg:text-sm">
+        <span className="ch-badge hidden lg:inline-flex items-center gap-1.5 rounded-full bg-violet-100/80 px-2.5 py-1 lg:bg-white/85 lg:shadow-lg lg:backdrop-blur text-[0.7rem] font-black text-violet-700 ring-1 ring-violet-200/70 ring-inset lg:gap-2 lg:px-3.5 lg:py-1.5 lg:text-sm">
           <Rocket className="h-4 w-4 text-orange-500" />
           Build Your Future
         </span>
 
-        <h1 className="text-[1.55rem] leading-[1.1] lg:mt-3 font-black tracking-tight text-indigo-950 sm:text-[1.9rem] lg:text-[2.4rem]">
+        <h1 className="text-[1.55rem] leading-[1.1] lg:mt-3 font-black tracking-tight text-indigo-950 sm:text-[1.9rem] lg:text-[2.6rem] xl:text-[3rem] lg:text-white lg:drop-shadow-[0_2px_12px_rgba(20,10,50,0.45)]">
           <span className="ch-in block" style={{ animationDelay: '0.08s' }}>
             Your Career Journey
           </span>
           <span className="ch-in relative mt-1.5 block w-fit" style={{ animationDelay: '0.18s' }}>
-            <span className="fp-text-shimmer bg-gradient-to-r from-orange-500 via-rose-500 to-violet-600 bg-clip-text text-transparent">
+            <span className="fp-text-shimmer bg-gradient-to-r from-orange-500 via-rose-500 to-violet-600 bg-clip-text text-transparent lg:from-rose-400 lg:via-pink-400 lg:to-violet-400">
               Starts Here
             </span>
             {/* Two strokes, as in the design: a long sweep with a shorter one
@@ -76,13 +82,13 @@ export default function JourneyHero({ goal, task, completedToday = 0, totalToday
           </span>
         </h1>
 
-        <p className="ch-in mt-5 max-w-[34rem] text-[0.95rem] leading-relaxed text-slate-600 lg:text-[1.15rem]" style={{ animationDelay: '0.28s' }}>
-          {firstName ? <>Hi <span className="font-black text-slate-900">{firstName}</span>, </> : 'Hi, '}
+        <p className="ch-in mt-5 max-w-[34rem] text-[0.95rem] leading-relaxed text-slate-600 lg:text-[1.15rem] lg:text-white/90 lg:drop-shadow-[0_1px_6px_rgba(20,10,50,0.5)]" style={{ animationDelay: '0.28s' }}>
+          {firstName ? <>Hi <span className="font-black text-slate-900 lg:text-white">{firstName}</span>, </> : 'Hi, '}
           {!phases.length
-            ? <>your step-by-step path to <span className="font-bold text-indigo-800">{target}</span> starts here.</>
+            ? <>your step-by-step path to <span className="font-bold text-indigo-800 lg:text-white">{target}</span> starts here.</>
             : stepsLeft === 0
-              ? <>you&apos;ve climbed every step — you reached <span className="font-bold text-indigo-800">{target}</span>! 🎉</>
-              : <>just <span className="font-black text-orange-600">{stepsLeft} step{stepsLeft === 1 ? '' : 's'}</span> left to reach <span className="font-bold text-indigo-800">{target}</span>. Keep climbing! 🚀</>}
+              ? <>you&apos;ve climbed every step — you reached <span className="font-bold text-indigo-800 lg:text-white">{target}</span>! 🎉</>
+              : <>just <span className="font-black text-orange-600 lg:text-amber-300">{stepsLeft} step{stepsLeft === 1 ? '' : 's'}</span> left to reach <span className="font-bold text-indigo-800 lg:text-white">{target}</span>. Keep climbing! 🚀</>}
         </p>
 
 
@@ -106,11 +112,11 @@ export default function JourneyHero({ goal, task, completedToday = 0, totalToday
             [Star, 'Track', 'Your progress', 'bg-amber-100 text-amber-500'],
             [Trophy, 'Achieve', 'Your goals', 'bg-emerald-100 text-emerald-600']
           ].map(([Icon, title, sub, tone], i) => (
-            <div key={title} className={`flex items-center gap-2.5 ${i ? 'border-l border-slate-200 pl-5' : ''}`}>
-              <span className={`flex h-12 w-12 items-center justify-center rounded-full ${tone}`}><Icon className="h-6 w-6" /></span>
-              <span className="leading-tight">
-                <span className="block text-base font-black text-slate-900">{title}</span>
-                <span className="block text-sm text-slate-500">{sub}</span>
+            <div key={title} className={`flex items-center gap-2.5 ${i ? 'border-l border-white/25 pl-5' : ''}`}>
+              <span className={`flex h-12 w-12 items-center justify-center rounded-full shadow-lg ring-2 ring-white/40 ${tone}`}><Icon className="h-6 w-6" /></span>
+              <span className="leading-tight drop-shadow-[0_1px_6px_rgba(20,10,50,0.5)]">
+                <span className="block text-base font-black text-white">{title}</span>
+                <span className="block text-sm text-white/75">{sub}</span>
               </span>
             </div>
           ))}

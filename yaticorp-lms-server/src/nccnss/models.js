@@ -114,6 +114,10 @@ const activitySchema = new mongoose.Schema({
     hours: { type: Number, min: 0, max: 240, default: 0 },
     place: { type: String, default: '', trim: true, maxlength: 120 },
     proofUrl: { type: String, default: '' },
+    // The proof kept in the student's own Google Drive, when they connected it.
+    proofDriveId: { type: String, default: '' },
+    // Once approved, the "completed" entry on their Google Calendar.
+    googleEventId: { type: String, default: '' },
     status: { type: String, enum: ACTIVITY_STATUSES, default: 'pending', index: true },
     reason: { type: String, default: '', trim: true, maxlength: 300 },
     decidedBy: { type: ObjectId, ref: 'Admin', default: null },
@@ -208,6 +212,11 @@ const scoutAwardSchema = new mongoose.Schema({
     examiner: { type: String, default: '', trim: true, maxlength: 120 },
     certificateNo: { type: String, default: '', trim: true, maxlength: 60 },
     note: { type: String, default: '', trim: true, maxlength: 300 },
+    // The certificate image, when one was uploaded (the student's request needs one).
+    certificateUrl: { type: String, default: '' },
+    // A student asking for it themselves, checked and decided by their unit leader.
+    requestedByUserId: { type: ObjectId, ref: 'User', default: null },
+    decidedByTeacherId: { type: ObjectId, ref: 'Teacher', default: null },
     status: { type: String, enum: AWARD_STATUSES, default: 'pending', index: true },
     reason: { type: String, default: '', trim: true, maxlength: 300 },
     // A leader (teacher) proposing it, or the organization recording it.

@@ -51,7 +51,7 @@ export default function SudokuTable({ view, onAction, busy }) {
     const same = sel != null && value(sel) ? value(sel) : null;
 
     return (
-        <div className="mx-auto grid w-full max-w-4xl gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]" data-sudoku>
+        <div className={`mx-auto grid w-full max-w-4xl gap-4 ${view.liveBoard && view.status === 'active' ? '' : 'lg:grid-cols-[minmax(0,1fr)_16rem]'}`} data-sudoku>
             <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-bold capitalize text-indigo-700">{view.difficulty}</span>
@@ -90,7 +90,7 @@ export default function SudokuTable({ view, onAction, busy }) {
                 {!view.canPlay && me && !over && <p className="mt-3 text-center text-sm font-bold text-slate-600">{me.finished ? 'You finished! Waiting for the others…' : me.closed ? 'Too many mistakes: your board is closed.' : ''}</p>}
                 {over && <p className="mt-3 text-center text-sm text-slate-500">Numbers in red are the solution's, for the cells left empty.</p>}
             </section>
-            <aside className="space-y-2" aria-label="Players">
+            {!(view.liveBoard && view.status === 'active') && <aside className="space-y-2" aria-label="Players">
                 {view.seats.map((s, i) => {
                     const p = view.players[i];
                     const pct = Math.round((100 * p.filled) / Math.max(1, p.of));
@@ -109,7 +109,7 @@ export default function SudokuTable({ view, onAction, busy }) {
                         </div>
                     );
                 })}
-            </aside>
+            </aside>}
         </div>
     );
 }

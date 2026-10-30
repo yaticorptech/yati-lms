@@ -180,7 +180,8 @@ const LogForm = ({ memberId, onDone, onCancel }) => {
                 <label><span className={LABEL}>Date</span><input type="date" className={INPUT} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} /></label>
                 <label><span className={LABEL}>Hours</span><input type="number" min="0" max="240" step="0.5" className={INPUT} value={form.hours} onChange={(e) => set('hours', e.target.value)} /></label>
                 <label><span className={LABEL}>Place</span><input className={INPUT} value={form.place} onChange={(e) => set('place', e.target.value)} /></label>
-                <label><span className={LABEL}>Photo proof (optional)</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] || null)} className="w-full text-sm" /></label>
+                <label><span className={LABEL}>Photo / certificate proof (optional)</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] || null)} className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100" />
+                    <span className="mt-1 block text-xs text-slate-500">Saved to your own Google Drive (if connected) — only your teacher gets the link to verify it. Once verified, it shows on your calendar as completed.</span></label>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex gap-2">
@@ -268,29 +269,112 @@ const Header = ({ m, organization }) => {
 
 const AWARD_LABEL = { rank: 'Rank', badge: 'Badge', training: 'Training' };
 
-/** Scouts & Guides: my ranks, badges and trainings, from every unit I have been in. */
-const ScoutRecord = ({ m }) => (
-    <div className={`${CARD} p-5`}>
-        <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><Award size={16} className="text-amber-600" /> Ranks, badges &amp; training</h2>
-        {!(m.awards || []).length ? (
-            <p className="mt-2 text-sm text-slate-500">Nothing yet. Your unit leader records the ranks you pass, your badges and trainings, and your organization confirms them.</p>
-        ) : (
-            <ul className="mt-2 divide-y divide-slate-100">
-                {m.awards.map((a) => (
-                    <li key={a._id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                        <span className="min-w-0">
-                            <span className="block font-semibold text-slate-800">{a.name} <span className="font-normal text-slate-500">· {AWARD_LABEL[a.type]}</span></span>
-                            <span className="text-xs text-slate-500">{fmt(a.date)}{a.certificateNo ? ` · Certificate ${a.certificateNo}` : ''}</span>
-                        </span>
-                        {a.status === 'pending'
-                            ? <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">Waiting</span>
-                            : <CheckCircle2 size={17} className="shrink-0 text-emerald-600" />}
-                    </li>
-                ))}
-            </ul>
-        )}
-    </div>
-);
+/** "I passed this exam": the rank (or badge, training) with a photo of the certificate, for the unit leader to verify. */
+const PromotionForm = ({ m, onDone, onCancel }) => {
+    const ranks = m.ranks || [];
+    const after = ranks.slice(m.rank ? ranks.indexOf(m.rank) + 1 : 0);
+    const [form, setForm] = useState({ type: after.length ? 'rank' : 'badge', name: after[0] || '', date: today(), examiner: '', certificateNo: '' });
+    const [file, setFile] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'type' ? { name: v === 'rank' ? after[0] || '' : '' } : {}) }));
+    const submit = async (e) => {
+        e.preventDefault();
+        if (!file) { setError('Add a photo of your certificate.'); return; }
+        setBusy(true); setError('');
+        const body = new FormData();
+        Object.entries({ ...form, memberId: m._id }).forEach(([k, v]) => body.append(k, v));
+        body.append('certificate', file);
+        try { onDone((await api.post(`${BASE}/awards`, body)).data.message); }
+        catch (err) { setError(errorOf(err, 'Could not send it.')); setBusy(false); }
+    };
+    return (
+        <form onSubmit={submit} className="mt-3 space-y-3 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+                <label><span className={LABEL}>What did you complete?</span>
+                    <select className={INPUT} value={form.type} onChange={(e) => set('type', e.target.value)}>
+                        {after.length > 0 && <option value="rank">Rank exam (promotion)</option>}
+                        <option value="badge">Proficiency badge</option>
+                        <option value="training">Training / camp</option>
+                    </select>
+                </label>
+                <label><span className={LABEL}>{form.type === 'rank' ? 'Promote me to' : 'Name'}</span>
+                    {form.type === 'rank' ? (
+                        <select className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} required>
+                            {after.map((r, i) => <option key={r} value={r}>{r}{i === 0 ? ' (next)' : ''}</option>)}
+                        </select>
+                    ) : <input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={form.type === 'badge' ? 'e.g. First Aid' : 'e.g. District camp'} required />}
+                </label>
+                <label><span className={LABEL}>Date passed</span><input type="date" className={INPUT} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} required /></label>
+                <label><span className={LABEL}>Certificate no. (optional)</span><input className={INPUT} value={form.certificateNo} onChange={(e) => set('certificateNo', e.target.value)} /></label>
+                <label><span className={LABEL}>Tested by (optional)</span><input className={INPUT} value={form.examiner} onChange={(e) => set('examiner', e.target.value)} /></label>
+                <label><span className={LABEL}>Certificate photo</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] || null)} required className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-amber-800" /></label>
+            </div>
+            <p className="text-xs text-slate-500">Your unit leader checks the certificate. Once they accept, {form.type === 'rank' ? 'your rank changes' : 'it is added to your record'} and you get a notification.</p>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-2">
+                <button type="submit" disabled={busy} className={BTN}>{busy && <Loader2 size={16} className="animate-spin" />}Send to my leader</button>
+                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>
+            </div>
+        </form>
+    );
+};
+
+/** Scouts & Guides: my ranks, badges and trainings, from every unit I have been in — and asking for the next one. */
+const ScoutRecord = ({ m, reload, say }) => {
+    const [asking, setAsking] = useState(false);
+    const ranks = m.ranks || [];
+    const next = ranks[m.rank ? ranks.indexOf(m.rank) + 1 : 0];
+    const withdraw = async (a) => {
+        try { say({ type: 'ok', text: (await api.delete(`${BASE}/awards/${a._id}`)).data.message }); reload(); }
+        catch (err) { say({ type: 'error', text: errorOf(err, 'Could not withdraw it.') }); }
+    };
+    return (
+        <div className={`${CARD} p-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><Award size={16} className="text-amber-600" /> Ranks, badges &amp; training</h2>
+                {!asking && <button type="button" onClick={() => setAsking(true)} className="inline-flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600"><Plus size={14} /> I passed an exam</button>}
+            </div>
+            {ranks.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
+                    {ranks.map((r, i) => {
+                        const done = m.rank && i <= ranks.indexOf(m.rank);
+                        return (
+                            <React.Fragment key={r}>
+                                {i > 0 && <span className={done ? 'text-amber-500' : 'text-slate-300'}>→</span>}
+                                <span className={`rounded-full px-2.5 py-1 font-bold ${r === m.rank ? 'bg-amber-500 text-white' : done ? 'bg-amber-100 text-amber-800' : r === next ? 'border border-dashed border-amber-400 text-amber-700' : 'bg-slate-100 text-slate-400'}`}>{r}</span>
+                            </React.Fragment>
+                        );
+                    })}
+                </div>
+            )}
+            {asking && <PromotionForm m={m} onCancel={() => setAsking(false)} onDone={(text) => { setAsking(false); say({ type: 'ok', text }); reload(); }} />}
+            {!(m.awards || []).length ? (
+                <p className="mt-3 text-sm text-slate-500">Nothing yet. Passed a rank exam{next ? ` (next: ${next})` : ''}? Send your certificate and your unit leader promotes you.</p>
+            ) : (
+                <ul className="mt-2 divide-y divide-slate-100">
+                    {m.awards.map((a) => (
+                        <li key={a._id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                            <span className="min-w-0">
+                                <span className="block font-semibold text-slate-800">{a.name} <span className="font-normal text-slate-500">· {AWARD_LABEL[a.type]}</span></span>
+                                <span className="text-xs text-slate-500">{fmt(a.date)}{a.certificateNo ? ` · Certificate ${a.certificateNo}` : ''}</span>
+                            </span>
+                            <span className="flex shrink-0 items-center gap-2">
+                                {a.certificateUrl && <a href={a.certificateUrl} target="_blank" rel="noreferrer" className="text-indigo-600" aria-label="Certificate"><ImageIcon size={16} /></a>}
+                                {a.status === 'pending' ? (
+                                    <>
+                                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">Waiting for leader</span>
+                                        {a.requestedByUserId && <button type="button" onClick={() => withdraw(a)} className="p-1 text-slate-400 hover:text-red-600" aria-label="Withdraw"><Trash2 size={14} /></button>}
+                                    </>
+                                ) : <CheckCircle2 size={17} className="text-emerald-600" />}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+};
 
 const NOTICE_KIND = { exam: 'Exam / test', camp: 'Camp', training: 'Training', event: 'Event', rules: 'Rules & regulations', notice: 'Notice' };
 
@@ -472,7 +556,7 @@ const ExtraCurricular = () => {
             ) : m ? (
                 <>
                     <Header m={m} organization={data.organization} />
-                    {m.scheme === 'SCOUTS' && m.status === 'active' && <ScoutRecord m={m} />}
+                    {m.scheme === 'SCOUTS' && m.status === 'active' && <ScoutRecord m={m} reload={load} say={setNotice} />}
                     {m.scheme === 'SCOUTS' && m.status === 'active' && <BsgNotices notices={data.bsgNotices} section={m.section} />}
                     {/* The club's (or unit's) own calendar; a club's president adds events on it. */}
                     {m.status === 'active' && <ActivityCalendar key={`cal-${m._id}`} memberId={m._id} canAdd={m.scheme === 'CLUB' && m.role === 'president'} title={m.name} />}

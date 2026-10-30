@@ -39,7 +39,7 @@ const PlayerGrid = ({ view, r, i, picks, onCell, canPick, big }) => {
                             : result ? `${result.detail?.hits ?? 0} of ${result.detail?.of ?? r.count} right · ${result.points > 0 ? '+' : ''}${result.points}`
                                 : view.phase === 'show' ? 'Watching…'
                                     : sent ? <><CheckCircle2 size={12} className="text-emerald-600" aria-hidden="true" /> Sent</>
-                                        : view.phase === 'answer' ? `Picking ${chosenList.length}/${r.count}` : ''}
+                                        : view.phase === 'answer' ? `Picking ${you ? chosenList.length : (r.pickCounts?.[i] ?? chosenList.length)}/${r.count}` : ''}
                     </p>
                 </div>
                 <span className="shrink-0 rounded-xl px-2.5 py-1 text-center" style={{ background: `${color}14` }}>
@@ -90,26 +90,29 @@ export default function MemoryMatrixTable({ view, onAction }) {
     const send = () => onAction({ type: 'answer', cells: mine }).catch(() => {});
     const sent = view.you != null && !!view.answers?.[view.you];
 
-    const order = view.seats.map((_, i) => i);
+    // Only your own grid (asked 2026-10-29): the others are names and scores on the live board, or the
+    // scoreboard row. Someone watching (no seat) sees every grid.
+    const order = view.you != null ? [view.you] : view.seats.map((_, i) => i);
     const four = order.length > 2;
+    const single = order.length === 1;
     return (
-        <RoundFrame view={view} wide title={r ? `${r.size}×${r.size}, ${r.count} cells` : ''} intro="remember the lit cells"
+        <RoundFrame view={view} wide={!single} title={r ? `${r.size}×${r.size}, ${r.count} cells` : ''} intro="remember the lit cells"
             detail={(res) => (res.detail ? `${res.detail.hits} of ${res.detail.of}` : '')}>
             {() => r && (
                 <div className="space-y-4">
                     <p className="text-center text-sm font-semibold text-slate-600">
                         {view.phase === 'show' ? `Remember these ${r.count} cells…`
-                            : view.phase === 'answer' ? (sent ? 'Sent. Watch the others…' : `Tap the ${r.count} cells that lit up on your grid (${mine.length}/${r.count}). Everyone sees your taps.`)
-                                : 'The lit cells, and everyone’s picks.'}
+                            : view.phase === 'answer' ? (sent ? 'Sent. Waiting for the others…' : `Tap the ${r.count} cells that lit up on your grid (${mine.length}/${r.count}).`)
+                                : single ? 'The lit cells, and your picks.' : 'The lit cells, and everyone’s picks.'}
                     </p>
-                    {/* Every player's grid, one in each corner; the time left between them. */}
+                    {/* Your grid (someone watching: every player's, one in each corner; the time left between them). */}
                     <div className="relative">
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                        <div className={`grid grid-cols-1 gap-3 sm:gap-4 ${single ? 'mx-auto max-w-md' : 'sm:grid-cols-2'}`}>
                             {order.map((i) => (
                                 <PlayerGrid key={i} view={view} r={r} i={i} picks={i === view.you ? mine : r.picks?.[i] || []} onCell={toggle} canPick={canPick} big={!four} />
                             ))}
                         </div>
-                        {view.phase === 'answer' && (
+                        {view.phase === 'answer' && !single && (
                             <div className="pointer-events-none absolute left-1/2 top-1/2 hidden h-20 w-20 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-gradient-to-br from-[#1e1b4b] to-[#4c1d95] text-white shadow-xl ring-4 ring-white sm:flex" data-center-timer>
                                 <Timer size={14} className="text-white/70" aria-hidden="true" />
                                 <span className={`text-2xl font-black tabular-nums ${seconds <= 5 ? 'text-rose-300' : ''}`}>{seconds}s</span>

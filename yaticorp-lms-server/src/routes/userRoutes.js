@@ -59,6 +59,29 @@ router.get('/settings', protectUser, userSettingsController.getUserSettings);
 
 // Bring your own Gemini key: see, save (after a live check) or remove.
 const aiKeyCtrl = require('../controllers/userAiKeyController');
+// My devices (services/deviceGuard.js): the list, and removing one (once a year).
+// Every id this request could be known by: the token's device, the one the app names, and the
+// user-agent stand-in an older request may have registered — so "This device" is always marked.
+const currentDeviceId = (req) => {
+    const guard = require('../services/deviceGuard');
+    let did = '';
+    try { did = require('jsonwebtoken').decode(req.headers.authorization.split(' ')[1])?.did || ''; } catch { /* no token */ }
+    const here = guard.deviceOf(req).deviceId;
+    const ua = guard.deviceOf({ headers: { 'user-agent': req.headers['user-agent'] } }).deviceId;
+    return [did, here, ua].filter(Boolean);
+};
+router.get('/devices', protectUser, async (req, res) => {
+    try { res.json(await require('../services/deviceGuard').myDevices(req.user._id, currentDeviceId(req))); }
+    catch (e) { res.status(500).json({ message: 'Could not load your devices.' }); }
+});
+router.delete('/devices/:deviceId', protectUser, async (req, res) => {
+    try {
+        if (req.impersonatedBy) return res.status(403).json({ message: 'Only the student can remove their devices.' });
+        const done = await require('../services/deviceGuard').removeMyDevice(req.user._id, String(req.params.deviceId), currentDeviceId(req));
+        if (done.error) return res.status(done.status).json({ message: done.error });
+        res.json({ message: `${done.removed} removed. You can add a new device in its place.` });
+    } catch (e) { res.status(500).json({ message: 'Could not remove the device.' }); }
+});
 router.route('/ai-key').get(protectUser, aiKeyCtrl.getAiKey).put(protectUser, aiKeyCtrl.setAiKey).delete(protectUser, aiKeyCtrl.deleteAiKey);
 
 // Quiz Routes

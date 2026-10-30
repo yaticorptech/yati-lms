@@ -13,6 +13,8 @@ import axios from 'axios';
 import { onWalletResponse, onWalletError, askWallet } from '../../utils/walletCharge';
 import { expireSessionOn401 } from '../../utils/sessionExpiry';
 import { onSaved } from '../../utils/saveSignal';
+import { flagAiExhausted } from '../../utils/aiExhausted';
+import { deviceHeaders } from '../../utils/deviceId';
 
 // VITE_API_URL already carries the /api suffix (see .env.example).
 const lmsBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -22,6 +24,7 @@ const api = axios.create({ baseURL: `${lmsBaseURL}/career` });
 // Wallet rules: a priced Career Path feature (rebuilding the roadmap) refreshes the balance.
 api.interceptors.response.use(onWalletResponse, (error) => onWalletError(error, api));
 api.interceptors.response.use(onSaved);
+api.interceptors.response.use(flagAiExhausted);
 
 /*
  * The section was switched off while the student had it open. The gate in
@@ -38,6 +41,7 @@ api.interceptors.response.use(undefined, (error) => {
   // many Career Path calls come back 401 together. Still rejected, so the
   // caller's own handling runs as before.
   expireSessionOn401(error);
+  flagAiExhausted(error);
   if (
     error?.response?.status === 403 &&
     error.response.data?.code === 'CAREER_PATH_LOCKED' &&
@@ -55,6 +59,7 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  Object.assign(config.headers, deviceHeaders());
   // Priced features ask before taking money (utils/walletCharge).
   return askWallet(config);
 });

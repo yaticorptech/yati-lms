@@ -105,6 +105,15 @@ const assertWithinBudget = async () => {
     // A student on their own Gemini key spends their own allowance, not the
     // platform's, so neither cap applies to them.
     if (await require('../../utils/userAiKey').usingOwnKey()) return;
+    // Testing the "credits used up" popup: cards listed in AI_EXHAUSTED_TEST_CARDS are refused as
+    // if the day's credits were spent, until they save their own key (which returns above).
+    const testCards = String(process.env.AI_EXHAUSTED_TEST_CARDS || '').split(',').map((c) => c.trim()).filter(Boolean);
+    if (userId && testCards.length) {
+      const card = (await require('../../models/User').findById(userId).select('cardNumber').lean())?.cardNumber;
+      if (card && testCards.includes(String(card))) {
+        throw new AiBudgetError("Today's free AI credits are used up (test). Add your own Gemini key to keep going.", 'student-daily-cap');
+      }
+    }
     // Nor to the demo cards, which run on the platform key without an
     // allowance (services/fullAccess.js).
     if (await require('../../services/fullAccess').fullAccessForUserId(userId)) return;

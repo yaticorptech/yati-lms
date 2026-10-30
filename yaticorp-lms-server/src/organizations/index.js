@@ -187,6 +187,10 @@ router.put('/me/schedule', async (req, res) => {
 });
 router.post('/me/cards/check', orgCards.checkCard);
 router.delete('/me/cards/:id', orgCards.unlinkCard);
+// A student's devices: list, residential card, reset (services/deviceRoutes.js). Only their own students.
+router.use('/me/students/:studentId/devices', require('../services/deviceRoutes')((req) => require('mongoose').isValidObjectId(req.params.studentId)
+    ? require('../models/User').findOne({ _id: req.params.studentId, organizationId: req.organization._id }).select('_id').lean()
+    : null));
 router.route('/me/students/:studentId').get(orgCtrl.getStudent).delete(orgCtrl.removeStudent);
 router.get('/me/requests', orgCtrl.getRequests);
 router.get('/me/requests/count', orgCtrl.getRequestCount);

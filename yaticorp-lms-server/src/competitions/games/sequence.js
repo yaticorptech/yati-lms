@@ -32,7 +32,7 @@ module.exports = makeRoundEngine({
     label: 'Sequence & Reaction',
     emoji: '🎯',
     summary: 'Watch a sequence, then tap it back — longer every round. Reaction rounds: wait for Go, then tap first.',
-    maxSeats: 6,
+    maxSeats: 20,
     setup: (o) => ({ rounds: 9, startLength: START[o.difficulty], choices: CHOICES[o.difficulty], reaction: o.reaction !== false }),
     round: (g, index, rng) => {
         if (isReaction(g, index)) {

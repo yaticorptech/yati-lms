@@ -34,22 +34,49 @@ const CLIMBER = '/mascot/climber.png';          // 403 × 640, transparent
 const CLIMBER_RATIO = 403 / 640;
 // The robot's height on each of the five places (in % of the scene's height), smaller higher up the
 // mountain, as the cards are; and where it stands once every step is done, below the flag.
-const CLIMBER_HEIGHT = [24, 20, 17, 14.5, 12.5];
-const SUMMIT_LEDGE = { feet: [84.5, 16], height: 11 };
-const RATIO = 2400 / 1478;
+const TALL_CLIMBER_HEIGHT = [24, 20, 17, 14.5, 12.5];
+const TALL_SUMMIT_LEDGE = { feet: [84.5, 16], height: 11 };
+const TALL_RATIO = 2400 / 1478;
 // The painted places on the trail, bottom to top: each card's box [left, right, top, bottom] and
 // its pin's head [x, y], in % of the picture; and the colour its pin is painted when locked.
-const SPOTS = [
+const TALL_SPOTS = [
     { card: [21.8, 52.8, 82.9, 90.9], pin: [16.5, 80.6], locked: 'bg-slate-400' },
     { card: [40.1, 79.0, 62.5, 70.8], pin: [38.1, 61.7], locked: 'bg-slate-400' },
     { card: [51.9, 81.6, 48.3, 56.0], pin: [49.6, 48.3], locked: 'bg-blue-500' },
     { card: [61.3, 89.8, 36.2, 43.9], pin: [59.85, 35.6], locked: 'bg-violet-500' },
     { card: [67.3, 94.9, 24.6, 31.9], pin: [66.1, 24.6], locked: 'bg-rose-500' }
 ];
-const GOAL_PILL = [62.3, 84.4, 7.1, 12.4];
-const SUMMIT = [87.6, 6.6];
+const TALL_GOAL_PILL = [62.3, 84.4, 7.1, 12.4];
+const TALL_SUMMIT = [87.6, 6.6];
 // The trail, through the foot of each pin to the summit (picture pixels), for the light that travels it.
-const TRAIL = 'M 400 1296 C 470 1220, 600 1190, 760 1160 C 880 1130, 960 1100, 940 1070 C 925 1045, 915 1030, 912 1024 C 980 960, 1140 920, 1230 880 C 1250 860, 1210 830, 1192 820 C 1300 760, 1440 690, 1470 660 C 1480 650, 1440 640, 1436 636 C 1520 580, 1600 520, 1584 464 C 1660 420, 1800 330, 1960 230 C 2010 200, 2050 170, 2072 150';
+const TALL_TRAIL = 'M 400 1296 C 470 1220, 600 1190, 760 1160 C 880 1130, 960 1100, 940 1070 C 925 1045, 915 1030, 912 1024 C 980 960, 1140 920, 1230 880 C 1250 860, 1210 830, 1192 820 C 1300 760, 1440 690, 1470 660 C 1480 650, 1440 640, 1436 636 C 1520 580, 1600 520, 1584 464 C 1660 420, 1800 330, 1960 230 C 2010 200, 2050 170, 2072 150';
+
+// The wide sunset (public/illustrations/career-climb-wide.jpg, 2030 × 775): the whole Overview
+// banner from lg, the words on its sky and the trail on its right (2026-10-29). Nothing is painted
+// on it, so the robot is always drawn. Same shapes as above, in % of this picture.
+const WIDE = {
+    scene: '/illustrations/career-climb-wide.jpg',
+    RATIO: 2030 / 775,
+    VIEW: '0 0 2030 775',
+    // As the original: a numbered pin on the trail, its card just to the right, the robot on the
+    // pin's left. Small, so no card covers a number.
+    SPOTS: [
+        { card: [50.4, 64.4, 75.8, 82.4], pin: [48.8, 79.1], locked: 'bg-slate-400' },
+        { card: [63.6, 77.6, 57.7, 64.3], pin: [62.0, 61.0], locked: 'bg-slate-400' },
+        { card: [71.5, 85.5, 44.3, 50.9], pin: [69.9, 47.6], locked: 'bg-blue-500' },
+        { card: [76.7, 90.7, 31.9, 38.5], pin: [75.1, 35.2], locked: 'bg-violet-500' },
+        { card: [80.5, 94.5, 21.2, 27.8], pin: [78.9, 24.5], locked: 'bg-rose-500' }
+    ],
+    GOAL_PILL: [76.5, 89.9, 7.0, 12.6],
+    SUMMIT: [92.5, 13],
+    SUMMIT_LEDGE: { feet: [89.5, 18], height: 10 },
+    CLIMBER_HEIGHT: [17, 15, 13, 11.5, 10],
+    ROBOT_SIDE: -1,
+    PIN: 'h-[2.3cqw] w-[2.3cqw] text-[1.1cqw] ring-[0.18cqw]',
+    CARD_FONT: 'clamp(7px, 0.82cqw, 15px)',
+    PILL_FONT: 'clamp(7px, 0.95cqw, 17px)',
+    TRAIL: 'M 991 650 C 1080 580, 1180 520, 1259 490 C 1320 450, 1380 410, 1419 385 C 1460 340, 1500 300, 1525 285 C 1550 250, 1580 220, 1602 200 C 1700 170, 1800 140, 1878 117'
+};
 
 /** A phase's name, short enough for its plaque: the lead before a colon, no bracketed detail, capped. */
 const shortTitle = (phase) => {
@@ -59,8 +86,7 @@ const shortTitle = (phase) => {
 };
 
 
-// Five or fewer phases stand on the top of the trail, so the summit is always the goal's.
-const spotFor = (i, n) => SPOTS[SPOTS.length - n + i];
+// Five or fewer phases stand on the top of the trail, so the summit is always the goal's (spotFor, below).
 
 // What kind of step a phase is, from its name: the first match wins.
 const ICONS = [
@@ -134,7 +160,14 @@ function useSummitCelebration({ rootRef, finalState, goal, startAfter, reduced }
     return marks;
 }
 
-export default function JourneyStairs({ phases = [], completedPhases = [], goal = '' }) {
+export default function JourneyStairs({ phases = [], completedPhases = [], goal = '', wide = false }) {
+    // The wide banner's picture and places, or the original scene's.
+    /* eslint-disable no-shadow */
+    const { SPOTS, GOAL_PILL, SUMMIT, SUMMIT_LEDGE, CLIMBER_HEIGHT, RATIO, TRAIL, VIEW, ROBOT_SIDE, PIN, CARD_FONT, PILL_FONT } = wide
+        ? WIDE
+        : { ROBOT_SIDE: -1, PIN: 'h-[3.5cqw] w-[3.5cqw] text-[1.7cqw] ring-[0.25cqw]', CARD_FONT: 'clamp(5.5px, 1.15cqw, 22px)', PILL_FONT: 'clamp(6px, 1.32cqw, 24px)', SPOTS: TALL_SPOTS, GOAL_PILL: TALL_GOAL_PILL, SUMMIT: TALL_SUMMIT, SUMMIT_LEDGE: TALL_SUMMIT_LEDGE, CLIMBER_HEIGHT: TALL_CLIMBER_HEIGHT, RATIO: TALL_RATIO, TRAIL: TALL_TRAIL, VIEW: '0 0 2400 1478' };
+    const spotFor = (i, n) => SPOTS[SPOTS.length - n + i];
+    /* eslint-enable no-shadow */
     const total = phases.length;
     const finished = new Set(completedPhases.map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < total));
     let done = 0;
@@ -163,14 +196,15 @@ export default function JourneyStairs({ phases = [], completedPhases = [], goal 
 
     return (
         // The frame: the picture's own proportions from a tablet up; a little taller on a phone, cropped at the sides.
-        <div ref={rootRef} className="relative aspect-[1.35] w-full overflow-hidden bg-[#2b2350] sm:aspect-[2400/1478]"
+        <div ref={rootRef} className={wide ? 'absolute inset-0 overflow-hidden bg-[#2b2350]' : 'relative aspect-[1.35] w-full overflow-hidden bg-[#2b2350] sm:aspect-[2400/1478]'}
             role="group" aria-label={`Career steps: ${finished.size} of ${total} done, ${total - finished.size} to go`}>
-            <div className="@container/scene absolute top-0 left-1/2 h-full -translate-x-1/2" style={{ aspectRatio: `${RATIO}` }}>
-                <img src={clean ? CLEAN_SCENE : SCENE} alt="A robot climbing a sunlit mountain trail toward a golden flag on the summit"
+            {/* Wide: anchored right, so a banner taller than the picture crops its sky, never the trail. */}
+            <div className={`@container/scene absolute top-0 h-full ${wide ? 'right-0' : 'left-1/2 -translate-x-1/2'}`} style={{ aspectRatio: `${RATIO}` }}>
+                <img src={wide ? WIDE.scene : clean ? CLEAN_SCENE : SCENE} alt="A robot climbing a sunlit mountain trail toward a golden flag on the summit"
                     className="absolute inset-0 h-full w-full select-none" draggable={false} style={{ maxWidth: 'none', objectFit: 'cover' }} />
 
                 {/* A light travelling up the trail, slow and faint. */}
-                <svg viewBox="0 0 2400 1478" className="ch-trail pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
+                <svg viewBox={VIEW} className="ch-trail pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
                     <defs>
                         <radialGradient id="ch-trail-glint"><stop offset="0" stopColor="#fffbe6" /><stop offset="0.4" stopColor="#fde68a" stopOpacity="0.9" /><stop offset="1" stopColor="#fbbf24" stopOpacity="0" /></radialGradient>
                     </defs>
@@ -206,7 +240,7 @@ export default function JourneyStairs({ phases = [], completedPhases = [], goal 
                 {/* ---- The robot, beside the current step (or on the summit once every step is done) ----
                     From the same progress as the cards (robotPlace), on the ledge just left of that
                     step's pin. It glides to a new ledge when the step changes, with a hop as it lands. */}
-                {clean && (() => {
+                {(clean || wide) && (() => {
                     const place = robotPlace(slots, total, done);
                     if (place == null) return null;
                     const n = slots.length;
@@ -214,7 +248,7 @@ export default function JourneyStairs({ phases = [], completedPhases = [], goal 
                         const spot = spotFor(place, n);
                         const height = CLIMBER_HEIGHT[SPOTS.length - n + place];
                         const width = (height * CLIMBER_RATIO) / RATIO;
-                        return { feet: [spot.pin[0] - width / 2 - 1.2, spot.pin[1] + 7.8], height };
+                        return { feet: [spot.pin[0] + ROBOT_SIDE * (width / 2 + 1.2), spot.pin[1] + (wide ? 5 : 7.8)], height };
                     })();
                     return (
                         <div aria-hidden className="ch-climber pointer-events-none absolute z-[1]"
@@ -227,7 +261,7 @@ export default function JourneyStairs({ phases = [], completedPhases = [], goal 
                 {/* ---- The goal, over the painted pill: a gold GOAL tab with a flag, the student's own goal,
                     and an arrow toward the summit flag — filling the pill whatever the goal's length. ---- */}
                 <span className={`absolute z-[3] flex items-stretch overflow-hidden rounded-full bg-white font-black whitespace-nowrap text-indigo-950 ring-[0.16em] shadow-[0_0_0_0.3em_rgba(252,211,77,0.35),0_0.7em_1.8em_-0.5em_rgba(120,72,10,0.5)] ${reached ? 'ring-emerald-300' : 'ring-amber-300'} ${celebrate.pill && !settle ? 'ch-goal-glow' : ''}`}
-                    style={{ ...box(GOAL_PILL), fontSize: 'clamp(6px, 1.32cqw, 24px)' }}>
+                    style={{ ...box(GOAL_PILL), fontSize: PILL_FONT }}>
                     <span className={`flex shrink-0 items-center gap-[0.45em] px-[0.95em] text-[0.78em] tracking-[0.14em] text-white uppercase ${reached ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500'}`}>
                         {reached ? <Check className="h-[1.25em] w-[1.25em]" strokeWidth={3} /> : <Flag className="h-[1.2em] w-[1.2em] fill-white/30" strokeWidth={2.4} />}
                         {reached ? 'Reached' : 'Goal'}
@@ -249,7 +283,7 @@ export default function JourneyStairs({ phases = [], completedPhases = [], goal 
                     const state = stateOf(slot);
                     const delay = { animationDelay: `${0.15 + i * 0.1}s` };
                     const pin = (
-                        <span key={`pin-${i}`} aria-hidden className={`ch-step absolute z-[2] flex h-[3.5cqw] w-[3.5cqw] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[1.7cqw] font-black text-white shadow-[0_0.3cqw_0.8cqw_rgba(30,27,75,0.45)] ring-[0.25cqw] ring-white ${
+                        <span key={`pin-${i}`} aria-hidden className={`ch-step absolute z-[2] flex ${PIN} -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-black text-white shadow-[0_0.3cqw_0.8cqw_rgba(30,27,75,0.45)] ring-white ${
                             state === 'done' ? 'bg-emerald-500' : state === 'current' ? 'bg-amber-400 !text-indigo-950' : spot.locked}`}
                             style={{ left: `${spot.pin[0]}%`, top: `${spot.pin[1]}%`, ...delay }}>
                             {slot + 1}
@@ -258,7 +292,7 @@ export default function JourneyStairs({ phases = [], completedPhases = [], goal 
                     const k = slot;
                     const Icon = iconFor(phaseTitle(phases[k]));
                     return [pin,
-                        <Link key={k} to="/career/roadmap" title={`Step ${k + 1}: ${phaseTitle(phases[k])}`} style={{ ...box(spot.card), ...delay, fontSize: 'clamp(5.5px, 1.15cqw, 22px)' }}
+                        <Link key={k} to="/career/roadmap" title={`Step ${k + 1}: ${phaseTitle(phases[k])}`} style={{ ...box(spot.card), ...delay, fontSize: CARD_FONT }}
                             aria-label={`Step ${k + 1}: ${phaseTitle(phases[k])}${state === 'done' ? ', done' : state === 'current' ? ', now' : ', locked'}`}
                             aria-current={state === 'current' ? 'step' : undefined}
                             className={`ch-step absolute z-[2] flex items-center gap-[0.8em] overflow-hidden rounded-[0.9em] px-[0.9em] font-bold text-indigo-950 transition-transform duration-200 hover:-translate-y-0.5 ${

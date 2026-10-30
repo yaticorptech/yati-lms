@@ -22,6 +22,7 @@ import { saveBlob } from '../native/saveFile';
 import { isShortOfFunds, serverMessage, isWalletCancel } from '../utils/walletCharge';
 import useConfirmDialog from './useConfirmDialog';
 import useBackClose from '../native/useBackClose';
+import GeminiCreditTip from './GeminiCreditTip';
 
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
@@ -185,7 +186,7 @@ export default function ResumeSection() {
                 <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-200"><FileText size={20} /></span>
                     <div>
-                        <h2 id="your-resume-title" className="text-base font-black tracking-tight text-slate-900 sm:text-lg">Your Resume <span className="text-amber-400">✨</span></h2>
+                        <h2 id="your-resume-title" className="text-base font-black tracking-tight text-slate-900 sm:text-lg">Your Resume <span className="text-amber-400">✨</span> <GeminiCreditTip label="Gemini AI credits are used to read your resume" /></h2>
                         <p className="text-xs text-slate-500 sm:text-sm">Keep your resume updated and get noticed by top opportunities.</p>
                     </div>
                 </div>

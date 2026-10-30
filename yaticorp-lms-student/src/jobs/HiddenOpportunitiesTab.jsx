@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Globe, GraduationCap, Briefcase, Sparkles, AlertCircle, ArrowRight } from 'lucide-react';
 import { jobsApi, learnerSkills } from './api';
 import { MatchCard } from './CareerMatchTab';
+import GeminiCreditTip from '../components/GeminiCreditTip';
 
 const norm = (s) => String(s || '').trim().toLowerCase();
 
@@ -78,7 +79,7 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
         return (
             <section className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                 <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-200"><Globe size={26} /></span>
-                <h2 className="mt-4 text-2xl font-black text-slate-900">Hidden Opportunities</h2>
+                <h2 className="mt-4 inline-flex items-center gap-2 text-2xl font-black text-slate-900">Hidden Opportunities <GeminiCreditTip /></h2>
                 <p className="mx-auto mt-1 max-w-md text-slate-500">Jobs you qualify for that a plain search would not show. They are worked out from your resume, so add one first.</p>
                 <button type="button" onClick={() => onSwitchTab('match')} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">Add your resume <ArrowRight size={15} /></button>
             </section>

@@ -29,7 +29,11 @@ const SKILL = {
     patternmaster: 'reasoning', numberlogic: 'reasoning', wordlogic: 'reasoning', deduction: 'reasoning', sudoku: 'reasoning',
     spatialiq: 'spatial',
     chess: 'strategy',
-    finalvault: 'reasoning', lostkingdom: 'reasoning'
+    finalvault: 'reasoning', lostkingdom: 'reasoning',
+    // The solo games added as group games (2026-10-29): words and numbers, reasoning.
+    ...Object.fromEntries(require('../games/soloquiz').SOLO_QUIZ.map((id) => [id, 'reasoning'])),
+    ...Object.fromEntries(require('../games/race').RACE.map((id) => [id, id === 'memorymatch' ? 'memory' : 'reasoning'])),
+    tictactoe: 'strategy', laststone: 'strategy'
 };
 const K = 32;
 

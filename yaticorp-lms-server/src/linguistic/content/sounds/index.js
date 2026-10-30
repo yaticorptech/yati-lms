@@ -101,4 +101,17 @@ const saysFor = (code, texts, one = sayOf) => {
     return Object.keys(out).length ? out : null;
 };
 
-module.exports = { CODES, tableOf, linesOf, glossesOf, pairWords, seedKeyOf, wordsOf, tilesOf, soundOf, sayOf, tileSay, saysFor, wordHints };
+/**
+ * The other ways an answer in the language may be typed (2026-10-29, user: "allow both typing in English and
+ * Japanese"): its sound in English letters ("watashi wa gakusei desu"); for Japanese, in kana too (わたしはがくせいです),
+ * from each tile's sound. None for a sentence with no sound written.
+ */
+const spellingsOf = (code, item) => {
+    const say = sayOf(code, item?.model);
+    if (!say) return [];
+    const out = [say.replace(/-/g, ' ')];
+    if (code === 'ja') out.push(require('./kana').soundToKana(say));
+    return out;
+};
+
+module.exports = { CODES, tableOf, linesOf, glossesOf, pairWords, seedKeyOf, wordsOf, tilesOf, soundOf, sayOf, tileSay, saysFor, wordHints, spellingsOf };

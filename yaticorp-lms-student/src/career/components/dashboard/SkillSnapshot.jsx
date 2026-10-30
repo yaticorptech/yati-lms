@@ -98,7 +98,7 @@ export default function SkillSnapshot({ skills = [], limit = 3 }) {
           {untouched > 0 && `${untouched} not started`}
         </p>
         <Link
-          to="/career/skills"
+          to="/career/profile?view=skills"
           className="fp-btn fp-btn-soft inline-flex items-center gap-1.5 rounded-xl bg-journey-50 px-3.5 py-2 text-sm font-black text-journey-700 ring-1 ring-journey-100 ring-inset"
         >
           See all skills

@@ -371,8 +371,16 @@ export default function KingdomTable({ view, onAction, busy }) {
                             <div className="absolute z-30 flex flex-col justify-center rounded-md bg-black/80 p-[1cqw] text-[#f3e6c8]" style={{ left: '11.5%', top: '79.5%', width: '20%', height: '16.5%', ...serif, fontSize: fs(9, 1.1, 19) }} data-treasure-words>
                                 “You did it! The five trials have been conquered. The treasure of Aurelia is yours, but its knowledge must live on.”
                             </div>
-                            {myTime != null && <p className="absolute bottom-[4%] right-[3%] z-30 rounded-full bg-black/70 px-4 py-2 font-bold text-amber-200" style={{ fontSize: fs(11, 1.3, 22) }}>Your time {fmt(myTime)}{me.penaltyMs ? ` (with +${Math.round(me.penaltyMs / 1000)}s)` : ''}{!over ? ' · waiting for the others…' : ''}</p>}
+                            {myTime != null && <p className="absolute bottom-[4%] right-[3%] z-30 rounded-full bg-black/70 px-4 py-2 font-bold text-amber-200" style={{ fontSize: fs(11, 1.3, 22) }}>Your time {fmt(myTime)}{me.penaltyMs ? ` (with +${Math.round(me.penaltyMs / 1000)}s)` : ''}</p>}
                         </>
+                    )}
+                    {/* Finished, the others still playing: everything stops here until the time is up, then the results. */}
+                    {me?.done && !over && (
+                        <div className="absolute inset-0 z-50 flex items-end justify-center pb-[5%]" data-waiting>
+                            <p className="rounded-2xl bg-black/80 px-5 py-3 text-center font-black text-[#ffe9a8] shadow-xl" style={{ fontSize: fs(12, 1.4, 24) }}>
+                                Waiting for the others to finish…<span className="block text-white/80" style={{ fontSize: fs(10, 1, 18) }}>Results in {fmt(left)}</span>
+                            </p>
+                        </div>
                     )}
                     {!prefs.started && playing && <button type="button" onClick={() => audio.start()} className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-slate-900 shadow">🔊 Tap for sound</button>}
                 </div>
