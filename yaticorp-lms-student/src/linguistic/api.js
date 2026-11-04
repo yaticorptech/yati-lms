@@ -16,8 +16,12 @@ export const linguisticApi = {
     dashboard: () => get('/'),
     /** The learning path: each level's units and lessons, with which are open and which is next. */
     path: () => get('/path'),
+    // Every letter of the course's language on one page (2026-10-31).
+    letters: () => get('/letters'),
     /** Start at a level chosen instead of taking the placement test. */
     chooseLevel: (level) => post('/level', { level }),
+    /** Straight to a section not open yet (2026-10-31): its jump test, one try → { lesson, module }. */
+    jump: (level) => post('/jump', { level }),
     /** Why they are learning, and how much English they know (0 new … 4 most topics). */
     setAbout: (reason, know, more = {}) => post('/about', { reason, know, ...more }),
     setKnows: (knows) => post('/knows', knows),
@@ -55,6 +59,8 @@ export const linguisticApi = {
     history: () => get('/history'),
     /** The notepad on the Writing tab: the student's notes, each { id, title, html }. */
     notes: () => get('/notes'),
+    /** The Notes tab (2026-11-02): what the student has learnt, from the lessons finished. */
+    learnt: () => get('/learnt'),
     addNote: (note) => post('/notes', note),
     saveNote: (id, note) => post(`/notes/${id}`, note),
     deleteNote: (id) => del(`/notes/${id}`),

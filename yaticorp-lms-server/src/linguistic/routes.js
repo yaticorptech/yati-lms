@@ -7,6 +7,7 @@
  *   GET  /path                          the learning path: levels, units (modules) and their lessons, and the one to take next
  *   POST /language                      { language } the student's own language, for meanings and translation
  *   POST /level                         { level } start at a level chosen instead of taking the placement test
+ *   POST /jump                          { level } straight to a section not open yet: its jump test (one try) → { lesson, module }
  *   POST /goal                          { xp } the daily XP goal: 10, 20, 30 or 50
  *   POST /about                         { reason, know } why they are learning, and how much English they know (0–4)
  *   POST /chest/:unitId                 open a unit's treasure chest on the path: bonus XP, once
@@ -64,6 +65,11 @@ const openLesson = async (req, res) => {
     if (!lesson) { bad(res, 'That lesson was not found.', 404); return null; }
     const progress = await svc.progressOf(req.user._id);
     const lessons = await svc.lessonsFor(progress);
+    // A section's entry test (2026-10-31) is not on the path: open while that section is shut and no try has failed.
+    if (lesson.review === 'entry') {
+        if (!svc.entryAllowed(lessons, progress, lesson)) { res.status(403).json({ code: 'LESSON_LOCKED', message: 'This entry test is not open for you.' }); return null; }
+        return svc.serve(lesson, progress);
+    }
     if (!lessons.some((l) => idOf(l._id) === idOf(lesson._id))) { res.status(404).json({ code: 'NOT_IN_COURSE', message: 'That lesson is not part of your course.' }); return null; }
     if (!svc.access(lessons, progress).lessonOpen.get(idOf(lesson._id))) { res.status(403).json({ code: 'LESSON_LOCKED', message: 'Finish the lesson before this one to open it.' }); return null; }
     return svc.serve(lesson, progress);
@@ -71,6 +77,11 @@ const openLesson = async (req, res) => {
 
 router.get('/', async (req, res, next) => {
     try { res.json({ student: { firstName: String(req.user.name || '').split(' ')[0] }, ...(await svc.dashboard(req.user)) }); } catch (err) { next(err); }
+});
+
+// Every letter of the course's language on one page (alphabet.js, 2026-10-31).
+router.get('/letters', async (req, res, next) => {
+    try { res.json(require('./alphabet').chartOf(courseOf(await svc.progressOf(req.user._id)))); } catch (err) { next(err); }
 });
 
 router.get('/placement', async (req, res, next) => {
@@ -90,6 +101,21 @@ router.post('/placement', async (req, res, next) => {
 
 router.get('/path', async (req, res, next) => {
     try { res.json(await svc.pathView(req.user)); } catch (err) { next(err); }
+});
+
+// What the student has learnt, from the lessons they finished (2026-11-02): the Notes tab. (/notes is the
+// Writing tab's notepad, the student's own notes.)
+router.get('/learnt', async (req, res, next) => {
+    try { res.json(await svc.notesOf(req.user)); } catch (err) { next(err); }
+});
+
+// Straight to a section not open yet (2026-10-31): its jump test, the assessment of the section before it, one try.
+router.post('/jump', async (req, res, next) => {
+    try {
+        const out = await svc.startJump(req.user, String(req.body?.level || ''));
+        if (out.error) return bad(res, out.error, out.status);
+        res.json(out);
+    } catch (err) { next(err); }
 });
 
 router.post('/level', async (req, res, next) => {

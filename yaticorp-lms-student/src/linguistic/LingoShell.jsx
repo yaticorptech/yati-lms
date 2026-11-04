@@ -44,7 +44,10 @@ export default function LingoShell() {
     // lit: it is not one of them), in its top row with the language, level, streak and XP (2026-10-27); a page
     // they open has only its ✕ back to the dashboard (2026-10-27, "remove the nav bar from this page"). The side
     // panel that stood beside every tab (level, roadmap, quests, mistakes) is on the dashboard only (2026-10-26).
-    const wide = useLocation().pathname === '/linguistic/dashboard';
+    const { pathname } = useLocation();
+    const wide = pathname === '/linguistic/dashboard';
+    // The learning path's Back goes to the dashboard (2026-10-31): the page before it is often a lesson just ended.
+    const onPath = pathname.replace(/\/$/, '') === '/linguistic';
     // Back: the page before (the browser's history); opened straight here, the dashboard.
     const goBack = useGoBack();
     const navigate = useNavigate();
@@ -86,7 +89,7 @@ export default function LingoShell() {
                     sidebar's menu leaves the section). A page inside: its ✕, back to the dashboard. */}
                 <div className={`flex items-center gap-2 ${wide ? 'mb-5 justify-center sm:justify-end' : '-mt-4 mb-0.5 sidebar:-mt-8'}`}>
                     {!wide && (
-                        <Link to="/linguistic/dashboard" onClick={goBack} data-lingo-close="dashboard" aria-label="Back" title="Back"
+                        <Link to="/linguistic/dashboard" onClick={onPath ? undefined : goBack} data-lingo-close="dashboard" aria-label="Back" title="Back"
                             className="-ml-1 inline-flex min-h-9 items-center gap-1.5 px-1 text-[15px] font-extrabold text-[#1F2A44] transition-opacity hover:opacity-70">
                             <ArrowLeft size={20} strokeWidth={2.8} aria-hidden="true" /> Back
                         </Link>

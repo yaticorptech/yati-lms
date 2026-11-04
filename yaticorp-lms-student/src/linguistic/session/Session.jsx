@@ -23,7 +23,7 @@ import { tr, line } from '../say';
 import { Chunky, Bar, Mascot } from '../ui';
 import { Diff } from './Finish';
 import { startValue, givenOf, answered, isInfo, sheetOf, xpIn } from './logic';
-import { IntroStep, NotesStep, WordsStep, PassageStep, DialogueStep, PairsStep, QuestionStep, TranslateStep, WriteStep, SpeakStep, TalkStep, Corrections } from './exercises';
+import { IntroStep, NotesStep, WordsStep, PassageStep, ComicStep, LetterWordsStep, DialogueStep, PairsStep, QuestionStep, TranslateStep, WriteStep, SpeakStep, TalkStep, MissReviewStep, Corrections } from './exercises';
 import '../lingo.css';
 
 /** The session's own full screen, over the app's header and menus. */
@@ -37,7 +37,7 @@ export function SessionFrame({ children, label }) {
     );
 }
 
-const SCREENS = { intro: IntroStep, notes: NotesStep, words: WordsStep, passage: PassageStep, dialogue: DialogueStep, pairs: PairsStep, question: QuestionStep, translate: TranslateStep, write: WriteStep, speak: SpeakStep, talk: TalkStep };
+const SCREENS = { intro: IntroStep, notes: NotesStep, words: WordsStep, passage: PassageStep, comic: ComicStep, letterWords: LetterWordsStep, dialogue: DialogueStep, pairs: PairsStep, question: QuestionStep, translate: TranslateStep, write: WriteStep, speak: SpeakStep, talk: TalkStep, missReview: MissReviewStep };
 const TONE = { right: COLORS.green, wrong: COLORS.red, info: COLORS.blue };
 
 /** The sheet under a checked answer. `T`: its words in the student's language (say.js). */
@@ -173,8 +173,26 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
             .catch((e) => { setError(e); setBusy(false); });
     };
 
+    // The practice questions got wrong (2026-11-04): each once, with the first answer given, shown before the quiz.
+    const misses = useRef([]);
+    const reviewed = useRef(false);
+    const noteMiss = (st, given, r) => {
+        const key = String(st.key).replace(/(~\d+|-again)+$/, ''), answer = r.answer || r.model;
+        if (st.part !== 'practice' || !answer || misses.current.some((m) => m.key === key)) return;
+        const prompt = st.kind === 'translate' ? st.item?.source : [st.q?.prompt, st.q?.kannada].filter(Boolean).join(': ');
+        misses.current.push({ key, prompt: prompt || '', given: Array.isArray(given) ? given.join(' ') : String(given ?? ''), answer, why: r.explanation || '' });
+    };
+
     const goTo = (i) => {
         const next = queue[i];
+        // Into the quiz with practice questions got wrong: their review first (shown once).
+        if (next.part === 'quiz' && step.part !== 'quiz' && misses.current.length && !reviewed.current) {
+            reviewed.current = true;
+            const review = { part: 'practice', kind: 'missReview', key: 'miss-review', misses: [...misses.current], language: queue.find((x) => x.language)?.language };
+            setQueue((q) => [...q.slice(0, i), review, ...q.slice(i)]);
+            setIndex(i); setValue(startValue(review)); setSheet(null); setResult(null); setError(null); setRetry(null); setPopup(false);
+            return;
+        }
         if (next.part !== step.part) onEnterPart?.(next.part);
         setIndex(i); setValue(startValue(next)); setSheet(null); setResult(null); setError(null); setRetry(null); setPopup(false);
     };
@@ -195,6 +213,7 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
         if (step.repeat && r.correct) { chime('right'); advance(); return; }
         if (r.correct === false && (r.answer || r.model)) {
             if (!step.repeat) {
+                noteMiss(step, given, r);
                 if (step.collect) answers.current[step.collect] = given;
                 setCombo(0); tally.current.wrong += 1;
                 if (step.part === 'quiz' && hearts !== null) setHearts((h) => Math.max(0, h - 1));
@@ -222,6 +241,7 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
             setRetry({ answer: null, keep: open && typeof value === 'string' ? value : null });
         }
         if (s.tone === 'wrong') {
+            if (!step.repeat) noteMiss(step, given, r);
             chime('wrong'); setCombo(0); tally.current.wrong += 1;
             if (step.part === 'quiz' && hearts !== null) setHearts((h) => Math.max(0, h - 1));
             // A practice question got wrong comes back once, before the quiz.
@@ -285,6 +305,16 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
     const T = tr(step.language);
     const label2 = T(info || retry ? 'Continue' : mode === 'end' ? (index === lastIndex ? 'Finish' : 'Continue')
         : step.kind === 'speak' ? 'Save' : step.kind === 'write' && !['jumbled', 'sentence'].includes(step.task.type) ? 'Submit' : 'Check');
+    // CHECK right under what is on the screen, not in the bar at its foot (2026-11-03 for the matching pairs; 2026-11-04,
+    // "wherever the check button is", every language) — and the CONTINUE it turns into once checked, in the same place.
+    // Save, Submit, Continue on a screen to read, Finish and Try again stay in the bar (the user: only CHECK).
+    const checks = !info && mode !== 'end' && step.kind !== 'speak' && !(step.kind === 'write' && !['jumbled', 'sentence'].includes(step.task.type));
+    const inline = checks && !ending && !sheet && !grammar;
+    const button = (className) => (
+        <Chunky color="green" onClick={() => primaryRef.current()} disabled={ending ? busy : (!ready || busy)} className={className} data-primary>
+            {ending ? T(busy ? 'Saving…' : 'Try again') : busy ? T('Checking…') : label2}
+        </Chunky>
+    );
 
     return (
         <>
@@ -302,7 +332,8 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
             </header>
 
             <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-answer-area>
-                <div className="mx-auto w-full max-w-[600px] px-4 pb-8 pt-4 sm:pt-8">
+                {/* A picture story's page is wider (2026-10-31): two panels to a row. */}
+                <div className={`mx-auto w-full ${step.kind === 'comic' ? 'max-w-[1000px]' : 'max-w-[600px]'} px-4 pb-8 pt-4 sm:pt-8`}>
                     <div className="mb-3 flex min-h-7 flex-wrap items-center gap-2">
                         {step.again && <span className="rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider" style={{ background: COLORS.orange.light, color: COLORS.orange.ink }} data-again><RotateCcw size={12} className="mr-1 inline" />{T('Previous mistake')}</span>}
                         {combo >= 3 && !step.again && <span key={combo} className="lingo-pop rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider" style={{ background: COLORS.orange.light, color: COLORS.orange.ink }} data-combo={combo}><Flame size={13} className="mr-1 inline" />{line(step.language, 'inARow', combo)}</span>}
@@ -320,6 +351,7 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
                             </div>
                         )}
                     </div>
+                    {inline && <div className="mt-6" data-inline-primary>{button('w-full')}</div>}
                 </div>
             </main>
 
@@ -329,7 +361,7 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
                 </p>
             )}
 
-            <footer className="shrink-0">
+            {!inline && <footer className="shrink-0">
                 {grammar && !ending ? (
                     // The corrections are in the popup; closed, Show corrections opens it again.
                     <div className="border-t-2 border-[#E5E5E5]">
@@ -343,13 +375,11 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
                     <div className="border-t-2 border-[#E5E5E5]">
                         <div className="mx-auto flex max-w-[1000px] items-center gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-10 sm:py-7">
                             <span className="hidden flex-1 sm:block" />
-                            <Chunky color="green" onClick={() => primaryRef.current()} disabled={ending ? busy : (!ready || busy)} className="flex-1 sm:min-w-[150px] sm:flex-none" data-primary>
-                                {ending ? T(busy ? 'Saving…' : 'Try again') : busy ? T('Checking…') : label2}
-                            </Chunky>
+                            {button('flex-1 sm:min-w-[150px] sm:flex-none')}
                         </div>
                     </div>
                 )}
-            </footer>
+            </footer>}
 
             {grammar && popup && !ending && !quitting && (
                 <GrammarPopup sheet={sheet || sheetOf(step, result)} result={result} correction={retry?.answer || null}

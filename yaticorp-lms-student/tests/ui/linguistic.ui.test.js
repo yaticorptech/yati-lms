@@ -11,6 +11,11 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { screen, srcFile, skipWithoutStyles, DEVICES } from './harness.js';
 import { apiModule } from './fixtures.js';
+import { createRequire } from 'node:module';
+// The picture stories as the server builds them (comics.js, 2026-10-31).
+const comics = createRequire(import.meta.url)('../../../yaticorp-lms-server/src/linguistic/comics.js');
+// The Letters lessons as the server builds them (alphabet.js, 2026-10-31).
+const alphabet = createRequire(import.meta.url)('../../../yaticorp-lms-server/src/linguistic/alphabet.js');
 
 const DASH = {
     student: { firstName: 'Asha' }, level: 'beginner', levelLabel: 'Beginner', placement: null,
@@ -42,6 +47,30 @@ const PATH = {
     ]
 };
 
+/**
+ * A keyboard's rows of letter keys (2026-11-03, "give the correct alignment for all languages"), measured in the page:
+ * for each row, its full first line's space at each side, its last line's, how many keys to a line, and their widths.
+ */
+const KEY_ROWS = `((root) => [...document.querySelectorAll(root + ' [data-key-grid]')].map((g) => {
+    const box = g.getBoundingClientRect(), keys = [...g.children].map((k) => k.getBoundingClientRect());
+    const lines = []; for (const k of keys) { const l = lines.find((x) => Math.abs(x[0].top - k.top) < 2); if (l) l.push(k); else lines.push([k]); }
+    const side = (l) => [Math.round(Math.min(...l.map((k) => k.left)) - box.left), Math.round(box.right - Math.max(...l.map((k) => k.right)))];
+    // How many keys a full line holds: the box's width over a key and its gap (4px).
+    const holds = Math.floor((box.width + 4.5) / (keys[0].width + 4));
+    return { first: side(lines[0]), last: side(lines[lines.length - 1]), lines: lines.map((l) => l.length), holds, keys: keys.length, widths: new Set(keys.map((k) => Math.round(k.width))).size };
+}))`;
+/** As a phone keyboard: full lines edge to edge, a shorter last line in the middle, every key one width. */
+const assertKeyRows = (rows, name) => {
+    assert.ok(rows.length > 0, `${name}: its keys`);
+    for (const r of rows) {
+        const where = `${name} ${JSON.stringify(r)}`;
+        assert.equal(r.widths, 1, `${where}: one width`);
+        assert.ok(r.lines.slice(0, -1).every((n) => n === r.holds), `${where}: every line but the last full`);
+        if (r.lines[0] === r.holds) assert.ok(r.first.every((x) => x <= 1), `${where}: a full line edge to edge`);
+        assert.ok(Math.abs(r.last[0] - r.last[1]) <= 1.5, `${where}: the last line in the middle`);
+    }
+};
+
 /** The section in the app's frame (the page scrolls inside <main>), with the shell around its tabs; `device` is the device's language. */
 const app = (route, device = null) => `
 import { createRoot } from 'react-dom/client';
@@ -56,6 +85,8 @@ import Placement from '${srcFile('linguistic/Placement.jsx')}';
 import Review from '${srcFile('linguistic/Review.jsx')}';
 import Roadmap from '${srcFile('linguistic/Roadmap.jsx')}';
 import Dashboard from '${srcFile('linguistic/Dashboard.jsx')}';
+import Letters from '${srcFile('linguistic/LettersChart.jsx')}';
+import Notes from '${srcFile('linguistic/Learnt.jsx')}';
 const Where = () => <p data-where>{useLocation().pathname}</p>;
 ${device ? `Object.defineProperty(navigator, 'languages', { get: () => ['${device}'] });` : ''}
 createRoot(document.getElementById('root')).render(
@@ -69,6 +100,8 @@ createRoot(document.getElementById('root')).render(
           <Route path="writing" element={<Writing />} />
           <Route path="roadmap" element={<Roadmap />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="letters" element={<Letters />} />
+          <Route path="notes" element={<Notes />} />
         </Route>
         <Route path="/linguistic/placement" element={<Placement />} />
         <Route path="/linguistic/review" element={<Review />} />
@@ -215,6 +248,60 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
             ['/linguistic/about', { reason: 'abroad', know: 0 }], ['/linguistic/knows', { speak: ['ja', 'hi'], write: ['ja'], read: ['ja'] }],
             ['/linguistic/language', { language: 'ja' }], ['/linguistic/plan', { days: 60 }], ['/linguistic/level', { level: 'beginner' }]
         ], 'the answers and their languages; the language they know, the plan, then the level');
+    });
+
+    test('starting out at Advanced (2026-10-31): choosing "I can discuss most topics" says a test comes first; at the end, the test opens — no Advanced without it', async () => {
+        const fresh = { ...DASH, started: false, goalSet: false, languages: [...DASH.languages, { code: 'en', name: 'English', native: 'English', group: 'world' }] };
+        const JT = { id: 'jt', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Beginner assessment', review: 'assessment', direction: null, passingScore: 50, learn: { intro: 'The jump test: 20 questions on Beginner.' }, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 }, words: [], quiz: [] };
+        const post = `(url, body) => url.endsWith('/jump') ? { level: 'advanced', lesson: 'jt', module: 'vocabulary' } : ({ ok: true, level: body.level, placement: { level: body.level, chosen: true } })`;
+        const { result, errors } = await screen({ entry: app('/linguistic'), api: apiModule({ '/linguistic/lessons/jt': JT, ...SHELL_API, '/linguistic/': fresh }, post), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(1200);
+            const btn = () => $('[data-lingo-session] [data-primary]');
+            const at = () => $('[data-onboarding]')?.dataset.onboarding;
+            const go = async () => { btn().click(); await sleep(400); };
+            const out = {};
+            for (let i = 0; i < 12 && at() !== 'know'; i++) await go();
+            $('[data-know="0"]').click(); await sleep(120);
+            out.noteForNew = !!$('[data-advanced-test-note]');
+            $('[data-know="4"]').click(); await sleep(120);
+            out.note = text($('[data-advanced-test-note]'));
+            await go();
+            const picks = { why: '[data-reason="abroad"]', translate: '[data-language="ja"]', time: '[data-plan-days="60"]' };
+            for (let i = 0; i < 14 && $('[data-onboarding]'); i++) {
+                const pick = picks[at()];
+                if (pick && btn().disabled) { $(pick).click(); await sleep(120); }
+                await go();
+            }
+            await sleep(600);
+            out.sent = window.__calls.filter((c) => c[0] === 'POST').map((c) => c[1]);
+            out.opened = window.__calls.some((c) => c[0] === 'GET' && c[1].endsWith('/lessons/jt'));
+            out.inTest = !!$('[data-lingo-session]') && !$('[data-onboarding]');
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.noteForNew, false, 'no test for one who is new to it');
+        assert.match(result.note, /first take the Advanced entry test.*20 questions, 10 on Beginner and 10 on Advanced.*half of each right and Advanced opens.*start from Beginner.*one try/);
+        assert.deepEqual(result.sent.slice(-2), ['/linguistic/level', '/linguistic/jump'], 'started at Beginner, then the jump test to Advanced');
+        assert.equal(result.opened, true, 'the test opens straight away');
+        assert.equal(result.inTest, true);
+    });
+
+    test('a locked Advanced lesson on the path (2026-10-31): tapped, it offers the jump test, not only "Locked"', async () => {
+        const advanced = { level: 'advanced', label: 'Advanced', passingScore: 75, open: false, total: 1, completed: 0, complete: false, certificate: null, jump: { from: 'beginner', status: 'new' }, units: [
+            { id: 'advanced-reading', index: 1, kind: 'track', title: 'Reading', open: false, lessons: [lesson('a1', 'Reading 1', { module: 'reading', level: 'advanced', open: false })] }] };
+        const { result, errors } = await screen({ entry: app('/linguistic?section=advanced'), api: apiModule({ '/linguistic/lessons/jt': { id: 'jt', module: 'vocabulary', level: 'beginner', title: 'Beginner assessment', review: 'assessment', passingScore: 50, learn: { intro: 'The jump test.' }, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 }, words: [], quiz: [] }, ...SHELL_API, '/linguistic/path': { ...PATH, levels: [PATH.levels[0], advanced] } }, `(url) => url.endsWith('/jump') ? { level: 'advanced', lesson: 'jt', module: 'vocabulary' } : {}`), styles: true, device: DEVICES.galaxyA55, script: `
+            await sleep(1300);
+            $('[data-node="a1"]').click(); await sleep(300);
+            const card = $('[data-lesson-card="a1"]');
+            const out = { jump: !!card?.querySelector('[data-jump-start]'), locked: !!card && [...card.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Locked'), text: text(card?.querySelector('[data-jump-test]')) };
+            card.querySelector('[data-jump-start]')?.click(); await sleep(500);
+            out.sent = window.__calls.find((c) => c[1].endsWith('/jump'))?.[2];
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual([result.jump, result.locked], [true, false]);
+        assert.match(result.text, /Advanced entry test/);
+        assert.deepEqual(result.sent, { level: 'advanced' });
     });
 
     test('the roadmap (2026-10-24): the day of the plan, one lesson behind, today\'s lessons to tap, the days to come; the time can be changed', async () => {
@@ -404,27 +491,521 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.equal(result.after, true, 'a click on the empty page opens the dashboard');
     });
 
-    test('the speaker uses the language\'s own voice; with none on the device it says so, not silence (2026-10-26)', async () => {
-        const entry = `
+    test('straight to Advanced (2026-10-31): under the locked section, the Advanced entry test; it opens; tried and not passed, it says they learn from Beginner', async () => {
+        const advanced = (jump) => ({ level: 'advanced', label: 'Advanced', passingScore: 75, open: false, total: 1, completed: 0, complete: false, certificate: null, jump, units: [
+            { id: 'advanced-reading', index: 1, kind: 'track', title: 'Reading', open: false, lessons: [lesson('a1', 'Reading 1', { module: 'reading', level: 'advanced', open: false })] }] });
+        const pathWith = (jump) => ({ ...PATH, levels: [PATH.levels[0], advanced(jump)] });
+        const JT = { id: 'jt', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Beginner assessment', review: 'assessment', direction: null, passingScore: 50, learn: { intro: 'The jump test.' }, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 }, words: [], quiz: [] };
+        const { result, errors } = await screen({ entry: app('/linguistic?section=advanced'), api: apiModule({ '/linguistic/lessons/jt': JT, ...SHELL_API, '/linguistic/path': pathWith({ from: 'beginner', status: 'new' }) }, `(url) => url.endsWith('/jump') ? { level: 'advanced', lesson: 'jt', module: 'vocabulary' } : {}`), styles: true, device: DEVICES.galaxyA55, script: `
+            await sleep(1300);
+            const box = $('[data-section="advanced"] [data-jump-test]');
+            const before = { status: box?.dataset.jumpTest, text: text(box) };
+            $('[data-jump-start]').click(); await sleep(800);
+            return { before, sent: window.__calls.find((c) => c[1].endsWith('/jump'))?.[2], opened: window.__calls.some((c) => c[0] === 'GET' && c[1].endsWith('/lessons/jt')), wide: 0 };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.before.status, 'new');
+        assert.match(result.before.text, /Advanced entry test.*20 questions, 10 on Beginner and 10 on Advanced.*half of each right and Advanced opens now.*learn from Section 1, Beginner.*one try/s);
+        assert.deepEqual(result.sent, { level: 'advanced' });
+        assert.equal(result.opened, true, 'the test opened');
+
+        const failed = await screen({ entry: app('/linguistic?section=advanced'), api: apiModule({ ...SHELL_API, '/linguistic/path': pathWith({ from: 'beginner', status: 'failed', percent: 45 }) }), styles: true, device: DEVICES.galaxyA55, script: `
+            await sleep(1300);
+            return { status: $('[data-section="advanced"] [data-jump-test]')?.dataset.jumpTest, text: text($('[data-section="advanced"] [data-jump-test]')), button: !!$('[data-jump-start]') };` });
+        assert.deepEqual(failed.errors, []);
+        assert.deepEqual([failed.result.status, failed.result.button], ['failed', false], 'one try');
+        assert.match(failed.result.text, /took the Advanced entry test \(45%\): you learn from Section 1, Beginner\. Finish it and pass its assessment to open Advanced/);
+    });
+
+    for (const passed of [false, true]) {
+        test(`the jump test's result (2026-10-31): ${passed ? 'passed, straight to Advanced' : 'not passed, back to the start of Beginner, no second try'}`, async () => {
+            const JT = { id: 'jt', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Beginner assessment', review: 'assessment', direction: null, passingScore: 50, learn: { intro: 'The jump test.' },
+                progress: { status: 'started', step: 'quiz', bestScore: null, attempts: 0 }, words: [], quiz: [{ id: 'q1', type: 'mcq', kind: 'review', prompt: 'What is “ಮನೆ”?', options: ['house', 'water', 'tree', 'sun'] }] };
+            const R = { score: passed ? 12 : 9, total: 20, percent: passed ? 60 : 45, passed, passingScore: 50, firstPass: passed, bestScore: passed ? 60 : 45, results: [], next: null, certificate: null, events: [],
+                jump: { from: 'beginner', to: 'advanced', passed, halves: [{ level: 'beginner', percent: passed ? 70 : 80 }, { level: 'advanced', percent: passed ? 50 : 10 }] } };
+            const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/jt'), api: apiModule({ '/linguistic/lessons/jt': JT, ...SHELL_API }, `(url) => url.endsWith('/quiz/check') ? { correct: true, answer: 'house' } : url.endsWith('/quiz') ? ${JSON.stringify(R)} : {}`), styles: true, device: DEVICES.galaxyA55, script: `
+                ${DRIVE}
+                await sleep(1000);
+                for (let i = 0; i < 8 && !$('[data-finish]'); i++) {
+                    const pick = $$('[data-option]').find((b) => b.innerText.trim().endsWith('house'));
+                    if (pick && pick.getAttribute('aria-pressed') !== 'true' && pick.getAttribute('aria-checked') !== 'true' && !pick.dataset.picked) { pick.click(); pick.dataset.picked = '1'; await sleep(80); }
+                    await press(); await sleep(250);
+                }
+                await sleep(400);
+                const out = { finish: $('[data-finish]')?.dataset.finish, title: text($('[data-finish-title]')), body: text($('[data-finish]')), stats: $$('[data-stat]').map(text), buttons: $$('[data-finish] button, footer button').map(text).filter(Boolean) };
+                $('footer [data-primary]')?.click(); await sleep(400);
+                out.went = text($('[data-where]')) || location.pathname;
+                out.calls = window.__calls.filter((c) => c[0] === 'GET').map((c) => c[1]).slice(-3);
+                return out;` });
+            assert.deepEqual(errors, []);
+            assert.equal(result.__error, undefined, result.__error);
+            assert.equal(result.finish, passed ? 'pass' : 'fail');
+            assert.equal(result.title, passed ? 'You can go straight to Advanced!' : 'Not yet: you start from Beginner');
+            if (passed) assert.match(result.body, /60% on the Advanced entry test, with half of each part right: Advanced is open/);
+            else assert.match(result.body, /45%\. To go straight to Advanced you needed 50% or more on both Beginner and Advanced\. You learn from the start of Beginner: finish it and pass its assessment to open Advanced/);
+            assert.ok(result.stats.some((x) => /Beginner/i.test(x) && x.includes(passed ? '70%' : '80%')) && result.stats.some((x) => /Advanced/i.test(x) && x.includes(passed ? '50%' : '10%')), `how each half went (${result.stats})`);
+            assert.ok(!result.buttons.some((b) => /try again|retake/i.test(b)), `no second try (${result.buttons})`);
+            assert.ok(result.buttons.some((b) => (passed ? /Go to Advanced/ : /Start Beginner/).test(b)), `${result.buttons}`);
+        });
+    }
+
+    for (const [name, device] of [['phone', DEVICES.galaxyA55], ['laptop', { width: 1366, height: 900, dpr: 1, mobile: false }]]) {
+        test(`the picture stories on a ${name} (2026-10-31): a comic page of panels — title, captions, bubbles over their speakers and clear of faces, narration — then its questions, the story there again`, async () => {
+            const looks = [];
+            // English, Kannada and Hindi whole; of the other 18 languages a story each in the scripts that differ most (right to left, CJK, long words).
+            const SAMPLE = ['ar:comic-advanced-1', 'zh:comic-advanced-2', 'ja:comic-advanced-3', 'ko:comic-advanced-4', 'ta:comic-advanced-3', 'ml:comic-advanced-4', 'de:comic-advanced-1', 'ru:comic-advanced-2', 'ur:comic-advanced-1', 'bn:comic-advanced-4'];
+            const stubs = comics.stubs().filter((x) => [null, 'kn', 'hi'].includes(x.course) || SAMPLE.includes(x.seedKey));
+            assert.equal(stubs.length, 22);
+            for (const [k, stub] of stubs.entries()) {
+                const built = comics.build(stub, 'en');
+                const LESSON = { id: 'cm', module: 'reading', moduleLabel: 'Reading and Writing', level: 'advanced', title: built.title, review: 'comic', direction: null, passingScore: 75, language: 'kn', languageName: 'Kannada',
+                    learn: built.learn, comic: built.comic, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 }, writing: [],
+                    quiz: built.quiz.map(({ id, type, prompt, options }) => ({ id, type, prompt, options })) };
+                const { result, errors } = await screen({ entry: app('/linguistic/reading/cm'), api: apiModule({ '/linguistic/lessons/cm': LESSON, ...SHELL_API }), styles: true, device, script: `
+                    ${DRIVE}
+                    await sleep(1300);
+                    for (let i = 0; i < 3 && !$('[data-comic]'); i++) await press();
+                    await sleep(400);
+                    const inside = (a, b) => a.left >= b.left - 1 && a.right <= b.right + 1 && a.top >= b.top - 1 && a.bottom <= b.bottom + 1;
+                    const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+                    const panels = $$('[data-comic-panel]');
+                    const checks = panels.map((p) => {
+                        const box = p.firstElementChild.getBoundingClientRect();
+                        const bubbles = [...p.querySelectorAll('[data-bubble] > p')].map((b) => b.getBoundingClientRect());
+                        const cap = p.querySelector('[data-comic-caption], [data-comic-title]')?.getBoundingClientRect();
+                        // A face: the head's lower two thirds (a bubble's tail may touch the top of it).
+                        const faces = [...p.querySelectorAll('[data-head]')].map((h) => { const r = h.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top + r.height / 3, bottom: r.bottom }; });
+                        return { inside: bubbles.every((b) => inside(b, box)), apart: bubbles.every((b, i) => bubbles.every((c, j) => i === j || !overlap(b, c))), clear: !cap || bubbles.every((b) => !overlap(b, cap)), faces: faces.filter((f) => bubbles.some((b) => overlap(b, f))).length, wide: Math.round(box.width),
+                            where: JSON.stringify({ box: [box.top, box.height].map(Math.round), bubbles: bubbles.map((b) => [b.left, b.top, b.right, b.bottom].map(Math.round)), faces: faces.map((f) => [f.left, f.top, f.right, f.bottom].map(Math.round)) }) };
+                    });
+                    const page = $('[data-comic-page]');
+                    const out = { panels: panels.length, columns: page.dataset.columns, checks, title: text($('[data-comic-title]')), narration: text($('[data-comic-narration]')), read: !!$('[data-comic-read]'),
+                        theme: $('[data-comic]').dataset.comicTheme, titleStyle: $('[data-comic-title]')?.dataset.comicTitle, bubbleStyle: $('[data-bubble-style]')?.dataset.bubbleStyle, moral: text($('[data-comic-moral]')), zooms: $$('[data-zoom]').length,
+                        frame: getComputedStyle(panels[0]).borderTopColor + ' ' + getComputedStyle(panels[0]).borderTopLeftRadius,
+                        wideFirst: Math.round($('[data-comic-panel="0"]').getBoundingClientRect().width), wide: (() => { ${SESSION_WIDE} })() };
+                    // On to its questions: the story there again, to look back at.
+                    await press(); await sleep(300); await press(); await sleep(400);
+                    out.question = text($('[data-answer-area] h1'));
+                    const peek = $$('[data-answer-area] button[aria-expanded]').find((b) => /again/.test(b.innerText));
+                    out.peek = text(peek);
+                    peek?.click(); await sleep(300);
+                    out.peekComic = !!$('[data-answer-area] [data-comic]');
+                    return out;` });
+                const story = `${built.comic.title} on a ${name}`;
+                assert.deepEqual(errors, [], story);
+                assert.equal(result.__error, undefined, result.__error);
+                assert.equal(result.panels, built.comic.panels.length, story);
+                // Its own layout (2026-10-31): Three Silver Coins three to a row on a wide page, the others two.
+                assert.equal(result.columns, name === 'phone' ? '1' : built.comic.theme === 'journey' ? '3' : '2', story);
+                assert.equal(result.theme, built.comic.theme);
+                assert.ok(result.moral.toLowerCase().includes(built.comic.moral.slice(0, 12).toLowerCase()) && result.moral.toLowerCase().startsWith((built.comic.moralLabel || 'moral:').toLowerCase()), `${story}: its moral at the end (${result.moral})`);
+                assert.ok(result.zooms >= 1, `${story}: a close-up among its panels`);
+                looks.push([result.theme, result.titleStyle, result.bubbleStyle, result.frame].join(' · '));
+                assert.equal(result.title.toLowerCase(), built.comic.title.toLowerCase(), `${story}: its title, in capitals as a comic has it`);
+                assert.ok(result.narration, `${story}: a line of narration under its first panel`);
+                assert.equal(result.read, true, `${story}: Read aloud`);
+                for (const [i, c] of result.checks.entries()) {
+                    assert.equal(c.inside, true, `${story}, panel ${i + 1}: its bubbles inside it`);
+                    assert.equal(c.apart, true, `${story}, panel ${i + 1}: no bubble over another`);
+                    assert.equal(c.clear, true, `${story}, panel ${i + 1}: no bubble over the caption`);
+                    assert.equal(c.faces, 0, `${story}, panel ${i + 1}: no bubble over a face (${c.where})`);
+                }
+                if (name === 'laptop') assert.ok(result.checks[1].wide < result.wideFirst * 0.6, `${story}: two to a row, the first across the page`);
+                assert.ok(result.wide <= 1, `${story}: nothing wider than the screen (${result.wide}px)`);
+                assert.equal(result.question, built.quiz[0].prompt, `${story}: then its questions`);
+                assert.equal(result.peek, `See “${built.comic.title}” again`);
+                assert.equal(result.peekComic, true, `${story}: the story there again`);
+            }
+            // Not the same design for every story (2026-10-31): each its own look, title and frame (the same in each language).
+            assert.equal(new Set(looks.map((l) => l.split(' · ')[1])).size, 4, `four title styles (${looks.join(' | ')})`);
+            assert.equal(new Set(looks.map((l) => l.split(' · ')[3])).size, 4, `four panel frames (${looks.join(' | ')})`);
+        });
+    }
+
+    const LEARNT = { course: { code: 'en', name: 'English', locale: 'en-IN' }, levels: [
+        { level: 'beginner', label: 'Beginner', units: [
+            { id: 'beginner-0', title: 'Letters', lessons: [{ id: 'l1', title: 'Letters: A to E', letters: [{ letter: 'A', sound: 'ay', speak: 'ay', word: 'apple', pic: '🍎', sentence: 'I eat a red apple.', locale: 'en-IN' }, { letter: 'B', sound: 'bee', speak: 'bee', word: 'ball', pic: '⚽', sentence: 'The boy kicks the ball.', locale: 'en-IN' }] }] },
+            { id: 'beginner-1', title: 'Family', lessons: [{ id: 'l2', title: 'Family words', words: [{ word: 'mother', meaning: 'ತಾಯಿ', locale: 'en-IN' }, { word: 'father', meaning: 'ತಂದೆ', locale: 'en-IN' }] },
+                { id: 'l3', title: 'Translation', sentences: [{ text: 'I drink water every morning before I go to school with my brother.', meaning: 'ನಾನು ಪ್ರತಿದಿನ ಬೆಳಿಗ್ಗೆ ನೀರು ಕುಡಿಯುತ್ತೇನೆ.' }] }] }] },
+        { level: 'advanced', label: 'Advanced', units: [{ id: 'advanced-stories', title: 'Stories', lessons: [{ id: 'l4', title: 'Picture story: The Shared Well', story: { title: 'The Shared Well', moral: 'What we share keeps flowing.', moralLabel: 'Moral:' } }] }] }] };
+    // Units of 2 to 10 lessons, one after another, so the circles start at every point of their zigzag.
+    const LONG_PATH = { ...PATH, current: 'u2-0', levels: [{ ...PATH.levels[0], units: Array.from({ length: 9 }, (_, k) => ({
+        id: `beginner-${k + 1}`, index: k + 1, kind: 'topic', title: `Unit ${k + 1}`, open: true,
+        lessons: Array.from({ length: k + 2 }, (_, i) => lesson(`u${k + 2}-${i}`, `Lesson ${i + 1}`, { order: k + 1, status: k === 0 ? 'completed' : 'new' })) })) }] };
+    for (const [name, device] of [['Galaxy Z Fold folded', DEVICES.galaxyZFold6Folded], ['Galaxy A55', DEVICES.galaxyA55], ['Pixel 9', DEVICES.pixel9]]) {
+        test(`the learning path on a ${name} (2026-11-03): the mascot beside the circles, never behind one`, async () => {
+            const { result, errors } = await screen({ entry: app('/linguistic'), api: apiModule({ ...SHELL_API, '/linguistic/path': LONG_PATH }), styles: true, device, script: `
+                await sleep(1500);
+                const overlap = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+                const units = $$('[data-unit]').map((u) => {
+                    const m = u.querySelector('img[src^="/mascot/stills/"]').getBoundingClientRect();
+                    const nodes = [...u.querySelectorAll('[data-node]')];
+                    return [u.dataset.unit, nodes.length, nodes.filter((b) => overlap(b.getBoundingClientRect(), m)).length];
+                });
+                return { units, wide: (() => { ${WIDE} })() };` });
+            assert.deepEqual(errors, []);
+            assert.equal(result.__error, undefined, result.__error);
+            assert.equal(result.units.length, 9);
+            assert.deepEqual(result.units.map(([, n]) => n), [2, 3, 4, 5, 6, 7, 8, 9, 10], 'every unit drawn');
+            assert.deepEqual(result.units.filter(([, , hit]) => hit > 0), [], 'no circle behind the mascot');
+            assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+        });
+    }
+
+    for (const [name, size] of [['phone', { device: DEVICES.galaxyA55 }], ['laptop', { width: 1440, height: 900 }]]) {
+        test(`the notes at the top of the learning path on a ${name} (2026-11-02): a card beside the roadmap and all sections, opening the notes`, async () => {
+            const { result, errors } = await screen({ entry: app('/linguistic'), api: apiModule({ '/linguistic/learnt': LEARNT, ...SHELL_API }), styles: true, ...size, script: `
+                await sleep(1500);
+                const cards = [...$('[data-path-top]').children];
+                const box = (el) => { const r = el.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.height)]; };
+                const out = { cards: cards.map((c) => c.dataset.roadmapLink !== undefined ? 'roadmap' : c.dataset.allSections !== undefined ? 'sections' : c.dataset.notesLink !== undefined ? 'notes' : 'section'), boxes: cards.map(box), card: text($('[data-notes-link]')) };
+                out.wide = (() => { ${WIDE} })();
+                $('[data-notes-link]').click(); await sleep(1200);
+                out.page = [!!$('[data-notes-page]'), $$('[data-notes-topic]').length];
+                return out;` });
+            assert.deepEqual(errors, []);
+            assert.equal(result.__error, undefined, result.__error);
+            assert.deepEqual(result.cards, ['roadmap', 'sections', 'notes', 'section']);
+            assert.match(result.card, /^Your notes (From \d+ lessons? you finished|What you learn is written here)$/);
+            if (name === 'laptop') assert.equal(new Set(result.boxes.map(String)).size, 1, `four in one row, one height (${JSON.stringify(result.boxes)})`);
+            assert.deepEqual(result.page, [true, 3], 'tapped: the notes, every topic there');
+            assert.ok(result.wide <= 1, `nothing wider than the screen (${result.wide}px)`);
+        });
+    }
+
+    test('the notes page on a phone (2026-11-02): what was learnt in the lessons finished — letters, words, sentences, stories — searched, and each topic one tap away', async () => {
+        const find = (v) => `{ const el = $('[data-notes-search]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${JSON.stringify(v)}); el.dispatchEvent(new Event('input', { bubbles: true })); await sleep(200); }`;
+        const { result, errors } = await screen({ entry: app('/linguistic/notes'), api: apiModule({ '/linguistic/learnt': LEARNT, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+            await sleep(1500);
+            const out = { doors: !!$('[data-door]'), counts: text($('[data-notes-counts]')), topics: $$('[data-notes-topic]').map(text),
+                letters: $$('[data-notes-letter]').length, words: $$('[data-notes-word]').length, sentences: $$('[data-notes-sentence]').length, story: text($('[data-notes-story]')),
+                open: $('[data-notes-lesson="l2"] [data-notes-open]').getAttribute('href') };
+            out.wide = (() => { ${WIDE} })();
+            const box = () => $('[data-notes-unit="advanced-stories"]').getBoundingClientRect();
+            const before = box();
+            $('[data-notes-topic="advanced-stories"]').click(); await sleep(1200);
+            const after = box();
+            out.went = [before.top > innerHeight, after.top >= 0 && after.bottom <= innerHeight + 1];
+            ${find('moth')}
+            out.found = [$$('[data-notes-word]').map(text), $$('[data-notes-unit]').map((u) => u.dataset.notesUnit)];
+            ${find('ತಾಯಿ')}
+            out.byMeaning = $$('[data-notes-word]').length;
+            ${find('zzz')}
+            out.none = !!$('[data-notes-none]');
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.doors, false, 'its own page, not a dashboard card (the card removed 2026-11-02)');
+        assert.equal(result.counts, '2 words 2 letters 1 sentence 1 story');
+        assert.deepEqual(result.topics, ['1 · Letters', '1 · Family', '2 · Stories'], 'every topic, to go to');
+        assert.deepEqual([result.letters, result.words, result.sentences, result.story], [2, 2, 1, '📖 The Shared Well Moral: What we share keeps flowing.']);
+        assert.equal(result.open, '/linguistic?lesson=l2', 'each lesson can be opened again');
+        assert.deepEqual(result.went, [true, true], 'a topic tapped: below the screen before, on it at once');
+        assert.deepEqual(result.found, [['mother ತಾಯಿ'], ['beginner-1']], 'searched: only what matches');
+        assert.equal(result.byMeaning, 1, 'by its meaning too');
+        assert.equal(result.none, true);
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    // The hello bubble over the scene (2026-11-03, user's picture: on a smaller screen it covered the heading): at every
+    // width it says hello in the course's language, sits whole inside the picture, clear of the words beside it.
+    for (const [name, size] of [['Galaxy A55', { device: DEVICES.galaxyA55 }], ['Pixel 9', { device: DEVICES.pixel9 }], ['iPad Mini', { device: DEVICES.iPadMini }], ['tablet 820', { width: 820, height: 1180, dpr: 2, mobile: true }], ['laptop 1024', { width: 1024, height: 768 }], ['laptop 1280', { width: 1280, height: 800 }], ['laptop 1440', { width: 1440, height: 900 }], ['screen 1920', { width: 1920, height: 1080 }]]) {
+        test(`the hello bubble on a ${name} (2026-11-03): in the course's language, inside the picture, clear of the heading`, async () => {
+            const dash = { ...DASH, course: { code: 'hi', name: 'Hindi', locale: 'hi-IN' } };
+            const { result, errors } = await screen({ entry: app('/linguistic/dashboard'), api: apiModule({ ...SHELL_API, '/linguistic/': dash }), styles: true, ...size, script: `
+                await sleep(1500);
+                const r = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom].map(Math.round); };
+                const bubble = [...document.querySelectorAll('[data-lingo-hello]')].find((b) => b.getBoundingClientRect().width > 0);
+                const scene = $('[data-lingo-welcome] img').parentElement;
+                const cs = getComputedStyle(scene);
+                return { bubble: r(bubble), hello: bubble ? text(bubble) : null, scene: r(scene), heading: r($('[data-lingo-welcome-line]')), button: r($('[data-lingo-continue]')),
+                    clips: cs.overflow === 'hidden', fades: /gradient/.test(cs.maskImage || cs.webkitMaskImage || ''), wide: (() => { ${WIDE} })() };` });
+            assert.deepEqual(errors, []);
+            assert.equal(result.__error, undefined, result.__error);
+            const { bubble, scene, heading, button } = result;
+            const where = JSON.stringify(result);
+            const overlap = (a, b) => a[0] < b[2] - 1 && a[2] > b[0] + 1 && a[1] < b[3] - 1 && a[3] > b[1] + 1;
+            // Always drawn over the picture's own bubble, in the course's language (2026-11-03, user: "in that place show
+            // the Hindi text", on a laptop where the picture is cut on its left and its こんにちは showed through).
+            // 2026-11-03, then "give the correct alignment": whole and sharp, not faded with the picture's left edge.
+            const H = scene[3] - scene[1], W = scene[2] - scene[0];
+            if (!bubble) { assert.ok(!size.device && size.width >= 1024 && W / H < 2.75, `a hello bubble, unless the picture is cut past the mascot's head (${where})`); return; }
+            assert.match(result.hello, /^नमस्ते! Let’s learn together!/, 'hello in Hindi, the course\'s language');
+            assert.ok(bubble[0] >= scene[0] - 1 && bubble[2] <= scene[2] + 1 && bubble[1] >= scene[1] - 1 && bubble[3] <= scene[3] + 1, `whole, inside the picture (${where})`);
+            assert.equal(result.fades, false, 'the picture fades, not the box the bubble is in');
+            // Where the picture holds the painted bubble whole, exactly on it.
+            if (!size.device && size.width >= 1024 && W - 3.552 * H >= 0) assert.ok(Math.abs(scene[2] - 2.852 * H - bubble[2]) <= 2, `on the painted bubble (${where})`);
+            assert.ok(!overlap(bubble, heading) && !overlap(bubble, button), `clear of the heading and Continue (${where})`);
+            assert.ok(result.wide <= 1, `nothing wider than the screen (${result.wide}px)`);
+        });
+    }
+
+    test('the dashboard doors on a laptop (2026-10-31): the lit Start door level with the others, its outline inside its edge', async () => {
+        const { result, errors } = await screen({ entry: app('/linguistic/dashboard'), api: apiModule(SHELL_API), styles: true, width: 1440, height: 900, script: `
+            await sleep(1300);
+            const doors = $$('[data-door]');
+            const box = (b) => { const r = b.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.height)]; };
+            const home = $('[data-door="home"]');
+            return { ids: doors.map((d) => d.dataset.door), lit: home.dataset.active === 'true', boxes: doors.map(box), ring: getComputedStyle($('[data-door-ring]')).boxShadow, outside: getComputedStyle(home).boxShadow };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual([result.ids, result.lit], [['home', 'learn', 'writing', 'practice', 'badges'], true]);
+        assert.equal(new Set(result.boxes.map(String)).size, 1, `all five on one line, one size (${JSON.stringify(result.boxes)})`);
+        assert.match(result.ring, /inset/, 'the outline inside the card');
+        assert.doesNotMatch(result.outside, /rgb\(30, 136, 240\) 0px 0px 0px 3px/, 'no outline outside it');
+    });
+
+    test('the dashboard bubble says hello in the language being learnt, in its own letters, on one line inside the bubble (2026-10-31)', async () => {
+        for (const [code, name, hello] of [['ja', 'Japanese', 'こんにちは！'], ['de', 'German', 'Hallo!'], ['kn', 'Kannada', 'ನಮಸ್ಕಾರ!'], ['pa', 'Punjabi', 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ!'], ['ur', 'Urdu', 'السلام علیکم!'], ['en', 'English', 'Hello!']]) {
+            const dash = { ...DASH, course: { code, name, native: name, full: true } };
+            const { result, errors } = await screen({ entry: app('/linguistic/dashboard'), api: apiModule({ ...SHELL_API, '/linguistic/': dash }), styles: true, width: 1366, height: 900, script: `
+                await sleep(1300);
+                const bubble = $('[data-lingo-hello]');
+                const line = bubble?.firstElementChild;
+                const [b, l] = [bubble.getBoundingClientRect(), line.getBoundingClientRect()];
+                return { code: bubble?.dataset.lingoHello, hello: text(line), lang: line.lang, fits: line.scrollWidth <= line.clientWidth + 1 && l.left >= b.left && l.right <= b.right, oneLine: l.height < parseFloat(getComputedStyle(line).fontSize) * 1.6, size: getComputedStyle(line).fontSize };` });
+            assert.deepEqual(errors, [], name);
+            assert.equal(result.__error, undefined, result.__error);
+            assert.deepEqual([result.code, result.hello, result.lang], [code, hello, code], `${name}: its hello`);
+            assert.equal(result.fits, true, `${name}: inside the bubble (${result.size})`);
+            assert.equal(result.oneLine, true, `${name}: on one line`);
+        }
+    });
+
+    test('every letter on one page (2026-10-31): the sound above each letter, tapped it is heard; the kagunita slides sideways on a phone', async () => {
+        const CHART = { course: { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ' }, locale: 'kn-IN',
+            groups: [{ id: 'vowels', title: 'Vowels', letters: [{ char: 'ಅ', say: 'a' }, { char: 'ಆ', say: 'aa' }, { char: 'ಇ', say: 'i' }] }, { id: 'consonants-1', title: 'Consonants 1', letters: [{ char: 'ಕ', say: 'ka' }, { char: 'ಖ', say: 'kha' }, { char: 'ಳ', say: 'ḷa' }] }, { id: 'signs', title: 'Vowel signs', letters: [{ char: 'ಕಾ', say: 'kaa' }] }],
+            table: { columns: ['', 'ಾ', 'ಿ', 'ೀ', 'ು', 'ೂ', 'ೃ', 'ೆ', 'ೇ', 'ೈ', 'ೊ', 'ೋ', 'ೌ', 'ಂ', 'ಃ'].map((sign, i) => ({ sign, say: ['a', 'aa', 'i', 'ii', 'u', 'uu', 'ru', 'e', 'ee', 'ai', 'o', 'oo', 'au', 'am', 'ah'][i] })),
+                rows: [['ಕ', 'k'], ['ಖ', 'kh']].map(([c, st]) => ({ char: c, say: `${st}a`, cells: ['', 'ಾ', 'ಿ', 'ೀ', 'ು', 'ೂ', 'ೃ', 'ೆ', 'ೇ', 'ೈ', 'ೊ', 'ೋ', 'ೌ', 'ಂ', 'ಃ'].map((sign, i) => ({ char: c + sign, say: st + ['a', 'aa', 'i', 'ii', 'u', 'uu', 'ru', 'e', 'ee', 'ai', 'o', 'oo', 'au', 'am', 'ah'][i] })) })) } };
+        const { result, errors } = await screen({ entry: app('/linguistic/letters'), api: apiModule({ '/linguistic/letters': CHART, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+            Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => [{ lang: 'hi-IN', name: 'Lekha' }] });
+            window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+            window.__spoken = [];
+            window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang, u.rate]);
+            await sleep(1200);
+            const tile = $('[data-letter-tile="ಅ"]');
+            const [say, letter] = [...tile.querySelectorAll('span')].map((x) => x.getBoundingClientRect());
+            tile.click(); await sleep(100);
+            $('[data-letter-tile="ಳ"]').click(); await sleep(100);
+            const box = $('[data-kagunita] .overflow-x-auto');
+            return { title: text($('[data-letters-chart] h1')), groups: $$('[data-letters-group]').map((g) => g.dataset.lettersGroup), above: say.bottom <= letter.top + 1, tileText: text(tile),
+                spoken: window.__spoken, rows: $$('[data-kagunita-row]').length, cells: $$('[data-kagunita-row="ka"] [data-letter-tile]').map((t) => t.dataset.letterTile).slice(0, 3),
+                slides: box.scrollWidth > box.clientWidth, wide: (() => { ${WIDE} })() };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.match(result.title, /Kannada letters/);
+        assert.deepEqual(result.groups, ['vowels', 'consonants-1'], 'the vowel signs are in the table');
+        assert.equal(result.above, true, 'the English above the letter');
+        assert.match(result.tileText, /a\s*ಅ/);
+        assert.deepEqual(result.spoken, [['अ', 'hi-IN', 0.75], ['ल', 'hi-IN', 0.75]], 'heard, slowly: Kannada read by the Hindi voice on a device with no Kannada one; ಳ as the nearest sound it has (2026-10-31)');
+        assert.deepEqual([result.rows, result.cells], [2, ['ಕ', 'ಕಾ', 'ಕಿ']]);
+        assert.equal(result.slides, true, 'the table slides sideways inside its card');
+        assert.ok(result.wide <= 1, `the page itself is not wider than the phone (${result.wide}px)`);
+    });
+
+    test('Chinese A–Z on the chart (2026-10-31): the English letter above its Chinese name, its pinyin under it, each name on one line from a folded phone to a laptop, heard in Chinese', async () => {
+        const CHART = { course: { code: 'zh', name: 'Chinese', native: '中文' }, locale: 'zh-CN',
+            groups: [{ id: 'alphabet', title: 'The alphabet A–Z', wide: true, letters: [{ char: '诶', say: 'A', pinyin: 'ēi' }, { char: '比', say: 'B', pinyin: 'bǐ' }, { char: '豆贝尔维', say: 'W', pinyin: 'dòu bèi ěr wéi' }, { char: '艾克斯', say: 'X', pinyin: 'ài kè sī' }] }, { id: 'numbers', title: 'Numbers 一–十', letters: [{ char: '一', say: 'yī' }] }] };
+        for (const [name, device] of [['folded phone', DEVICES.galaxyZFold6Folded], ['phone', DEVICES.galaxyA55], ['iPad', DEVICES.iPadMini], ['laptop', { width: 1366, height: 768, dpr: 1 }]]) {
+            const { result, errors } = await screen({ entry: app('/linguistic/letters'), api: apiModule({ '/linguistic/letters': CHART, ...SHELL_API }), styles: true, device, script: `
+                Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => [{ lang: 'zh-CN', name: 'Tingting' }] });
+                window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+                window.__spoken = [];
+                window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang]);
+                await sleep(1200);
+                const tile = $('[data-letter-tile="豆贝尔维"]');
+                const [say, name, pinyin] = [...tile.querySelectorAll('span')];
+                const [a, b, c] = [say, name, pinyin].map((x) => x.getBoundingClientRect());
+                const size = parseFloat(getComputedStyle(name).fontSize);
+                tile.click(); await sleep(100);
+                return { parts: [text(say), text(name), text(pinyin)], above: a.bottom <= b.top + 1, under: c.top >= b.bottom - 1 && c.right <= tile.getBoundingClientRect().right, oneLine: b.height < size * 1.6, sizes: [Math.round(b.width), Math.round(b.height), tile.clientWidth, size],
+                    spoken: window.__spoken, wide: (() => { ${WIDE} })() };` });
+            assert.deepEqual(errors, [], name);
+            assert.equal(result.__error, undefined, result.__error);
+            assert.deepEqual(result.parts, ['W', '豆贝尔维', 'dòu bèi ěr wéi'], name);
+            assert.equal(result.under, true, `${name}: the pinyin under the characters, inside the tile`);
+            assert.equal(result.above, true, `${name}: the English letter above its Chinese name`);
+            assert.equal(result.oneLine, true, `${name}: the four characters on one line (name ${result.sizes})`);
+            assert.deepEqual(result.spoken, [['豆贝尔维', 'zh-CN']], `${name}: read in Chinese`);
+            assert.ok(result.wide <= 1, `${name}: the page itself is not wider than the screen (${result.wide}px)`);
+        }
+    });
+
+    test('Kannada letters no word starts with (2026-11-04, "give the word for that letter"): each with a word it is inside — the letter coloured on its card — matched to its word, never its sound', async () => {
+        const built = alphabet.build(alphabet.stubs().find((x) => x.seedKey === 'kn:letters-beginner-2'), 'en');
+        const quiz = alphabet.quizOf(built, 'ui').map(({ id, type, kind, prompt, options }) => ({ id, type, kind, prompt, options }));
+        const LESSON = { id: 'lk2', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: built.title, review: 'letters', direction: null, passingScore: 60, language: 'en', languageName: 'English',
+            course: 'kn', target: 'kn', targetName: 'Kannada', targetLocale: 'kn-IN', learn: built.learn, words: built.words, quiz, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 } };
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/lk2'), api: apiModule({ '/linguistic/lessons/lk2': LESSON, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, budget: 40000, script: `
+            ${DRIVE}
+            await sleep(1000);
+            for (let i = 0; i < 3 && !$('[data-letter-words]'); i++) await press();
+            const card = (ch) => $('[data-letter-word="' + ch + '"]');
+            const out = { nga: text(card('ಙ')), coloured: $$('[data-letter-inside]').map((x) => [x.dataset.letterInside, x.textContent]),
+                colour: getComputedStyle($('[data-letter-inside]')).color, kappe: !!card('ಕ')?.querySelector('[data-letter-inside]') };
+            await press(); await sleep(300);
+            out.rights = [];
+            for (let round = 0; round < 6 && $('[data-pairs]'); round++) {
+                out.rights.push(...$$('[data-pair="kn"]').map((b) => text(b)));
+                const words = ${JSON.stringify(Object.fromEntries(alphabet.build(alphabet.stubs().find((x) => x.seedKey === 'kn:letters-beginner-2'), 'en').words.map((w) => [w.word, `${w.pic} ${w.for}`])))};
+                for (const l of $$('[data-pair="en"]')) {
+                    const letter = l.querySelector('[dir="auto"]').textContent.trim();
+                    l.click(); await sleep(60);
+                    $$('[data-pair="kn"]').find((r) => text(r) === words[letter])?.click(); await sleep(120);
+                }
+                await sleep(600);
+            }
+            out.wide = (() => { ${SESSION_WIDE} })();
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.match(result.nga, /ಙ.*📚.*ಙ — ವಾಙ್ಮಯ/s, 'ಙ — ವಾಙ್ಮಯ, with its picture');
+        assert.deepEqual(result.coloured.find(([m]) => m === 'ಙ'), ['ಙ', 'ಙ್ಮ'], 'ಙ coloured, with the letter joined to it');
+        assert.ok(result.coloured.some(([m]) => m === 'ಣ') && result.coloured.some(([m]) => m === 'ಞ'), `ಣ and ಞ too (${JSON.stringify(result.coloured)})`);
+        assert.equal(result.colour, 'rgb(224, 134, 0)', 'in orange');
+        assert.equal(result.kappe, false, 'a word that starts with its letter is not marked');
+        assert.ok(result.rights.length >= built.words.length, `every letter in the pairs (${result.rights.length})`);
+        assert.ok(result.rights.every((r) => /^\S+ \S+/.test(r) && !/^[a-zṭḍṇṅñḷṣśāīū]+$/i.test(r)), `each matched to its word and picture, none to a sound (${result.rights.join(' | ')})`);
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    test('an English Letters lesson (2026-10-31): each letter with its word and picture — A for 🍎 apple — tapped and heard; then match the following (letter to word), then "Which sentence has a word that starts with “A”?"', async () => {
+        const built = alphabet.build(alphabet.stubs().find((x) => x.seedKey === 'letters-beginner-1'), 'kn');
+        const quiz = alphabet.quizOf(built, 'ui').map(({ id, type, kind, prompt, options }) => ({ id, type, kind, prompt, options }));
+        const LESSON = { id: 'le', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: built.title, review: 'letters', direction: null, passingScore: 60, language: 'kn', languageName: 'Kannada',
+            learn: built.learn, words: built.words, quiz, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 } };
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/le'), api: apiModule({ '/linguistic/lessons/le': LESSON, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => [{ lang: 'en-IN', name: 'Rishi' }] });
+            window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+            window.__spoken = [];
+            window.speechSynthesis.speak = (u) => window.__spoken.push(u.text);
+            await sleep(1000);
+            const kinds = [];
+            for (let i = 0; i < 3 && !$('[data-letter-words]'); i++) { kinds.push(text($('[data-answer-area] h1'))); await press(); }
+            const cards = $$('[data-letter-word]');
+            const out = { cards: cards.map((c) => c.dataset.letterWord), first: text(cards[0]), pairs: !!$('[data-pairs], [data-pair]') };
+            cards[0].click(); await sleep(100);
+            out.spoken = window.__spoken.slice(-1)[0];
+            const inside = cards.every((c) => { const r = c.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; });
+            out.inside = inside;
+            await press(); await sleep(300);
+            // Match the following: each letter with its word and picture.
+            out.matches = [];
+            for (let round = 0; round < 4 && $('[data-pairs]'); round++) {
+                const lefts = $$('[data-pair="en"]'), rights = $$('[data-pair="kn"]');
+                out.matches.push(lefts.map((b) => text(b)).join('') + ':' + rights.length);
+                for (const l of lefts) {
+                    const letter = text(l);
+                    const word = ${JSON.stringify(Object.fromEntries(alphabet.build(alphabet.stubs().find((x) => x.seedKey === 'letters-beginner-1'), 'kn').words.map((w) => [w.word, `${w.pic} ${w.for}`])))}[letter];
+                    l.click(); await sleep(60);
+                    rights.find((r) => text(r) === word)?.click(); await sleep(120);
+                }
+                await sleep(500);
+                await press(); await sleep(300);
+            }
+            out.next = text($('[data-answer-area] h1'));
+            await press(); await sleep(300);
+            out.question = text($('[data-answer-area] h1'));
+            out.options = $$('[data-option]').map(text);
+            out.wide = (() => { ${SESSION_WIDE} })();
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual(result.cards, ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'], 'every letter of the lesson');
+        assert.match(result.first, /Aa.*🍎.*A for apple.*I eat a red apple\./s, 'its word, and the word in a sentence');
+        assert.equal(result.pairs, false, 'no matching');
+        assert.equal(result.spoken, 'ay for apple. I eat a red apple.', 'tapped: "A for apple" and its sentence read aloud');
+        assert.equal(result.inside, true);
+        assert.ok(result.matches.length >= 1 && result.matches.join('').replace(/:\d+/g, '').split('').sort().join('') === 'ABCDEFGHI', `match the following: every letter, to its word (${result.matches})`);
+        // Asked in the student's language, Kannada here (2026-11-02: not "H is for …").
+        assert.match(result.question, /^“[A-I]” ಅಕ್ಷರದಿಂದ ಶುರುವಾಗುವ ಪದ ಯಾವ ವಾಕ್ಯದಲ್ಲಿದೆ\?$|^“[\w ]+” ಯಾವ ಅಕ್ಷರದಿಂದ ಶುರುವಾಗುತ್ತದೆ\?/, `then the quiz (${result.next})`);
+        assert.doesNotMatch(result.question, /is for/);
+        assert.ok(result.options.length === 4, `${result.options}`);
+        if (/ವಾಕ್ಯದಲ್ಲಿದೆ\?$/.test(result.question)) assert.ok(result.options.every((o) => /\S+ [A-Z].+\.$/.test(o)), `sentences to choose, not single words (${result.options})`);
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    test('a Kannada Letters lesson (2026-11-02): ಕ — ಕಪ್ಪೆ with its picture, its sound in English letters, its sentence, the sentence\'s sound and meaning; tapped, heard in Kannada', async () => {
+        const built = alphabet.build(alphabet.stubs().find((x) => x.seedKey === 'kn:letters-beginner-2'), 'en');
+        const quiz = alphabet.quizOf(built, 'ui').map(({ id, type, kind, prompt, options, say, sayLang }) => ({ id, type, kind, prompt, options, say, sayLang }));
+        const LESSON = { id: 'lk', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: built.title, review: 'letters', direction: null, passingScore: 60, language: 'en', languageName: 'English',
+            course: 'kn', target: 'kn', targetName: 'Kannada', targetLocale: 'kn-IN', learn: built.learn, words: built.words, quiz, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 } };
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/lk'), api: apiModule({ '/linguistic/lessons/lk': LESSON, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => [{ lang: 'kn-IN', name: 'Kannada' }] });
+            window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+            window.__spoken = [];
+            window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang]);
+            await sleep(1000);
+            for (let i = 0; i < 3 && !$('[data-letter-words]'); i++) await press();
+            const cards = $$('[data-letter-word]');
+            const ka = $('[data-letter-word="ಕ"]');
+            const out = { cards: cards.length, ka: text(ka), say: text(ka?.querySelector('[data-letter-word-say]')), sentenceSay: text(ka?.querySelector('[data-letter-sentence-say]')), meaning: text(ka?.querySelector('[data-letter-sentence-en]')),
+                inside: cards.every((c) => { const r = c.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }), wide: (() => { ${SESSION_WIDE} })() };
+            ka.click(); await sleep(100);
+            out.spoken = window.__spoken.slice(-1)[0];
+            await press(); await sleep(300);
+            out.pairs = $$('[data-pair="kn"]').map(text).slice(0, 2);
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.cards, built.words.filter((w) => w.for).length, 'a card for each letter with a word');
+        assert.match(result.ka, /ಕ.*🐸.*ಕ — ಕಪ್ಪೆ.*kappe.*ಕಪ್ಪೆ ನೀರಿಗೆ ಹಾರುತ್ತದೆ\./s);
+        assert.deepEqual([result.say, result.sentenceSay, result.meaning], ['kappe', 'kappe nīrige hāruttade', 'The frog jumps into the water.']);
+        assert.deepEqual(result.spoken, ['ಕ, ಕಪ್ಪೆ. ಕಪ್ಪೆ ನೀರಿಗೆ ಹಾರುತ್ತದೆ.', 'kn-IN'], 'heard in Kannada');
+        assert.ok(result.pairs.every((p) => /^\S+ \S+/.test(p)), `then match each letter to its word and picture (${result.pairs})`);
+        assert.equal(result.inside, true);
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    test('a Letters lesson (2026-10-31, from scratch): straight to matching each letter with its sound (the cards are the chart\'s), no spelling drill', async () => {
+        const LESSON = { id: 'lt', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Letters: Vowels', review: 'letters', direction: null, passingScore: 60, language: 'en', languageName: 'English',
+            course: 'hi', target: 'hi', targetName: 'Hindi', targetLocale: 'hi-IN',
+            learn: { intro: 'The letters of Hindi: look at each one and hear it, match them to their sounds, then a short quiz.' }, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 },
+            words: [{ word: 'अ', kannada: 'a', pos: '', example: '', locale: 'hi-IN' }, { word: 'आ', kannada: 'aa', pos: '', example: '', locale: 'hi-IN' }, { word: 'इ', kannada: 'i', pos: '', example: '', locale: 'hi-IN' }, { word: 'ई', kannada: 'ii', pos: '', example: '', locale: 'hi-IN' }],
+            quiz: [{ id: 'L~0~sound', type: 'mcq', kind: 'letterSound', prompt: 'How does “अ” sound?', options: ['a', 'aa', 'i', 'ii'] }] };
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/lt'), api: apiModule({ '/linguistic/lessons/lt': LESSON }, '(url, body) => ({ step: body.step })'), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            await sleep(1000);
+            let cards = 0;
+            for (let n = 0; n < 4 && !$('[data-pairs]'); n++) { if ($('[data-flashcard]')) cards++; await press(); }
+            return { cards, pairs: !!$('[data-pairs]'), spelling: !!$('input[placeholder="Type in English"], textarea[placeholder="Type in English"]'), wide: (() => { ${SESSION_WIDE} })() };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.cards, 0, 'no letter cards: each letter was seen and heard on the Letters chart (2026-10-31)');
+        assert.deepEqual([result.pairs, result.spelling], [true, false], 'letters matched to their sounds; no spelling drill');
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    test('the speaker uses the language\'s own voice; Kannada with no Kannada voice is read by a Telugu or Hindi one (2026-10-31); with none at all it says so, not silence', async () => {
+        const entryWith = (list) => `
 import { createRoot } from 'react-dom/client';
 import { Speaker } from '${srcFile('linguistic/ui.jsx')}';
-// A computer like the one Kannada was silent on: English and Hindi voices, no Kannada.
-Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => [{ lang: 'en-US', name: 'Samantha' }, { lang: 'hi_IN', name: 'Lekha' }] });
+Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => ${JSON.stringify(list)} });
 window.speechSynthesis.dispatchEvent(new Event('voiceschanged'));
 window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
 window.__spoken = [];
 window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang, u.voice ? u.voice.name : null]);
 createRoot(document.getElementById('root')).render(<div className="lingo flex gap-10 p-10"><span id="kn"><Speaker text="ಕುಟುಂಬ" lang="kn-IN" /></span><span id="hi"><Speaker text="परिवार" lang="hi-IN" /></span></div>);`;
-        const { result, errors } = await screen({ entry, api: apiModule({}), styles: true, script: `
+        const tapBoth = `
             await sleep(500);
             $('#kn button').click(); await sleep(200);
             const note = text($('[data-no-voice]'));
             $('#hi button').click(); await sleep(200);
-            return { note, spoken: window.__spoken };` });
-        assert.deepEqual(errors, []);
-        assert.equal(result.__error, undefined, result.__error);
-        assert.match(result.note, /This device has no Kannada voice/);
-        assert.deepEqual(result.spoken, [['परिवार', 'hi-IN', 'Lekha']], 'Hindi read by the Hindi voice; nothing sent for Kannada');
+            return { note, spoken: window.__spoken };`;
+        // A computer like the one Kannada was silent on: English and Hindi voices, no Kannada.
+        const hindi = await screen({ entry: entryWith([{ lang: 'en-US', name: 'Samantha' }, { lang: 'hi_IN', name: 'Lekha' }]), api: apiModule({}), styles: true, script: tapBoth });
+        assert.deepEqual(hindi.errors, []);
+        assert.equal(hindi.result.__error, undefined, hindi.result.__error);
+        assert.ok(!hindi.result.note, 'no "no voice" note any more');
+        assert.deepEqual(hindi.result.spoken, [['कुटुंब', 'hi-IN', 'Lekha'], ['परिवार', 'hi-IN', 'Lekha']], 'Kannada read by the Hindi voice, in Devanagari letters');
+        // A phone with a Telugu voice: that one first (its letters are closest).
+        const telugu = await screen({ entry: entryWith([{ lang: 'te-IN', name: 'Telugu' }, { lang: 'hi-IN', name: 'Hindi' }]), api: apiModule({}), styles: true, script: tapBoth });
+        assert.deepEqual(telugu.result.spoken[0], ['కుటుంబ', 'te-IN', 'Telugu']);
+        // No Kannada, Telugu, Hindi or Marathi voice: it says so.
+        const none = await screen({ entry: entryWith([{ lang: 'en-US', name: 'Samantha' }]), api: apiModule({}), styles: true, script: tapBoth });
+        assert.match(none.result.note, /This device has no Kannada voice/);
     });
 
     test('an ✕ on every page: the dashboard\'s closes the section (straight to the app\'s Dashboard, 2026-10-29), a page inside goes back to the dashboard (2026-10-26)', async () => {
@@ -569,6 +1150,65 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.deepEqual([result.learn, result.locked], ['hi', true]);
     });
 
+    test('matching pairs got wrong (2026-11-03): under them, how many wrong picks, and for each word what was chosen and the right answer', async () => {
+        const LESSON = { id: 'mp', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Family', direction: null, passingScore: 60, language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'New words.' }, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 },
+            words: [['mother', 'ತಾಯಿ'], ['father', 'ತಂದೆ'], ['house', 'ಮನೆ']].map(([word, kannada]) => ({ word, kannada, pos: 'noun', example: '', synonyms: [], antonyms: [], audio: null })),
+            quiz: [{ id: 'word:0', type: 'mcq', prompt: 'Which word means "ಮನೆ"?', options: ['house', 'water'] }] };
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/mp'), api: apiModule({ '/linguistic/lessons/mp': LESSON }), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            await sleep(1000);
+            for (let n = 0; n < 6 && !$('[data-pairs]'); n++) { await press(); }
+            const cell = (side, t) => $$('[data-pair="' + side + '"]').find((b) => b.innerText.trim() === t);
+            const pair = async (en, kn) => { cell('en', en).click(); await sleep(60); cell('kn', kn).click(); await sleep(150); };
+            const box = () => { const b = $('[data-pair-misses]'); return b && { count: b.dataset.pairMisses, head: text(b.querySelector('p')),
+                rows: [...b.querySelectorAll('[data-pair-miss]')].map((r) => [r.querySelector('[data-pair-word]').innerText, [...r.querySelectorAll('[data-pair-chosen]')].map((x) => x.innerText), text(r.querySelector('[data-pair-right]'))]) }; };
+            const out = { before: box() };
+            await pair('mother', 'ತಂದೆ'); out.one = box();
+            await pair('mother', 'ತಂದೆ'); await pair('father', 'ತಾಯಿ'); out.three = box();
+            await pair('house', 'ಮನೆ'); out.kept = box();
+            // The button right under the pairs and that box, none at the foot of the screen (2026-11-03).
+            const btn = $('[data-primary]'), under = $('[data-pair-misses]').getBoundingClientRect().bottom;
+            out.button = { inline: !!btn.closest('[data-inline-primary]'), footer: !!$('footer'), below: btn.getBoundingClientRect().top >= under, label: text(btn), grey: btn.disabled };
+            out.wide = (() => { ${SESSION_WIDE} })();
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.before, null, 'nothing until one is got wrong');
+        assert.deepEqual(result.one, { count: '1', head: 'ತಪ್ಪು ಆಯ್ಕೆಗಳು: 1', rows: [['mother', ['ತಂದೆ'], 'ಸರಿಯಾದ ಉತ್ತರ: ತಾಯಿ']] }, 'one wrong: counted, what was chosen, the right answer (in Kannada)');
+        assert.deepEqual(result.three, { count: '3', head: 'ತಪ್ಪು ಆಯ್ಕೆಗಳು: 3', rows: [['mother', ['ತಂದೆ'], 'ಸರಿಯಾದ ಉತ್ತರ: ತಾಯಿ'], ['father', ['ತಾಯಿ'], 'ಸರಿಯಾದ ಉತ್ತರ: ತಂದೆ']] }, 'every wrong pick counted; each word once, with what was chosen');
+        assert.deepEqual(result.kept, result.three, 'a right match after: the list stays');
+        assert.deepEqual(result.button, { inline: true, footer: false, below: true, label: 'ಪರಿಶೀಲಿಸಿ', grey: true }, 'CHECK right under the pairs, not in a bar at the bottom');
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    test('a long Tamil phrase on a flashcard on a narrow phone (2026-11-03): inside the card, front and back, smaller rather than cut', async () => {
+        const LESSON = { id: 'tv', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'advanced', title: 'Work', direction: null, passingScore: 60,
+            course: 'ta', target: 'ta', targetName: 'Tamil', targetLocale: 'ta-IN', language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'New Tamil words.' }, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 },
+            words: [{ word: 'பேச்சுவார்த்தை நடத்து, பேரம் பேசு', kannada: 'ಮಾತುಕತೆ ನಡೆಸು, ಚೌಕಾಸಿ ಮಾಡು', say: 'pechuvaarththai nadaththu, peram pesu', pos: 'verb', example: '', synonyms: [], antonyms: [], audio: null, course: true },
+                { word: 'வீடு', kannada: 'ಮನೆ', say: 'veedu', pos: 'noun', example: '', synonyms: [], antonyms: [], audio: null, course: true }],
+            quiz: [{ id: 'word:0', type: 'mcq', prompt: 'Which word means "ಮನೆ"?', options: ['வீடு', 'நீர்'] }] };
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/tv'), api: apiModule({ '/linguistic/lessons/tv': LESSON }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            ${DRIVE}
+            await sleep(1000);
+            await press(); await sleep(300);
+            const fits = (sel) => { const c = $('[data-flashcard]').getBoundingClientRect(), w = $(sel), r = w.getBoundingClientRect();
+                return { inside: r.left >= c.left && r.right <= c.right, overflow: w.scrollWidth - w.clientWidth, size: parseFloat(getComputedStyle(w).fontSize) }; };
+            const front = fits('[data-card-word]');
+            $('[data-flashcard]').click(); await sleep(200);
+            const back = fits('[data-card-meaning]');
+            $('[aria-label="Next word"]').click(); await sleep(200);
+            const short = fits('[data-card-word]');
+            return { front, back, short, wide: (() => { ${SESSION_WIDE} })() };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        for (const side of ['front', 'back']) assert.ok(result[side].inside && result[side].overflow <= 1, `${side}: inside the card (${JSON.stringify(result[side])})`);
+        assert.ok(result.front.size < 36 && result.front.size >= 18, `the long phrase made smaller (${result.front.size}px)`);
+        assert.equal(result.short.size, 36, 'a short word keeps its size');
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
     test('a Japanese word on the card and in the pairs: how it sounds in English letters, in place of "noun"; Kannada keeps "noun" (2026-10-27)', async () => {
         const course = { course: 'ja', target: 'ja', targetName: 'Japanese', targetLocale: 'ja-JP', language: 'hi', languageName: 'Hindi' };
         const lesson = (words) => ({ id: 'jv', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Home and family', direction: null, passingScore: 60, ...course,
@@ -634,6 +1274,28 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.equal(result.meaning, 'ENGLISH I am fine.', 'the sentence tapped: all of it');
         assert.equal(result.closed, true, 'a tap outside closes it');
         assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    test('a Hindi course (2026-11-02): a sentence to read has no sound line, but tapped, its English', async () => {
+        const LESSON = { id: 'th', module: 'translation', moduleLabel: 'Translation Practice', level: 'beginner', title: 'At work', direction: 'kn-en', passingScore: 60,
+            course: 'hi', target: 'hi', targetName: 'Hindi', targetLocale: 'hi-IN', language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'Write in Kannada.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 },
+            items: [{ id: 'i1', kind: 'sentence', topic: 'work', source: 'बैठक सोमवार तक के लिए स्थगित कर दी गई है।', sourceEn: 'The meeting has been put off until Monday.', direction: 'en-kn', open: false }],
+            quiz: [{ id: 'q1', type: 'translation', source: 'घर', bank: ['ಮನೆ', 'ನೀರು'] }] };
+        const { result, errors } = await screen({ entry: app('/linguistic/translation/th'), api: apiModule({ '/linguistic/lessons/th': LESSON }, '(url, body) => ({ step: body.step })'), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            await sleep(1000);
+            await press(); await sleep(400);
+            const out = { source: text($('[data-source]')), say: !!$('[data-source-say]'), dotted: getComputedStyle($('[data-source]')).textDecorationStyle, hidden: !$('[data-source-meaning]') };
+            $('[data-source]').click(); await sleep(150);
+            out.meaning = text($('[data-source-meaning]'));
+            out.wide = (() => { ${SESSION_WIDE} })();
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual([result.source, result.say, result.dotted, result.hidden], ['बैठक सोमवार तक के लिए स्थगित कर दी गई है।', false, 'dotted', true], 'the sentence, marked to tap');
+        assert.equal(result.meaning, 'ENGLISH The meeting has been put off until Monday.', 'tapped: its English');
+        assert.ok(result.wide <= 1, `nothing wider than the phone, a long English too (${result.wide}px)`);
     });
 
     test('"What does 食べ物 mean?": the word asked about, to hear and to read in English letters (2026-10-27)', async () => {
@@ -710,7 +1372,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.ok(w.result.wide <= 1, `nothing wider than the phone (${w.result.wide}px)`);
     });
 
-    test('the ✕ in a lesson, the placement test and the mistakes opens the dashboard, not the path or Practice (2026-10-29)', async () => {
+    test('the ✕ in a lesson, the placement test and the mistakes: End session opens the learning path, not the dashboard (2026-10-31)', async () => {
         const MISTAKES = { fixed: 0, mistakes: [{ id: 'm1', module: 'grammar', moduleLabel: 'Grammar Practice', level: 'beginner', lessonTitle: 'Articles', kind: 'question', count: 1, given: 'a', question: { id: 'q1', type: 'fill', prompt: 'This is ___ easy question.' } }] };
         const TEST = { last: null, questions: [{ id: 'pl1', band: 'beginner', type: 'mcq', prompt: 'She ___ a doctor.', options: ['is', 'are'] }] };
         for (const [at, api] of [['/linguistic/grammar/g1', { '/linguistic/lessons/g1': GRAMMAR, ...SHELL_API }], ['/linguistic/placement', { '/linguistic/placement': TEST, ...SHELL_API }], ['/linguistic/review', { '/linguistic/review': MISTAKES, ...SHELL_API }]]) {
@@ -722,11 +1384,25 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
                 const r = $('[data-quit]').getBoundingClientRect();
                 const middle = Math.abs((r.top + r.bottom) / 2 - innerHeight / 2) < 40 && r.bottom < innerHeight - 8 && r.left >= 8;
                 $('[data-end-session]').click(); await sleep(800);
-                return { found, middle, session: !!$('[data-lingo-session]'), dashboard: !!$('[data-lingo-dashboard]') };` });
+                return { found, middle, session: !!$('[data-lingo-session]'), path: !!$('[data-section]'), dashboard: !!$('[data-lingo-dashboard]') };` });
             assert.deepEqual(errors, [], at);
             assert.equal(result.__error, undefined, result.__error);
-            assert.deepEqual(result, { found: true, middle: true, session: false, dashboard: true }, `${at}: ✕, a popup in the middle of the phone (2026-10-29), End session → the dashboard`);
+            assert.deepEqual([result.found, result.middle, result.session, result.path, result.dashboard], [true, true, false, true, false], `${at}: ✕, a popup in the middle of the phone (2026-10-29), End session → the learning path (2026-10-31)`);
         }
+    });
+
+    test('Back on the learning path opens the dashboard (2026-10-31), not the lesson just ended', async () => {
+        const { result, errors } = await screen({ entry: app('/linguistic'), api: apiModule({ '/linguistic/lessons/g1': GRAMMAR, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+            await sleep(1200);
+            // The pages before: the dashboard, then a lesson ended with End session.
+            sessionStorage.setItem('yati:trail', JSON.stringify(['/linguistic/dashboard', '/linguistic/grammar/g1', '/linguistic']));
+            const back = $('[data-lingo-close]');
+            const label = text(back);
+            back.click(); await sleep(800);
+            return { label, dashboard: !!$('[data-lingo-dashboard]'), session: !!$('[data-lingo-session]'), lesson: window.__calls.some((c) => c[1].endsWith('/lessons/g1')) };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual(result, { label: 'Back', dashboard: true, session: false, lesson: false });
     });
 
     test('the tabs: Practice (daily, mistakes, placement; the quests are on the dashboard), Badges, Writing', async () => {
@@ -765,6 +1441,66 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
                 next: ok ? { id: 'g2', title: 'Pronouns', level: 'beginner' } : null, certificate: null }; }
         return { step: body.step };
     }`;
+
+    test('before the quiz, the practice questions got wrong (2026-11-04): each with the answer given, crossed out, the right one and why; none got wrong, no review', async () => {
+        const run = (first) => screen({ entry: app('/linguistic/grammar/g1'), api: apiModule({ '/linguistic/lessons/g1': { ...GRAMMAR, language: 'kn', languageName: 'Kannada' } }, GRAMMAR_POST), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            await sleep(1000);
+            for (let n = 0; n < 4 && !$('[data-answer-area] input, [data-answer-area] textarea'); n++) await press();
+            const type = (v) => { const box = $('[data-answer-area] input, [data-answer-area] textarea'); Object.getOwnPropertyDescriptor(box.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype, 'value').set.call(box, v); box.dispatchEvent(new Event('input', { bubbles: true })); };
+            type(${JSON.stringify(first)}); await sleep(60); await press(); await sleep(250);
+            if (${JSON.stringify(first)} !== 'an') { await press(); await sleep(250); type('an'); await sleep(60); await press(); await sleep(400); }
+            const box = $('[data-miss-review]');
+            const out = { review: !!box, title: text($('[data-answer-area] h1')) };
+            if (box) {
+                out.count = box.dataset.missReview;
+                out.items = $$('[data-miss]').map((li) => [text(li.querySelector('[data-miss-prompt]')), text(li.querySelector('[data-miss-given]')), text(li.querySelector('[data-miss-answer]')), text(li.querySelector('[data-miss-why]'))]);
+                out.struck = getComputedStyle($('[data-miss-given]')).textDecorationLine;
+                out.button = [text($('[data-primary]')), !!$('[data-primary]').closest('footer')];
+                out.wide = (() => { ${SESSION_WIDE} })();
+                await press(); await sleep(300);
+                out.after = text($('[data-answer-area] h1'));
+            }
+            return out;` });
+        const wrong = await run('a');
+        assert.deepEqual(wrong.errors, []);
+        assert.equal(wrong.result.__error, undefined, wrong.result.__error);
+        assert.equal(wrong.result.review, true, 'the review, before the quiz');
+        assert.deepEqual([wrong.result.count, wrong.result.title], ['1', 'ನಿಮ್ಮ ತಪ್ಪುಗಳನ್ನು ನೋಡಿ'], 'in the student\'s language');
+        assert.deepEqual(wrong.result.items, [['I saw ___ owl.', 'a', 'an', 'ಏಕೆ: "Owl" begins with a vowel sound.']], 'the question, the first answer given, the right one, why');
+        assert.equal(wrong.result.struck, 'line-through');
+        assert.deepEqual(wrong.result.button, ['ಮುಂದುವರಿಸಿ', true], 'Continue, in the bar as on any screen to read');
+        assert.equal(wrong.result.after, 'ರಸಪ್ರಶ್ನೆ ಸಮಯ!', 'then the quiz');
+        assert.ok(wrong.result.wide <= 1, `nothing wider than the phone (${wrong.result.wide}px)`);
+        const right = await run('an');
+        assert.deepEqual(right.errors, []);
+        assert.equal(right.result.__error, undefined, right.result.__error);
+        assert.equal(right.result.review, false, 'nothing got wrong: no review');
+    });
+
+    test('CHECK right under the question, every language (2026-11-04); the CONTINUE it turns into there too; a screen to read keeps its Continue in the bar at the foot', async () => {
+        const { result, errors } = await screen({ entry: app('/linguistic/grammar/g1'), api: apiModule({ '/linguistic/lessons/g1': { ...GRAMMAR, language: 'kn', languageName: 'Kannada' } }, GRAMMAR_POST), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            await sleep(1000);
+            const where = () => { const b = $('[data-primary]'); return { label: text(b), inline: !!b.closest('[data-inline-primary]'), bar: !!b.closest('footer') }; };
+            const out = { read: where() };
+            for (let n = 0; n < 4 && !$('[data-answer-area] input, [data-answer-area] textarea'); n++) await press();
+            out.check = where();
+            const box = $('[data-answer-area] input, [data-answer-area] textarea'), under = (box.closest('[translate="no"]') || box).getBoundingClientRect().bottom;
+            out.below = $('[data-primary]').getBoundingClientRect().top >= under - 1;
+            Object.getOwnPropertyDescriptor(box.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype, 'value').set.call(box, 'a');
+            box.dispatchEvent(new Event('input', { bubbles: true })); await sleep(60); await press(); await sleep(250);
+            out.after = where();
+            out.wide = (() => { ${SESSION_WIDE} })();
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual(result.read, { label: 'ಮುಂದುವರಿಸಿ', inline: false, bar: true }, 'a screen to read: its Continue in the bar, as before');
+        assert.deepEqual(result.check, { label: 'ಪರಿಶೀಲಿಸಿ', inline: true, bar: false }, 'CHECK under the question, no bar');
+        assert.equal(result.below, true, 'below the answer');
+        assert.deepEqual(result.after, { label: 'ಮುಂದುವರಿಸಿ', inline: true, bar: false }, 'once checked (wrong): its CONTINUE in the same place');
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
 
     test('a paragraph is checked in the lesson, each sentence corrected, nothing sent to a teacher; with mistakes, Continue gives the same task again, its text kept to fix, until it is right (2026-10-27)', async () => {
         const READING = {
@@ -900,6 +1636,9 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             await press(); await sleep(300);
             const again = { same: !!$('[data-question="p1"]'), mark: !!$('[data-again]'), empty: $('[data-answer-area] textarea').value === '', correction: !!$('[data-correction]') };
             typeIn('an'); await sleep(60); await press(); await sleep(300);
+            // The practice question got wrong, reviewed before the quiz (2026-11-04).
+            const review = $('[data-miss-review]')?.dataset.missReview;
+            await press(); await sleep(300);
             const intro = text($('[data-answer-area] h1'));
             await press();
             const blank = text($('[data-question="q1"] p'));
@@ -913,7 +1652,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             await press(); await sleep(150);
             const q2 = sheet();
             await sleep(700);
-            return { covers, learn, hearts, disabled, wrong, again, intro, blank, filled, q1, placed, q2, wide,
+            return { covers, learn, hearts, disabled, wrong, again, review, intro, blank, filled, q1, placed, q2, wide,
                 finish: $('[data-finish]')?.dataset.finish, title: text($('[data-finish-title]')), stats: $$('[data-stat]').map(text),
                 steps: window.__calls.filter((c) => c[1].endsWith('/step')).map((c) => c[2].step),
                 checks: window.__calls.filter((c) => c[1].endsWith('/quiz/check')).map((c) => c[2]),
@@ -926,6 +1665,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.equal(result.disabled, true, 'CHECK waits for an answer');
         assert.deepEqual(result.wrong, { sheet: null, kept: 'a', red: 'rgb(234, 43, 43)', correction: 'an', button: 'ಮುಂದುವರಿಸಿ', same: true }, 'no sheet: the answer stays, in red; the right one in green below; CONTINUE (2026-10-27)');
         assert.deepEqual(result.again, { same: true, mark: true, empty: true, correction: false }, 'then the same question again, fresh; right this time, on to the quiz');
+        assert.equal(result.review, '1', 'the practice question got wrong, reviewed before the quiz (2026-11-04)');
         assert.equal(result.intro, 'ರಸಪ್ರಶ್ನೆ ಸಮಯ!', '"Quiz time!" in Kannada, the student\'s language (2026-10-24)');
         assert.equal(result.blank, '… apple a day.'); assert.equal(result.filled, 'An apple a day.', 'the choice shows in the blank');
         assert.deepEqual(result.q1, { sheet: null, next: true }, 'right: no sheet, straight to the next question (2026-10-27)');
@@ -1048,11 +1788,12 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             const first = sheet();
             $('[data-swap-input]').click(); await sleep(120);
             $$('[data-answer-area] button').find((b) => /kannada letters|ಕನ್ನಡ ಅಕ್ಷರಗಳು/i.test(b.innerText)).click(); await sleep(120);
+            const grids = ${KEY_ROWS}('[data-kannada-keys]');
             for (const k of ['ಸ', '್', 'ನ', 'ೇ', 'ಹ']) { $$('[data-kannada-keys] button').find((b) => b.getAttribute('aria-label') === 'Kannada ' + k).click(); await sleep(40); }
             const typed = $('[data-translation] textarea').value;
             await press(); await sleep(150);
             const fix = { sheet: sheet(), kept: $('[data-translation] textarea').value, red: $('[data-translation] textarea').dataset.wrong, correction: text($('[data-correction]')), why: text($('[data-correction-why]')), button: text($('[data-primary]')) };
-            return { bank, slot, first, typed, fix,
+            return { bank, slot, first, typed, fix, grids,
                 sent: window.__calls.filter((c) => c[1].endsWith('/check')).map((c) => c[2]), wide: (() => { ${SESSION_WIDE} })() };` });
         assert.deepEqual(errors, []);
         assert.equal(result.__error, undefined, result.__error);
@@ -1060,6 +1801,8 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.equal(result.slot, true, 'a used tile leaves its slot');
         assert.equal(result.first, null, 'right: no sheet, straight to the next one (2026-10-27)');
         assert.equal(result.typed, 'ಸ್ನೇಹ');
+        assert.equal(result.grids.length, 3, 'vowels, signs, consonants');
+        assertKeyRows(result.grids, 'Kannada');
         assert.deepEqual(result.sent, [{ section: 'items', id: 'i1', given: 'ಸ್ನೇಹಿತ' }, { section: 'items', id: 'i2', given: 'ಸ್ನೇಹ' }]);
         assert.deepEqual(result.fix, { sheet: null, kept: 'ಸ್ನೇಹ', red: 'true', correction: 'ಸ್ನೇಹಿತ', why: 'ಏಕೆ: Friend is ಸ್ನೇಹಿತ.', button: 'ಮುಂದುವರಿಸಿ' },
             'no sheet: the answer stays, the right one in green with why ("Why:" in Kannada), and CONTINUE to the same question again');
@@ -1174,11 +1917,89 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.equal(result.second, 'English → German');
     });
 
-    test('a Japanese passage to put in English (2026-10-29): the Japanese letters too, as a keyboard that pops up, to type in either', async () => {
-        const LESSON = { id: 'tp', module: 'translation', moduleLabel: 'Translation Practice', level: 'advanced', title: 'Passages', direction: 'en-kn', passingScore: 75, language: 'en', languageName: 'English',
+    test('every language\'s letter keys on a narrow phone (2026-11-03): rows as a phone keyboard\'s — full lines edge to edge, a short last line in the middle, one key width', async () => {
+        const out = {};
+        for (const code of ['hi', 'mr', 'ta', 'te', 'ml', 'bn', 'gu', 'pa', 'or', 'ur', 'ar', 'ru', 'ko', 'es', 'fr', 'pt']) {
+            const LESSON = { id: 'kb', module: 'translation', moduleLabel: 'Translation Practice', level: 'beginner', title: 'Sentences', direction: 'kn-en', passingScore: 60, language: 'en', languageName: 'English',
+                course: code, target: code, targetName: code, targetLocale: code,
+                learn: { intro: 'Translate.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 },
+                items: [{ id: 'i1', kind: 'sentence', topic: 'greetings', source: 'Good morning, how are you?', open: true, bank: [] }], quiz: [] };
+            const { result, errors } = await screen({ entry: app('/linguistic/translation/kb'), api: apiModule({ '/linguistic/lessons/kb': LESSON }, '(url, body) => ({ step: body.step })'), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+                ${DRIVE}
+                await sleep(900);
+                await press();
+                $('[data-letters-toggle]').click(); await sleep(250);
+                return { rows: ${KEY_ROWS}('[data-keys-popup]'), wide: (() => { ${SESSION_WIDE} })() };` });
+            assert.deepEqual(errors, [], code);
+            assert.equal(result.__error, undefined, `${code}: ${result.__error}`);
+            assertKeyRows(result.rows, code);
+            assert.ok(result.wide <= 1, `${code}: nothing wider than the phone (${result.wide}px)`);
+            out[code] = result.rows.map((r) => r.holds);
+        }
+        assert.ok(Object.values(out).flat().every((n) => n === 6), `6 keys to a line on a narrow phone (${JSON.stringify(out)})`);
+    });
+
+    test('the Spanish keyboard (2026-10-31): every letter a–z with ñ after l, Shift for capitals, the accents and ¿ ¡ — inside a phone', async () => {
+        const LESSON = { id: 'sp', module: 'translation', moduleLabel: 'Translation Practice', level: 'beginner', title: 'Sentences', direction: 'kn-en', passingScore: 60, language: 'en', languageName: 'English',
+            course: 'es', target: 'es', targetName: 'Spanish', targetLocale: 'es-ES',
+            learn: { intro: 'Translate.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 },
+            items: [{ id: 'i1', kind: 'sentence', topic: 'greetings', source: 'Good morning, how are you?', open: true, bank: [] }], quiz: [] };
+        const post = `(url, body) => ({ step: body.step })`;
+        const { result, errors } = await screen({ entry: app('/linguistic/translation/sp'), api: apiModule({ '/linguistic/lessons/sp': LESSON }, post), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            await sleep(1000);
+            await press();
+            $('[data-letters-toggle]').click(); await sleep(200);
+            const keys = $('[data-keys-popup="es"] [data-letter-keys="es"]');
+            if (!keys) return { open: false };
+            const rows = [...keys.querySelectorAll(':scope > div')].slice(0, 3).map((r) => [...r.querySelectorAll('[data-key]')].map((b) => b.dataset.key).join(''));
+            const tap = async (sel) => { keys.querySelector(sel).click(); await sleep(40); };
+            await tap('[data-key="¿"]');
+            await tap('[data-shift-key]');
+            for (const k of [...'hola']) await tap('[data-key="' + k + '"]');
+            await tap('[data-key="ñ"]');
+            const typed = $('[data-answer-area] textarea').value;
+            const pop = $('[data-keys-popup] > div').getBoundingClientRect();
+            const all = [...keys.querySelectorAll('button')].map((b) => b.getBoundingClientRect());
+            return { open: true, rows, letters: keys.querySelectorAll('[data-key]').length, accents: [...keys.querySelectorAll('[data-key]')].filter((b) => /[áéíóúü]/.test(b.dataset.key)).map((b) => b.dataset.key).join(''),
+                typed, shiftAfter: keys.dataset.shift, inside: all.every((r) => r.left >= pop.left - 1 && r.right <= pop.right + 1), smallest: Math.round(Math.min(...all.map((r) => r.width))), wide: (() => { ${SESSION_WIDE} })() };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.open, true, 'the keyboard pops up');
+        assert.deepEqual(result.rows, ['qwertyuiop', 'asdfghjklñ', 'zxcvbnm'], 'every letter, in the rows of a Spanish keyboard');
+        assert.equal(result.accents, 'áéíóúü');
+        assert.equal(result.typed, '¿Holañ', 'Shift makes the next letter a capital, then the letters are small again');
+        assert.equal(result.shiftAfter, '0');
+        assert.equal(result.inside, true, 'every key inside the keyboard');
+        assert.ok(result.smallest >= 24, `keys big enough to tap (${result.smallest}px)`);
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    test('a sentence in Kannada or Japanese to put in English (2026-11-04): no letter keyboard — the answer is English', async () => {
+        const out = {};
+        for (const [code, name, locale, source] of [['kn', 'Kannada', 'kn-IN', 'ನಾನು ಶಾಲೆಗೆ ಹೋಗುತ್ತೇನೆ.'], ['ja', 'Japanese', 'ja-JP', '私は学校に行きます。']]) {
+            const LESSON = { id: 'te', module: 'translation', moduleLabel: 'Translation Practice', level: 'beginner', title: 'Sentences', direction: 'en-kn', passingScore: 60, language: 'en', languageName: 'English',
+                course: code, target: code, targetName: name, targetLocale: locale, learn: { intro: 'Translate.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 },
+                items: [{ id: 'i1', kind: 'sentence', topic: 'school', source, open: false, bank: ['school', 'to', 'book', 'go', 'I', 'name'] }], quiz: [] };
+            const { result, errors } = await screen({ entry: app('/linguistic/translation/te'), api: apiModule({ '/linguistic/lessons/te': LESSON }, '(url, body) => ({ step: body.step })'), styles: true, device: DEVICES.galaxyA55, script: `
+                ${DRIVE}
+                await sleep(1000);
+                await press();
+                const tiles = !!$('[data-tiles]');
+                $('[data-swap-input]').click(); await sleep(150);
+                return { tiles, typing: !!$('[data-answer-area] textarea'), placeholder: $('[data-answer-area] textarea')?.placeholder, toggle: !!$('[data-letters-toggle]'), popup: !!$('[data-keys-popup]') };` });
+            assert.deepEqual(errors, [], code);
+            assert.equal(result.__error, undefined, `${code}: ${result.__error}`);
+            out[code] = result;
+        }
+        for (const code of ['kn', 'ja']) assert.deepEqual(out[code], { tiles: true, typing: true, placeholder: 'Type in English', toggle: false, popup: false }, `${code}: typed in English, no ${code} letters`);
+    });
+
+    test('a passage to write in Japanese (2026-10-29): the Japanese letters as a keyboard that pops up (an answer in English has none since 2026-11-04)', async () => {
+        const LESSON = { id: 'tp', module: 'translation', moduleLabel: 'Translation Practice', level: 'advanced', title: 'Passages', direction: 'kn-en', passingScore: 75, language: 'en', languageName: 'English',
             course: 'ja', target: 'ja', targetName: 'Japanese', targetLocale: 'ja-JP',
             learn: { intro: 'Translate.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 },
-            items: [{ id: 'i5', kind: 'passage', topic: 'work', source: '私は去年、学位を取得しました。', open: true, bank: [] }],
+            items: [{ id: 'i5', kind: 'passage', topic: 'work', source: 'I finished my degree last year.', open: true, bank: [] }],
             quiz: [{ id: 'q1', type: 'translation', source: '家', bank: ['house', 'water'] }] };
         const post = `(url, body) => url.endsWith('/check') ? { correct: null, verdict: 'review', answer: 'I finished my degree last year.', accepted: [], explanation: '', diff: [], events: [] } : { step: body.step }`;
         const { result, errors } = await screen({ entry: app('/linguistic/translation/tp'), api: apiModule({ '/linguistic/lessons/tp': LESSON }, post), styles: true, device: DEVICES.galaxyA55, script: `
@@ -1207,9 +2028,9 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             return out;` });
         assert.deepEqual(errors, []);
         assert.equal(result.__error, undefined, result.__error);
-        assert.match(result.placeholder, /Type in English/); assert.match(result.placeholder, /日本語/);
+        assert.doesNotMatch(result.placeholder, /Type in English/); assert.match(result.placeholder, /日本語/);
         assert.equal(result.shut, true, 'shut until the keyboard icon is tapped');
-        assert.equal(result.keys, true, 'the Japanese letters pop up, though the answer is English');
+        assert.equal(result.keys, true, 'the Japanese letters pop up');
         assert.equal(result.closed, true, 'Done closes them');
         assert.match(result.toggle, /Japanese letters/i);
         assert.equal(result.typed, 'わたし', 'tapped in');

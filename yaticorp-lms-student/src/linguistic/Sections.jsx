@@ -2,7 +2,7 @@
  * Linguistic Ability — the sections, the Duolingo way (asked 2026-10-24):
  * every section of the course on one page — "Section 1 · Rookie · A1" — with
  * how far the student is in it, its units, and the way in: Continue, Review,
- * or (for a section not open yet) Jump here by the placement test. Tapping a
+ * or (for a section not open yet) its jump test (2026-10-31, parts/JumpTest.jsx). Tapping a
  * section opens the path at it.
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -11,6 +11,7 @@ import { Check, Lock, Trophy } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, levelOf, hasAssessment } from './meta';
 import { Bar, Loading, Mascot, Problem, Panel } from './ui';
+import JumpTest from './parts/JumpTest';
 
 const POSES = ['wave-hi', 'presenting', 'star-celebrate'];
 const TONES = ['green', 'blue', 'purple'];
@@ -75,7 +76,13 @@ export default function Sections() {
                             </ol>
                             {s.open
                                 ? <button type="button" onClick={go} className="lingo-btn h-12 w-full transition-[filter] hover:brightness-105" style={{ background: s.complete ? '#fff' : c.face, borderColor: s.complete ? '#E5E5E5' : c.edge, color: s.complete ? c.ink : '#fff' }} data-section-go>{s.complete ? 'Review' : here || s.completed ? 'Continue' : 'Start'}</button>
-                                : <p className="flex items-center justify-center gap-2 text-sm font-extrabold uppercase tracking-wide text-[#AFAFAF]" data-section-locked><Lock size={15} /> {hasAssessment(path.levels[i - 1]) ? `Finish Section ${i} and pass its assessment to open it` : `Finish Section ${i} to open it`}</p>}
+                                : (
+                                    <div>
+                                        <p className="flex items-center justify-center gap-2 text-sm font-extrabold uppercase tracking-wide text-[#AFAFAF]" data-section-locked><Lock size={15} /> {hasAssessment(path.levels[i - 1]) ? `Finish Section ${i} and pass its assessment to open it` : `Finish Section ${i} to open it`}</p>
+                                        {/* Or straight here by the jump test (2026-10-31). */}
+                                        <JumpTest section={s} number={i + 1} />
+                                    </div>
+                                )}
                         </div>
                     </Panel>
                 );

@@ -49,8 +49,8 @@ function LessonPage() {
 
     const steps = useMemo(() => (lesson ? buildLesson(lesson) : []), [lesson]);
     const toPath = backOr(navigate, '/linguistic');
-    // The ✕ opens the section's dashboard, wherever it is pressed (2026-10-29, "directly show the dashboard only").
-    const toDashboard = () => navigate('/linguistic/dashboard');
+    // The ✕ and its End session open the learning path at this lesson (2026-10-31, "not the dashboard"; it was the dashboard from 2026-10-29).
+    const endSession = () => navigate(`/linguistic?lesson=${lessonId}`);
 
     if (lesson === undefined) return <SessionFrame label="Lesson"><Loading label="Opening your lesson…" /></SessionFrame>;
     // A lesson not in the course they are on (another course's, or one their plan leaves out, 2026-10-27):
@@ -113,6 +113,26 @@ function LessonPage() {
                 </SessionFrame>
             );
         }
+        // An entry test (2026-10-31): passed, straight to the section it opens; not, the start of the one before — no second try.
+        if (r.jump) {
+            const [from, to] = [levelOf(r.jump.from).label, levelOf(r.jump.to).label];
+            // How each half went: the section before, and the section's own.
+            const halves = (r.jump.halves || []).map((h) => ({ label: levelOf(h.level).label, value: `${h.percent}%`, color: h.percent >= r.passingScore ? 'green' : 'red', icon: Target }));
+            return (
+                <SessionFrame label={lesson.title}>
+                    {r.jump.passed ? (
+                        <Finish tone="pass" pose="confetti-cheer" title={`You can go straight to ${to}!`} text={`You scored ${r.percent}% on the ${to} entry test, with half of each part right: ${to} is open.`}
+                            stats={halves.length ? [...halves, time] : [{ label: 'Score', value: `${r.percent}%`, color: 'green', icon: Target }, time]}
+                            results={r.results} primary={{ label: `Go to ${to}`, onClick: () => navigate(`/linguistic?section=${r.jump.to}`) }} />
+                    ) : (
+                        <Finish tone="fail" pose="sad" title={`Not yet: you start from ${from}`}
+                            text={`You scored ${r.percent}%. To go straight to ${to} you needed ${r.passingScore}% or more on both ${from} and ${to}. You learn from the start of ${from}: finish it and pass its assessment to open ${to}.`}
+                            stats={halves.length ? [...halves, time] : [{ label: 'Score', value: `${r.percent}%`, color: 'red', icon: Target }, time]}
+                            results={r.results} primary={{ label: `Start ${from}`, onClick: () => navigate(`/linguistic?section=${r.jump.from}`) }} />
+                    )}
+                </SessionFrame>
+            );
+        }
         return (
             <SessionFrame label={lesson.title}>
                 {r.passed ? (
@@ -134,7 +154,7 @@ function LessonPage() {
 
     return (
         <SessionFrame label={lesson.title}>
-            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={toDashboard}
+            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={endSession}
                 onEnterPart={(part) => { if (part === 'practice' || part === 'quiz') linguisticApi.step(id, part).catch(() => {}); }}
                 label={lesson.title} />
         </SessionFrame>
