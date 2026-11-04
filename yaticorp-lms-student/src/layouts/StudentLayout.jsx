@@ -13,9 +13,11 @@ import GeminiExhaustedDialog from '../components/GeminiExhaustedDialog';
 import useLive from '../live/useLive';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import LanguageToggle from '../components/LanguageToggle';
+import Marks360Chip from '../components/Marks360Chip';
 import InstallAppButton from '../components/InstallAppButton';
 import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Globe, Shield } from 'lucide-react';
 import api from '../utils/api';
+import SupportDialog from '../components/SupportDialog';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
 // The wallet popup is fetched when it is first opened.
@@ -125,83 +127,6 @@ function ScrollReset({ scrollerRef }) {
 /** Set when a superadmin opened this dashboard from the admin Users page. */
 const readAdminView = () => {
     try { return JSON.parse(localStorage.getItem(ADMIN_VIEW_KEY) || 'null'); } catch { return null; }
-};
-
-// Contact Support Modal
-// A real dialog: named, Escape and Android's back button close it, and the
-// focus is moved into it so the keyboard and a screen reader start there.
-const ContactModal = ({ onClose, user, page }) => {
-    const [form, setForm] = useState({ name: user?.name || '', email: user?.email || '', cardNumber: user?.cardNumber || '', subject: '', message: '' });
-    const [loading, setLoading] = useState(false);
-    const [done, setDone] = useState(false);
-    const [error, setError] = useState('');
-    const cardRef = useRef(null);
-
-    useBackClose(onClose);
-    useEffect(() => {
-        cardRef.current?.focus({ preventScroll: true });
-    }, []);
-    useEffect(() => {
-        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [onClose]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true); setError('');
-        try {
-            // Which page the student wrote from. The ticket's `page` only
-            // knows a few fixed values (login, signup, dashboard, other), so
-            // the address itself goes as `path`, and on the message's last
-            // line where support reads it today — it always said "dashboard".
-            const where = page && page !== '/' ? page : '';
-            await api.post('/tickets', {
-                ...form,
-                page: 'dashboard',
-                path: page || '/',
-                message: where ? `${form.message}\n\n— Sent from ${where}` : form.message
-            });
-            setDone(true);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to send.');
-        } finally { setLoading(false); }
-    };
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="contact-support-title" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden focus:outline-none">
-                <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-100 rounded-lg"><MessageCircleQuestion size={18} aria-hidden="true" className="text-indigo-600" /></div>
-                        <div>
-                            <h2 id="contact-support-title" className="text-base font-bold text-slate-800">Contact Support</h2>
-                            <a href="tel:9535440195" className="text-sm text-indigo-600 font-semibold hover:underline">📞 9535440195</a>
-                        </div>
-                    </div>
-                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 p-1"><X size={18} aria-hidden="true" /></button>
-                </div>
-                {done ? (
-                    <div className="p-8 text-center">
-                        <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={28} className="text-emerald-600" /></div>
-                        <h3 className="font-bold text-slate-800 mb-1">Message Sent!</h3>
-                        <p className="text-slate-500 text-sm mb-4">Our team will get back to you soon.</p>
-                        <button onClick={onClose} className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-sm hover:bg-indigo-700 transition-colors">Close</button>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="p-5 space-y-3">
-                        {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
-                        <div><label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-700 mb-1">Subject *</label><input id="contact-subject" required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="What's your issue about?" /></div>
-                        <div><label htmlFor="contact-message" className="block text-xs font-semibold text-slate-700 mb-1">Message *</label><textarea id="contact-message" required rows="4" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue in detail..." /></div>
-                        <div className="flex justify-end space-x-2 pt-1">
-                            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancel</button>
-                            <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg text-sm flex items-center disabled:opacity-50 hover:bg-indigo-700 transition-colors"><Send size={13} className="mr-1.5" />{loading ? 'Sending...' : 'Send'}</button>
-                        </div>
-                    </form>
-                )}
-            </div>
-        </div>
-    );
 };
 
 const StudentLayout = () => {
@@ -846,7 +771,7 @@ const StudentLayout = () => {
                 onOpenWallet={() => setWalletOpen(true)}
             />
 
-            {showContact && <ContactModal onClose={() => setShowContact(false)} user={user} page={location.pathname} />}
+            {showContact && <SupportDialog onClose={() => setShowContact(false)} user={user} page="dashboard" path={location.pathname} />}
 
             {/* Logout Confirmation Modal — a named dialog; Escape and back answer Cancel. */}
             {showLogoutConfirm && (
@@ -923,6 +848,7 @@ const StudentLayout = () => {
                         itself ([data-bell]): the panel it opens is inside this
                         wrapper too, and its rows and icons turned emerald with it. */}
                     <div className="flex shrink-0 items-center gap-1 [&_[data-bell]]:text-emerald-600 [&_[data-bell]:hover]:bg-slate-100 [&_[data-bell]_svg]:text-emerald-600">
+                        <Marks360Chip user={user?.marks360 ? user : progressUser} compact />
                         <LanguageToggle />
                         {renderNotificationBell('mobile')}
                     </div>
@@ -1087,6 +1013,7 @@ const StudentLayout = () => {
                             </>
                         )}
 
+                        <Marks360Chip user={user?.marks360 ? user : progressUser} />
                         {renderWalletButton('desktop')}
                         <LanguageToggle />
                         {renderNotificationBell('desktop')}
