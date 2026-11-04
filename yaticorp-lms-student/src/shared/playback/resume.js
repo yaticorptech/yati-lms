@@ -119,7 +119,9 @@ export const newest = (local, server) => {
 export const unlockedLessonIds = (modules, completedLessons) => {
     const ordered = modules.flatMap((m) => m.lessons || []);
     const done = new Set((completedLessons || []).map(String));
-    const open = new Set(ordered.filter((l) => done.has(String(l._id))).map((l) => l._id));
+    // A demo card's modules (server: services/fullAccess.js) open every lesson at once.
+    const open = new Set(modules.flatMap((m) => (m.anyOrder ? m.lessons || [] : [])).map((l) => l._id));
+    for (const l of ordered) if (done.has(String(l._id))) open.add(l._id);
     const next = ordered.find((l) => !done.has(String(l._id)));
     if (next) open.add(next._id);
     return open;

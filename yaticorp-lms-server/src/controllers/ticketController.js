@@ -4,15 +4,24 @@
  */
 const Ticket = require('../models/Ticket');
 const { sendEmail } = require('../utils/emailService');
+const { findUserByCardNumber } = require('../utils/cardNumber');
 
 // @desc    Create a support ticket (public)
 // @route   POST /api/tickets
 // @access  Public
 const createTicket = async (req, res) => {
     try {
-        const { name, email, cardNumber, subject, message, page } = req.body;
-        if (!name || !email || !subject || !message) {
-            return res.status(400).json({ message: 'Name, email, subject and message are required.' });
+        const { name, cardNumber, subject, message, page } = req.body;
+        let { email } = req.body;
+        if (![name, cardNumber, subject, message].every(v => typeof v === 'string' && v.trim())) {
+            return res.status(400).json({ message: 'Name, email, card number, subject and message are required.' });
+        }
+        // Left blank, the email is the card's account's: the form only shows
+        // it partly hidden, so the student cannot type it back in themselves.
+        if (!(typeof email === 'string' && email.trim())) {
+            const owner = await findUserByCardNumber(cardNumber).catch(() => null);
+            email = owner?.email || '';
+            if (!email) return res.status(400).json({ message: 'Enter your email so we can reply.' });
         }
         // Only an in-app address is kept; anything else is dropped rather
         // than refusing the ticket over it.
@@ -41,7 +50,7 @@ const createTicket = async (req, res) => {
             });
         } catch (e) {}
 
-        res.status(201).json({ message: 'Your support request has been submitted successfully.' });
+        res.status(201).json({ message: 'Your support request has been submitted successfully.', ticketId: ticket._id });
     } catch (error) {
         console.error('Create Ticket Error:', error);
         res.status(500).json({ message: 'Failed to submit support request. Please try again.' });
