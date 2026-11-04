@@ -109,7 +109,8 @@ const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(
  */
 const OPEN_ALL_CARDS = new Set(['240100045056']);
 const openAllUsers = new Set();
-const noteOpenAll = (user) => { if (user?._id && OPEN_ALL_CARDS.has(normaliseCardNumber(user.cardNumber))) openAllUsers.add(String(user._id)); };
+// The demo cards (services/fullAccess.js) open everything too (owner, 2026-11-04).
+const noteOpenAll = (user) => { if (user?._id && (OPEN_ALL_CARDS.has(normaliseCardNumber(user.cardNumber)) || require('../services/fullAccess').hasFullAccess(user))) openAllUsers.add(String(user._id)); };
 const opensAll = (progress) => openAllUsers.has(String(progress?.userId));
 
 /* ── What is open ─────────────────────────────────────────────────────── */

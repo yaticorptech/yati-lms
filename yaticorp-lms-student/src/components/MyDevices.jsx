@@ -81,8 +81,9 @@ export default function MyDevices() {
     };
 
     const slots = (kind) => {
-        const mine = data.devices.filter((d) => d.kind === kind);
-        return Array.from({ length: Math.max(data.limits[kind], mine.length) }, (_, i) => mine[i] || null);
+        // An answer without devices or limits (an older server) shows the usual one of each, not a crash.
+        const mine = (data.devices || []).filter((d) => d.kind === kind);
+        return Array.from({ length: Math.max(Number(data.limits?.[kind]) || 1, mine.length) }, (_, i) => mine[i] || null);
     };
 
     return (
@@ -92,7 +93,7 @@ export default function MyDevices() {
                 <div className="min-w-0 flex-1">
                     <h2 className="text-sm font-black text-slate-900">My devices</h2>
                     <p className="mt-0.5 text-xs text-slate-500">
-                        You can be signed in on 1 mobile and {data.limits.computer === 2 ? '2 computers' : '1 laptop, desktop or tablet'}.
+                        You can be signed in on 1 mobile and {data.limits?.computer === 2 ? '2 computers' : '1 laptop, desktop or tablet'}.
                     </p>
                 </div>
                 {data.residentialCard && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200"><Home size={12} /> Residential card</span>}

@@ -43,6 +43,8 @@ const resumeProfileSchema = new mongoose.Schema(
     // stores the file and leaves these empty.
     fileUrl: { type: String, default: "" },
     objectPath: { type: String, default: "" },
+    // In the student's own Google Drive (2026-11-02): fileUrl is its view link.
+    driveFileId: { type: String, default: "" },
     // parsed: skills etc. came from this file. stored: the file was kept but
     // the parser was unavailable, so the extraction (if any) is older.
     parseStatus: { type: String, enum: ["parsed", "stored", "parsing"], default: "parsed" }

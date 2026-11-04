@@ -128,4 +128,40 @@ const fakeContext = (over = {}) => ({
     projects: [{ name: 'Sales Dashboard', description: 'A retail sales dashboard', skills: ['Python', 'SQL'] }], certificates: [], interests: ['Data'], hash: 'h1', ...over
 });
 
-module.exports = { connect, makeUser, unlockGroupGames, makeAdmin, startApp, cleanup, forgetAudit, fakeContext, openJobs };
+/**
+ * A pretend Google Drive (2026-11-02): uploads go to the student's own Drive and are refused
+ * until it is linked (src/integrations/google/driveStore.js). `link(userId)` links a student;
+ * files land in `files` (id → { userId, name, mimeType, buffer, shared }). `restore()` undoes it.
+ */
+const fakeDrive = () => {
+    const oauth = require('../src/integrations/google/oauth');
+    const drive = require('../src/integrations/google/drive');
+    const config = require('../src/integrations/google/config');
+    const real = { accessTokenFor: oauth.accessTokenFor, saveFile: drive.saveFile, shareByLink: drive.shareByLink, readFile: drive.readFile, removeFile: drive.removeFile, isConfigured: config.isConfigured };
+    const linked = new Set();
+    const files = new Map();
+    let next = 0;
+    config.isConfigured = () => true;
+    oauth.accessTokenFor = async (userId) => (linked.has(String(userId)) ? `token-${userId}` : null);
+    drive.saveFile = async (userId, { name, mimeType, content }) => {
+        if (!linked.has(String(userId))) return { ok: false, reason: 'not-connected' };
+        const id = `drive-file-${(next += 1)}`;
+        files.set(id, { userId: String(userId), name, mimeType, buffer: Buffer.from(content), shared: false });
+        return { ok: true, id, name, link: `https://drive.google.com/file/d/${id}/view`, folderId: 'folder' };
+    };
+    drive.shareByLink = async (_userId, id) => { if (files.has(id)) files.get(id).shared = true; return { ok: files.has(id) }; };
+    drive.readFile = async (userId, id) => {
+        if (!linked.has(String(userId))) return { ok: false, reason: 'not-connected' };
+        const f = files.get(id);
+        return f ? { ok: true, buffer: f.buffer, mimeType: f.mimeType } : { ok: false, reason: 'gone' };
+    };
+    drive.removeFile = async (_userId, id) => ({ ok: files.delete(id) });
+    return {
+        files,
+        link: (userId) => linked.add(String(userId)),
+        unlink: (userId) => linked.delete(String(userId)),
+        restore: () => { Object.assign(oauth, { accessTokenFor: real.accessTokenFor }); Object.assign(drive, { saveFile: real.saveFile, shareByLink: real.shareByLink, readFile: real.readFile, removeFile: real.removeFile }); config.isConfigured = real.isConfigured; }
+    };
+};
+
+module.exports = { connect, makeUser, unlockGroupGames, makeAdmin, startApp, cleanup, forgetAudit, fakeContext, openJobs, fakeDrive };

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { House, BookOpen, Route, BriefcaseBusiness, Gamepad2, Wallet, ChevronRight, UserRound, Globe, Shield, Trophy } from 'lucide-react';
+import { House, BookOpen, Route, BriefcaseBusiness, Gamepad2, Wallet, ChevronRight, UserRound, Globe, Shield, Trophy, Orbit } from 'lucide-react';
 import ProfileImage from './ProfileImage';
 import { money, balance } from './rewards/format';
 import useKeyboardOpen from '../native/useKeyboardOpen';
@@ -51,6 +51,8 @@ const ITEMS = [
   { to: '/games', label: 'Games', short: 'Games', icon: Gamepad2 },
   { to: '/interview', label: 'Job Preparation', short: 'Job Preparation', icon: BriefcaseBusiness, also: '/jobs' },
   { to: '/enrolled-courses', label: 'My Courses', short: 'My Courses', icon: BookOpen },
+  // 360 (2026-11-02): only while the sidebar has it too (organization opened it, a 360 teacher added them).
+  { to: '/360', label: '360', short: '360', icon: Orbit, flag: 'three60' },
   { to: '/extracurricular', label: 'Extra Curricular', short: 'Extra Curricular', icon: Shield },
   { to: '/competitions', label: 'Competitions', short: 'Competitions', icon: Trophy }
 ];
@@ -152,10 +154,12 @@ function Tab({ item, active, onClick, className = '' }) {
   );
 }
 
-export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, isLinguisticEnabled = true, user, rewards, onOpenWallet }) {
+export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, isLinguisticEnabled = true, user, rewards, onOpenWallet, isThree60Enabled = false }) {
   const { pathname } = useLocation();
   const stripRef = useRef(null);
   const [more, setMore] = useState(true);
+  // Scrolled along: the left edge fades, so a tab cut at the edge does not show as a stray sliver beside Home.
+  const [scrolled, setScrolled] = useState(false);
   // In the app, the bar steps aside while the on-screen keyboard is up: it
   // sat on top of the field being typed in.
   const keyboardOpen = useKeyboardOpen();
@@ -164,6 +168,7 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, is
     if (item.flag === 'jobs') return isJobsEnabled;
     if (item.flag === 'career') return isCareerPathEnabled;
     if (item.flag === 'linguistic') return isLinguisticEnabled;
+    if (item.flag === 'three60') return isThree60Enabled;
     return true;
   });
 
@@ -173,7 +178,9 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, is
   // Whether there is more to the right: the › shows until the end is reached.
   const check = () => {
     const el = stripRef.current;
-    if (el) setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    if (!el) return;
+    setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    setScrolled(el.scrollLeft > 4);
   };
   // Home brings the strip back to its start; any other section scrolls its tab into view.
   useEffect(() => {
@@ -205,6 +212,7 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, is
             {visible.map((item) => <Tab key={item.to} item={item} active={isActive(item)} className="min-w-[4.4rem] px-2.5" />)}
             <MeTab user={user} rewards={rewards} onOpenWallet={onOpenWallet} />
           </div>
+          {scrolled && <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 w-7 bg-gradient-to-r from-white via-white to-transparent" />}
           {more && (
             <button type="button" aria-label="More sections"
               onClick={() => stripRef.current?.scrollBy({ left: stripRef.current.clientWidth * 0.8, behavior: 'smooth' })}

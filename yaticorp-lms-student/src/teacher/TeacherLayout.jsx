@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users, Compass
+    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users, Compass, Orbit
 } from 'lucide-react';
 import { useTeacher, hasResearch } from './useTeacher';
 import useBackClose from '../native/useBackClose';
@@ -42,11 +42,29 @@ const NAV = [
 ];
 const BOTTOM = ['/teacher', '/teacher/research-path', '/teacher/publications', '/teacher/thesis', '/teacher/writing'];
 const ALL = NAV.flatMap((g) => g.items);
-// A teacher without an AI card (a club or Scouts leader) has only their units and clubs.
-const ACTIVITIES_NAV = [{ title: 'Activities', items: [
-    { to: '/teacher/scout-units', label: 'My Units', short: 'Units', icon: Compass, color: 'amber' },
-    { to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users, color: 'violet' }
-] }];
+// A teacher without an AI card has only what their organization turned on.
+const UNITS = { to: '/teacher/scout-units', label: 'My Units', short: 'Units', icon: Compass, color: 'amber' };
+const CLUBS = { to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users, color: 'violet', clubsOnly: true };
+// 360: the classes they teach (course, section, subject) and their students (pages/Mentor360.jsx).
+const MENTOR = { to: '/teacher/360', label: '360 Dashboard', short: '360', icon: Orbit, color: 'teal' };
+/**
+ * The menu from what the organization turned on for this teacher (Teachers →
+ * the switches, 2026-10-30): 360 and Scouts & Guides (My Units), one, both or
+ * neither; My Clubs only while they are in charge of a club. With a card the
+ * research tools come first, as before.
+ */
+const navFor = (research, mentor, scouts) => {
+    if (research) {
+        const activities = NAV[NAV.length - 1];
+        return [
+            NAV[0],
+            ...(mentor ? [{ title: '360', items: [MENTOR] }] : []),
+            ...NAV.slice(1, -1),
+            { ...activities, items: activities.items.filter((i) => scouts || i.to !== UNITS.to) }
+        ];
+    }
+    return [{ title: 'My dashboard', items: [...(mentor ? [MENTOR] : []), ...(scouts ? [UNITS] : []), CLUBS] }];
+};
 
 
 // Every item's icon in its section's colour; the current page's row tinted with it.
@@ -123,7 +141,11 @@ export default function TeacherLayout() {
     const { teacher, signOut } = useTeacher();
     const hasClubs = useHasClubs(teacher?._id);
     const research = hasResearch(teacher);
-    const nav = research ? NAV : ACTIVITIES_NAV;
+    const mentor = Boolean(teacher?.mentor360);
+    const scouts = teacher?.scouts === true;
+    const nav = navFor(research, mentor, scouts);
+    // Nothing turned on and no club: no bottom bar rather than an empty one.
+    const bottom = research ? BOTTOM.map((to) => ALL.find((x) => x.to === to)) : nav[0].items.filter((i) => !i.clubsOnly || hasClubs);
     const [menuOpen, setMenuOpen] = useState(false);
     const location = useLocation();
     useBackClose(() => setMenuOpen(false), menuOpen);
@@ -186,7 +208,7 @@ export default function TeacherLayout() {
             </main>
 
             {/* Phone bottom bar, in the students' style */}
-            <TeacherBottomNav items={research ? BOTTOM.map((to) => ALL.find((x) => x.to === to)) : ACTIVITIES_NAV[0].items} />
+            {bottom.length > 0 && <TeacherBottomNav items={bottom} teacher={teacher} />}
         </div>
     );
 }

@@ -98,7 +98,7 @@ const loginAdmin = async (req, res) => {
                         code: 'TEACHER_ACCOUNT',
                         message: teacher.cardNumber
                             ? 'This is a teacher account. Sign in on the LMS: choose Teacher, then use your card.'
-                            : 'This is a teacher account. Sign in on the LMS: choose Teacher, then Email.'
+                            : 'This is a teacher account. Sign in on the LMS with your mobile number and password.'
                     });
                 }
             }

@@ -92,4 +92,23 @@ const shareByLink = async (userId, fileId) => {
   return { ok: true };
 };
 
-module.exports = { saveFile, ensureFolder, shareByLink };
+/** The bytes of one file this app put in the student's Drive, for a download through our server. */
+const readFile = async (userId, fileId) => {
+  const token = await accessTokenFor(userId);
+  if (!token) return { ok: false, reason: 'not-connected' };
+  const res = await fetch(`${FILES}/${encodeURIComponent(fileId)}?alt=media`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) return { ok: false, reason: res.status === 404 ? 'gone' : `refused-${res.status}` };
+  return { ok: true, buffer: Buffer.from(await res.arrayBuffer()), mimeType: res.headers.get('content-type') || 'application/octet-stream' };
+};
+
+/** Remove one file this app put there (the student deleted it here). Never throws. */
+const removeFile = async (userId, fileId) => {
+  try {
+    const token = await accessTokenFor(userId);
+    if (!token || !fileId) return { ok: false };
+    const res = await fetch(`${FILES}/${encodeURIComponent(fileId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    return { ok: res.ok || res.status === 404 };
+  } catch { return { ok: false }; }
+};
+
+module.exports = { saveFile, ensureFolder, shareByLink, readFile, removeFile };

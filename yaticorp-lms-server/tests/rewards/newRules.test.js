@@ -276,6 +276,9 @@ describe('Jobs, Learning Bio and Google', () => {
         const me = await student('JobsResume');
         const card = normaliseCardNumber(me.user.cardNumber);
         DEMO_CARDS.add(card);
+        // The resume goes to the student's own Google Drive (2026-11-02): a pretend one, linked.
+        const drive = require('../helpers').fakeDrive();
+        drive.link(me.user._id);
         try {
             await config.updateConfig({ xpRules: { resume_upload: 6 } }); config.invalidate();
             const upload = async () => {
@@ -289,7 +292,8 @@ describe('Jobs, Learning Bio and Google', () => {
             assert.equal((await upload()).status, 200);
             await new Promise((r) => setTimeout(r, 300));   // paid once the answer has gone
             assert.equal(await paid(me.user, 'resume_upload'), 1);
-        } finally { DEMO_CARDS.delete(card); }
+        } finally {
+            drive.restore(); DEMO_CARDS.delete(card); }
     });
 
     test('a Learning Bio at full strength pays once, however often it is opened', async () => {

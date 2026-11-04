@@ -312,15 +312,17 @@ export default function JourneyStairs({ phases = [], completedPhases = [], goal 
                             {state === 'locked' && <span className="relative flex h-[1.8em] w-[1.8em] shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400"><Lock className="h-[0.95em] w-[0.95em]" /></span>}
                         </Link>];
                 })}
-
-                {/* Some phases are not on the trail: the whole roadmap, one tap away. */}
-                {total > slots.length && (
-                    <Link to="/career/roadmap" className="ch-step absolute right-[2.5%] bottom-[3%] z-[3] inline-flex items-center gap-[0.45em] rounded-full bg-white px-[1em] py-[0.45em] font-black text-indigo-950 shadow-[0_0.6em_1.4em_-0.5em_rgba(30,27,75,0.5)] ring-1 ring-white transition-transform hover:-translate-y-0.5"
-                        style={{ fontSize: 'clamp(7px, 1.1cqw, 18px)', animationDelay: '0.7s' }}>
-                        View all {total} steps <ArrowRight className="h-[1.1em] w-[1.1em]" />
-                    </Link>
-                )}
             </div>
+
+            {/* Some phases are not on the trail: the whole roadmap, one tap away. In the corner of the
+                frame, not of the picture: on a phone the picture is wider than the frame and cropped at
+                the sides, and this was cut off with it (2026-11-02). */}
+            {total > slots.length && (
+                <Link to="/career/roadmap" className="ch-step absolute right-[2.5%] bottom-[3%] z-[3] inline-flex max-w-[95%] items-center gap-[0.45em] rounded-full bg-white px-[1em] py-[0.45em] text-[11px] font-black whitespace-nowrap text-indigo-950 shadow-[0_0.6em_1.4em_-0.5em_rgba(30,27,75,0.5)] ring-1 ring-white transition-transform hover:-translate-y-0.5 sm:text-xs lg:text-sm"
+                    style={{ animationDelay: '0.7s' }}>
+                    View all {total} steps <ArrowRight className="h-[1.1em] w-[1.1em]" />
+                </Link>
+            )}
         </div>
     );
 }

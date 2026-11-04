@@ -17,10 +17,11 @@ const Organization = require('../../src/organizations/models/Organization');
 const { Teacher } = require('../../src/teacher/models');
 const { protectTeacher } = require('../../src/teacher/auth');
 const { ScoutUnit, NccNssMember, BsgNotice } = require('../../src/nccnss/models');
+const { INDIA_STATES } = require('../../src/nccnss/bsg');
 
 const STAMP = `${Date.now()}`.slice(-7);
 const PASS = 'Office-Pass1!';
-let app, teacherApp, superAdmin, asSuper, school, otherSchool, schoolAdmin, kid, leader;
+let app, teacherApp, superAdmin, asSuper, school, otherSchool, schoolAdmin, kid, leader, STATE;
 const sign = (id, extra = {}) => jwt.sign({ id: String(id), ...extra }, process.env.JWT_SECRET, { expiresIn: '10m' });
 const offices = {};
 
@@ -28,13 +29,16 @@ before(async () => {
     await connect();
     // A test database may hold offices from an earlier run that failed half-way.
     await Organization.deleteMany({ bsgOffice: { $in: ['national', 'state'] }, orgCode: /^tbn_/ });
+    // Real offices may be there too: the test's state office goes in a state that has none (Karnataka when free).
+    const taken = new Set((await Organization.find({ bsgOffice: 'state' }).select('state').lean()).map((o) => o.state));
+    STATE = ['Karnataka', ...INDIA_STATES].find((s) => s !== 'Kerala' && !taken.has(s));
     app = startApp({ mount: '/api/organizations', router: require('../../src/organizations') });
     const r = express.Router();
     r.use(protectTeacher, require('../../src/nccnss/leader'));
     teacherApp = startApp({ mount: '/api/teacher/scout-units', router: r });
     superAdmin = await Admin.create({ name: 'Super', email: `tbn-super-${STAMP}@example.com`, password: PASS, role: 'superadmin' });
     asSuper = app.call(sign(superAdmin._id));
-    school = await Organization.create({ orgCode: `TBN-S-${STAMP}`, name: `Karnataka School ${STAMP}`, organizationType: 'school', email: `tbn-s-${STAMP}@example.com`, status: 'active' });
+    school = await Organization.create({ orgCode: `TBN-S-${STAMP}`, name: `${STATE} School ${STAMP}`, organizationType: 'school', email: `tbn-s-${STAMP}@example.com`, status: 'active' });
     otherSchool = await Organization.create({ orgCode: `TBN-O-${STAMP}`, name: `Kerala School ${STAMP}`, organizationType: 'school', email: `tbn-o-${STAMP}@example.com`, status: 'active', state: 'Kerala' });
     schoolAdmin = await Admin.create({ name: 'School', email: `tbn-sa-${STAMP}@example.com`, password: PASS, role: 'orgadmin', organizationId: school._id });
     leader = await Teacher.create({ name: 'Leader', email: `tbn-l-${STAMP}@example.com`, phone: '9999999999', password: PASS, organizationId: school._id });
@@ -66,14 +70,17 @@ const makeOffice = (bsgOffice, state, code) => asSuper('POST', '/admin', {
 
 test('a superadmin makes one national office and one office per state', async () => {
     const national = await makeOffice('national', '', 'nat');
-    if (national.status === 409) return test.skip('a national office already exists in this database');
-    assert.equal(national.status, 201, JSON.stringify(national.body));
-    offices.national = national.body.organization._id;
+    // There is only one national office. If this database already has a real one, the state offices are tested alone.
+    if (national.status === 409) assert.match(national.body.message, /already a national office/);
+    else {
+        assert.equal(national.status, 201, JSON.stringify(national.body));
+        offices.national = national.body.organization._id;
+    }
     assert.equal((await makeOffice('state', '', 'nostate')).status, 400);
-    const ka = await makeOffice('state', 'Karnataka', 'ka');
+    const ka = await makeOffice('state', STATE, 'ka');
     assert.equal(ka.status, 201);
     offices.ka = ka.body.organization._id;
-    assert.equal((await makeOffice('state', 'Karnataka', 'ka2')).status, 409);
+    assert.equal((await makeOffice('state', STATE, 'ka2')).status, 409);
 });
 
 test('offices publish; an institution cannot', async () => {
@@ -83,7 +90,7 @@ test('offices publish; an institution cannot', async () => {
     const exam = await asKa('POST', '/me/bsg/notices', { kind: 'exam', title: 'Rajya Puraskar test', date: '2030-01-10', sections: ['scouts', 'guides'], minRank: 'Tritiya Sopan', rules: 'Tie 10 knots\nFirst aid basics' });
     assert.equal(exam.status, 201, JSON.stringify(exam.body));
     assert.deepEqual(exam.body.notice.rules, ['Tie 10 knots', 'First aid basics']);
-    assert.equal(exam.body.notice.state, 'Karnataka');
+    assert.equal(exam.body.notice.state, STATE);
     if (offices.national) {
         const natAdmin = await Admin.findOne({ organizationId: offices.national });
         assert.equal((await app.call(sign(natAdmin._id))('POST', '/me/bsg/notices', { kind: 'camp', title: 'National jamboree', date: '2030-02-01' })).status, 201);
@@ -91,7 +98,7 @@ test('offices publish; an institution cannot', async () => {
     assert.equal((await app.call(sign(schoolAdmin._id))('POST', '/me/bsg/notices', { title: 'Mine', date: '2030-01-01' })).status, 403);
     // An office's state is fixed.
     await asKa('PUT', '/me', { state: 'Kerala' });
-    assert.equal((await Organization.findById(offices.ka)).state, 'Karnataka');
+    assert.equal((await Organization.findById(offices.ka)).state, STATE);
 });
 
 test('an institution sees national notices and its own state\'s, once its state is set', async () => {
@@ -99,9 +106,9 @@ test('an institution sees national notices and its own state\'s, once its state 
     const before = (await asSchool('GET', '/me/bsg/feed')).body.notices.map((n) => n.title);
     assert.ok(!before.includes('Rajya Puraskar test'));
     assert.equal((await asSchool('PUT', '/me', { state: 'Atlantis' })).status, 400);
-    assert.equal((await asSchool('PUT', '/me', { state: 'Karnataka' })).status, 200);
+    assert.equal((await asSchool('PUT', '/me', { state: STATE })).status, 200);
     const feed = (await asSchool('GET', '/me/bsg/feed')).body.notices;
-    assert.ok(feed.some((n) => n.title === 'Rajya Puraskar test' && n.from === 'BSG Karnataka'));
+    assert.ok(feed.some((n) => n.title === 'Rajya Puraskar test' && n.from === `BSG ${STATE}`));
     const kerala = await Admin.create({ name: 'Kerala', email: `tbn-ke-${STAMP}@example.com`, password: PASS, role: 'orgadmin', organizationId: otherSchool._id });
     const keralaFeed = (await app.call(sign(kerala._id))('GET', '/me/bsg/feed')).body.notices;
     assert.ok(!keralaFeed.some((n) => n.title === 'Rajya Puraskar test'));
@@ -144,7 +151,7 @@ test('rules need no date and never drop out; attendance is marked for those the 
     const member = await NccNssMember.findOne({ userId: kid._id });
     const found = await asKa('GET', `/me/bsg/notices/${camp.body.notice._id}/attendance?search=Notice%20Scout`);
     assert.equal(found.body.found.length, 1);
-    // A Kerala scout is outside Karnataka's reach and is dropped.
+    // A Kerala scout is outside the state office's reach and is dropped.
     const keralaKid = await User.create({ name: 'Kerala Scout', email: `tbn-kk-${STAMP}@example.com`, phone: '9999999999', cardNumber: `TBNK${STAMP}`, password: PASS, organizationId: otherSchool._id });
     const keralaMember = await NccNssMember.create({ organizationId: otherSchool._id, userId: keralaKid._id, scheme: 'SCOUTS', status: 'active' });
     const saved = await asKa('PUT', `/me/bsg/notices/${camp.body.notice._id}/attendance`, { presentMemberIds: [String(member._id), String(keralaMember._id)] });

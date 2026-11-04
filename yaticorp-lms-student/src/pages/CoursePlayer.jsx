@@ -298,15 +298,14 @@ const CoursePlayer = () => {
                     the player had none: the bottom bar's sections, but nothing
                     back to the page the student came from. */}
                 <div className="flex min-w-0 items-center gap-3">
-                    <button type="button" onClick={goBack} className="group inline-flex shrink-0 items-center gap-2 text-sm font-bold text-slate-600 transition-colors hover:text-indigo-600">
+                    {/* The arrow alone (the word "Back" taken off, 2026-10-31); it is still named for screen readers. */}
+                    <button type="button" onClick={goBack} aria-label="Back" title="Back" className="group inline-flex shrink-0 items-center">
                         <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors group-hover:border-indigo-300 group-hover:text-indigo-600">
                             <ArrowLeft size={17} aria-hidden="true" />
                         </span>
-                        Back
                     </button>
                     {course?.title && (
                         <>
-                            <span aria-hidden="true" className="h-5 w-px shrink-0 bg-slate-200" />
                             <h1 className="min-w-0 truncate text-base font-black text-slate-900">{course.title}</h1>
                         </>
                     )}

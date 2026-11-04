@@ -211,10 +211,11 @@ export default function ThesisEditor() {
                     <div className="min-w-0 space-y-3">
                         <Card className="space-y-3">
                             <div className="flex flex-wrap items-center gap-2">
+                                {/* The name never squeezes below 14rem: on a phone the status and buttons go under it. */}
                                 <label htmlFor="chapter-title" className="sr-only">Chapter title</label>
                                 <input key={`t-${chapter._id}`} id="chapter-title" defaultValue={chapter.title} maxLength={200}
                                     onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== chapter.title) saveField({ title: v }); }}
-                                    className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-lg font-semibold text-slate-900 hover:border-slate-200 focus:border-amber-400 focus:outline-none" />
+                                    className="min-w-0 grow basis-56 rounded-lg border border-transparent px-2 py-1 text-lg font-semibold text-slate-900 hover:border-slate-200 focus:border-amber-400 focus:outline-none" />
                                 <label htmlFor="chapter-status" className="sr-only">Status</label>
                                 <Select tone="emerald" id="chapter-status" value={chapter.status} onChange={(e) => saveField({ status: e.target.value })} className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700">
                                     {STATUSES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}

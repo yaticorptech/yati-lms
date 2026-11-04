@@ -348,6 +348,9 @@ router.post('/members', async (req, res) => {
         await closeMemberships({ userId, notIn: req.organization._id, reason: 'No longer in that organization' });
         const rows = await NccNssMember.find({ userId, scheme, clubId: club?._id || null, organizationId: req.organization._id, status: { $in: [...LIVE_STATUSES, 'completed', 'rejected'] } }).sort({ createdAt: -1 });
         if (rows.some((r) => r.status !== 'rejected')) return res.status(409).json({ message: `This student is already in ${name}.` });
+        // NCC or NSS, not both (./corps.js).
+        const clash = await require('./corps').otherCorps(userId, scheme);
+        if (clash) return res.status(409).json({ code: 'NCC_OR_NSS', message: require('./corps').corpsMessage(clash, scheme, { student: false }) });
         const existing = rows[0] || null;
         const fields = { ...memberFields(req.body), ...chosen.fields, status: 'active', addedBy: 'organization', organizationId: req.organization._id, endedAt: null, endReason: '' };
         const member = existing
@@ -420,6 +423,11 @@ router.put('/members/:id', async (req, res) => {
         // Moving an active member between units is a transfer, so their record in the old unit stays whole.
         if (member.unitId && chosen.fields && String(chosen.fields.unitId) !== String(member.unitId) && ['active', 'completed'].includes(member.status)) {
             return res.status(409).json({ message: 'Use Transfer to move a member to another unit, so their record in this one is kept.' });
+        }
+        // Approving a request: not while they are active in the other of NCC / NSS (./corps.js).
+        if (req.body?.status === 'active' && member.status !== 'active') {
+            const clash = await require('./corps').otherCorps(member.userId, member.scheme, { activeOnly: true });
+            if (clash) return res.status(409).json({ code: 'NCC_OR_NSS', message: require('./corps').corpsMessage(clash, member.scheme, { student: false }) });
         }
         Object.assign(member, memberFields(req.body), closed ? {} : chosen.fields);
         if (['active', 'rejected', 'completed'].includes(req.body?.status)) member.status = req.body.status;

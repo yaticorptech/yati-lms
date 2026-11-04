@@ -148,6 +148,54 @@ const userSchema = new mongoose.Schema({
         max: 480
     },
 
+    // ─── 360 activity proofs ─────────────────────────────────────────────────
+    // What the student uploaded as proof for their organization's 360
+    // activities, and what their 360 teacher made of it (src/three60/activities.js).
+    activityProofs: {
+        type: [new mongoose.Schema({
+            activityId: { type: mongoose.Schema.Types.ObjectId, required: true },
+            activityName: { type: String, default: '' },
+            groupName: { type: String, default: '' },
+            fileUrl: { type: String, required: true },
+            fileType: { type: String, enum: ['image', 'pdf'], default: 'image' },
+            fileName: { type: String, default: '' },
+            objectPath: { type: String, default: '' },
+            // In the student's own Google Drive (2026-11-02): fileUrl is the view link teachers open,
+            // previewUrl the picture Drive draws of it, driveFileId to delete it there.
+            driveFileId: { type: String, default: '' },
+            previewUrl: { type: String, default: '' },
+            note: { type: String, default: '', maxlength: 300 },
+            status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+            marks: { type: Number, default: 0 },
+            reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null },
+            reviewerName: { type: String, default: '' },
+            reviewNote: { type: String, default: '', maxlength: 300 },
+            reviewedAt: { type: Date, default: null }
+        }, { timestamps: true })],
+        default: undefined,
+        select: false
+    },
+    // The mark their 360 teacher gave for each "up to N" activity, from the
+    // proof they saw: one mark per activity, never above N (2026-10-31).
+    activityMarks: {
+        type: [new mongoose.Schema({
+            activityId: { type: mongoose.Schema.Types.ObjectId, required: true },
+            marks: { type: Number, min: 0, default: 0 },
+            by: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null },
+            byName: { type: String, default: '' },
+            at: { type: Date, default: Date.now }
+        }, { _id: false })],
+        default: undefined,
+        select: false
+    },
+
+    // ─── Certificate numbers ─────────────────────────────────────────────────
+    // Every certificate on My Certificates is numbered YATI<card>001, 002…
+    // (src/services/certificateNumbers.js): the last number given, and which
+    // certificate has which — kept once given, never reused.
+    certificateSeq: { type: Number, default: 0 },
+    certificateNumbers: { type: [{ _id: false, key: String, number: String }], default: undefined, select: false },
+
     // ─── Rewards & wallet ────────────────────────────────────────────────────
     // Who this student is, for the purpose of money. School and college
     // accounts earn XP, badges and reward points; whether a type may turn

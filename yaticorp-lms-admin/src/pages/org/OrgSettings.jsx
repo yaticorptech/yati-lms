@@ -15,6 +15,7 @@ import React, { useState, useEffect, useId } from 'react';
 import { Pencil, Lock, Loader2, Check, Copy, KeyRound, ImagePlus, RotateCw, Camera } from 'lucide-react';
 import api from '../../utils/api';
 import { CARD, INPUT, LABEL, BTN, BTN2, Banner } from '../../components/orgUi';
+import Select from '../../components/Select';
 import PasswordField from '../../components/PasswordField';
 import PasswordStrengthChecker from '../../components/PasswordStrengthChecker';
 import { formatDate } from '../../utils/dates';
@@ -283,10 +284,10 @@ const OrgSettings = () => {
 
                     {/* The state decides which BSG state office's exams, camps and events reach its Scouts & Guides. */}
                     <Field label="State" id="set-state" hint={organization?.bsgOffice ? 'A BSG office\'s state is set when it is made.' : 'Your Scouts & Guides see this state\'s BSG notices, and the national ones.'}>
-                        <select id="set-state" value={form.state} onChange={set('state')} disabled={!editing || !!organization?.bsgOffice} className={INPUT}>
+                        <Select id="set-state" aria-label="State" value={form.state} onChange={set('state')} disabled={!editing || !!organization?.bsgOffice} className={INPUT}>
                             <option value="">Not set</option>
                             {INDIA_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        </Select>
                     </Field>
 
                 </div>

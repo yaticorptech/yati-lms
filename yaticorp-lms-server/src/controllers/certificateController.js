@@ -60,7 +60,13 @@ const generateCertificate = async (req, res) => {
         const user = await User.findById(userId);
         if (!course || !user) return res.status(404).json({ message: 'Course not found' });
 
-        const certNumber = existingCert.certificateNumber;
+        // YATI<card>-001: an older number is put right first, so the PDF and My Profile agree (services/certificateNumbers.js).
+        const numbers = require('../services/certificateNumbers');
+        let certNumber = existingCert.certificateNumber;
+        if (!numbers.FORMAT.test(String(certNumber || ''))) {
+            await numbers.ensureCurrent(userId);
+            certNumber = (await require('../models/Certificate').findById(existingCert._id).select('certificateNumber').lean())?.certificateNumber || certNumber;
+        }
 
         // 3. Setup PDF Generator for Streaming
         const doc = new PDFDocument({

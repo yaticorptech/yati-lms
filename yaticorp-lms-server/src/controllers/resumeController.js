@@ -15,6 +15,7 @@ const { parseResume } = require('../jobboard/services/resumeService');
 const { localParse } = require('../jobboard/services/localResumeParse');
 const { normalizeSkillList } = require('../jobboard/services/matchService');
 const { uploadToBunny } = require('../utils/bunnyStorage');
+const { driveRequired, storeInDrive, sendDriveError, removeFile } = require('../integrations/google/driveStore');
 const { buildResumeData, renderAtsPdf } = require('../services/atsResumeService');
 const { hasFullAccess } = require('../services/fullAccess');
 
@@ -91,9 +92,12 @@ const uploadResume = (req, res) => {
             const filename = String(req.file.originalname || 'resume.pdf').slice(0, 200);
             const existing = await ResumeProfile.findOne({ userId: req.user._id }).lean();
 
-            // 1. Keep the file.
-            let fileUrl = '', objectPath = '';
-            if (bunnyConfigured()) {
+            // 1. Keep the file: in the student's own Google Drive, shared by link (2026-11-02).
+            let fileUrl = '', objectPath = '', driveFileId = '';
+            if (driveRequired()) {
+                const d = await storeInDrive(req.user._id, req.file.buffer, { name: filename, mimeType: mime, description: 'The resume you uploaded to YATICORP.' });
+                fileUrl = d.viewUrl; driveFileId = d.driveFileId;
+            } else if (bunnyConfigured()) {
                 fileUrl = await uploadToBunny(req.file.buffer, filename, 'lms_resumes');
                 objectPath = fileUrl.split('/').slice(3).join('/');
             }
@@ -109,12 +113,13 @@ const uploadResume = (req, res) => {
             const local = storeOnly ? null : localParse(req.file.buffer, mime);
             const set = {
                 // A .docx is only ever read locally, so what it found is final.
-                userId, filename, fileUrl, objectPath, parsedAt: uploadedAt, parseStatus: isDocx && local?.skills?.length ? 'parsed' : 'stored',
+                userId, filename, fileUrl, objectPath, driveFileId, parsedAt: uploadedAt, parseStatus: isDocx && local?.skills?.length ? 'parsed' : 'stored',
                 skills: local?.skills || [], skillsRaw: local?.skillsRaw || [], experienceYears: local?.experienceYears || 0,
                 seniority: 'Fresher', education: { level: '', degree: '', specialization: '' }, pastRoles: [], headline: ''
             };
             let row = await ResumeProfile.findOneAndUpdate({ userId }, { $set: set }, { upsert: true, returnDocument: 'after' }).lean();
             if (existing?.objectPath && existing.objectPath !== objectPath) deleteFromBunny(existing.objectPath);
+            if (existing?.driveFileId && existing.driveFileId !== driveFileId) removeFile(userId, existing.driveFileId);
 
             // 3. Read it — best effort, and never something the student waits
             //    on for long. The reader is Gemini-backed and metered; it gets
@@ -154,6 +159,7 @@ const uploadResume = (req, res) => {
             const data = await buildResumeData(userId);
             res.status(201).json({ resume: view(row), ats: data.stats, parsed: row?.parseStatus === 'parsed' || (row?.skills?.length || 0) > 0, parsing });
         } catch (error) {
+            if (sendDriveError(res, error)) return;
             console.error('Resume upload error:', error);
             res.status(500).json({ message: 'Upload failed. Please try again.', error: error.message });
         }
@@ -165,6 +171,7 @@ const deleteResume = async (req, res) => {
     try {
         const row = await ResumeProfile.findOneAndDelete({ userId: req.user._id }).lean();
         if (row?.objectPath) deleteFromBunny(row.objectPath);
+        if (row?.driveFileId) removeFile(req.user._id, row.driveFileId);
         const data = await buildResumeData(req.user._id);
         res.json({ ok: true, ats: data.stats });
     } catch (error) {

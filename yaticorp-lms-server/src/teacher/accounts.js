@@ -9,6 +9,7 @@
  * claimed in one step before the account is written, and given back if the
  * account cannot be made, so two people can never register the same card.
  */
+const crypto = require('crypto');
 const Card = require('../models/Card');
 const Setting = require('../models/Setting');
 const { normaliseCardNumber, findUserByCardNumber } = require('../utils/cardNumber');
@@ -43,15 +44,19 @@ const emailTaken = (email, exceptId) => Teacher.exists({
     ...(exceptId ? { _id: { $ne: exceptId } } : {})
 });
 
-/** Name, email and phone, checked; throws AccountError on the first mistake. */
-const checkDetails = ({ name, email, phone }) => {
+/**
+ * Name, email and phone, checked; throws AccountError on the first mistake.
+ * `emailOptional`: a teacher their organization adds with a mobile number
+ * only, who gives an email when they set up their account.
+ */
+const checkDetails = ({ name, email, phone }, { emailOptional = false } = {}) => {
     const n = String(name ?? '').trim();
     const e = String(email ?? '').trim().toLowerCase();
     const p = String(phone ?? '').trim();
     if (n.length < 2) throw new AccountError('Please enter the full name.', 'name');
     if (n.length > 80) throw new AccountError('Please keep the name under 80 characters.', 'name');
-    if (!e) throw new AccountError('Please enter an email address.', 'email');
-    if (!EMAIL_PATTERN.test(e) || e.length > 254) throw new AccountError('Enter a valid email address.', 'email');
+    if (!e && !emailOptional) throw new AccountError('Please enter an email address.', 'email');
+    if (e && (!EMAIL_PATTERN.test(e) || e.length > 254)) throw new AccountError('Enter a valid email address.', 'email');
     const digits = p.replace(/\D/g, '');
     if (!digits) throw new AccountError('Please enter a phone number.', 'phone');
     if (!/^\+?[\d\s().-]+$/.test(p) || digits.length < 7 || digits.length > 15) throw new AccountError('Please enter a valid phone number (7–15 digits).', 'phone');
@@ -169,21 +174,27 @@ const createTeacher = async (input, options = {}) => {
  * { successCount, failedCount, errors: [{ row, email, message }], created }.
  */
 /**
- * A teacher with no AI card, added by their organization to lead its clubs or
- * Scouts & Guides units: email and password to sign in, no research tools.
- * Throws AccountError, as createTeacher does.
+ * A teacher with no AI card, added by their organization: Scouts & Guides,
+ * 360 or both, as it turns on for them; no research tools. Since 2026-10-30
+ * the organization gives only their name and mobile number: with no password
+ * the account waits (passwordPending) until the teacher sets up their
+ * account on the sign-up page — "is this you?", a password, then their email
+ * and details (auth.js orgSetup). Throws AccountError, as createTeacher does.
  */
 const createActivityTeacher = async (input, { organizationId }) => {
-    const { name, email, phone } = checkDetails(input);
-    const password = typeof input.password === 'string' ? input.password : '';
-    if (!password) throw new AccountError('Please choose a password.', 'password');
-    const weak = validatePasswordStrength(password);
-    if (weak) throw new AccountError(weak, 'password');
-    if (await emailTaken(email)) throw new AccountError('A teacher account already uses this email address.', 'email', 'EMAIL_TAKEN');
+    const { name, email, phone } = checkDetails(input, { emailOptional: true });
+    const given = typeof input.password === 'string' ? input.password : '';
+    if (given) {
+        const weak = validatePasswordStrength(given);
+        if (weak) throw new AccountError(weak, 'password');
+    }
+    // Never told to anyone: nothing signs in with it.
+    const password = given || `${crypto.randomBytes(24).toString('base64url')}Aa1!`;
+    if (email && await emailTaken(email)) throw new AccountError('A teacher account already uses this email address.', 'email', 'EMAIL_TAKEN');
     try {
         return await Teacher.create({
-            name, email, phone, password, status: 'active', createdBy: 'organization',
-            organizationId, organizationJoinedAt: new Date(),
+            name, ...(email ? { email } : {}), phone, password, status: 'active', createdBy: 'organization',
+            organizationId, organizationJoinedAt: new Date(), mentor360: true, passwordPending: !given,
             institution: String(input.institution || '').trim(),
             department: String(input.department || '').trim(),
             designation: String(input.designation || '').trim()
@@ -248,6 +259,28 @@ const clean = (s) => String(s ?? '').replace(/[<>&"]/g, '');
 const sendWelcome = async (teacher, password, madeBy) => {
     try {
         const url = process.env.FRONTEND_URL || process.env.VITE_STUDENT_URL || 'http://localhost:5173';
+        // No email yet (added with a mobile number only): nothing to send.
+        if (!teacher.email) return;
+        // Added with no password: how to set up the account on the sign-up page.
+        if (teacher.passwordPending) {
+            await require('../utils/emailService').sendEmail({
+                to: teacher.email,
+                toName: teacher.name,
+                subject: 'Your YATICORP teacher account',
+                htmlContent: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h2 style="color: #059669;">Welcome to YATICORP</h2>
+                    <p>Hi <strong>${clean(teacher.name)}</strong>,</p>
+                    <p>${clean(madeBy)} has added you as a teacher.</p>
+                    <p>To start, open the link below, choose <strong>Teacher</strong>, tap <strong>No card? Verify as your organization's teacher</strong>, and enter your mobile number <strong>${clean(teacher.phone)}</strong>. Then set your own password and fill in your details.</p>
+                    <p>After that, sign in with your mobile number and that password.</p>
+                    <p style="margin-top: 25px;">
+                        <a href="${url}/signup?as=teacher" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Set up my account</a>
+                    </p>
+                </div>`
+            });
+            return;
+        }
         // With a card: the research side. Without: their clubs and units, signed in by email.
         const carded = Boolean(teacher.cardNumber);
         await require('../utils/emailService').sendEmail({

@@ -17,7 +17,7 @@
  * instead of sudden and total.
  */
 const AiUsage = require('../models/AiUsage');
-const { currentUserId } = require('./aiContext');
+const { currentUserId, currentStore } = require('./aiContext');
 
 /** Generous enough for onboarding (3) plus a full day of planning and mentoring. */
 const PER_STUDENT = Number(process.env.CAREER_AI_DAILY_PER_STUDENT || 30);
@@ -141,8 +141,27 @@ const assertWithinBudget = async () => {
   }
 };
 
+/**
+ * Tell the student's app that this answer spent the platform's free AI credits
+ * (2026-11-02): an `X-AI-Credits: platform` header, which opens a "use your own
+ * free Gemini key" popup once per sign-in. Not for a call on the student's own
+ * key, nor for a demo card (it cannot add one). Synchronous on purpose: it runs
+ * as the generation returns, before the controller can send its response.
+ */
+const markPlatformCredit = () => {
+  try {
+    const store = currentStore();
+    const res = store?.req?.res;
+    if (!res || res.headersSent || !currentUserId()) return;
+    if (store.ownGeminiKey === undefined) return;   // the key was never looked up for this student
+    if (store.ownGeminiKey || store.fullAccess) return;
+    res.setHeader('X-AI-Credits', 'platform');
+  } catch { /* a header must never break generation */ }
+};
+
 /** Record a call that was attempted. Never throws — metering must not break generation. */
 const record = async ({ kind = 'unknown', model, ok = true, ms }) => {
+  if (ok) markPlatformCredit();
   try {
     await AiUsage.create({ userId: currentUserId() || undefined, day: dayKey(), kind, model, ok, ms });
   } catch (error) {
@@ -168,6 +187,7 @@ const remainingForStudent = async (userId) => {
 module.exports = {
   assertWithinBudget,
   record,
+  markPlatformCredit,
   usageToday,
   remainingForStudent,
   dayKey,

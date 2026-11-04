@@ -43,6 +43,8 @@ const WinnerPreview = ({ c }) => {
     return (
         <div className="relative aspect-[1500/1049] w-full overflow-hidden bg-white [container-type:inline-size]" data-competition-certificate data-winner>
             <img src="/certificates/competition_winner.jpg" alt="" className="absolute inset-0 h-full w-full" />
+            {/* The certificate's number, where the PDF prints it (2026-10-31). */}
+            {c.number && <span className="absolute whitespace-nowrap font-bold leading-none" style={at(157, 178, 17, { color: RED, fontFamily: SANS })}>Certificate No. {c.number}</span>}
             <span className="absolute whitespace-nowrap leading-none" style={at(155, 314, 30, { color: '#1f1f1f', fontFamily: SANS })}>{w.subtitle}</span>
             <span className="absolute truncate font-bold leading-none" style={at(152, 392, 84, { color: RED, fontFamily: SERIF, maxWidth: `${(560 / TPL_W) * 100}%` })}>{c.playerName}</span>
             <span className="absolute whitespace-nowrap leading-none" style={at(157, 519, 26, { color: '#1f1f1f', fontFamily: SANS })}>{w.lead}</span>
@@ -53,7 +55,9 @@ const WinnerPreview = ({ c }) => {
     );
 };
 
-export default function CompetitionCertificatePreview({ certificate: c }) {
+/** `number` (YATI<card>-001), when given, is shown where the PDF prints it; else the certificate's own. */
+export default function CompetitionCertificatePreview({ certificate, number }) {
+    const c = number ? { ...certificate, number } : certificate;
     // The organiser's own certificate (the Certificate Builder, 2026-10-31): drawn as it prints.
     if (c.issued) return <CertificateCanvas template={c.issued.template} input={c.issued.input} images={imagesOfIssued(c.issued)} className="block h-full w-full bg-white" />;
     if (c.place && c.words) return <WinnerPreview c={c} />;
@@ -71,6 +75,8 @@ export default function CompetitionCertificatePreview({ certificate: c }) {
             {/* The two borders */}
             <span aria-hidden="true" className="absolute" style={{ inset: `${pct(17, PAGE_H)} ${pct(17, PAGE_W)}`, border: `${size(10)} solid ${winner ? GOLD : INDIGO}` }} />
             <span aria-hidden="true" className="absolute" style={{ inset: `${pct(38, PAGE_H)} ${pct(38, PAGE_W)}`, border: `${size(1.5)} solid ${winner ? '#d69e2e' : '#a5b4fc'}` }} />
+
+            {c.number && <span className="absolute whitespace-nowrap font-bold leading-none" style={{ left: pct(52, PAGE_W), top: pct(50, PAGE_H), fontSize: size(10), color: '#64748b', fontFamily: SANS }}>Certificate No. {c.number}</span>}
 
             {/* The rosette, for the placed */}
             {winner && (

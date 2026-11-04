@@ -11,7 +11,6 @@
  * failure reads as a sentence rather than "Request failed".
  */
 import client from '../utils/api';
-import saveToDrive from '../integrations/google/saveToDrive';
 
 const unwrap = (err) => {
     const body = err.response?.data;
@@ -40,17 +39,8 @@ export const jobsApi = {
     resumeUpload: (file) => {
         const fd = new FormData();
         fd.append('resume', file);
-        return client.post('/jobs/resume', fd).then((r) => {
-            // A copy in their Drive, but never at the cost of their place: a
-            // student uploading a resume here is midway through looking for
-            // work, and consent would navigate the whole page to Google.
-            saveToDrive(file, {
-                name: file.name,
-                description: 'The resume you uploaded to YATICORP.',
-                ask: false
-            });
-            return r.data;
-        }).catch(unwrap);
+        // The server keeps the file in the student's own Google Drive (2026-11-02).
+        return client.post('/jobs/resume', fd).then((r) => r.data).catch(unwrap);
     },
     resumeDelete: () => client.delete('/jobs/resume').then((r) => r.data).catch(unwrap),
     saveJob: (jobId) => post('/saved', { jobId }),
