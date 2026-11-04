@@ -14,15 +14,16 @@
  * What a teacher can open (`access`):
  *   Organisation dashboard only  name, email and password — a limited sign-in to its panel
  *   Teacher dashboard only       with an AI card: the card, then the details, as before;
- *                                without a card: just the details — a club or Scouts &
- *                                Guides leader who signs in with email and sees only those
+ *                                without a card: name and mobile number only — Scouts & Guides,
+ *                                360 or both; they verify on the sign-up page with that number,
+ *                                set their own password and fill in their email and details
  *   Both                         the same, plus one email and password for the panel, where
  *                                Research opens their teacher dashboard (with a card)
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 
-import { Camera, Keyboard, Lock, Loader2, UserPlus, X, CreditCard, Compass } from 'lucide-react';
+import { Camera, Keyboard, Lock, Loader2, UserPlus, X, CreditCard, Compass, Orbit } from 'lucide-react';
 import api from '../../utils/api';
 import { stopReader } from '../../utils/qrReader';
 import { Dialog, DialogTitle, Banner, BTN, BTN2, INPUT, LABEL } from '../orgUi';
@@ -53,8 +54,16 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
     const chosen = access.organization || access.teacher;
     // The teacher dashboard with an AI card (research tools), or without one (clubs and units only).
     const [research, setResearch] = useState(true);
+    // What their dashboard shows, each on or off (also on the Teachers page later):
+    // Scouts & Guides and 360. Without a card, both start on; with one, 360 starts off.
+    const [features, setFeatures] = useState({ scouts: true, mentor360: false });
+    // Without a card they have nothing but these: at least one must be on.
+    const nothingOn = choosing && access.teacher && !research && !features.scouts && !features.mentor360;
     const needsCard = !orgOnly && access.teacher && research;
     const showDetails = chosen && !orgOnly && (card || !needsCard);
+    // An organization's teacher without a card: name and mobile number; they
+    // set up their account (password, email, details) on the sign-up page (2026-10-30).
+    const short = choosing && !needsCard;
 
     const set = (key) => (e) => { setForm((f) => ({ ...f, [key]: e.target.value })); setErrors((x) => ({ ...x, [key]: '' })); };
 
@@ -95,14 +104,16 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
 
     const submit = async (e) => {
         e.preventDefault();
-        if (busy || !chosen || (needsCard && !card)) return;
+        if (busy || !chosen || (needsCard && !card) || nothingOn) return;
         setBusy(true);
         setError('');
         setErrors({});
         try {
-            const body = orgOnly ? { name: form.name, email: form.email, password: form.password } : { ...form, ...(needsCard ? card : {}) };
+            const body = orgOnly ? { name: form.name, email: form.email, password: form.password }
+                : short ? { name: form.name, phone: form.phone }
+                    : { ...form, ...(needsCard ? card : {}) };
             if (!choices) delete body.organizationId;
-            if (choosing) body.access = { ...access, research };
+            if (choosing) { body.access = { ...access, research }; body.features = features; }
             const r = await api.post(endpoint, body);
             onAdded(r.data.message || `${form.name} was added.`);
         } catch (err) {
@@ -131,10 +142,10 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
                                     <div className="grid gap-2 sm:grid-cols-2">
                                         {[
                                             [true, CreditCard, 'With an AI card', 'Research, publications, thesis, writing and plagiarism tools, plus any clubs and units they lead. Signs in with the card.'],
-                                            [false, Compass, 'Without a card', 'Only the clubs and Scouts & Guides units they lead. Signs in with email and password.']
+                                            [false, Compass, 'Without a card', 'Only what you turn on below: Scouts & Guides, 360, or both. Just their name and mobile number; they set up the rest on Sign Up.']
                                         ].map(([v, Icon, title, hint]) => (
                                             <label key={title} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${research === v ? 'border-emerald-300 bg-emerald-50 ring-1 ring-emerald-300' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                                <input type="radio" name="teacher-research" checked={research === v} onChange={() => { setResearch(v); setError(''); }} className="mt-1 h-4 w-4 shrink-0 accent-emerald-600" />
+                                                <input type="radio" name="teacher-research" checked={research === v} onChange={() => { setResearch(v); setFeatures((f) => ({ ...f, mentor360: !v })); setError(''); }} className="mt-1 h-4 w-4 shrink-0 accent-emerald-600" />
                                                 <span className="min-w-0">
                                                     <span className="flex items-center gap-1.5 text-sm font-bold text-slate-800"><Icon size={15} className="text-emerald-600" /> {title}</span>
                                                     <span className="mt-0.5 block text-xs text-slate-500">{hint}</span>
@@ -142,6 +153,22 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
                                             </label>
                                         ))}
                                     </div>
+                                </div>
+                            )}
+                            {access.teacher && (
+                                <div className="space-y-2 pt-1">
+                                    <p className={LABEL}>Their dashboard shows</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[['scouts', Compass, 'Scouts & Guides'], ['mentor360', Orbit, '360 mentor']].map(([key, Icon, label]) => (
+                                            <label key={key} className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${features[key] ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                                                <input type="checkbox" checked={features[key]} onChange={(e) => setFeatures((f) => ({ ...f, [key]: e.target.checked }))} className="h-4 w-4 accent-emerald-600" />
+                                                <Icon size={15} className="text-emerald-600" /> {label}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    {nothingOn
+                                        ? <p role="alert" className="text-xs font-semibold text-red-600">Choose Scouts &amp; Guides, 360, or both: without a card that is all their dashboard has.</p>
+                                        : <p className="text-xs text-slate-500">You can turn each on or off later on the Teachers page.</p>}
                                 </div>
                             )}
                             <p className="text-xs text-slate-500">To let someone into this organization dashboard, add them under <strong>Users</strong>.</p>
@@ -210,6 +237,10 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
                         <div className="space-y-3">
                             <p className={LABEL}>{needsCard ? '2 · The teacher' : 'The teacher'}</p>
                             <Field id="t-name" label="Full name *" value={form.name} onChange={set('name')} error={errors.name} autoComplete="off" placeholder="Dr. Asha Rao" />
+                            {short ? (<>
+                                <Field id="t-phone" label="Mobile number *" type="tel" value={form.phone} onChange={set('phone')} error={errors.phone} autoComplete="off" placeholder="98450 12345" />
+                                <p className="text-xs text-slate-500">Tell them to open <strong>Sign Up</strong>, choose <strong>Teacher</strong>, tap <strong>No card? Verify as your organization’s teacher</strong> and enter this mobile number. They confirm it is them, set a password and fill in their email and details. After that they sign in every day with this mobile number and their password.</p>
+                            </>) : (<>
                             <div className="grid gap-3 sm:grid-cols-2">
                                 <Field id="t-email" label="Email *" type="email" value={form.email} onChange={set('email')} error={errors.email} autoComplete="off" placeholder="name@college.edu" hint="Any email address — sign-in details go here." />
                                 <Field id="t-phone" label="Phone *" type="tel" value={form.phone} onChange={set('phone')} error={errors.phone} autoComplete="off" placeholder="98450 12345" />
@@ -232,13 +263,14 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
                                     </Select>
                                 </Field>
                             )}
-                            <p className="text-xs text-slate-500">The teacher is emailed their {needsCard ? 'card number' : 'email'} and this password, and signs in by choosing <strong>Teacher</strong> on the sign-in page{needsCard ? '' : ' (Sign in with email)'}.{access.organization ? ' The same email and password sign in to this panel.' : ''}</p>
+                            <p className="text-xs text-slate-500">The teacher is emailed their {needsCard ? 'card number' : 'mobile number'} and this password, and signs in with it on the sign-in page.{access.organization ? ' The same email and password sign in to this panel.' : ''}</p>
+                            </>)}
                         </div>
                     )}
                 </div>
                 <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 px-5 py-4">
                     <button type="button" onClick={onClose} className={BTN2} disabled={busy}>Cancel</button>
-                    <button type="submit" disabled={busy || !chosen || (needsCard && !card)} className={BTN}>
+                    <button type="submit" disabled={busy || !chosen || (needsCard && !card) || nothingOn} className={BTN}>
                         {busy && <Loader2 size={15} className="animate-spin" />} Add teacher
                     </button>
                 </div>

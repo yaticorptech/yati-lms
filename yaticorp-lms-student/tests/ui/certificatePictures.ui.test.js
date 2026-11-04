@@ -56,6 +56,62 @@ describe('certificate pictures', { skip: skipWithoutStyles }, () => {
         assert.equal(result.uploadedPicture, true, 'an uploaded PDF with a picture shows it');
     });
 
+    test('each certificate shows its own number under it', async () => {
+        const { result, errors } = await screen({
+            entry: entry([CERT]),
+            api: apiModule({ '/user/achievements': { achievements: [UPLOADED_PDF], max: 30 } },
+                `(url, body) => (url === '/user/certificate-numbers' ? { numbers: { 'course-c1': 'YATI240100034472-002', 'up-a1': 'YATI240100034472-001' } } : {})`),
+            styles: true, files, width: 1100, script: `
+            await sleep(900);
+            const asked = window.__calls.find((c) => c[0] === 'POST' && c[1] === '/user/certificate-numbers');
+            return { asked: asked && asked[2], under: $$('[data-certificate-number]').map((p) => p.innerText.trim()) };` });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result.asked.items.map((i) => i.key).sort(), ['course-c1', 'up-a1']);
+        assert.deepEqual(result.under.sort(), ['YATI240100034472-001', 'YATI240100034472-002'], 'the number alone, no "No."');
+    });
+
+    test('every certificate has Download, View and Delete as symbols; View opens it large', async () => {
+        const { result, errors } = await screen({
+            entry: entry([CERT]), api: apiModule({ '/user/achievements': { achievements: [UPLOADED_PDF], max: 30 } }),
+            styles: true, files, width: 1100, script: `
+            await sleep(900);
+            const cards = $$('article');
+            const actions = cards.map((a) => [...a.querySelectorAll('button, a')].map((b) => b.getAttribute('title')).filter(Boolean));
+            const words = cards.map((a) => [...a.querySelectorAll('button, a')].map((b) => b.innerText.trim()).filter(Boolean));
+            const course = cards.find((a) => a.querySelector('[data-certificate-preview]'));
+            course.querySelector('button[title=View]').click(); await sleep(300);
+            const dialog = $('[role=dialog][aria-labelledby=cert-view-title]');
+            return { actions, words, dialog: dialog && text(dialog), large: !!(dialog && dialog.querySelector('[data-certificate-preview]')) };` });
+        assert.deepEqual(errors, []);
+        for (const a of result.actions) assert.deepEqual(a, ['Download', 'View', 'Delete']);
+        for (const w of result.words) assert.deepEqual(w, [], 'symbols only, no words on the buttons');
+        assert.match(result.dialog, /Full Stack Web Development/);
+        assert.equal(result.large, true);
+    });
+
+    test('an uploaded picture opens in YATICORP\'s frame with its number; a competition certificate shows its number', async () => {
+        const PIC = { id: 'p1', title: 'Singing', issuer: 'Club', fileType: 'image', fileUrl: '/certificates/cert_template.jpg', thumbnailUrl: '/certificates/cert_template.jpg', createdAt: '2026-09-01T10:00:00.000Z' };
+        const WON = { competitionId: 'k9', name: 'Inter-College Chess Championship', game: 'chess', completedAt: '2026-10-17T10:00:00.000Z', teamName: 'Knights', collegeName: 'St Agnes', place: 1, title: 'Winner', playerName: 'Demo1', number: 'YATI240100034472-004',
+            words: { subtitle: 'of Achievement — Winner', lead: 'has won first place in the', date: '17/10/2026', paragraph: 'Well played.' } };
+        const { result, errors } = await screen({
+            entry: entry([]), styles: true, files, width: 1100,
+            api: apiModule({ '/user/achievements': { achievements: [PIC], max: 30 }, '/competitions/certificates': { certificates: [WON] } },
+                `(url) => (url === '/user/certificate-numbers' ? { numbers: { 'up-p1': 'YATI240100034472-003' } } : {})`),
+            script: `
+            await sleep(900);
+            const comp = $('[data-competition-certificate]');
+            const compText = comp && comp.innerText;
+            const up = [...document.querySelectorAll('article')].find((a) => /Singing/.test(a.getAttribute('title') || ''));
+            up.querySelector('button[title=View]').click(); await sleep(400);
+            const frame = $('[data-uploaded-frame]');
+            return { compText, frame: !!frame, frameNumber: frame && (frame.querySelector('[data-frame-number]') || {}).innerText, picture: !!(frame && frame.querySelector('img')) };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.compText, /Certificate No\. YATI240100034472-004/, 'the competition certificate shows its number, as the PDF prints it');
+        assert.equal(result.frame, true, 'the uploaded picture sits in YATICORP\'s frame');
+        assert.equal(result.picture, true);
+        assert.equal(result.frameNumber, 'Certificate No. YATI240100034472-003');
+    });
+
     test('an uploaded PDF goes up with a picture of its first page', async () => {
         const { result, errors } = await screen({
             entry: entry([]), styles: true, files,
@@ -93,8 +149,7 @@ describe('certificate pictures', { skip: skipWithoutStyles }, () => {
             await sleep(900);
             const pic = $('[data-competition-certificate]');
             const card = pic.closest('article');
-            const pdf = [...card.querySelectorAll('button')].find((b) => /PDF/.test(b.innerText));
-            pdf.click(); await sleep(300);
+            card.querySelector('button[title=Download]').click(); await sleep(300);
             const design = pic.querySelector('img');
             const before = { design: design && design.getAttribute('src'), drawn: design && design.complete && design.naturalWidth > 0, text: text(pic), ribbon: /verified/i.test(card.innerText), canDelete: !!card.querySelector('button[aria-label^="Delete"]'),
                      count: text($('h3')), asked: window.__calls.some((c) => c[0] === 'GET' && c[1] === '/competitions/k9/certificate'), saved: window.__saved,
@@ -116,7 +171,7 @@ describe('certificate pictures', { skip: skipWithoutStyles }, () => {
         assert.equal(result.canDelete, true, 'it can be deleted from the frame, like any other');
         assert.match(result.count, /2 achievements/, 'it counts alongside the course certificate');
         assert.deepEqual(result.order, ['competition', 'course'], 'newest first');
-        assert.equal(result.asked, true, 'PDF asks the server for this competition\'s certificate');
+        assert.equal(result.asked, true, 'Download asks the server for this competition\'s certificate');
         assert.equal(result.saved, 'Certificate_Inter-College_Chess_Championship.pdf');
         assert.match(result.confirm, /stays yours in Competitions/, 'Delete asks first, and says where it still is');
         assert.equal(result.named, true, 'the question is a named dialog');
@@ -130,7 +185,7 @@ describe('certificate pictures', { skip: skipWithoutStyles }, () => {
     const MANY = Array.from({ length: 13 }, (_, i) => ({ id: `u${i + 1}`, title: `Upload ${i + 1}`, issuer: 'College', fileType: 'image', fileUrl: `https://cdn.example/${i + 1}.png`,
         thumbnailUrl: '/certificates/cert_template.jpg', createdAt: `2026-09-${String(i + 2).padStart(2, '0')}T10:00:00.000Z` }));
     const OLD_COURSE = { ...CERT, createdAt: '2026-08-01T10:00:00.000Z', issuedAt: '2026-08-01T10:00:00.000Z' };
-    const shown = `$$('article').map((a) => (a.querySelector('[data-certificate-preview]') ? 'course' : (a.querySelector('a[href]') || {}).getAttribute?.('href')?.match(/\\/(\\d+)\\.png/)?.[1] || 'new'))`;
+    const shown = `$$('article').map((a) => (a.querySelector('[data-certificate-preview]') ? 'course' : (a.getAttribute('title') || '').match(/^Upload (\\d+)/)?.[1] || 'new'))`;
 
     test('on a laptop the frame holds two rows of six: a new upload goes in front, the oldest leaves, nothing is deleted', async () => {
         const { result, errors } = await screen({

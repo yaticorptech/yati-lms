@@ -264,17 +264,28 @@ describe('hosting is the platform admin\'s to give', { skip: skipWithoutChrome }
     test('Organizations has a Competitions switch per organization', async () => {
         const { result, errors } = await screen({ entry: wrap('pages/Organizations.jsx', 'Organizations', { route: '/organizations', path: '/organizations' }), api: orgsApi, script: `
             await sleep(700);
-            window.confirm = () => true;
             const cell = (name) => $('table button[aria-label="' + name + ' can host competitions"]');
-            const before = { abc: [text(cell('ABC College')), cell('ABC College').getAttribute('aria-pressed')], xyz: [text(cell('XYZ University')), cell('XYZ University').getAttribute('aria-pressed')] };
-            cell('ABC College').click(); await sleep(400);
-            cell('XYZ University').click(); await sleep(400);
-            return { header: $$('th').map(text).includes('Competitions'), before,
-                     after: { abc: [text(cell('ABC College')), cell('ABC College').getAttribute('aria-pressed')], xyz: [text(cell('XYZ University')), cell('XYZ University').getAttribute('aria-pressed')] },
+            // The row shows its state on the right; a click opens a popup that says what it is (2026-11-04).
+            const read = (name) => [text(cell(name).lastElementChild), cell(name).getAttribute('aria-pressed')];
+            const before = { abc: read('ABC College'), xyz: read('XYZ University') };
+            const confirmIn = async (name, re) => {
+                cell(name).click(); await sleep(250);
+                const pop = $('[role=dialog][aria-label="Competitions: ' + name + '"]');
+                const said = pop ? pop.innerText : '';
+                [...pop.querySelectorAll('button')].find((b) => re.test(b.innerText)).click(); await sleep(400);
+                return said;
+            };
+            const onPopup = await confirmIn('ABC College', /Enable Competitions/);
+            const offPopup = await confirmIn('XYZ University', /Turn off Competitions/);
+            // Courses, Competitions and 360 share one Features column (2026-11-04).
+            return { header: $$('th').map(text).includes('Features') && /Competitions/.test(cell('ABC College').closest('td').textContent), before, onPopup, offPopup,
+                     after: { abc: read('ABC College'), xyz: read('XYZ University') },
                      puts: window.__calls.filter((c) => c[0] === 'PUT') };` });
         assert.deepEqual(errors, []);
         assert.ok(result.header, 'a Competitions column');
         assert.deepEqual(result.before, { abc: ['Enable', 'false'], xyz: ['Can host', 'true'] });
+        assert.match(result.onPopup, /host its own inter-college competitions/, 'the popup says what it is');
+        assert.match(result.offPopup, /keeps the competitions it already made/);
         assert.deepEqual(result.puts, [
             ['PUT', '/organizations/admin/o1/competition-hosting', { enabled: true }],
             ['PUT', '/organizations/admin/o2/competition-hosting', { enabled: false }]

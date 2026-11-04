@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import api from '../../services/api';
+import lms from '../../../utils/api';
 import { gameKey, currentStudentId } from './gameStorage';
+import { takeOutbox, putBackOutbox, setSeenElsewhere } from './questionMemory';
 
 // The star rules live in stars.js so a test can load them; see there.
 export { starsFor, starsCap, starsForFixed } from './stars';
@@ -8,26 +10,47 @@ export { starsFor, starsCap, starsForFixed } from './stars';
 /**
  * Levels inside one difficulty band, and the ladder as a whole.
  *
- * Thirty per band rather than twenty, and three bands, so every game is a
- * ninety-level climb. The bands still exist — they are what makes level 61
- * harder than level 31 — but the student never picks one. They start at level
- * one and the game gets harder underneath them.
+ * Every game's own settings are written for a ladder of three bands of thirty steps (configFor(difficulty, step)).
+ * Since 2026-10-31 a game is 500 levels, climbed the way Candy Crush's are: in episodes of fifteen, each starting
+ * easy, rising through medium levels to a hard one, easing off for a breather, and ending on a super-hard level —
+ * and each episode starting a little higher than the last. A level's "pressure" (0…1) picks the step on the old
+ * ninety-step ladder that it plays as, so every game gets the curve without being touched.
  */
 export const LEVELS_PER_BAND = 30;
 export const BANDS = 3;
-export const TOTAL_LEVELS = LEVELS_PER_BAND * BANDS;
+export const TOTAL_LEVELS = 500;
+const STEPS = LEVELS_PER_BAND * BANDS;       // the ninety settings each game has
 
-/** Which band a level sits in: 1 for 1–30, 2 for 31–60, 3 for 61–90. */
-export const bandOf = (level) =>
-  Math.min(BANDS, Math.floor((Math.max(1, level) - 1) / LEVELS_PER_BAND) + 1);
+const EPISODE = 15;
+// How far each place in an episode sits above or below the climb, and what it is called.
+const SWING = [-0.10, -0.07, -0.04, -0.02, 0.06, -0.06, -0.03, 0, 0.03, 0.10, -0.07, -0.02, 0.02, 0.07, 0.16];
+const TIERS = ['easy', 'easy', 'easy', 'medium', 'hard', 'easy', 'medium', 'medium', 'medium', 'hard', 'easy', 'medium', 'medium', 'hard', 'super hard'];
+const clampLevel = (level) => Math.min(TOTAL_LEVELS, Math.max(1, Math.floor(Number(level) || 1)));
 
-/** Where a level sits inside its own band, 1…LEVELS_PER_BAND. */
-export const stepInBand = (level) => ((Math.max(1, level) - 1) % LEVELS_PER_BAND) + 1;
+/** How hard a level is, 0 (the first) to 1 (the hardest a game goes). */
+export const pressure = (level) => {
+  const l = clampLevel(level);
+  const climb = Math.pow((l - 1) / (TOTAL_LEVELS - 1), 0.85);
+  // The first levels swing gently: nobody meets a wall at level 5.
+  const swing = SWING[(l - 1) % EPISODE] * Math.min(1, l / 20);
+  return Math.min(1, Math.max(0, 0.02 + climb * 0.92 + swing));
+};
+
+/** 'easy' | 'medium' | 'hard' | 'super hard': what the level is, for its badge. */
+export const levelTier = (level) => (clampLevel(level) <= 3 ? 'easy' : TIERS[(clampLevel(level) - 1) % EPISODE]);
+
+const stepOf = (level) => Math.round(pressure(level) * (STEPS - 1));    // 0…89
+
+/** Which band a level plays in: 1 easy, 2 medium, 3 hard. */
+export const bandOf = (level) => Math.min(BANDS, Math.floor(stepOf(level) / LEVELS_PER_BAND) + 1);
+
+/** Where a level sits inside its band, 1…LEVELS_PER_BAND. */
+export const stepInBand = (level) => (stepOf(level) % LEVELS_PER_BAND) + 1;
 
 /**
  * How far through a band a level sits, 0 at its first step and 1 at its last.
  * Every game scales its own parameters off this, so the same step means the
- * same relative jump in all twenty.
+ * same relative jump in all of them.
  */
 export const ramp = (stepNo) =>
   Math.min(1, Math.max(0, (stepNo - 1) / (LEVELS_PER_BAND - 1)));
@@ -136,8 +159,28 @@ export const pushGame = (gameId, rounds = 10) => {
  * browser is ahead on. Resolves true when anything local changed, so the hub
  * knows to redraw its numbers.
  */
+/**
+ * The questions met, both ways (2026-10-31): what the solo games asked goes up to the account, and what the
+ * account has (group games, other devices) comes down, so neither deals a question already met while new ones are
+ * left. On the competitions API, beside the group games that use the same list.
+ */
+export const syncSeenQuestions = async () => {
+  if (!currentStudentId()) return;
+  const out = takeOutbox();
+  try {
+    if (out.length) await lms.post('/competitions/seen-questions', { keys: out });
+  } catch {
+    putBackOutbox(out);
+  }
+  try {
+    const { data } = await lms.get('/competitions/seen-questions');
+    if (Array.isArray(data?.keys)) setSeenElsewhere(data.keys);
+  } catch { /* offline: the last list stands */ }
+};
+
 export const pullProgress = async () => {
   if (!currentStudentId()) return false;
+  syncSeenQuestions();
   let games;
   try {
     ({ data: { games } } = await api.get('/games/progress'));
@@ -275,7 +318,7 @@ export default function useGameProgress(gameId) {
     setAttempt((a) => a + 1);
     // The updater above runs when React flushes the batch, which is before a
     // queued task: by the time this fires, storage holds the new level.
-    setTimeout(() => pushGame(gameId), 0);
+    setTimeout(() => { pushGame(gameId); syncSeenQuestions(); }, 0);
   }, [gameId]);
 
   /** Play this level again without moving. */
@@ -288,6 +331,7 @@ export default function useGameProgress(gameId) {
     // untouched while the student only ever sees one number.
     difficulty: bandOf(level),
     levelNo: stepInBand(level),
+    tier: levelTier(level),
     attempt,
     advance,
     retry,

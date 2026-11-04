@@ -8,116 +8,35 @@ import { AuthContext } from '../context/AuthContext';
 import DeviceLimitDialog from '../components/DeviceLimitDialog';
 import { Navigate, Link, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
+import SupportDialog from '../components/SupportDialog';
 import { isNative } from '../native/platform';
 import useBackClose from '../native/useBackClose';
 import { SESSION_ENDED_KEY, safeNextPath } from '../utils/sessionExpiry';
-import teacherApi, { enterTeacher, hasTeacherSession, readSigninAs, rememberSigninAs, TEACHER_SESSION_ENDED } from '../teacher/teacherSession';
-import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info, GraduationCap, BookOpenCheck } from 'lucide-react';
-
-// --- Contact Admin Modal ---
-const ContactAdminModal = ({ onClose, page = 'login' }) => {
-    const [form, setForm] = useState({ name: '', email: '', cardNumber: '', subject: '', message: '' });
-    const [loading, setLoading] = useState(false);
-    const [done, setDone] = useState(false);
-    const [error, setError] = useState('');
-    // Android's back button closes this, rather than leaving the page.
-    useBackClose(onClose);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            await api.post('/tickets', { ...form, page });
-            setDone(true);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to send. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div role="dialog" aria-modal="true" aria-labelledby="contact-admin-title" className="bg-[#2a2f45] rounded-2xl shadow-2xl ring-1 ring-white/10 w-full max-w-md overflow-hidden">
-                <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.04]">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-500/20 rounded-lg"><MessageCircleQuestion size={20} className="text-indigo-300" /></div>
-                        <div>
-                            <h2 id="contact-admin-title" className="text-lg font-bold text-slate-100">Contact Admin</h2>
-                            <a href="tel:9535440195" className="text-sm text-indigo-300 font-semibold hover:underline">📞 9535440195</a>
-                        </div>
-                    </div>
-                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-200 transition-colors"><X size={20} /></button>
-                </div>
-
-                {done ? (
-                    <div className="p-8 text-center">
-                        <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle2 size={28} className="text-emerald-400" />
-                        </div>
-                        <h3 className="font-bold text-slate-100 text-lg mb-1">Message Sent!</h3>
-                        <p className="text-slate-400 text-sm mb-4">We've received your request and will get back to you soon.</p>
-                        <button onClick={onClose} className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">Close</button>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                        {error && <div role="alert" className="bg-red-500/10 border border-red-400/30 text-red-300 p-3 rounded-lg text-sm">{error}</div>}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label htmlFor="contact-name" className="block text-xs font-semibold text-slate-200 mb-1">Name *</label>
-                                <input id="contact-name" required autoComplete="name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                                    className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Your name" />
-                            </div>
-                            <div>
-                                <label htmlFor="contact-email" className="block text-xs font-semibold text-slate-200 mb-1">Email *</label>
-                                <input id="contact-email" required type="email" autoComplete="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                                    className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="your@email.com" />
-                            </div>
-                        </div>
-                        <div>
-                            <label htmlFor="contact-card" className="block text-xs font-semibold text-slate-200 mb-1">Card Number (optional)</label>
-                            <input id="contact-card" autoComplete="off" value={form.cardNumber} onChange={e => setForm({ ...form, cardNumber: e.target.value })}
-                                className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="If you have one" />
-                        </div>
-                        <div>
-                            <label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-200 mb-1">Subject *</label>
-                            <input id="contact-subject" required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })}
-                                className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Brief description of your issue" />
-                        </div>
-                        <div>
-                            <label htmlFor="contact-message" className="block text-xs font-semibold text-slate-200 mb-1">Message *</label>
-                            <textarea id="contact-message" required rows="4" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })}
-                                className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue in detail..." />
-                        </div>
-                        <div className="flex justify-end space-x-3 pt-1">
-                            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-300 font-medium hover:bg-white/10 rounded-lg transition-colors text-sm">Cancel</button>
-                            <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center disabled:opacity-50">
-                                <Send size={14} className="mr-1.5" />{loading ? 'Sending...' : 'Send Message'}
-                            </button>
-                        </div>
-                    </form>
-                )}
-            </div>
-        </div>
-    );
-};
+import teacherApi, { enterTeacher, hasTeacherSession, TEACHER_SESSION_ENDED } from '../teacher/teacherSession';
+import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info } from 'lucide-react';
 
 // --- Forgot Password Modal ---
 // Three steps: the card (scanned, or its number typed), then whose account it
 // is — the name and a partly hidden email, from the server — to confirm, and
-// only then the link is sent.
+// only then the link is sent. There is no Student / Teacher choice any more
+// (2026-10-30): a card is looked up as a student's, then as a teacher's, and
+// the link is sent from whichever side it belongs to.
 const FORGOT_SCANNER_ID = 'forgot-card-scanner';
-const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
-    const client = role === 'teacher' ? teacherApi : api;
-    const base = role === 'teacher' ? '/auth/forgot-password' : '/auth/student/forgot-password';
+const SIDES = {
+    student: { client: api, base: '/auth/student/forgot-password' },
+    teacher: { client: teacherApi, base: '/auth/forgot-password' }
+};
+const ForgotPasswordModal = ({ onClose }) => {
+    // Whose account the card or email turned out to be.
+    const [side, setSide] = useState('student');
+    const { client, base } = SIDES[side];
     const [step, setStep] = useState('card');          // 'card' | 'confirm' | 'sent'
-    const [mode, setMode] = useState('scan');          // 'scan' | 'manual'
+    const [mode, setMode] = useState('scan');          // 'scan' | 'manual' | 'email'
     const [scanning, setScanning] = useState(false);
     const [cardNumber, setCardNumber] = useState('');
-    // A teacher with no AI card (a club or Scouts leader) is found by email instead.
+    // A teacher with no AI card is found by the email they gave at set-up (for the reset link only; they sign in by mobile number).
     const [email, setEmail] = useState('');
-    const byEmail = role === 'teacher' && mode === 'email';
+    const byEmail = mode === 'email';
     const who = () => (byEmail ? { email: email.trim() } : { cardNumber });
     const [account, setAccount] = useState(null);      // { name, email }
     const [loading, setLoading] = useState(false);
@@ -139,7 +58,19 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
         setLoading(true);
         setError('');
         try {
-            const res = await client.post(`${base}/preview`, byEmail ? { email: email.trim() } : { cardNumber: number });
+            let res;
+            let found = 'teacher';
+            if (byEmail) res = await SIDES.teacher.client.post(`${SIDES.teacher.base}/preview`, { email: email.trim() });
+            else {
+                // A student's card, or else a teacher's.
+                try { res = await SIDES.student.client.post(`${SIDES.student.base}/preview`, { cardNumber: number }); found = 'student'; }
+                catch (err) {
+                    if (err.response?.status !== 404) throw err;
+                    try { res = await SIDES.teacher.client.post(`${SIDES.teacher.base}/preview`, { cardNumber: number }); }
+                    catch (e2) { if (e2.response?.status === 404) throw err; throw e2; }
+                }
+            }
+            setSide(found);
             setCardNumber(number);
             setAccount(res.data);
             setStep('confirm');
@@ -157,7 +88,9 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
         setLoading(true);
         setError('');
         try {
-            const res = await client.post('/auth/card-scan', { code });
+            // A student's card answers here; a teacher's is read by the teacher side.
+            const res = await api.post('/auth/card-scan', { code })
+                .catch((err) => { if (err.response?.data?.code === 'TEACHER_CARD') return teacherApi.post('/auth/card-scan', { code }); throw err; });
             await lookUp(String(res.data.cardNumber));
         } catch (err) {
             setLoading(false);
@@ -248,8 +181,8 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
                         <div className="space-y-4">
                             <p className="text-sm text-slate-400">Scan your card or type its number. We'll show you the account before sending a reset link to its email.</p>
 
-                            <div className={`grid overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-1 ${role === 'teacher' ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                                {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard], ...(role === 'teacher' ? [['email', 'Email', Mail]] : [])].map(([id, label, Icon]) => (
+                            <div className="grid grid-cols-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-1">
+                                {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard], ['email', 'Email', Mail]].map(([id, label, Icon]) => (
                                     <button key={id} type="button" onClick={() => { setError(''); setScanning(false); setMode(id); }}
                                         className={`inline-flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold transition-all ${mode === id ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/15' : 'text-slate-400 hover:text-white'}`}>
                                         <Icon size={15} /> {label}
@@ -265,8 +198,8 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
                                         <label htmlFor="forgot-email" className="block text-sm font-semibold text-slate-200 mb-1">Email</label>
                                         <input id="forgot-email" type="email" required autoComplete="username" value={email} onChange={e => setEmail(e.target.value)}
                                             className="w-full px-4 py-3 border border-white/15 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-100"
-                                            placeholder="The email you sign in with" />
-                                        <p className="mt-1 text-xs text-slate-400">For a teacher account without a card.</p>
+                                            placeholder="The email on your account" />
+                                        <p className="mt-1 text-xs text-slate-400">For a teacher without a card: the email you gave when you set up your account. The reset link goes there.</p>
                                     </div>
                                     <div className="flex justify-end space-x-3">
                                         <button type="button" onClick={onClose} className="px-4 py-2 text-slate-300 font-medium hover:bg-white/10 rounded-lg transition-colors text-sm">Cancel</button>
@@ -319,39 +252,6 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
     );
 };
 
-/**
- * "Who's signing in?" — asked the first time this device opens the sign-in
- * page. Students and teachers use the same cards, so the card cannot tell;
- * the person says. The answer is remembered, and the switch at the top of
- * the form changes it any time.
- */
-const RoleChooser = ({ onChoose }) => (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-        <div role="dialog" aria-modal="true" aria-labelledby="role-chooser-title" className="lg-rise w-full max-w-lg overflow-hidden rounded-3xl bg-[#2a2f45] shadow-2xl ring-1 ring-white/10">
-            <div className="border-b border-white/5 bg-gradient-to-br from-indigo-50 to-violet-50 px-6 py-5 text-center">
-                <h2 id="role-chooser-title" className="text-xl font-black tracking-tight text-white">Who&apos;s signing in?</h2>
-                <p className="mt-1 text-sm text-slate-400">Choose once — you can switch any time at the top of the form.</p>
-            </div>
-            <div className="grid gap-3 p-5 sm:grid-cols-2">
-                {[
-                    ['student', 'Student', 'Courses, Career Path, jobs, interviews and games.', GraduationCap, 'from-indigo-500 to-violet-600'],
-                    ['teacher', 'Teacher', 'Research path, publications, thesis writing and plagiarism checks.', BookOpenCheck, 'from-emerald-500 to-teal-600']
-                ].map(([id, label, hint, Icon, tone]) => (
-                    <button key={id} type="button" onClick={() => onChoose(id)}
-                        className="group flex flex-col items-start gap-3 rounded-2xl border border-white/10 bg-[#2a2f45] p-4 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-400/50 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-                        <span className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${tone} text-white shadow-md`}><Icon size={24} aria-hidden="true" /></span>
-                        <span>
-                            <span className="block text-base font-black text-white">I&apos;m a {label.toLowerCase()}</span>
-                            <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">{hint}</span>
-                        </span>
-                        <span className="mt-auto inline-flex items-center gap-1 text-xs font-bold text-indigo-300">Continue <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" /></span>
-                    </button>
-                ))}
-            </div>
-        </div>
-    </div>
-);
-
 // A twinkling star. Module-level so the page's re-renders (every keystroke
 // in the password box) do not remount it and restart its animation.
 // --- Main Login Page ---
@@ -379,37 +279,47 @@ const Login = () => {
     const [sessionEnded] = useState(() => { try { return ['device', 'replaced'].includes(sessionStorage.getItem(SESSION_ENDED_KEY)) ? sessionStorage.getItem(SESSION_ENDED_KEY) : sessionStorage.getItem(SESSION_ENDED_KEY) === '1' || sessionStorage.getItem(TEACHER_SESSION_ENDED) === '1'; } catch { return false; } });
     useEffect(() => { try { sessionStorage.removeItem(SESSION_ENDED_KEY); sessionStorage.removeItem(TEACHER_SESSION_ENDED); } catch { /* storage off */ } }, []);
 
-    /* Student or teacher. ?as= decides when a link carries it (a teacher's
-       reset email, "Choose Teacher"); otherwise the choice this device made
-       last; otherwise nobody has said yet, and the chooser asks. */
-    const [role, setRole] = useState(() => {
-        const asked = searchParams.get('as');
-        return asked === 'teacher' || asked === 'student' ? asked : readSigninAs();
-    });
-    const isTeacher = role === 'teacher';
-    // A card of the other kind: the error offers the right sign-in.
-    const [otherKind, setOtherKind] = useState(null);
-    const chooseRole = (r) => {
-        rememberSigninAs(r);
-        setRole(r);
-        setError('');
-        setOtherKind(null);
-        setScannedCard(false);
-        setCardNumber('');
-    };
-
+    /* One box for everyone (2026-10-30): the card number or the mobile
+       number, and the password. The server says whose account it is — a
+       student's, or a teacher's (then the teacher sign-in finishes it) — and
+       the person lands on their own dashboard. No Student / Teacher choice. */
     /* Signing in by card.
        The number is printed on the card and twelve digits long, which is a
        tedious thing to copy correctly on a phone. The camera reads the card's
        QR instead and the server turns it into the number, so the student only
        has their password left to type. Typing the number by hand is still
-       there for a broken camera or a worn card. A teacher with no AI card (a
-       club or Scouts leader) signs in with email instead ('email'). */
-    const [mode, setMode] = useState('manual');        // 'manual' (the card number, scan inside it) | 'email' (teachers)
-    const [teacherEmail, setTeacherEmail] = useState('');
+       there for a broken camera or a worn card. A teacher with no AI card
+       types the mobile number their organization added them with, in the
+       same box — nobody signs in by email (2026-10-31). */
     const [scanning, setScanning] = useState(false);
     const [scanError, setScanError] = useState('');
     const [scannedCard, setScannedCard] = useState(false);
+    // Whose card the scan read, from the server.
+    const [scannedName, setScannedName] = useState('');
+    // A typed number, checked when the student moves on to the password:
+    // 'checking' | 'error' (with cardCheckError) | '' — found is scannedCard.
+    const [cardCheck, setCardCheck] = useState('');
+    const [cardCheckError, setCardCheckError] = useState('');
+    const checkedNumberRef = useRef('');
+    // One box takes a card or a mobile number (2026-10-30), so only a plain
+    // 12-digit entry is checked as a card; a number that is not a card (a
+    // mobile, a teacher's card) is simply left for the sign-in to decide.
+    const checkTypedCard = async () => {
+        const number = cardNumber.trim();
+        if (scanning || !number || scannedCard || checkedNumberRef.current === number) return;
+        checkedNumberRef.current = number;
+        if (!/^\d{12}$/.test(number)) return;
+        setCardCheck('checking'); setCardCheckError('');
+        try {
+            const res = await api.post('/auth/card-scan', { code: number, typed: true });
+            if (checkedNumberRef.current !== number) return;
+            setScannedName(res.data?.name || '');
+            setScannedCard(true);
+            setCardCheck('');
+        } catch {
+            if (checkedNumberRef.current === number) setCardCheck('');
+        }
+    };
     const [showHow, setShowHow] = useState(false);
     const scannerRef = useRef(null);
     const passwordRef = useRef(null);
@@ -433,18 +343,21 @@ const Login = () => {
         setScanError('');
         setLoading(true);
         try {
-            const res = isTeacher
-                ? await teacherApi.post('/auth/card-scan', { code: decodedText })
-                : await api.post('/auth/card-scan', { code: decodedText });
+            // A student's card answers here; a teacher's is read by the teacher side.
+            let res;
+            try { res = await api.post('/auth/card-scan', { code: decodedText }); }
+            catch (err) {
+                if (err.response?.data?.code !== 'TEACHER_CARD') throw err;
+                res = await teacherApi.post('/auth/card-scan', { code: decodedText });
+            }
             // A demo (presentation) card signs in by its scan alone: straight to the dashboard.
-            if (!isTeacher && res.data?.token) { enterApp(res.data, next); return; }
+            if (res.data?.token && res.data?.role !== 'teacher') { enterApp(res.data, next); return; }
             setCardNumber(res.data.cardNumber);
+            setScannedName(res.data.name || '');
             setScannedCard(true);
             setError('');
             setTimeout(() => passwordRef.current?.focus(), 60);
         } catch (err) {
-            const code = err.response?.data?.code;
-            if (code === 'TEACHER_CARD' || code === 'STUDENT_CARD') setOtherKind(code === 'TEACHER_CARD' ? 'teacher' : 'student');
             setScanError(
                 err.response?.data?.message
                     || (!err.response
@@ -476,7 +389,6 @@ const Login = () => {
             scannerRef.current = null;
             setScanning(false);
             setScanError('The camera is not available. Type your card number instead.');
-            setMode('manual');
         });
         return () => { cancelled = true; stopScanner(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -492,61 +404,37 @@ const Login = () => {
         if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' });
     }, [error]);
 
-    // Email sign-in is the teacher side's only; a student on 'email' is shown the typed card.
-    const emailMode = isTeacher && mode === 'email';
-
     if (user) return <Navigate to={next} replace />;
     // A teacher is signed in on this device: their dashboard.
     if (hasTeacherSession()) return <Navigate to="/teacher" replace />;
 
+    const failed = (message) => { setError(message); setLoading(false); passwordRef.current?.focus(); };
+    const teacherSignIn = async (body) => {
+        try { enterTeacher((await teacherApi.post('/auth/login', body)).data); }
+        catch (err) { failed(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed')); }
+    };
+
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
-        if (emailMode) {
-            if (!teacherEmail.trim()) { setError('Enter your email first.'); document.getElementById('login-teacher-email')?.focus(); return; }
-            setLoading(true);
-            setOtherKind(null);
-            try {
-                enterTeacher((await teacherApi.post('/auth/login', { email: teacherEmail.trim(), password })).data);
-            } catch (err) {
-                setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed'));
-                setLoading(false);
-                passwordRef.current?.focus();
-            }
-            return;
-        }
         // In scan mode there is no number box for the browser to insist on,
         // so an empty card went to the server and came back as "Invalid card
         // number or password" — about a password the student had typed right.
-        if (!cardNumber) {
-            setError('Enter your card number, or scan your card.');
+        const typed = cardNumber.trim();
+        if (!typed) {
+            setError('Enter your card number or mobile number, or scan your card.');
             document.getElementById('login-card-number')?.focus();
             return;
         }
         setLoading(true);
-        setOtherKind(null);
-        if (isTeacher) {
-            try {
-                const res = await teacherApi.post('/auth/login', { cardNumber, password });
-                enterTeacher(res.data);
-            } catch (err) {
-                if (err.response?.data?.code === 'STUDENT_CARD') setOtherKind('student');
-                setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed'));
-                setLoading(false);
-                passwordRef.current?.focus();
-            }
-            return;
-        }
-        const res = await login(cardNumber, password, next);
+        const res = await login(typed, password, next);
         // On success the page is already on its way to the dashboard: the
         // button keeps saying so until it gets there.
-        if (!res.success) {
-            if (res.code === 'TEACHER_CARD') setOtherKind('teacher');
-            if (res.code === 'DEVICE_LIMIT' && res.device) { setDeviceConflict(res.device); setLoading(false); return; }
-            setError(res.error);
-            setLoading(false);
-            passwordRef.current?.focus();
-        }
+        if (res.success) return;
+        // A teacher's card or number: the teacher sign-in finishes it, and they land on their dashboard.
+        if (res.code === 'TEACHER_CARD' || res.code === 'TEACHER_ACCOUNT') { await teacherSignIn({ login: typed, password }); return; }
+        if (res.code === 'DEVICE_LIMIT' && res.device) { setDeviceConflict(res.device); setLoading(false); return; }
+        failed(res.error);
     };
 
     return (
@@ -554,9 +442,8 @@ const Login = () => {
             {/* A soft dark backdrop with two quiet glows — nothing to compete with the form. */}
             <span aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[30rem] w-[44rem] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
             <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-48 -z-10 h-[28rem] w-[28rem] rounded-full bg-violet-500/10 blur-[120px]" />
-            {!role && <RoleChooser onChoose={chooseRole} />}
-            {showForgot && <ForgotPasswordModal role={isTeacher ? 'teacher' : 'student'} onClose={() => setShowForgot(false)} />}
-            {showContact && <ContactAdminModal onClose={() => setShowContact(false)} page="login" />}
+            {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
+            {showContact && <SupportDialog onClose={() => setShowContact(false)} page="login" tone="dark" />}
             {deviceConflict && (
                 <DeviceLimitDialog conflict={deviceConflict} onClose={() => setDeviceConflict(null)}
                     onReplace={(removeId) => replaceDevice(deviceConflict.ticket, removeId, next)} />
@@ -594,17 +481,8 @@ const Login = () => {
                     <div className="mx-auto max-w-md">
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
                             <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-6 h-8 w-auto object-contain" />
-                            {/* Student or teacher, as one switch: the chooser's answer, changeable. */}
-                            <div role="radiogroup" aria-label="Signing in as" className="mb-6 grid w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/15 p-1">
-                                {[['student', 'Student', GraduationCap], ['teacher', 'Teacher', BookOpenCheck]].map(([id, label, Icon]) => (
-                                    <button key={id} type="button" role="radio" aria-checked={role === id} onClick={() => chooseRole(id)}
-                                        className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-all ${role === id ? (id === 'teacher' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') : 'text-slate-400 hover:text-white'}`}>
-                                        <Icon size={15} aria-hidden="true" /> {label}
-                                    </button>
-                                ))}
-                            </div>
-                            <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">{isTeacher ? 'Teacher sign in' : 'Welcome back'}</h2>
-                            <p className="mt-1.5 text-sm text-slate-400">{isTeacher ? 'Sign in to your teacher dashboard.' : 'Sign in to continue learning.'}</p>
+                            <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">Welcome back</h2>
+                            <p className="mt-1.5 text-sm text-slate-400">Sign in with your card number or mobile number.</p>
                         </div>
 
                         <form className="lg-rise mt-6 space-y-5" onSubmit={handleLogin} style={{ animationDelay: '0.2s' }}>
@@ -616,31 +494,20 @@ const Login = () => {
                             {error && (
                                 <div ref={errorRef} role="alert" className="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-center text-sm font-medium text-red-300">
                                     {error}
-                                    {otherKind && (
-                                        <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-300 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>
-                                    )}
                                 </div>
                             )}
 
                             {/* One standard form: the card number, with the scanner inside the field
-                                (asked 2026-10-29) — no separate Scan / Type step. Teachers without a card
-                                can switch to their email below it. */}
-                            {emailMode ? (
+                                (asked 2026-10-29) — no separate Scan / Type step. A teacher without a card
+                                types their mobile number in the same box. */}
                                 <div>
-                                    <label htmlFor="login-teacher-email" className="mb-2 block text-sm font-semibold text-slate-200">Email address</label>
-                                    <input id="login-teacher-email" type="email" autoComplete="username" value={teacherEmail} onChange={e => setTeacherEmail(e.target.value)}
-                                        className="block w-full appearance-none rounded-xl border border-white/10 bg-black/15 px-4 py-3.5 text-slate-100 shadow-sm placeholder-slate-500 transition duration-200 focus:border-transparent focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="name@school.edu" />
-                                    <button type="button" onClick={() => { setError(''); setMode('manual'); }} className="mt-2 text-xs font-semibold text-indigo-300 hover:text-indigo-100 hover:underline">Sign in with your card instead</button>
-                                </div>
-                            ) : (
-                                <div>
-                                    <label htmlFor="login-card-number" className="mb-2 block text-sm font-semibold text-slate-200">Card number</label>
+                                    <label htmlFor="login-card-number" className="mb-2 block text-sm font-semibold text-slate-200">Card or mobile number</label>
                                     <div className="relative">
-                                        <input id="login-card-number" type="text" maxLength="12" inputMode="numeric" pattern="[0-9]*" autoComplete="username" value={cardNumber}
-                                            onChange={e => { setCardNumber(e.target.value.replace(/\D/g, '')); setScannedCard(false); }}
-                                            className={`block w-full appearance-none rounded-xl border bg-black/15 py-3.5 pr-14 pl-4 font-mono tracking-[0.12em] text-slate-100 shadow-sm placeholder:font-sans placeholder:tracking-normal placeholder-slate-500 transition duration-200 focus:border-transparent focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500 ${scannedCard ? 'border-emerald-400/40' : 'border-white/10'}`}
-                                            placeholder="12-digit card number" />
+                                        <input id="login-card-number" type="text" maxLength="20" inputMode="tel" autoComplete="username" value={cardNumber}
+                                            onChange={e => { setCardNumber(e.target.value.replace(/[^0-9A-Za-z+()\s-]/g, '')); setScannedCard(false); setScannedName(''); setCardCheck(''); setCardCheckError(''); checkedNumberRef.current = ''; }}
+                                            onBlur={checkTypedCard} aria-invalid={cardCheck === 'error'} aria-describedby={cardCheck === 'error' ? 'login-card-check' : undefined}
+                                            className={`block w-full appearance-none rounded-xl border bg-black/15 py-3.5 pr-14 pl-4 font-mono tracking-[0.12em] text-slate-100 shadow-sm placeholder:font-sans placeholder:tracking-normal placeholder-slate-500 transition duration-200 focus:border-transparent focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500 ${scannedCard ? 'border-emerald-400/40' : cardCheck === 'error' ? 'border-red-400/50' : 'border-white/10'}`}
+                                            placeholder="Card number or mobile number" />
                                         {/* Scan, inside the field: the camera opens below and fills the number in. */}
                                         <button ref={scanButtonRef} type="button" disabled={loading}
                                             onClick={() => { setScanError(''); setError(''); setScanning((on) => !on); }}
@@ -649,7 +516,9 @@ const Login = () => {
                                             {loading && !cardNumber ? <Loader2 size={18} className="animate-spin" /> : scanning ? <X size={18} /> : <ScanLine size={19} />}
                                         </button>
                                     </div>
-                                    {scannedCard && <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-300"><CheckCircle2 size={13} /> Card read from the scan</p>}
+                                    {scannedCard && <p role="status" className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-300"><CheckCircle2 size={13} className="shrink-0" /> {scannedName ? <span className="truncate">Card of <span className="text-emerald-200">{scannedName}</span></span> : 'Card found'}</p>}
+                                    {!scannedCard && cardCheck === 'checking' && <p role="status" className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-400"><Loader2 size={13} className="shrink-0 animate-spin" /> Checking card…</p>}
+                                    {!scannedCard && cardCheck === 'error' && <p id="login-card-check" role="alert" className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-300"><Info size={13} className="shrink-0" /> {cardCheckError}</p>}
                                     {/* html5-qrcode needs this element present before it starts. */}
                                     <div className={scanning ? 'mt-3' : 'hidden'}>
                                         <div id={SCANNER_ID} className="overflow-hidden rounded-xl bg-black ring-1 ring-white/10" />
@@ -658,16 +527,13 @@ const Login = () => {
                                             <button type="button" onClick={() => setShowHow(true)} className="inline-flex shrink-0 items-center gap-1 font-semibold text-indigo-300 hover:text-indigo-100"><PlayCircle size={13} /> How it works</button>
                                         </div>
                                     </div>
-                                    {isTeacher && !scanning && (
-                                        <button type="button" onClick={() => { setError(''); setScanning(false); setMode('email'); }} className="mt-2 text-xs font-semibold text-indigo-300 hover:text-indigo-100 hover:underline">No card? Sign in with your email</button>
-                                    )}
+                                    {!scanning && <p className="mt-2 text-xs text-slate-400">Teacher without a card? Use the mobile number your organization added you with.</p>}
                                 </div>
-                            )}
 
                             {scanError && (
                                 <p className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200">
                                     <CameraOff size={14} className="mt-0.5 shrink-0" />
-                                    <span>{scanError}{otherKind && !error && <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-300 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>}</span>
+                                    <span>{scanError}</span>
                                 </p>
                             )}
 
@@ -700,7 +566,7 @@ const Login = () => {
 
                             <button type="submit" disabled={loading}
                                 className="group relative flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:translate-y-0">
-                                {loading ? 'Authenticating…' : isTeacher ? 'Open Teacher Dashboard' : 'Access Platform'}
+                                {loading ? 'Authenticating…' : 'Access Platform'}
                                 {!loading && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
                             </button>
                         </form>
@@ -713,9 +579,7 @@ const Login = () => {
                         </button>
 
                         <p className="mt-5 text-center text-xs text-slate-400">
-                            {isTeacher
-                                ? <>New teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-300 hover:underline">Register your card</Link></>
-                                : <>Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-300 hover:underline">Sign up here</Link></>}
+                            Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-300 hover:underline">Sign up here</Link>
                         </p>
                         <p className="mt-3 text-center text-[11px] text-slate-400">
                             <Link to="/terms" className="hover:text-indigo-200 hover:underline">Terms and Conditions</Link> · <Link to="/privacy" className="hover:text-indigo-200 hover:underline">Privacy Policy</Link>

@@ -12,6 +12,8 @@ import usePhaseClock from './usePhaseClock';
 const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 export default function SudokuTable({ view, onAction, busy }) {
+    // The dark room (2026-11-02): the page sets view.dark; the 9×9 board itself stays a white board.
+    const dark = !!view.dark;
     const [sel, setSel] = useState(null);
     const [notes, setNotes] = useState({});
     const [noting, setNoting] = useState(false);
@@ -52,11 +54,11 @@ export default function SudokuTable({ view, onAction, busy }) {
 
     return (
         <div className={`mx-auto grid w-full max-w-4xl gap-4 ${view.liveBoard && view.status === 'active' ? '' : 'lg:grid-cols-[minmax(0,1fr)_16rem]'}`} data-sudoku>
-            <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+            <section className={dark ? 'rounded-3xl border border-[#4b46b8]/50 bg-[#10142f]/90 p-3 shadow-[0_24px_60px_-20px_rgba(0,0,0,.85),0_0_40px_rgba(99,102,241,.12)] sm:p-4' : 'rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4'}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-bold capitalize text-indigo-700">{view.difficulty}</span>
-                    {!over && <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-black tabular-nums ${left < 60000 ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-700'}`} data-timer><Timer size={14} aria-hidden="true" /> {fmt(left)}</span>}
-                    {me && <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-bold ${me.mistakes ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'}`} data-mistakes={me.mistakes}><X size={14} aria-hidden="true" /> Mistakes {me.mistakes}/{view.maxMistakes}</span>}
+                    <span />
+                    {!over && <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-black tabular-nums ${left < 60000 ? (dark ? 'bg-rose-500/15 text-rose-300' : 'bg-rose-50 text-rose-700') : dark ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-700'}`} data-timer><Timer size={14} aria-hidden="true" /> {fmt(left)}</span>}
+                    {me && <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-bold ${me.mistakes ? (dark ? 'bg-rose-500/15 text-rose-300' : 'bg-rose-50 text-rose-700') : dark ? 'bg-white/10 text-white/80' : 'bg-slate-100 text-slate-600'}`} data-mistakes={me.mistakes}><X size={14} aria-hidden="true" /> Mistakes {me.mistakes}/{view.maxMistakes}</span>}
                 </div>
                 <div className="mx-auto grid aspect-square w-full max-w-[30rem] grid-cols-9 overflow-hidden rounded-xl border-2 border-slate-800" role="grid" aria-label="Sudoku">
                     {Array.from({ length: 81 }, (_, i) => {
@@ -78,31 +80,31 @@ export default function SudokuTable({ view, onAction, busy }) {
                         <div className="grid grid-cols-9 gap-1">
                             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => {
                                 const done = board.filter((x) => x === d).length >= 9;
-                                return <button key={d} type="button" onClick={() => place(d)} disabled={busy || done} data-digit={d} className="h-11 rounded-xl bg-indigo-50 text-lg font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-30">{d}</button>;
+                                return <button key={d} type="button" onClick={() => place(d)} disabled={busy || done} data-digit={d} className={`h-11 rounded-xl text-lg font-black disabled:opacity-30 ${dark ? 'bg-gradient-to-b from-indigo-500/40 to-indigo-700/30 text-indigo-100 shadow-[0_6px_14px_-6px_rgba(0,0,0,.8),inset_0_1px_0_rgba(255,255,255,.2)] hover:from-indigo-500/55' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>{d}</button>;
                             })}
                         </div>
                         <div className="flex flex-wrap justify-center gap-2">
-                            <button type="button" onClick={() => setNoting((n) => !n)} aria-pressed={noting} className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-bold ring-1 ${noting ? 'bg-slate-900 text-white ring-slate-900' : 'text-slate-600 ring-slate-200 hover:bg-slate-50'}`}><Pencil size={14} aria-hidden="true" /> Notes {noting ? 'on' : 'off'}</button>
-                            <button type="button" onClick={hint} disabled={busy || !view.hintsLeft} data-hint className="inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-amber-700 ring-1 ring-amber-200 hover:bg-amber-50 disabled:opacity-40"><Lightbulb size={14} aria-hidden="true" /> Hint ({view.hintsLeft} left, −15)</button>
+                            <button type="button" onClick={() => setNoting((n) => !n)} aria-pressed={noting} className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-bold ring-1 ${noting ? 'bg-slate-900 text-white ring-slate-900' : dark ? 'text-white/80 ring-white/20 hover:bg-white/10' : 'text-slate-600 ring-slate-200 hover:bg-slate-50'}`}><Pencil size={14} aria-hidden="true" /> Notes {noting ? 'on' : 'off'}</button>
+                            <button type="button" onClick={hint} disabled={busy || !view.hintsLeft} data-hint className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-bold ring-1 disabled:opacity-40 ${dark ? 'text-amber-300 ring-amber-400/40 hover:bg-amber-400/10' : 'text-amber-700 ring-amber-200 hover:bg-amber-50'}`}><Lightbulb size={14} aria-hidden="true" /> Hint ({view.hintsLeft} left, −15)</button>
                         </div>
                     </div>
                 )}
-                {!view.canPlay && me && !over && <p className="mt-3 text-center text-sm font-bold text-slate-600">{me.finished ? 'You finished! Waiting for the others…' : me.closed ? 'Too many mistakes: your board is closed.' : ''}</p>}
-                {over && <p className="mt-3 text-center text-sm text-slate-500">Numbers in red are the solution's, for the cells left empty.</p>}
+                {!view.canPlay && me && !over && <p className={`mt-3 text-center text-sm font-bold ${dark ? 'text-[#c7c9e4]' : 'text-slate-600'}`}>{me.finished ? 'You finished! Waiting for the others…' : me.closed ? 'Too many mistakes: your board is closed.' : ''}</p>}
+                {over && <p className={`mt-3 text-center text-sm ${dark ? 'text-white/60' : 'text-slate-500'}`}>Numbers in red are the solution's, for the cells left empty.</p>}
             </section>
             {!(view.liveBoard && view.status === 'active') && <aside className="space-y-2" aria-label="Players">
                 {view.seats.map((s, i) => {
                     const p = view.players[i];
                     const pct = Math.round((100 * p.filled) / Math.max(1, p.of));
                     return (
-                        <div key={i} className={`rounded-2xl border bg-white p-3 shadow-sm ${view.you === i ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-200'} ${p.left ? 'opacity-50' : ''}`} data-player={i}>
+                        <div key={i} className={`rounded-2xl border p-3 ${dark ? `bg-[#141845]/85 ${view.you === i ? 'border-indigo-400/70 ring-2 ring-indigo-400/40' : 'border-[#4b46b8]/50'}` : `bg-white shadow-sm ${view.you === i ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-200'}`} ${p.left ? 'opacity-50' : ''}`} data-player={i}>
                             <div className="flex items-center gap-2">
                                 <span className="h-3 w-3 rounded-full" style={{ background: s.color }} aria-hidden="true" />
-                                <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">{s.name}{view.you === i ? ' (you)' : ''}</span>
-                                <span className="text-lg font-black tabular-nums text-slate-900">{view.scores[i]}</span>
+                                <span className={`min-w-0 flex-1 truncate text-sm font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{s.name}{view.you === i ? ' (you)' : ''}</span>
+                                <span className={`text-lg font-black tabular-nums ${dark ? 'text-white' : 'text-slate-900'}`}>{view.scores[i]}</span>
                             </div>
-                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500 transition-[width]" style={{ width: `${pct}%` }} /></div>
-                            <p className="mt-1 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                            <div className={`mt-2 h-2 overflow-hidden rounded-full ${dark ? 'bg-white/10' : 'bg-slate-100'}`}><div className="h-full rounded-full bg-indigo-500 transition-[width]" style={{ width: `${pct}%` }} /></div>
+                            <p className={`mt-1 flex items-center justify-between text-[11px] font-semibold ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>
                                 <span>{p.finished ? <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 size={12} aria-hidden="true" /> Finished</span> : p.closed ? 'Board closed' : p.left ? 'Left' : `${p.filled}/${p.of} cells`}</span>
                                 <span>{p.mistakes} mistake{p.mistakes === 1 ? '' : 's'}</span>
                             </p>

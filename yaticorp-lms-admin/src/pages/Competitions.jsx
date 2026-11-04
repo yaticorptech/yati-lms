@@ -8,8 +8,8 @@
  * shown inside its Competitions page with `embedded`).
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Trophy, Plus, Users, AlertTriangle, CalendarClock, Radio, Pencil, Trash2, Crown, FileText } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Trophy, Plus, Users, AlertTriangle, CalendarClock, Radio, Pencil, Trash2, Crown, FileText, Award, LayoutDashboard } from 'lucide-react';
 import api from '../utils/api';
 import { CARD, BTN } from '../components/orgUi';
 import { CompetitionForm, Chip, GameIcon } from '../competitions/shared';
@@ -57,6 +57,13 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('all');
     const [creating, setCreating] = useState(false);
+    // ?new=1 (the Competition Dashboard's New competition, 2026-11-04): the form open at once.
+    const [params, setParams] = useSearchParams();
+    useEffect(() => {
+        if (params.get('new') !== '1') return;
+        setCreating(true);
+        const next = new URLSearchParams(params); next.delete('new'); setParams(next, { replace: true });
+    }, [params, setParams]);
     // Quiz Arena: the platform's only (not a college's own competitions).
     // Quiz Arena: the platform's, or a hosting college's own.
     const withArena = apiBase === '/competitions/admin' || apiBase === '/competitions/org/host';
@@ -116,7 +123,13 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
                             <h1 className="mt-2 text-3xl font-black sm:text-4xl">Games &amp; Competitions</h1>
                             <p className="mt-2 text-sm text-white/85 sm:text-base">Inter-college Chess, Rapid Fire, Code Clash, Brain Sprint and Quiz Arena. Colleges enter their students or register teams; you approve them, run the matches, decide disputes and publish the results.</p>
                         </div>
-                        <button type="button" onClick={() => setCreating(true)} className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-white px-5 py-3 text-sm font-black text-indigo-700 shadow-lg hover:bg-indigo-50"><Plus size={18} /> Create</button>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                            {/* The Competition Dashboard (2026-11-04). */}
+                            {!hosted && apiBase === '/competitions/admin' && <Link to="/competitions/dashboard" className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-white/15 px-5 py-3 text-sm font-black text-white ring-1 ring-white/30 hover:bg-white/25" data-dashboard-link><LayoutDashboard size={17} aria-hidden /> Dashboard</Link>}
+                            {/* The Certificate Builder (2026-10-31). */}
+                            <Link to="/competitions/certificates" className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-white/15 px-5 py-3 text-sm font-black text-white ring-1 ring-white/30 hover:bg-white/25" data-create-certificate><Award size={18} /> Create Certificate</Link>
+                            <button type="button" onClick={() => setCreating(true)} className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-white px-5 py-3 text-sm font-black text-indigo-700 shadow-lg hover:bg-indigo-50"><Plus size={18} /> Create</button>
+                        </div>
                     </div>
                 </header>
             )}

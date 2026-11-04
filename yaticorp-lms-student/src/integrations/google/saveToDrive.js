@@ -9,7 +9,7 @@
  * fail on account of a copy that could not be filed.
  */
 import { saveFile } from './api';
-import { declinedThisVisit, getSnapshot, refresh, requestConsent } from './googleStore';
+import { getSnapshot, refresh, requestConsent } from './googleStore';
 
 const toBase64 = (blob) =>
   new Promise((resolve, reject) => {
@@ -36,8 +36,8 @@ export default async function saveToDrive(blob, { name, description = '', reason
     // sites pass ask:false and simply file no copy rather than losing the
     // student's place. They can connect later and the next file will land.
     if (!ask) return { ok: false, reason: 'not-connected' };
-    // Said "Not now" already this visit: no copy, and no asking again.
-    if (declinedThisVisit()) return { ok: false, reason: 'declined' };
+    // Asked every time a file is downloaded while Drive is not linked (the user's ask, 2026-11-02),
+    // no longer quiet for the rest of the visit after a "Not now".
 
     const granted = await requestConsent(reason);
     // Consent leaves the page for Google's screen, so this resolves false and

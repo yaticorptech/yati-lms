@@ -2,15 +2,14 @@
  * @author Preethesh Kulal
  * @description Multi-step student registration with QR code scan/manual entry
  */
-import Mascot from '../components/Mascot';
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
+import SupportDialog from '../components/SupportDialog';
 import { AuthContext } from '../context/AuthContext';
-import useBackClose from '../native/useBackClose';
 import { safeNextPath } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession } from '../teacher/teacherSession';
-import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock } from 'lucide-react';
+import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Loader2, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock, GraduationCap } from 'lucide-react';
 
 // Password strength validator
 const getPasswordStrengthError = (pw) => {
@@ -22,75 +21,6 @@ const getPasswordStrengthError = (pw) => {
     return null;
 };
 
-// Contact Admin Modal
-const ContactAdminModal = ({ onClose, page = 'signup' }) => {
-    const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
-    const [loading, setLoading] = useState(false);
-    const [done, setDone] = useState(false);
-    const [error, setError] = useState('');
-    // Android's back button closes this, rather than leaving the page.
-    useBackClose(onClose);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            await api.post('/tickets', { ...form, page });
-            setDone(true);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to send. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div role="dialog" aria-modal="true" aria-labelledby="contact-admin-title" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-100 rounded-lg"><MessageCircleQuestion size={20} className="text-indigo-600" /></div>
-                        <div>
-                            <h2 id="contact-admin-title" className="text-lg font-bold text-slate-800">Contact Admin</h2>
-                            <a href="tel:9535440195" className="text-sm text-indigo-600 font-semibold hover:underline">📞 9535440195</a>
-                        </div>
-                    </div>
-                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
-                </div>
-                {done ? (
-                    <div className="p-8 text-center">
-                        <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={28} className="text-emerald-600" /></div>
-                        <h3 className="font-bold text-slate-800 text-lg mb-1">Message Sent!</h3>
-                        <p className="text-slate-500 text-sm mb-4">We've received your request and will get back to you soon.</p>
-                        <button onClick={onClose} className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">Close</button>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                        {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div><label htmlFor="contact-name" className="block text-xs font-semibold text-slate-700 mb-1">Name *</label><input id="contact-name" required autoComplete="name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Your name" /></div>
-                            <div><label htmlFor="contact-email" className="block text-xs font-semibold text-slate-700 mb-1">Email *</label><input id="contact-email" required type="email" autoComplete="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="your@email.com" /></div>
-                        </div>
-                        <div><label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-700 mb-1">Subject *</label><input id="contact-subject" required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Brief description of your issue" /></div>
-                        <div><label htmlFor="contact-message" className="block text-xs font-semibold text-slate-700 mb-1">Message *</label><textarea id="contact-message" required rows="3" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue..." /></div>
-                        <div className="flex justify-end space-x-3 pt-1">
-                            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Cancel</button>
-                            <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center disabled:opacity-50"><Send size={14} className="mr-1.5" />{loading ? 'Sending...' : 'Send Message'}</button>
-                        </div>
-                    </form>
-                )}
-            </div>
-        </div>
-    );
-};
-
-
-// A twinkling star, shared look with the login page. Module-level so the
-// page's re-renders do not remount it and restart its animation.
-const Sparkle = ({ className, delay = 0, size = 'text-base' }) => (
-    <span aria-hidden="true" className={`lg-twinkle pointer-events-none absolute ${size} ${className}`} style={{ animationDelay: `${delay}s` }}>✦</span>
-);
 
 const STEPS = [
     ['Verify your card', 'Scan the QR code on your card, or type your card number.'],
@@ -98,9 +28,10 @@ const STEPS = [
     ['Set a password', 'Choose a strong password to protect your account.'],
 ];
 
-const inputClass = 'block w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-800 shadow-sm placeholder-slate-400 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500';
+// The sign-in page's look (2026-10-30): dark fields on a dark card.
+const inputClass = 'block w-full appearance-none rounded-xl border border-white/10 bg-black/15 px-4 py-3.5 text-slate-100 shadow-sm placeholder-slate-500 transition duration-200 focus:border-transparent focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const primaryBtn = 'group relative flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:translate-y-0';
-const backBtn = 'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50';
+const backBtn = 'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-4 py-3.5 text-sm font-bold text-slate-300 transition-colors hover:bg-white/10 hover:text-white';
 
 /**
  * The step of the form that owns a field the server refused, so a failed
@@ -120,20 +51,29 @@ const fieldOf = (data) => data?.field
 const DETAIL_FIELDS = ['name', 'email', 'phone', 'orgCode'];
 /** Element ids that do not follow signup-<field>. */
 const FIELD_ID = { orgCode: 'signup-org-code', 'confirm-password': 'signup-confirm-password' };
+// A teacher their organization added: the set-up pages after the mobile number.
+const ORG_STEPS = ['confirm', 'password', 'details'];
+const ORG_HINT = {
+    phone: 'Added by your organization? Check with your mobile number.',
+    confirm: 'Your organization added you. Check that this is you.',
+    password: 'Choose the password you will sign in with.',
+    details: 'Your email and a few details, then your dashboard.'
+};
+const DESIGNATIONS = ['Professor', 'Associate Professor', 'Assistant Professor', 'Lecturer', 'Guest Lecturer', 'Head of Department', 'Principal', 'Teacher'];
 
 /** A field's message, under it, tied to it for screen readers by aria-describedby. */
 const FieldError = ({ id, children }) => (children
-    ? <p id={id} className="mt-1.5 text-xs font-semibold text-red-600">{children}</p>
+    ? <p id={id} className="mt-1.5 text-xs font-semibold text-red-300">{children}</p>
     : null);
 
 /** The same red edge on every field with a problem. */
-const invalidRing = (bad) => (bad ? ' border-red-300 focus:ring-red-400' : '');
+const invalidRing = (bad) => (bad ? ' !border-red-400/60 focus:ring-red-400' : '');
 
 const Signup = () => {
     const { user, enterApp } = useContext(AuthContext);
     // Where the student was heading before they were sent to sign in, passed
     // on from the sign-in page (?next=). Only a path in this app is taken.
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const next = safeNextPath(searchParams.get('next') || '/');
     /* A teacher registering their card (?as=teacher, from the teacher sign-in).
        The same three steps and the same card check; the details ask for an
@@ -141,6 +81,15 @@ const Signup = () => {
        the account opened is a teacher's (src/teacher on the server). */
     const asTeacher = searchParams.get('as') === 'teacher';
     const loginLink = asTeacher ? '/login?as=teacher' : next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`;
+    // The Student / Teacher switch (2026-10-30), as on the sign-in page. It is
+    // the same ?as=teacher the links use; what is already typed stays.
+    const chooseRole = (role) => {
+        const params = new URLSearchParams(searchParams);
+        if (role === 'teacher') params.set('as', 'teacher'); else params.delete('as');
+        setSearchParams(params, { replace: true });
+        setError(null); setFieldErrors({}); setCardUsed(false);
+        setOrgMode(false); setOrgResult(null); setOrgPick(null); setOrgStage('phone');
+    };
 
     const [step, setStep] = useState(1);
     // The Terms and Privacy Policy, agreed to before the account is made.
@@ -178,12 +127,27 @@ const Signup = () => {
     // Card details fetched from backend after QR validation (stored internally)
     const [cardDetails, setCardDetails] = useState({ CardNumber: '', CVV: '' });
 
-    /* Reading the card. Same shape as the login page: a scan / type switch,
-       a camera that only runs while `scanning` is true, and a fallback to
-       typing when the camera is not available. */
-    const [mode, setMode] = useState('scan');          // 'scan' | 'manual'
+    /* Reading the card. As on the sign-in page (2026-10-30): one box for the
+       number, with the scanner inside it on the right. The camera runs only
+       while `scanning` is true; a code it reads is checked at once. */
     const [scanning, setScanning] = useState(false);
     const [scanError, setScanError] = useState('');
+    /* A teacher with no AI card is added by their organization with their
+       name and mobile number only (2026-10-30). "Verify as your
+       organization's teacher" checks that number, then, for an account still
+       to be set up: "Is this you?" (their name and number), a password, and
+       their email and details — and they land on their teacher dashboard.
+       One already set up is sent to sign in with the number and password. */
+    const [orgMode, setOrgMode] = useState(false);
+    const [orgStage, setOrgStage] = useState('phone');   // phone → confirm → password → details
+    const [orgPhone, setOrgPhone] = useState('');
+    const [orgChecking, setOrgChecking] = useState(false);
+    const [orgResult, setOrgResult] = useState(null);
+    const [orgPick, setOrgPick] = useState(null);         // the account they said is them
+    const [orgPassword, setOrgPassword] = useState('');
+    const [orgConfirm, setOrgConfirm] = useState('');
+    const [orgDetails, setOrgDetails] = useState({ email: '', designation: '', department: '', researchArea: '' });
+    const orgWaiting = (orgResult?.teachers || []).filter((t) => t.needsPassword && t.active);
     const scannerRef = useRef(null);
     const SCANNER_ID = 'signup-card-scanner';
 
@@ -230,9 +194,9 @@ const Signup = () => {
                     // sign-in scan (a bare code, a URL ending in one, or the
                     // card number). Stripping it here to letters and digits
                     // broke codes that carry punctuation, and URLs.
-                    setQrCodeNumber(decodedText.trim());
                     setScanError('');
                     setScanning(false);
+                    validateCard({ qrCodeNumber: decodedText.trim() });
                 },
                 () => {}   // a frame without a code is not an error
             );
@@ -241,9 +205,10 @@ const Signup = () => {
             scannerRef.current = null;
             setScanning(false);
             setScanError('The camera is not available. Type your card number instead.');
-            setMode('manual');
         });
         return () => { cancelled = true; stopScanner(); };
+        // validateCard is the same each render in what it does; the camera restarts only with `scanning`.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scanning]);
 
     // Stop the camera when moving away from step 1, and on unmount.
@@ -264,23 +229,18 @@ const Signup = () => {
         if (fieldErrors[e.target.name]) setFieldErrors((f) => ({ ...f, [e.target.name]: undefined }));
     };
 
-    // Step 1: validate the card — the scanned QR code, or the typed card number
-    const handleValidateQR = async (e) => {
-        e.preventDefault();
+    // Step 1: validate the card — the typed card number, or the QR code the scanner read
+    const validateCard = async (body) => {
+        const byNumber = !!body.cardNumber;
         setError(null);
-
-        const byNumber = mode === 'manual';
-        if (byNumber ? typedDigits.length !== 12 : !qrCodeNumber.trim()) {
-            return setError(byNumber ? 'Please enter the 12-digit card number printed on your card.' : 'Please scan the QR code on your card.');
-        }
-
         setQrValidating(true);
         setCardUsed(false);
         try {
-            const res = await api.post('/auth/validate-qr', byNumber ? { cardNumber: typedDigits } : { qrCodeNumber: qrCodeNumber.trim() });
+            const res = await api.post('/auth/validate-qr', body);
             // Store card details internally — never shown as editable inputs
             setCardDetails({ CardNumber: res.data.cardNumber, CVV: res.data.cvv });
-            if (res.data.qrCodeNumber) setQrCodeNumber(String(res.data.qrCodeNumber));
+            // Registration needs the card's QR code: the server's, or the one just scanned.
+            setQrCodeNumber(String(res.data.qrCodeNumber || body.qrCodeNumber || ''));
             setQrValidated(true);
             setStep(2);
             focusField('name');
@@ -296,6 +256,56 @@ const Signup = () => {
         } finally {
             setQrValidating(false);
         }
+    };
+    const orgFail = (err, fallback) => setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : fallback));
+    const orgGo = (stage) => { setError(null); setOrgStage(stage); };
+    const leaveOrgMode = () => { setError(null); setOrgResult(null); setOrgPick(null); setOrgStage('phone'); setOrgMode(false); };
+    const verifyOrgTeacher = async () => {
+        setError(null); setOrgResult(null); setOrgPick(null);
+        if (orgPhone.replace(/\D/g, '').length < 7) return setError('Enter the mobile number your organization added you with.');
+        setOrgChecking(true);
+        try {
+            const found = (await teacherApi.post('/auth/org-check', { phone: orgPhone.trim() })).data;
+            setOrgResult(found);
+            const waiting = (found.teachers || []).filter((t) => t.needsPassword && t.active);
+            // Still to be set up: "Is this you?" next.
+            if (waiting.length) { setOrgPick(waiting[0]); setOrgStage('confirm'); }
+        } catch (err) { orgFail(err, 'Could not check just now. Please try again.'); }
+        finally { setOrgChecking(false); }
+    };
+    const finishOrgSetup = async () => {
+        setError(null);
+        const email = orgDetails.email.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError('Enter a valid email address.');
+        setOrgChecking(true);
+        try {
+            enterTeacher((await teacherApi.post('/auth/org-check/setup', {
+                phone: orgPhone.trim(), teacherId: orgPick?.id, password: orgPassword,
+                email, designation: orgDetails.designation.trim(), department: orgDetails.department.trim(), researchArea: orgDetails.researchArea.trim()
+            })).data);
+        } catch (err) {
+            // A password the server refuses is fixed on its own page.
+            if (err.response?.data?.field === 'password') setOrgStage('password');
+            orgFail(err, 'Could not set up your account just now. Please try again.');
+            setOrgChecking(false);
+        }
+    };
+    const orgSubmit = (e) => {
+        e.preventDefault();
+        if (orgStage === 'phone') return orgResult ? undefined : verifyOrgTeacher();
+        if (orgStage === 'confirm') return orgGo('password');
+        if (orgStage === 'password') {
+            const weak = getPasswordStrengthError(orgPassword);
+            if (weak) return setError(weak);
+            if (orgPassword !== orgConfirm) return setError('The two passwords do not match.');
+            return orgGo('details');
+        }
+        return finishOrgSetup();
+    };
+    const handleValidateQR = (e) => {
+        e.preventDefault();
+        if (typedDigits.length !== 12) return setError('Please enter the 12-digit card number printed on your card, or scan its QR code.');
+        return validateCard({ cardNumber: typedDigits });
     };
 
     // Every detail is required: nothing moves on, and no account is created,
@@ -442,14 +452,14 @@ const Signup = () => {
     if (hasTeacherSession()) return <Navigate to="/teacher" replace />;
     if (pendingApproval) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-4">
-                <div role="status" className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl shadow-emerald-100">
-                    <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-amber-600 ring-1 ring-amber-100"><Clock size={26} aria-hidden="true" /></span>
-                    <h1 className="mt-4 text-xl font-black text-slate-900">Your account is waiting for approval</h1>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#232840] via-[#1f2336] to-[#272240] p-4 text-slate-100">
+                <div role="status" className="w-full max-w-md rounded-3xl bg-[#2a2f45] p-8 text-center shadow-[0_30px_70px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
+                    <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/30"><Clock size={26} aria-hidden="true" /></span>
+                    <h1 className="mt-4 text-xl font-black text-white">Your account is waiting for approval</h1>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-300">
                         Thank you, {pendingApproval}. Your teacher card is registered. The administrator approves new teacher accounts before they can be used — you will get an email when yours is approved.
                     </p>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600">Then choose <strong>Teacher</strong> on the sign-in page and sign in with your card number and password.</p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-300">Then choose <strong className="text-white">Teacher</strong> on the sign-in page and sign in with your card number and password.</p>
                     <Link to="/login?as=teacher" className="mt-5 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">Back to sign in</Link>
                 </div>
             </div>
@@ -460,82 +470,51 @@ const Signup = () => {
 
     // The error box every step shows; a used card adds the way to sign in.
     const errorBox = error && (
-        <div ref={errorRef} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">
+        <div ref={errorRef} role="alert" className="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-center text-sm font-medium text-red-300">
             {error}
             {cardUsed && (
-                <> <Link to={loginLink} className="font-bold text-indigo-600 underline">Sign in</Link></>
+                <> <Link to={loginLink} className="font-bold text-indigo-300 underline">Sign in</Link></>
             )}
         </div>
     );
 
     return (
-        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-3 sm:p-6">
-            {showContact && <ContactAdminModal onClose={() => setShowContact(false)} page="signup" />}
+        <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#232840] via-[#1f2336] to-[#272240] p-4 text-slate-100 sm:p-6">
+            {/* The sign-in page's backdrop (2026-10-30): dark, with two quiet glows. */}
+            <span aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[30rem] w-[44rem] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
+            <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-48 -z-10 h-[28rem] w-[28rem] rounded-full bg-violet-500/10 blur-[120px]" />
+            {showContact && <SupportDialog onClose={() => setShowContact(false)} page="signup" tone="dark" />}
 
-            <div className="lg-rise grid w-full max-w-5xl overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-indigo-200/70 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            {/* One card, as on the sign-in page: no welcome panel beside it. */}
+            <div className="lg-rise w-full max-w-[30rem] overflow-hidden rounded-3xl bg-[#2a2f45] shadow-[0_30px_70px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
 
-                {/* ── Left: the welcome panel ──────────────────────────── */}
-                {/* Below lg the form comes first and this panel follows it, as on
-                    the sign-in page: on a phone it is about a screen tall. */}
-                <aside className="relative order-2 overflow-hidden bg-gradient-to-b from-indigo-600 via-violet-600 to-violet-200 p-7 text-white sm:p-9 lg:order-1 lg:min-h-[640px]">
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-                        <div className="lg-blob absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-                        <div className="absolute right-10 top-24 h-12 w-12 rounded-full bg-white/15" />
-                        <div className="absolute right-24 top-64 h-7 w-7 rounded-full bg-white/15" />
-                        <div className="absolute left-8 top-1/2 h-4 w-4 rounded-full bg-white/20" />
-                        <Sparkle className="left-[46%] top-[9%] text-white" delay={0.3} size="text-xs" />
-                        <Sparkle className="left-[70%] top-[22%] text-white" delay={1.4} size="text-sm" />
-                        <Sparkle className="left-[16%] top-[40%] text-white" delay={0.9} size="text-xs" />
-                        <Sparkle className="left-[58%] top-[45%] text-white" delay={2.1} size="text-base" />
-                        <Sparkle className="left-[30%] top-[52%] text-white" delay={1.8} size="text-xs" />
-                        <Sparkle className="left-[80%] top-[58%] text-white" delay={0.6} size="text-sm" />
-                        {/* The pale foreground wave the illustration stands on. */}
-                        <div className="absolute -bottom-24 -left-10 h-56 w-[140%] rounded-[50%] bg-white/70 blur-md" />
-                    </div>
-
-                    <div className="relative mt-4 max-w-xs sm:mt-6">
-                        <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-[2.6rem]">
-                            Welcome<br />to <span className="text-cyan-300">LearnHub</span>
-                        </h1>
-                        <p className="mt-4 max-w-[240px] text-sm leading-relaxed text-indigo-100">
-                            Your smart learning journey starts here. Let&apos;s achieve great things together!
-                        </p>
-                    </div>
-
-                    {/* The mascot with the floating tiles. */}
-                    <div aria-hidden="true" className="relative mt-8 h-72 sm:h-80 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:h-[52%]">
-                        <span className="lg-float absolute right-8 top-2 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 text-3xl shadow-lg ring-1 ring-white/40 backdrop-blur">🏆</span>
-                        <span className="lg-float absolute left-4 top-16 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-2xl shadow-lg ring-1 ring-white/40 backdrop-blur" style={{ animationDelay: '-2.4s' }}>📈</span>
-                        <span className="mascot-tag absolute right-4 top-[38%] z-10 whitespace-nowrap rounded-2xl rounded-bl-sm bg-white px-3.5 py-2 text-sm font-black leading-tight text-indigo-700 shadow-lg">
-                            Hi! Let&apos;s learn<br />together 👋
-                        </span>
-                        {/* A box capped by both height and width, so the character is
-                            never wider than the panel and never cut off. */}
-                        <div className="mascot-enter absolute bottom-0 left-1/2 aspect-[16/17] h-[92%] max-w-[70%] -translate-x-1/2">
-                            <div className="lg-float h-full w-full" style={{ animationDelay: '-1.2s' }}>
-                                <Mascot className="h-full w-full object-contain drop-shadow-2xl" />
-                            </div>
-                        </div>
-                    </div>
-                </aside>
-
-                {/* ── Right: the sign-up card ──────────────────────────── */}
-                <section className="relative order-1 bg-white px-5 py-8 sm:px-10 sm:py-10 lg:order-2">
+                {/* ── The sign-up card ─────────────────────────────────── */}
+                <section className="relative px-6 py-8 sm:px-9 sm:py-9">
                     <div className="mx-auto max-w-md">
                         {(
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
-                            {/* The compact header a phone gets, with the welcome panel below the form. */}
-                            <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-indigo-500 lg:hidden">Welcome to LearnHub</p>
-                            <span className="lg-float flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 ring-1 ring-indigo-100">
-                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300">{asTeacher ? <BookOpenCheck size={18} /> : <UserPlus size={18} />}</span>
-                            </span>
-                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">{asTeacher ? 'Register your teacher card' : 'Create your account'}</h2>
-                            <p className="mt-1.5 text-sm text-slate-500">{stepHint}</p>
+                            <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-5 h-8 w-auto object-contain" />
+                            <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-indigo-300">Welcome to LearnHub</p>
+                            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-400/30">{asTeacher ? <BookOpenCheck size={20} /> : <UserPlus size={20} />}</span>
+                            <h2 className="mt-4 text-2xl font-bold tracking-tight text-white">{asTeacher ? 'Register your teacher card' : 'Create your account'}</h2>
+                            <p className="mt-1.5 text-sm text-slate-400">{orgMode && asTeacher ? ORG_HINT[orgStage] : stepHint}</p>
+                            {/* Student or teacher, as one switch, under the heading (2026-10-30). */}
+                            <div role="radiogroup" aria-label="Signing up as" className="mt-5 grid w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/15 p-1">
+                                {[['student', 'Student', GraduationCap], ['teacher', 'Teacher', BookOpenCheck]].map(([id, label, Icon]) => {
+                                    const on = (id === 'teacher') === asTeacher;
+                                    return (
+                                        <button key={id} type="button" role="radio" aria-checked={on} onClick={() => chooseRole(id)}
+                                            className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-all ${on ? (id === 'teacher' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') : 'text-slate-400 hover:text-white'}`}>
+                                            <Icon size={15} aria-hidden="true" /> {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
 
                             {/* Stepper: which of the three steps we are on. */}
-                            <div className="mt-4 flex items-center gap-2" aria-label={`Step ${step} of 3: ${stepTitle}`}>
+                            <div className={`mt-4 flex items-center gap-2 ${orgMode && asTeacher ? 'hidden' : ''}`} aria-label={`Step ${step} of 3: ${stepTitle}`}>
                                 {[1, 2, 3].map(s => (
-                                    <span key={s} className={`h-2.5 rounded-full transition-all duration-300 ${step === s ? 'w-7 bg-indigo-600' : step > s ? 'w-2.5 bg-emerald-500' : 'w-2.5 bg-slate-200'}`} />
+                                    <span key={s} className={`h-2.5 rounded-full transition-all duration-300 ${step === s ? 'w-7 bg-indigo-500' : step > s ? 'w-2.5 bg-emerald-400' : 'w-2.5 bg-white/15'}`} />
                                 ))}
                                 <span className="ml-1 text-xs font-bold uppercase tracking-wider text-slate-400">Step {step} of 3</span>
                             </div>
@@ -544,71 +523,185 @@ const Signup = () => {
 
                         {/* Step 1: card QR */}
                         {step === 1 && (
-                            <form className="lg-rise mt-6 space-y-5" onSubmit={handleValidateQR} style={{ animationDelay: '0.2s' }}>
+                            <form className="lg-rise mt-6 space-y-5" onSubmit={orgMode && asTeacher ? orgSubmit : handleValidateQR} style={{ animationDelay: '0.2s' }}>
                                 {errorBox}
 
-                                {/* Scan / type, as one bordered switch */}
-                                <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
-                                    {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard]].map(([id, label, Icon]) => (
-                                        <button key={id} type="button"
-                                            onClick={() => { setScanError(''); setScanning(false); setMode(id); }}
-                                            className={`inline-flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold transition-all ${mode === id ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
-                                            <Icon size={16} /> {label}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {mode === 'scan' && qrCodeNumber ? (
-                                    <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                                        <CheckCircle2 size={22} className="shrink-0 text-emerald-600" />
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-xs font-semibold text-emerald-700">Card read</p>
-                                            <p className="break-all font-mono text-lg tracking-widest text-slate-800">{qrCodeNumber}</p>
+                                {asTeacher && orgMode ? (
+                                    <>
+                                        {orgStage !== 'phone' && <p className="text-center text-xs font-bold uppercase tracking-wider text-slate-400">Step {ORG_STEPS.indexOf(orgStage) + 1} of 3</p>}
+                                        {orgStage === 'phone' && (<>
+                                        {/* No AI card: the organization added them; check the number they were added with. */}
+                                        <div>
+                                            <label htmlFor="signup-org-phone" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Phone size={15} className="text-slate-400" /> Mobile number</label>
+                                            <input id="signup-org-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} value={orgPhone}
+                                                onChange={(e) => { setOrgPhone(e.target.value.replace(/[^0-9+()\s-]/g, '')); setOrgResult(null); setError(null); }}
+                                                className={inputClass} placeholder="The number your organization added you with" aria-describedby="signup-org-phone-hint" />
+                                            <p id="signup-org-phone-hint" className="mt-1.5 text-xs text-slate-400">Teachers without an AI card are added by their organization with their name and mobile number.</p>
                                         </div>
-                                        <button type="button" onClick={() => { setQrCodeNumber(''); setScanError(''); setError(null); setCardUsed(false); }}
-                                            className="shrink-0 text-xs font-bold text-emerald-700 hover:underline">Change</button>
-                                    </div>
-                                ) : mode === 'scan' ? (
-                                    <div className="rounded-2xl border-2 border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/70 p-6 text-center">
-                                        {/* html5-qrcode needs this element present before it starts. */}
-                                        <div id={SCANNER_ID} className={`overflow-hidden rounded-xl bg-slate-900 ${scanning ? 'block' : 'hidden'}`} />
-                                        {!scanning ? (
+                                        {orgResult && !orgWaiting.length ? (
                                             <>
-                                                <button type="button" onClick={() => { setScanError(''); setScanning(true); }} aria-label="Scan your card"
-                                                    className="lg-scan-ring mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg shadow-indigo-200 transition-transform hover:scale-105">
-                                                    <ScanLine size={44} strokeWidth={1.8} />
-                                                </button>
-                                                <p className="mt-4 text-lg font-bold text-slate-900">Scan your card</p>
-                                                <p className="mt-1 text-sm text-slate-500">Hold the QR code on your card up to the camera</p>
+                                                <div role="status" className="flex items-start gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-left">
+                                                    <CheckCircle2 size={22} className="mt-0.5 shrink-0 text-emerald-300" />
+                                                    <div className="min-w-0 text-sm">
+                                                        <p className="font-bold text-emerald-200">Verified</p>
+                                                        <p className="mt-0.5 text-slate-200">
+                                                            {orgResult.teachers.map((t) => `${t.firstName}, ${t.organization}`).join(' · ')} — your organization has added you as a teacher.
+                                                        </p>
+                                                        <p className="mt-1 text-slate-300">{orgResult.teachers.some((t) => t.active)
+                                                            ? 'Your account is set up. Sign in with this mobile number and your password.'
+                                                            : 'The account is not active yet. Ask your organization to turn it on, then try again.'}</p>
+                                                    </div>
+                                                </div>
+                                                {orgResult.teachers.some((t) => t.active) && (
+                                                    <Link to="/login" className={primaryBtn}>
+                                                        Go to sign in
+                                                        <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>
+                                                    </Link>
+                                                )}
                                             </>
                                         ) : (
-                                            <button type="button" onClick={() => setScanning(false)}
-                                                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
-                                                <X size={13} /> Stop the camera
+                                            <button type="submit" disabled={orgChecking || orgPhone.replace(/\D/g, '').length < 7} className={primaryBtn}>
+                                                {orgChecking ? 'Checking…' : 'Verify'}
+                                                {!orgChecking && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
                                             </button>
                                         )}
-                                    </div>
+                                        </>)}
+
+                                        {/* "Is this you?": the name and number their organization added. */}
+                                        {orgStage === 'confirm' && (<>
+                                            <div role="status" className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-left">
+                                                <p className="flex items-center gap-2 font-bold text-emerald-200"><CheckCircle2 size={18} /> Verified · Is this you?</p>
+                                                <div className="mt-3 space-y-2" role={orgWaiting.length > 1 ? 'radiogroup' : undefined} aria-label={orgWaiting.length > 1 ? 'Which one is you' : undefined}>
+                                                    {orgWaiting.map((t) => (
+                                                        <label key={t.id} className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${orgPick?.id === t.id ? 'border-emerald-400/50 bg-black/20' : 'border-white/10'} ${orgWaiting.length > 1 ? 'cursor-pointer' : ''}`}>
+                                                            {orgWaiting.length > 1 && <input type="radio" name="org-pick" checked={orgPick?.id === t.id} onChange={() => setOrgPick(t)} className="mt-1 h-4 w-4 accent-emerald-500" />}
+                                                            <span className="min-w-0">
+                                                                <span className="flex items-center gap-1.5 text-base font-bold text-white"><User size={15} className="text-slate-400" /> {t.name}</span>
+                                                                <span className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-300"><Phone size={14} className="text-slate-400" /> {t.phone}</span>
+                                                                <span className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-300"><Building2 size={14} className="text-slate-400" /> {t.organization}</span>
+                                                            </span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <button type="submit" disabled={!orgPick} className={primaryBtn}>
+                                                Yes, this is me
+                                                <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>
+                                            </button>
+                                            <button type="button" onClick={() => { orgGo('phone'); setOrgResult(null); setOrgPick(null); setError('Check the mobile number. If it is yours but the name is wrong, ask your organization to correct it.'); }}
+                                                className="w-full rounded-xl border border-white/10 py-3 text-sm font-semibold text-slate-300 hover:bg-white/5">
+                                                No, this is not me
+                                            </button>
+                                        </>)}
+
+                                        {/* Their own password, typed twice. */}
+                                        {orgStage === 'password' && (<>
+                                            <div>
+                                                <label htmlFor="signup-org-password" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Lock size={15} className="text-slate-400" /> Set your password</label>
+                                                <div className="relative">
+                                                    <input id="signup-org-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={orgPassword} autoFocus
+                                                        onChange={(e) => { setOrgPassword(e.target.value); setError(null); }} className={`${inputClass} pr-12`} placeholder="Choose a password" />
+                                                    <button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}
+                                                        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-slate-200">
+                                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                                    </button>
+                                                </div>
+                                                <p className="mt-1.5 text-xs text-slate-400">At least 8 characters, with an uppercase letter, a lowercase letter, a number and a symbol. You sign in with your mobile number and this password.</p>
+                                            </div>
+                                            <div>
+                                                <label htmlFor="signup-org-confirm" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Lock size={15} className="text-slate-400" /> Confirm password</label>
+                                                <input id="signup-org-confirm" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={orgConfirm}
+                                                    onChange={(e) => { setOrgConfirm(e.target.value); setError(null); }} className={inputClass} placeholder="Type it again" />
+                                            </div>
+                                            <button type="submit" className={primaryBtn}>
+                                                Continue
+                                                <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>
+                                            </button>
+                                            <button type="button" onClick={() => orgGo('confirm')} disabled={orgChecking} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-300 hover:text-indigo-100 hover:underline disabled:opacity-50"><ArrowLeft size={13} /> Back</button>
+                                        </>)}
+
+                                        {/* Their email and basic details, then into the dashboard. */}
+                                        {orgStage === 'details' && (<>
+                                            <div>
+                                                <label htmlFor="signup-org-email" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Mail size={15} className="text-slate-400" /> Email</label>
+                                                <input id="signup-org-email" type="email" autoComplete="email" value={orgDetails.email} autoFocus
+                                                    onChange={(e) => { setOrgDetails((d) => ({ ...d, email: e.target.value })); setError(null); }} className={inputClass} placeholder="name@college.edu" />
+                                                <p className="mt-1.5 text-xs text-slate-400">For a password reset if you ever forget it.</p>
+                                            </div>
+                                            <div>
+                                                <label htmlFor="signup-org-designation" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><GraduationCap size={15} className="text-slate-400" /> Designation <span className="font-normal text-slate-500">(optional)</span></label>
+                                                <input id="signup-org-designation" list="signup-org-designations" maxLength={100} value={orgDetails.designation}
+                                                    onChange={(e) => setOrgDetails((d) => ({ ...d, designation: e.target.value }))} className={inputClass} placeholder="e.g. Assistant Professor" />
+                                                <datalist id="signup-org-designations">{DESIGNATIONS.map((d) => <option key={d} value={d} />)}</datalist>
+                                            </div>
+                                            <div>
+                                                <label htmlFor="signup-org-department" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Landmark size={15} className="text-slate-400" /> Department <span className="font-normal text-slate-500">(optional)</span></label>
+                                                <input id="signup-org-department" maxLength={200} value={orgDetails.department}
+                                                    onChange={(e) => setOrgDetails((d) => ({ ...d, department: e.target.value }))} className={inputClass} placeholder="e.g. Commerce" />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="signup-org-subject" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><BookOpenCheck size={15} className="text-slate-400" /> Subjects you teach <span className="font-normal text-slate-500">(optional)</span></label>
+                                                <input id="signup-org-subject" maxLength={300} value={orgDetails.researchArea}
+                                                    onChange={(e) => setOrgDetails((d) => ({ ...d, researchArea: e.target.value }))} className={inputClass} placeholder="e.g. Accounting, Business Law" />
+                                            </div>
+                                            <button type="submit" disabled={orgChecking} className={primaryBtn}>
+                                                {orgChecking ? 'Setting up…' : 'Finish & open my dashboard'}
+                                                {!orgChecking && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
+                                            </button>
+                                            <button type="button" onClick={() => orgGo('password')} disabled={orgChecking} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-300 hover:text-indigo-100 hover:underline disabled:opacity-50"><ArrowLeft size={13} /> Back</button>
+                                        </>)}
+
+                                        {orgStage === 'phone' && (
+                                        <button type="button" onClick={leaveOrgMode}
+                                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-300 hover:text-indigo-100 hover:underline">
+                                            <CreditCard size={13} /> Have an AI card? Use your card number
+                                        </button>
+                                        )}
+                                    </>
                                 ) : (
-                                    <div>
-                                        <label htmlFor="signup-card" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><CreditCard size={15} className="text-slate-500" /> Card Number</label>
-                                        <input id="signup-card" type="text" required inputMode="numeric" autoComplete="off" maxLength={14} value={typedCard}
+                                    <>
+                                {/* One box for the card number, the scanner inside it on the right,
+                                    as on the sign-in page (2026-10-30). */}
+                                <div>
+                                    <label htmlFor="signup-card" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><CreditCard size={15} className="text-slate-400" /> Card Number</label>
+                                    <div className="relative">
+                                        <input id="signup-card" type="text" inputMode="numeric" autoComplete="off" maxLength={14} value={typedCard}
                                             onChange={(e) => { setTypedCard(e.target.value.replace(/\D/g, '').slice(0, 12).replace(/(\d{4})(?=\d)/g, '$1 ')); setCardUsed(false); }}
-                                            className={`${inputClass} font-mono tracking-widest`}
+                                            className={`${inputClass} pr-14 font-mono tracking-widest`}
                                             placeholder="e.g. 2401 0001 9664" aria-describedby="signup-card-hint" />
-                                        <p id="signup-card-hint" className="mt-1.5 text-xs text-slate-500">The 12-digit number printed on your physical or digital card.</p>
+                                        <button type="button" disabled={qrValidating}
+                                            onClick={() => { setScanError(''); setError(null); setScanning((on) => !on); }}
+                                            aria-label={scanning ? 'Stop scanning' : 'Scan your card'} aria-pressed={scanning} title={scanning ? 'Stop scanning' : 'Scan your card'}
+                                            className={`absolute top-1/2 right-1.5 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:opacity-60 ${scanning ? 'bg-indigo-500 text-white' : 'bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-400/30 hover:bg-indigo-500/25'}`}>
+                                            {qrValidating && !typedDigits ? <Loader2 size={18} className="animate-spin" /> : scanning ? <X size={18} /> : <ScanLine size={19} />}
+                                        </button>
                                     </div>
-                                )}
+                                    <p id="signup-card-hint" className="mt-1.5 text-xs text-slate-400">The 12-digit number printed on your physical or digital card.</p>
+                                    {asTeacher && (
+                                        <button type="button" onClick={() => { setError(null); setScanning(false); setOrgStage('phone'); setOrgMode(true); }}
+                                            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200 hover:underline">
+                                            <Building2 size={13} /> No card? Verify as your organization&apos;s teacher
+                                        </button>
+                                    )}
+                                    {/* html5-qrcode needs this element present before it starts. */}
+                                    <div className={scanning ? 'mt-3' : 'hidden'}>
+                                        <div id={SCANNER_ID} className="overflow-hidden rounded-xl bg-black ring-1 ring-white/10" />
+                                        <p className="mt-2 text-xs text-slate-400">Hold the QR code on your card up to the camera</p>
+                                    </div>
+                                </div>
 
                                 {scanError && (
-                                    <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                                    <p className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200">
                                         <CameraOff size={14} className="mt-0.5 shrink-0" /> {scanError}
                                     </p>
                                 )}
 
-                                <button type="submit" disabled={qrValidating || (mode === 'manual' ? typedDigits.length !== 12 : !qrCodeNumber.trim())} className={primaryBtn}>
+                                <button type="submit" disabled={qrValidating || typedDigits.length !== 12} className={primaryBtn}>
                                     {qrValidating ? 'Verifying your card…' : 'Verify Card'}
                                     {!qrValidating && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
                                 </button>
+                                    </>
+                                )}
                             </form>
                         )}
 
@@ -618,32 +711,32 @@ const Signup = () => {
                                 {errorBox}
 
                                 {/* The card we verified in step 1, read-only. */}
-                                <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                                    <CheckCircle2 size={22} className="shrink-0 text-emerald-600" />
+                                <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3">
+                                    <CheckCircle2 size={22} className="shrink-0 text-emerald-300" />
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-xs font-semibold text-emerald-700">Card verified</p>
-                                        <p className="font-mono text-lg tracking-wider text-slate-800">{cardDetails.CardNumber}</p>
+                                        <p className="text-xs font-semibold text-emerald-300">Card verified</p>
+                                        <p className="font-mono text-lg tracking-wider text-slate-100">{cardDetails.CardNumber}</p>
                                     </div>
-                                    <CreditCard size={18} className="shrink-0 text-emerald-600/70" />
+                                    <CreditCard size={18} className="shrink-0 text-emerald-300/70" />
                                 </div>
 
                                 <div>
-                                    <label htmlFor="signup-name" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><User size={15} className="text-slate-500" /> Full Name</label>
+                                    <label htmlFor="signup-name" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><User size={15} className="text-slate-400" /> Full Name</label>
                                     <input id="signup-name" type="text" name="name" required autoComplete="name" value={formData.name} onChange={handleInputChange}
                                         aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? 'signup-name-error' : undefined}
                                         className={inputClass + invalidRing(fieldErrors.name)} placeholder="Your full name" />
                                     <FieldError id="signup-name-error">{fieldErrors.name}</FieldError>
                                 </div>
                                 <div>
-                                    <label htmlFor="signup-email" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Mail size={15} className="text-slate-500" /> Email</label>
+                                    <label htmlFor="signup-email" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Mail size={15} className="text-slate-400" /> Email</label>
                                     <input id="signup-email" type="email" name="email" required autoComplete="email" value={formData.email} onChange={handleInputChange}
                                         aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'signup-email-error signup-email-hint' : 'signup-email-hint'}
                                         className={inputClass + invalidRing(fieldErrors.email)} placeholder={asTeacher ? 'you@college.edu.in' : 'you@gmail.com'} />
                                     <FieldError id="signup-email-error">{fieldErrors.email}</FieldError>
-                                    <p id="signup-email-hint" className="mt-1.5 text-xs text-slate-500">{asTeacher ? 'Your work or personal email. Password-reset links go here.' : 'Only @gmail.com addresses are accepted.'}</p>
+                                    <p id="signup-email-hint" className="mt-1.5 text-xs text-slate-400">{asTeacher ? 'Your work or personal email. Password-reset links go here.' : 'Only @gmail.com addresses are accepted.'}</p>
                                 </div>
                                 <div>
-                                    <label htmlFor="signup-phone" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Phone size={15} className="text-slate-500" /> Phone Number</label>
+                                    <label htmlFor="signup-phone" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Phone size={15} className="text-slate-400" /> Phone Number</label>
                                     <div className="flex gap-2">
                                         {/* Labelled on its own: the visible label belongs to the number box. */}
                                         <label htmlFor="signup-phone-code" className="sr-only">Country code</label>
@@ -652,7 +745,7 @@ const Signup = () => {
                                             autoComplete="tel-country-code"
                                             value={formData.phoneCode || '+91'}
                                             onChange={e => { setFormData({ ...formData, phoneCode: e.target.value }); setFieldErrors((f) => ({ ...f, phone: undefined })); }}
-                                            className="w-24 rounded-xl border border-slate-200 bg-white px-2 py-3 text-sm text-slate-800 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-24 rounded-xl border border-white/10 bg-black/15 px-2 py-3.5 text-sm text-slate-100 shadow-sm [color-scheme:dark] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         >
                                             <option value="+91">🇮🇳 +91</option>
                                             <option value="+1">🇺🇸 +1</option>
@@ -683,15 +776,15 @@ const Signup = () => {
                                 {asTeacher ? (
                                     <div className="grid gap-4 sm:grid-cols-2">
                                         <div>
-                                            <label htmlFor="signup-institution" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                                                <Landmark size={15} className="text-slate-500" /> Institution <span className="font-normal text-slate-400">(optional)</span>
+                                            <label htmlFor="signup-institution" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
+                                                <Landmark size={15} className="text-slate-400" /> Institution <span className="font-normal text-slate-500">(optional)</span>
                                             </label>
                                             <input id="signup-institution" type="text" name="institution" maxLength={200} autoComplete="organization" value={formData.institution} onChange={handleInputChange}
                                                 className={inputClass} placeholder="College or university" />
                                         </div>
                                         <div>
-                                            <label htmlFor="signup-department" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                                                <Building2 size={15} className="text-slate-500" /> Department <span className="font-normal text-slate-400">(optional)</span>
+                                            <label htmlFor="signup-department" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
+                                                <Building2 size={15} className="text-slate-400" /> Department <span className="font-normal text-slate-500">(optional)</span>
                                             </label>
                                             <input id="signup-department" type="text" name="department" maxLength={200} value={formData.department} onChange={handleInputChange}
                                                 className={inputClass} placeholder="e.g. Physics" />
@@ -703,9 +796,9 @@ const Signup = () => {
                                     under the box. A student with no institution
                                     should not feel they are missing a step. */}
                                 <div>
-                                    <label htmlFor="signup-org-code" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                                        <Building2 size={15} className="text-slate-500" /> Organization ID
-                                        <span className="font-normal text-slate-400">(optional)</span>
+                                    <label htmlFor="signup-setup-code" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
+                                        <Building2 size={15} className="text-slate-400" /> Organization ID
+                                        <span className="font-normal text-slate-500">(optional)</span>
                                     </label>
                                     <input
                                         id="signup-org-code"
@@ -721,7 +814,7 @@ const Signup = () => {
                                         placeholder="xx_xxxx_xxx"
                                     />
                                     <FieldError id="signup-org-code-error">{fieldErrors.orgCode}</FieldError>
-                                    <p className="mt-1.5 text-xs text-slate-500">
+                                    <p className="mt-1.5 text-xs text-slate-400">
                                         Only if your school, college or company gave you one. They will be asked to approve
                                         you, and can then follow your progress. You can add it later instead.
                                     </p>
@@ -745,7 +838,7 @@ const Signup = () => {
                                 {errorBox}
 
                                 <div>
-                                    <label htmlFor="signup-password" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Password</label>
+                                    <label htmlFor="signup-password" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Lock size={15} className="text-slate-400" /> Password</label>
                                     <div className="relative">
                                         <input
                                             id="signup-password"
@@ -762,14 +855,14 @@ const Signup = () => {
                                         />
                                         <button type="button" onClick={() => setShowPassword(v => !v)}
                                             aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
 
                                     {/* Live strength checklist — only shown while typing */}
                                     {(passwordFocused || formData.password.length > 0) && (
-                                        <div className="mt-3 grid grid-cols-1 gap-1 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 sm:grid-cols-2">
+                                        <div className="mt-3 grid grid-cols-1 gap-1 rounded-xl border border-white/10 bg-black/15 px-4 py-3 sm:grid-cols-2">
                                             {[
                                                 { label: 'At least 8 characters', ok: formData.password.length >= 8 },
                                                 { label: 'One uppercase letter', ok: /[A-Z]/.test(formData.password) },
@@ -777,7 +870,7 @@ const Signup = () => {
                                                 { label: 'One number', ok: /[0-9]/.test(formData.password) },
                                                 { label: 'One special character', ok: /[^A-Za-z0-9]/.test(formData.password) },
                                             ].map(rule => (
-                                                <div key={rule.label} className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${rule.ok ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                <div key={rule.label} className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${rule.ok ? 'text-emerald-300' : 'text-slate-500'}`}>
                                                     <span>{rule.ok ? '✓' : '○'}</span>
                                                     <span>{rule.label}</span>
                                                 </div>
@@ -787,7 +880,7 @@ const Signup = () => {
                                 </div>
 
                                 <div>
-                                    <label htmlFor="signup-confirm-password" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Confirm Password</label>
+                                    <label htmlFor="signup-confirm-password" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Lock size={15} className="text-slate-400" /> Confirm Password</label>
                                     <div className="relative">
                                         <input
                                             id="signup-confirm-password"
@@ -802,15 +895,15 @@ const Signup = () => {
                                         />
                                         <button type="button" onClick={() => setShowConfirmPassword(v => !v)}
                                             aria-label={showConfirmPassword ? 'Hide password' : 'Show password'} aria-pressed={showConfirmPassword}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                                             {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
                                 </div>
 
-                                <label className="flex cursor-pointer items-start gap-2.5 text-sm text-slate-600">
+                                <label className="flex cursor-pointer items-start gap-2.5 text-sm text-slate-300">
                                     <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); setError(null); }} className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600" />
-                                    <span>I agree to the <Link to="/terms" target="_blank" className="font-bold text-indigo-600 hover:underline">Terms and Conditions</Link> and the <Link to="/privacy" target="_blank" className="font-bold text-indigo-600 hover:underline">Privacy Policy</Link>.</span>
+                                    <span>I agree to the <Link to="/terms" target="_blank" className="font-bold text-indigo-300 hover:underline">Terms and Conditions</Link> and the <Link to="/privacy" target="_blank" className="font-bold text-indigo-300 hover:underline">Privacy Policy</Link>.</span>
                                 </label>
 
                                 <div className="flex gap-3">
@@ -826,19 +919,19 @@ const Signup = () => {
                         {(
                             <>
                         <button type="button" onClick={() => setShowContact(true)}
-                            className="lg-rise mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50" style={{ animationDelay: '0.3s' }}>
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600"><MessageCircleQuestion size={16} /></span>
-                            <span className="flex-1">Having trouble? <span className="font-bold text-indigo-600">Contact Admin</span></span>
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white ring-1 ring-slate-200"><ChevronRight size={15} className="text-slate-500" /></span>
+                            className="lg-rise mt-4 flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm text-slate-300 transition-colors hover:border-indigo-200 hover:bg-indigo-500/15" style={{ animationDelay: '0.3s' }}>
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-300"><MessageCircleQuestion size={16} /></span>
+                            <span className="flex-1">Having trouble? <span className="font-bold text-indigo-300">Contact Admin</span></span>
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2a2f45] ring-1 ring-white/10"><ChevronRight size={15} className="text-slate-400" /></span>
                         </button>
 
-                        <p className="mt-5 text-center text-xs text-slate-500">
-                            Already have an account? <Link to={loginLink} className="font-bold text-indigo-600 hover:underline">Sign in here</Link>
+                        <p className="mt-5 text-center text-xs text-slate-400">
+                            Already have an account? <Link to={loginLink} className="font-bold text-indigo-300 hover:underline">Sign in here</Link>
                         </p>
-                        <p className="mt-2 text-center text-xs text-slate-500">
+                        <p className="mt-2 text-center text-xs text-slate-400">
                             {asTeacher
-                                ? <>A student? <Link to="/signup" className="font-bold text-indigo-600 hover:underline">Create a student account</Link></>
-                                : <>A teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-700 hover:underline">Register a teacher card</Link></>}
+                                ? <>A student? <Link to="/signup" className="font-bold text-indigo-300 hover:underline">Create a student account</Link></>
+                                : <>A teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-300 hover:underline">Register a teacher card</Link></>}
                         </p>
                             </>
                         )}

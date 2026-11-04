@@ -48,6 +48,12 @@ const requireHosting = (req, res, next) => {
 // check of a certificate's ID (no sign-in: anyone holding one may check it).
 router.use('/group-brain/admin', protectAdmin, superAdminOnly, require('./groupbrain/admin'));
 router.get('/group-brain/verify/:certId', (req, res, next) => require('./groupbrain/certificates').verify(req.params.certId).then((r) => res.json(r)).catch(next));
+// The Certificate Builder (certificates/routes.js, 2026-10-31): the platform's and an organization's, the same
+// routes; and anyone may check a certificate's ID from its QR code (no sign-in).
+const { certificateRoutes, verify: verifyCertificate } = require('./certificates/routes');
+router.get('/certificates/verify/:certId', (req, res, next) => verifyCertificate(req.params.certId).then((r) => res.json(r)).catch(next));
+router.use('/admin/certificates', protectAdmin, superAdminOnly, certificateRoutes('platform'));
+router.use('/org/certificates', protectOrgAdmin, requireActiveOrganization, certificateRoutes('organization'));
 router.use('/arena/admin', protectAdmin, superAdminOnly, require('./arena/admin')('platform'));
 router.use('/arena', protectUser, require('./arena/student'));
 router.use('/admin', protectAdmin, superAdminOnly, manage('platform'));

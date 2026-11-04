@@ -158,15 +158,17 @@ const validateQR = async (req, res) => {
 //
 // Registration's validateQR refuses a card whose status is 'used', which is
 // exactly the state every registered student's card is in — so signing in
-// needs its own lookup. It answers with the card number and nothing else:
-// never the CVV, and never anything about the account beyond whether one
-// exists, because the reply is only as trustworthy as whoever is holding the
-// card up to the camera. The number is printed on that same card, so this
-// tells the scanner nothing it could not already read.
+// needs its own lookup. It answers with the card number and the student's
+// name (so the sign-in page can say whose card it read — the forgot-password
+// preview already shows that much for a card number), never the CVV or
+// anything else about the account.
 const scanCard = async (req, res) => {
     try {
         const raw = String(req.body?.code || '').trim();
-        if (!raw) return res.status(400).json({ message: 'Nothing was scanned. Try again.' });
+        // A number typed on the sign-in page, checked before the password:
+        // the same lookup, but never the demo-card sign-in below.
+        const typed = req.body?.typed === true;
+        if (!raw) return res.status(400).json({ message: typed ? 'Enter your card number.' : 'Nothing was scanned. Try again.' });
 
         // A QR may carry the code alone, or a URL with it on the end; see
         // scanCandidates. The QR normally holds the card's QR number; some
@@ -174,13 +176,13 @@ const scanCard = async (req, res) => {
         const candidates = scanCandidates(raw);
         if (!candidates.length) return res.status(400).json({ message: "That code isn't readable. Try scanning again." });
         const card = await findScannedCard(candidates).lean();
-        if (!card) return res.status(404).json({ message: 'That card was not recognised. Check the card, or type the number instead.' });
+        if (!card) return res.status(404).json({ message: typed ? 'No card has that number. Check the number printed on your card.' : 'That card was not recognised. Check the card, or type the number instead.' });
         if (card.status === 'inactive') return res.status(400).json({ message: 'This card is inactive. Contact your administrator.' });
 
         // Imported students hold the card number as a number and the QR code
         // on the record, so match on either — a text-only lookup missed them.
         const user = (await findUserByCardNumber(card.CardNumber))
-            || (card.qrCodeNumber ? await User.findOne({ qrNumber: card.qrCodeNumber }).select('_id status cardNumber') : null);
+            || (card.qrCodeNumber ? await User.findOne({ qrNumber: card.qrCodeNumber }).select('_id status cardNumber name email') : null);
         if (!user) {
             // A teacher's card, at the student sign-in: say where it belongs.
             if (await require('../teacher/auth').findTeacherByCard(card.CardNumber)) {
@@ -197,13 +199,15 @@ const scanCard = async (req, res) => {
 
         // A demo (presentation) card: its scan is the sign-in — no password (services/demoCards.js).
         // Only a scan: typing the number still asks for the password.
-        if (require('../services/fullAccess').hasFullAccess(user)) {
+        if (!typed && require('../services/fullAccess').hasFullAccess(user)) {
             const full = await User.findById(user._id);
             return require('./userAuthController').finishLogin(req, res, full);
         }
 
         // The number as the account knows it, as text, which is what login reads.
-        res.json({ cardNumber: String(user.cardNumber || card.CardNumber) });
+        // Name and email fill the support ticket form (owner's call, 2026-11-04),
+        // where the student can still change them.
+        res.json({ cardNumber: String(user.cardNumber || card.CardNumber), name: user.name || '', email: user.email || '' });
     } catch (error) {
         res.status(500).json({ message: 'Server error while reading that card', error: error.message });
     }

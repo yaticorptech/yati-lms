@@ -101,6 +101,8 @@ const competitionSchema = new mongoose.Schema({
     // Certificates for 1st, 2nd and 3rd, and separately for everyone else.
     certificates: { type: Boolean, default: true },
     participationCertificates: { type: Boolean, default: true },
+    // The saved certificate (Certificate 1, 2, …) its winners and participants get (2026-11-03); null: the standard one.
+    certificateDesignId: { type: mongoose.Schema.Types.ObjectId, default: null },
 
     status: { type: String, enum: STATUSES, default: 'draft', index: true },
     // Once completed: the teams in 1st, 2nd and 3rd place.

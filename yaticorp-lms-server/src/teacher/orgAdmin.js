@@ -45,7 +45,14 @@ const { EMAIL_PATTERN, checkDetails } = require('./accounts');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-const FIELDS = 'name email phone cardNumber institution department designation status createdBy organizationJoinedAt loginCount lastLoginAt createdAt';
+const FIELDS = 'name email phone cardNumber institution department designation status createdBy organizationJoinedAt loginCount lastLoginAt createdAt mentor360 scouts';
+/** The features in a request ({ scouts, mentor360 } booleans) as a $set, or null when none is given. */
+const featuresOf = (body) => {
+    const f = body?.features || {};
+    const set = {};
+    for (const k of ['scouts', 'mentor360']) if (typeof f[k] === 'boolean') set[k] = f[k];
+    return Object.keys(set).length ? set : null;
+};
 const accountError = (res, error) => res.status(400).json({ field: error.field, ...(error.code ? { code: error.code } : {}), message: error.message });
 const notMine = (res) => res.status(404).json({ message: 'No such teacher in your organization' });
 
@@ -66,10 +73,18 @@ router.get('/', async (req, res) => {
             Admin.find({ organizationId: req.organization._id, staff: true }).select('name email staffTeacherId createdAt').sort({ name: 1 }).lean()
         ]);
         const ids = rows.map((r) => r._id);
-        const [units, clubs] = await Promise.all([
+        const [units, clubs, org360] = await Promise.all([
             ScoutUnit.find({ organizationId: req.organization._id, leaderTeacherIds: { $in: ids }, status: 'active' }).select('name section leaderTeacherIds').lean(),
-            NccNssClub.find({ organizationId: req.organization._id, inchargeTeacherId: { $in: ids } }).select('name inchargeTeacherId').lean()
+            NccNssClub.find({ organizationId: req.organization._id, inchargeTeacherId: { $in: ids } }).select('name inchargeTeacherId').lean(),
+            require('../organizations/models/Organization').findById(req.organization._id).select('three60.programs').lean()
         ]);
+        // What each teacher marked they teach, in their profile (src/three60): course · section · subject.
+        const teaches = {};
+        for (const p of org360?.three60?.programs || []) {
+            for (const sec of p.sections || []) {
+                for (const t of sec.teachers || []) (teaches[String(t.teacherId)] ||= []).push({ course: p.name, section: sec.name, subject: t.subject || '' });
+            }
+        }
         const leads = (id) => [
             ...units.filter((u) => u.leaderTeacherIds.some((x) => String(x) === String(id))).map((u) => ({ kind: 'unit', name: u.name, section: SCOUT_SECTION_LABELS[u.section] })),
             ...clubs.filter((c) => String(c.inchargeTeacherId) === String(id)).map((c) => ({ kind: 'club', name: c.name }))
@@ -79,7 +94,7 @@ router.get('/', async (req, res) => {
             // Each teacher with what they can open; organization-dashboard-only sign-ins listed after.
             teachers: rows.map((r, i) => {
                 const panel = staff.find((a) => String(a.staffTeacherId) === String(r._id));
-                return { ...r, summary: summaries[i], research: Boolean(r.cardNumber), leads: leads(r._id), orgAccess: Boolean(panel), panelEmail: panel?.email || '' };
+                return { ...r, summary: summaries[i], research: Boolean(r.cardNumber), features: { scouts: r.scouts !== false, mentor360: Boolean(r.mentor360) }, leads: leads(r._id), teaches: teaches[String(r._id)] || [], orgAccess: Boolean(panel), panelEmail: panel?.email || '' };
             }),
             staff: staff.filter((a) => !a.staffTeacherId && (!q || `${a.name} ${a.email}`.toLowerCase().includes(q))),
             pendingRequests: await countPending(req.organization._id),
@@ -128,11 +143,13 @@ const rejoin = async (req, details, access) => {
     const carded = Boolean(existing.cardNumber);
     if (!carded) {
         const { name, phone } = checkDetails(details);
-        const weak = details.password ? validatePasswordStrength(String(details.password)) : 'Please choose a password.';
+        // No password from the organization: they set their own on the sign-up page (passwordPending).
+        const weak = details.password ? validatePasswordStrength(String(details.password)) : '';
         if (weak) return { status: 400, body: { field: 'password', message: weak } };
         Object.assign(existing, {
-            name, phone, password: String(details.password),
-            department: String(details.department || '').trim(), designation: String(details.designation || '').trim()
+            name, phone, mentor360: true, ...featuresOf(details),
+            ...(details.password ? { password: String(details.password), passwordPending: false } : { passwordPending: true }),
+            department: String(details.department || existing.department || '').trim(), designation: String(details.designation || existing.designation || '').trim()
         });
     }
     existing.organizationId = req.organization._id;
@@ -146,7 +163,9 @@ const rejoin = async (req, details, access) => {
             _id: existing._id, name: existing.name, rejoined: true,
             message: carded
                 ? `${existing.name} already had a teacher account with an AI card, and is back in your organization. They sign in with their own card and password.`
-                : `${existing.name} is back in your organization. Their sign-in details were emailed to ${existing.email}.`
+                : existing.passwordPending
+                    ? `${existing.name} is back in your organization. They verify on the Sign Up page with ${existing.phone} and set their password.`
+                    : `${existing.name} is back in your organization. Their sign-in details were emailed to ${existing.email}.`
         }
     };
 };
@@ -174,9 +193,22 @@ router.post('/', async (req, res) => {
             const back = await rejoin(req, details, access);
             if (back) return res.status(back.status).json(back.body);
         }
+        // Without a card their dashboard is only Scouts & Guides and 360: one must be on.
+        const asked = featuresOf(body);
+        if (!access.research && asked && asked.scouts === false && asked.mentor360 === false) {
+            return res.status(400).json({ field: 'features', message: 'Choose Scouts & Guides, 360, or both for a teacher without a card.' });
+        }
+        // Without a card, added by mobile number: not twice in this organization.
+        if (!access.research && !staff) {
+            const { kindOf, phonePattern } = require('../utils/signInLookup');
+            const k = kindOf(details.phone);
+            const twice = k.digits && await Teacher.findOne({ organizationId: req.organization._id, cardNumber: { $in: [null, ''] }, phone: { $regex: phonePattern(k.digits) } }).select('name').lean();
+            if (twice) return res.status(400).json({ field: 'phone', message: `${twice.name} is already one of your teachers with this mobile number.` });
+        }
         const teacher = access.research
             ? await createTeacher(details, { by: 'organization', organizationId: req.organization._id })
             : await createActivityTeacher(details, { organizationId: req.organization._id });
+        if (asked) await Teacher.updateOne({ _id: teacher._id }, { $set: asked });
         sendWelcome(teacher, body.password, madeBy(req));
         if (staff) {
             try {
@@ -187,11 +219,34 @@ router.post('/', async (req, res) => {
             }
             return res.status(201).json({ _id: teacher._id, name: teacher.name, message: `${teacher.name} was added. They sign in to this panel with ${staff.email}${access.research ? ' (Research is in its menu), and to the teacher dashboard with their card' : ', and to the teacher dashboard with their email for their clubs and units'}.` });
         }
-        res.status(201).json({ _id: teacher._id, name: teacher.name, message: `${teacher.name} was added to your organization. Their sign-in details were emailed to ${teacher.email}.` });
+        res.status(201).json({
+            _id: teacher._id, name: teacher.name,
+            message: teacher.passwordPending
+                ? `${teacher.name} was added. On the Sign Up page they choose Teacher, verify with ${teacher.phone}, set their password and fill in their details.`
+                : `${teacher.name} was added to your organization. Their sign-in details were emailed to ${teacher.email}.`
+        });
     } catch (error) {
         if (error instanceof AccountError) return accountError(res, error);
         console.error('[org-teachers] add failed:', error.message);
         res.status(500).json({ message: 'Could not add the teacher just now. Please try again.' });
+    }
+});
+
+// { scouts?, mentor360? }: what this teacher's dashboard shows. On or off at once.
+router.put('/:teacherId/features', async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.teacherId)) return notMine(res);
+        const set = featuresOf({ features: req.body });
+        if (!set) return res.status(400).json({ message: 'Say which feature to turn on or off.' });
+        const t = await Teacher.findOneAndUpdate({ _id: req.params.teacherId, organizationId: req.organization._id }, { $set: set }, { returnDocument: 'after' }).select('name scouts mentor360').lean();
+        if (!t) return notMine(res);
+        const features = { scouts: t.scouts !== false, mentor360: Boolean(t.mentor360) };
+        const [key] = Object.keys(set);
+        const what = key === 'scouts' ? 'Scouts & Guides' : '360';
+        res.json({ features, message: `${what} is ${set[key] ? 'on' : 'off'} for ${t.name}.` });
+    } catch (error) {
+        console.error('[org-teachers] features failed:', error.message);
+        res.status(500).json({ message: 'Could not change that just now. Please try again.' });
     }
 });
 
@@ -375,7 +430,7 @@ router.get('/:teacherId', async (req, res) => {
         const t = await mine(req);
         if (!t) return notMine(res);
         const o = t.toObject();
-        for (const k of ['password', 'resetPasswordToken', 'resetPasswordExpiry']) delete o[k];
+        for (const k of ['password', 'passwordPending', 'resetPasswordToken', 'resetPasswordExpiry']) delete o[k];
         res.json({ teacher: o, progress: await detail(t) });
     } catch (error) {
         console.error('[org-teachers] detail failed:', error.message);
@@ -389,7 +444,7 @@ router.put('/:teacherId', async (req, res) => {
         if (!t) return notMine(res);
         const b = req.body || {};
         // Their own details; the email stays — it is their teacher sign-in.
-        const { name, phone } = checkDetails({ name: b.name, email: t.email, phone: b.phone });
+        const { name, phone } = checkDetails({ name: b.name, email: t.email, phone: b.phone }, { emailOptional: !t.email });
         t.name = name;
         t.phone = phone;
         if (b.department !== undefined) t.department = String(b.department).trim().slice(0, 200);
@@ -425,6 +480,7 @@ router.put('/:teacherId', async (req, res) => {
             t.organizationId = null;
             t.organizationJoinedAt = null;
             await t.save();
+            await require('../three60').forgetTeacher(req.organization._id, t._id);
             await TeacherOrgRequest.updateMany(
                 { teacherId: t._id, organizationId: req.organization._id, status: 'approved' },
                 { $set: { status: 'cancelled', decisionReason: 'Teacher dashboard taken away by the organization', decidedAt: new Date(), decidedBy: req.admin._id } }
@@ -445,6 +501,7 @@ router.delete('/:teacherId', async (req, res) => {
         t.organizationId = null;
         t.organizationJoinedAt = null;
         await t.save();
+        await require('../three60').forgetTeacher(req.organization._id, t._id);
         // Their sign-in to this panel goes with them.
         await Admin.deleteMany({ organizationId: req.organization._id, staff: true, staffTeacherId: t._id });
         // The old approval stays on record, marked as ended, so they may apply again.

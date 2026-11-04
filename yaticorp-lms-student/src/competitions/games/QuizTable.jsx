@@ -98,7 +98,7 @@ const Visual = ({ v, elapsed = 0 }) => {
     return null;
 };
 
-export const Scoreboard = ({ view, theme }) => {
+export const Scoreboard = ({ view, theme, dark = false }) => {
     // Rapid Fire keeps the scores (null) to itself until the game is over.
     const secret = !view.scores;
     const leader = secret ? 0 : Math.max(...view.scores);
@@ -112,13 +112,13 @@ export const Scoreboard = ({ view, theme }) => {
                 const lead = !secret && view.status === 'finished' && view.scores[i] === leader && leader > 0;
                 return (
                     <li key={i} data-score-seat={i} data-state={state || undefined}
-                        className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl border bg-white px-3 py-2 shadow-sm sm:min-w-[11rem] ${view.you === i ? `border-transparent ring-2 ${theme.ring}` : 'border-slate-200'} ${out ? 'opacity-50' : ''}`}>
+                        className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl border px-3 py-2 shadow-sm sm:min-w-[11rem] ${dark ? `bg-[#141845]/85 ${view.you === i ? 'border-indigo-400/70 ring-2 ring-indigo-400/40' : 'border-[#4b46b8]/50'}` : `bg-white ${view.you === i ? `border-transparent ring-2 ${theme.ring}` : 'border-slate-200'}`} ${out ? 'opacity-50' : ''}`}>
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black text-white" style={{ background: s.color }} aria-hidden="true">
                             {lead ? <Crown size={15} /> : (s.name || '?').slice(0, 1).toUpperCase()}
                         </span>
                         <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-bold leading-tight text-slate-900">{s.name}</span>
-                            <span className="block text-[11px] font-semibold leading-tight text-slate-500">
+                            <span className={`block truncate text-sm font-bold leading-tight ${dark ? 'text-white' : 'text-slate-900'}`}>{s.name}</span>
+                            <span className={`block text-[11px] font-semibold leading-tight ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>
                                 {state === 'out' && <span className="inline-flex items-center gap-1"><LogOut size={11} aria-hidden="true" /> Left</span>}
                                 {state === 'thinking' && 'Thinking…'}
                                 {state === 'answered' && <span className="inline-flex items-center gap-1 text-emerald-600"><Check size={11} aria-hidden="true" /> Answered</span>}
@@ -127,7 +127,7 @@ export const Scoreboard = ({ view, theme }) => {
                             </span>
                         </span>
                         {!secret && <span className="text-right">
-                            <span className="block text-lg font-black tabular-nums leading-none text-slate-900" data-score={view.scores[i]}>{view.scores[i]}</span>
+                            <span className={`block text-lg font-black tabular-nums leading-none ${dark ? 'text-white' : 'text-slate-900'}`} data-score={view.scores[i]}>{view.scores[i]}</span>
                             {a && Number.isFinite(a.points) && (view.phase === 'reveal' || view.mode === 'simultaneous') && (
                                 <span className={`block text-[11px] font-black tabular-nums ${a.points > 0 ? 'text-emerald-600' : a.points < 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                                     {a.points > 0 ? `+${a.points}` : a.points}
@@ -152,15 +152,23 @@ const Code = ({ code, lang }) => (
 );
 
 /** One answer button, coloured by what the reveal says about it. */
-const Option = ({ index, text, mark, mono, disabled, onPick, square }) => {
-    const tone = {
+const Option = ({ index, text, mark, mono, disabled, onPick, square, dark }) => {
+    // In the dark room (2026-11-02) each answer is a polished slab: lit from above, lifting to the hand.
+    const tone = (dark ? {
+        right: 'border-emerald-400/80 bg-gradient-to-b from-emerald-500/30 to-emerald-700/15 text-emerald-100 ring-2 ring-emerald-400/50 shadow-[0_0_26px_-6px_rgba(16,185,129,.55),inset_0_1px_0_rgba(255,255,255,.2)]',
+        wrong: 'border-rose-400/70 bg-gradient-to-b from-rose-500/25 to-rose-700/10 text-rose-100 ring-2 ring-rose-400/40 shadow-[0_0_22px_-6px_rgba(244,63,94,.5),inset_0_1px_0_rgba(255,255,255,.15)]',
+        mine: 'border-indigo-400/80 bg-gradient-to-b from-indigo-500/30 to-indigo-700/15 text-indigo-100 ring-2 ring-indigo-400/50 shadow-[0_0_24px_-6px_rgba(99,102,241,.55),inset_0_1px_0_rgba(255,255,255,.2)]',
+        dim: 'border-white/5 bg-white/[.03] text-white/40',
+        open: 'border-white/10 bg-gradient-to-b from-[#2b3069] to-[#181c43] text-white shadow-[0_12px_26px_-10px_rgba(0,0,0,.9),inset_0_1px_0_rgba(255,255,255,.14),inset_0_-8px_14px_rgba(0,0,0,.35)] hover:-translate-y-0.5 hover:border-indigo-300/70 hover:shadow-[0_18px_34px_-12px_rgba(79,70,229,.6),inset_0_1px_0_rgba(255,255,255,.2)] active:translate-y-0'
+    } : {
         right: 'border-emerald-400 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-300',
         wrong: 'border-rose-300 bg-rose-50 text-rose-900 ring-2 ring-rose-200',
         mine: 'border-indigo-400 bg-indigo-50 text-indigo-900 ring-2 ring-indigo-300',
         dim: 'border-slate-200 bg-white text-slate-400',
         open: 'border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md active:translate-y-0'
-    }[mark];
-    const badge = { right: 'bg-emerald-500 text-white', wrong: 'bg-rose-500 text-white', mine: 'bg-indigo-600 text-white' }[mark] || 'bg-slate-100 text-slate-600';
+    })[mark];
+    const badge = { right: 'bg-emerald-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.45)]', wrong: 'bg-rose-500 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.4)]', mine: 'bg-indigo-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.4)]' }[mark]
+        || (dark ? 'bg-gradient-to-b from-white/25 to-white/5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.35)]' : 'bg-slate-100 text-slate-600');
     return (
         <button type="button" data-option={index} data-mark={mark} disabled={disabled} onClick={() => onPick(index)}
             className={`group flex w-full rounded-2xl border font-semibold shadow-sm transition-[transform,box-shadow,border-color,background-color] duration-150 disabled:cursor-default motion-reduce:transition-none ${square ? 'min-h-[4.75rem] flex-col items-center justify-center gap-1.5 px-2 py-2.5 text-center text-sm sm:min-h-[5.5rem] sm:text-[15px]' : 'min-h-14 items-center gap-3 px-3 py-2.5 text-left text-sm sm:text-[15px]'} ${tone}`}>
@@ -172,34 +180,34 @@ const Option = ({ index, text, mark, mono, disabled, onPick, square }) => {
     );
 };
 
-const Recap = ({ view }) => {
+const Recap = ({ view, dark = false }) => {
     // Rapid Fire showed nothing during the game: its answers open at once.
     const [open, setOpen] = useState(view.mode === 'hidden');
     if (!view.recap?.length) return null;
     const mine = view.you;
     return (
-        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm" data-recap>
+        <section className={`rounded-3xl border shadow-sm ${dark ? 'border-[#4b46b8]/50 bg-[#141845]/85' : 'border-slate-200 bg-white'}`} data-recap>
             <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
                 className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
-                <span className="text-base font-black text-slate-900">Review the answers</span>
+                <span className={`text-base font-black ${dark ? 'text-white' : 'text-slate-900'}`}>Review the answers</span>
                 <ChevronDown size={18} className={`text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
             {open && (
-                <ol className="space-y-3 border-t border-slate-100 px-5 py-4">
+                <ol className={`space-y-3 border-t px-5 py-4 ${dark ? 'border-white/10' : 'border-slate-100'}`}>
                     {view.recap.map((q, n) => {
                         const a = mine != null ? q.answers[mine] : null;
                         return (
-                            <li key={n} className="rounded-2xl bg-slate-50 p-3" data-recap-item={n}>
-                                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Q{n + 1} · {q.topic}</p>
-                                <p className="mt-0.5 font-semibold text-slate-900">{q.prompt}</p>
+                            <li key={n} className={`rounded-2xl p-3 ${dark ? 'bg-white/[.05]' : 'bg-slate-50'}`} data-recap-item={n}>
+                                <p className={`text-[11px] font-bold uppercase tracking-wide ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>Q{n + 1} · {q.topic}</p>
+                                <p className={`mt-0.5 font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>{q.prompt}</p>
                                 {q.code && <div className="mt-2">{isPicture(q.code) ? <Picture text={q.code} small /> : <Code code={q.code} lang={q.lang} />}</div>}
-                                <p className="mt-2 text-sm text-emerald-700"><Check size={14} className="mr-1 inline" aria-hidden="true" />{isPicture(q.options[q.answer]) ? <Picture text={q.options[q.answer]} small /> : q.options[q.answer]}</p>
+                                <p className={`mt-2 text-sm ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}><Check size={14} className="mr-1 inline" aria-hidden="true" />{isPicture(q.options[q.answer]) ? <Picture text={q.options[q.answer]} small /> : q.options[q.answer]}</p>
                                 {mine != null && (
-                                    <p className={`text-sm ${a?.correct ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                    <p className={`text-sm ${a?.correct ? (dark ? 'text-emerald-300' : 'text-emerald-700') : dark ? 'text-rose-300' : 'text-rose-700'}`}>
                                         You: {a ? (isPicture(q.options[a.choice]) ? `option ${LETTERS[a.choice]} (${a.points > 0 ? '+' : ''}${a.points})` : `${q.options[a.choice]} (${a.points > 0 ? '+' : ''}${a.points})`) : 'no answer'}
                                     </p>
                                 )}
-                                {q.explain && <p className="mt-1 text-xs text-slate-500">{q.explain}</p>}
+                                {q.explain && <p className={`mt-1 text-xs ${dark ? 'text-white/60' : 'text-slate-500'}`}>{q.explain}</p>}
                             </li>
                         );
                     })}
@@ -211,18 +219,23 @@ const Recap = ({ view }) => {
 
 export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
     const theme = THEMES[view.game] || THEMES.brainsprint;
+    // The dark room (2026-11-02): the page sets view.dark for the group games with no design of their own.
+    const dark = !!view.dark;
+    const card = dark
+        ? 'overflow-hidden rounded-3xl border border-[#4b46b8]/50 bg-[#10142f]/90 shadow-[0_24px_60px_-20px_rgba(0,0,0,.85),0_0_40px_rgba(99,102,241,.12)]'
+        : 'overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm';
     const { left, share } = usePhaseClock(view);
-    const [picked, setPicked] = useState(null);
+    // The choice waiting on the server, keyed to its question: a new question starts with none picked.
+    const key = `${view.number}:${view.phase}`;
+    const [pickedAt, setPickedAt] = useState({ key: null, i: null });
+    const picked = pickedAt.key === key ? pickedAt.i : null;
+    const setPicked = (i) => setPickedAt({ key, i });
     const buzzer = view.mode === 'buzzer';
     // Rapid Fire: nothing about right or wrong until the game is over.
     const hidden = view.mode === 'hidden';
     const q = view.question;
     const reveal = view.phase === 'reveal';
     const myAnswer = view.you != null ? view.answers[view.you] : null;
-
-    // A new question clears the choice waiting on the server.
-    const key = `${view.number}:${view.phase}`;
-    useEffect(() => { setPicked(null); }, [key]);
 
     const canPick = view.canAnswer && !busy && picked === null && left > 0;
     const pick = (i) => {
@@ -233,7 +246,7 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
 
     // 1–4 or A–D on a keyboard.
     const pickRef = useRef(pick);
-    pickRef.current = pick;
+    useEffect(() => { pickRef.current = pick; });
     useEffect(() => {
         const onKey = (e) => {
             if (e.metaKey || e.ctrlKey || e.altKey || /input|textarea|select/i.test(e.target?.tagName)) return;
@@ -264,14 +277,14 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
     const segments = useMemo(() => Array.from({ length: view.total || 0 }, (_, i) => i), [view.total]);
 
     // A finished Group Brain room shows its own standings above: here, only the answers to review.
-    if (recapOnly && view.status === 'finished') return <div className="mx-auto w-full max-w-3xl"><Recap view={view} /></div>;
+    if (recapOnly && view.status === 'finished') return <div className="mx-auto w-full max-w-3xl"><Recap view={view} dark={dark} /></div>;
     // The question and its answers: the page's middle, or the table in the ring.
     const middle = (
         <>
 
             {/* Something to memorise: shown, then taken away before the question. */}
             {view.phase === 'show' && view.show && (
-                <section className={`overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm`} data-show>
+                <section className={card} data-show>
                     <div className={`flex items-center justify-between gap-3 bg-gradient-to-r ${theme.from} ${theme.to} px-5 py-3 text-white`}>
                         <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/85">Question {view.number} of {view.total} · Remember this!</p>
                         <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-sm font-black tabular-nums"><Timer size={14} aria-hidden="true" /> {seconds}s</span>
@@ -283,7 +296,7 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
             )}
 
             {view.phase === 'ready' && view.status === 'active' && (
-                <section className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.from} ${theme.to} p-8 text-center text-white shadow-lg`} data-ready>
+                <section className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.from} ${theme.to} p-8 text-center text-white ${dark ? 'shadow-[0_30px_60px_-20px_rgba(0,0,0,.9),0_0_50px_rgba(99,102,241,.25),inset_0_1px_0_rgba(255,255,255,.25)]' : 'shadow-lg'}`} data-ready>
                     <Sparkles size={28} className="mx-auto opacity-80" aria-hidden="true" />
                     <p className="mt-2 text-sm font-bold uppercase tracking-[0.25em] text-white/80">Get ready</p>
                     <p className="mt-1 text-7xl font-black tabular-nums" aria-live="polite">{Math.max(1, seconds)}</p>
@@ -295,7 +308,7 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
             )}
 
             {q && (
-                <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" data-question={view.number}>
+                <section className={card} data-question={view.number}>
                     <div className={`bg-gradient-to-r ${theme.from} ${theme.to} px-5 py-3 text-white`}>
                         <div className="flex items-center justify-between gap-3">
                             <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/85">
@@ -317,23 +330,23 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                         </div>
                     </div>
                     {view.phase === 'question' && (
-                        <div className="h-1.5 bg-slate-100" aria-hidden="true">
+                        <div className={`h-1.5 ${dark ? 'bg-white/10' : 'bg-slate-100'}`} aria-hidden="true">
                             <div className={`h-full ${share < 0.25 ? 'bg-rose-500' : theme.bar} transition-[width] duration-100 ease-linear`} style={{ width: `${share * 100}%` }} />
                         </div>
                     )}
 
                     <div className="space-y-4 p-4 sm:p-6">
-                        <h2 className="text-lg font-black leading-snug text-slate-900 sm:text-xl" data-prompt>{q.prompt}</h2>
+                        <h2 className={`text-lg font-black leading-snug sm:text-xl ${dark ? 'text-white drop-shadow-[0_2px_6px_rgba(0,0,0,.6)]' : 'text-slate-900'}`} data-prompt>{q.prompt}</h2>
                         {q.code && (isPicture(q.code) ? <div className="flex justify-center"><Picture text={q.code} /></div> : <Code code={q.code} lang={q.lang} />)}
                         <Visual v={q.visual} />
                         <div className="grid gap-2.5 sm:grid-cols-2" role="group" aria-label="Answers">
                             {q.options.map((text, i) => (
-                                <Option key={i} index={i} text={text} mark={markOf(i)} mono={!!q.code && q.topic === 'Predict the output'} disabled={!canPick} onPick={pick} />
+                                <Option key={i} index={i} text={text} mark={markOf(i)} mono={!!q.code && q.topic === 'Predict the output'} disabled={!canPick} onPick={pick} dark={dark} />
                             ))}
                         </div>
 
                         {view.phase === 'question' && view.you != null && (
-                            <p className={`rounded-2xl px-4 py-2.5 text-center text-sm font-semibold ${theme.soft} ${theme.text}`} data-status>
+                            <p className={`rounded-2xl px-4 py-2.5 text-center text-sm font-semibold ${dark ? 'bg-white/[.06] text-indigo-200 ring-1 ring-white/10' : `${theme.soft} ${theme.text}`}`} data-status>
                                 {view.out.includes(view.you) ? 'You have left this game.'
                                     : buzzer && myAnswer?.correct === false ? 'Wrong — you are locked out of this one. −5'
                                     : myAnswer && Number.isFinite(myAnswer.points) && !buzzer ? (myAnswer.correct ? `Correct! +${myAnswer.points}` : `Wrong (${myAnswer.points}). Answer: ${view.answer ? (isPicture(q.options[view.answer.index]) ? `option ${LETTERS[view.answer.index]}` : q.options[view.answer.index]) : '—'}`)
@@ -342,14 +355,14 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                             </p>
                         )}
                         {reveal && view.answer && (
-                            <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700 ring-1 ring-slate-100" data-explain>
+                            <div className={`rounded-2xl px-4 py-3 text-sm ring-1 ${dark ? 'bg-white/[.06] text-slate-200 ring-white/10' : 'bg-slate-50 text-slate-700 ring-slate-100'}`} data-explain>
                                 {myAnswer && Number.isFinite(myAnswer.points) && (
-                                    <p className={`mb-1 font-black ${myAnswer.correct ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                    <p className={`mb-1 font-black ${myAnswer.correct ? (dark ? 'text-emerald-300' : 'text-emerald-700') : dark ? 'text-rose-300' : 'text-rose-700'}`}>
                                         {myAnswer.correct ? `Correct! +${myAnswer.points}` : `Not this time${myAnswer.points < 0 ? ` (${myAnswer.points})` : ''}`}
                                     </p>
                                 )}
-                                {view.you != null && !myAnswer && <p className="mb-1 font-black text-slate-500">No answer this time.</p>}
-                                <p><span className="font-bold text-slate-900">Answer: {isPicture(q.options[view.answer.index]) ? `option ${LETTERS[view.answer.index]}` : q.options[view.answer.index]}.</span> {view.answer.explain}</p>
+                                {view.you != null && !myAnswer && <p className={`mb-1 font-black ${dark ? 'text-white/60' : 'text-slate-500'}`}>No answer this time.</p>}
+                                <p><span className={`font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>Answer: {isPicture(q.options[view.answer.index]) ? `option ${LETTERS[view.answer.index]}` : q.options[view.answer.index]}.</span> {view.answer.explain}</p>
                             </div>
                         )}
                     </div>
@@ -360,9 +373,9 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
     );
     return (
         <div className="mx-auto w-full max-w-3xl space-y-4" data-quiz-table={view.game} data-phase={view.phase}>
-            {!(view.liveBoard && view.status === 'active') && <Scoreboard view={view} theme={theme} />}
+            {!(view.liveBoard && view.status === 'active') && <Scoreboard view={view} theme={theme} dark={dark} />}
             {middle}
-            {view.status === 'finished' && <Recap view={view} />}
+            {view.status === 'finished' && <Recap view={view} dark={dark} />}
         </div>
     );
 }

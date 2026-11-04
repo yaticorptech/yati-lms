@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Globe, Loader2, Trophy, Wallet, X, Clock, LogOut } from 'lucide-react';
+import { Globe, Loader2, X, Clock, LogOut } from 'lucide-react';
 import { roomsApi, GROUP_GAMES } from './api';
 
 /**
@@ -17,7 +17,6 @@ import { roomsApi, GROUP_GAMES } from './api';
  *   MatchIntro     the moment the table is full (asked 2026-10-29): "Match
  *                  found", everyone at the table coming in one after the
  *                  other, and the count to the first question.
- *   PointsRule     after the game: how the points were counted, and the prize.
  *
  * The server decides everything (services/onlineService.js); this only shows it.
  */
@@ -102,7 +101,31 @@ const Card = ({ label, icon, value, gold, at: where, box }) => (
     </div>
 );
 
+/* On a phone (2026-11-02) the picture's own lettering is too small to read: the title, the cards and Cancel
+   are laid out above and below the table instead, and only the table's middle band of the picture is shown. */
+const useNarrow = () => {
+    const q = '(max-width: 639px)';
+    const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches);
+    useEffect(() => {
+        const m = window.matchMedia(q);
+        const on = () => setNarrow(m.matches);
+        m.addEventListener('change', on);
+        return () => m.removeEventListener('change', on);
+    }, []);
+    return narrow;
+};
+
+const FlowCard = ({ label, icon, value, gold }) => (
+    <div className={`flex min-w-0 flex-col items-center justify-center rounded-xl border px-1 py-2 ${gold ? 'border-[#f5a524] bg-gradient-to-b from-[#3a2a1c] to-[#241a17] shadow-[0_0_16px_rgba(245,165,36,.3)]' : 'border-[#34386e] bg-[#13163a]/90'}`}>
+        <span className={`text-[9px] font-extrabold tracking-[0.12em] uppercase ${gold ? 'text-[#f5b13d]' : 'text-[#a5a9da]'}`}>{label}</span>
+        <span className="mt-1 flex items-center gap-1 text-sm font-black text-white">
+            <img src={`${LOBBY}/${icon}`} alt="" draggable="false" className="h-5 w-5" />{value}
+        </span>
+    </div>
+);
+
 export function OnlineSearch({ game, onLeft }) {
+    const narrow = useNarrow();
     const t = game.online;
     const left = useSecondsTo(t.startsBy);
     const [busy, setBusy] = useState(false);
@@ -121,13 +144,29 @@ export function OnlineSearch({ game, onLeft }) {
     const box = boxIn(S);
     const spots = S.layout[Math.min(n, 6)] || FOUR.layout[4];
     const [PW, PH] = [S.w, S.h];
+    // The band of the picture shown on a phone: from under the title to over the cards.
+    const cropTop = S.title[2] + 22;
+    const cropBottom = S.cards[0][1] - 6;
     const me = game.you ?? 0;
     const filled = game.seats.length;
     return (
-        <section className="relative mx-auto select-none" style={{ width: `min(100%, 860px, max(320px, calc((100dvh - ${n > 6 ? 21 : 17}rem) * ${S.w} / ${S.h})))`, containerType: 'inline-size' }} data-online-search data-scene={n >= 6 ? 6 : 4}>
-            <div className="relative w-full overflow-hidden text-white" style={{ aspectRatio: `${S.w} / ${S.h}`, background: `url(${LOBBY}/${S.img}) center / 100% 100% no-repeat`, borderRadius: cq(3) }}>
+        <section className="relative mx-auto select-none" style={{ width: narrow ? '100%' : `min(100%, 860px, max(320px, calc((100dvh - ${n > 6 ? 21 : 17}rem) * ${S.w} / ${S.h})))`, containerType: 'inline-size' }} data-online-search data-scene={n >= 6 ? 6 : 4}>
+            {narrow && (
+                <div className="mb-2 text-center text-white">
+                    <p className="flex items-center justify-center gap-1.5 text-[10px] font-extrabold tracking-[0.14em] uppercase">
+                        <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> <span className="truncate">Play online · {info.label || game.label}</span>
+                    </p>
+                    <h2 className="mt-1 text-2xl font-black tracking-tight">{filled < n ? 'Finding players…' : 'Table full!'}</h2>
+                    <p className="mt-0.5 text-xs text-[#c7c9e4]">
+                        {filled} of {n} seated{filled < n ? (left != null ? ` · starts in ${left}s` : '') : ' · starting…'}
+                    </p>
+                </div>
+            )}
+            <div className={narrow ? 'relative w-full overflow-hidden' : 'contents'} style={narrow ? { aspectRatio: `${S.w} / ${cropBottom - cropTop}`, borderRadius: 16 } : undefined}>
+            <div className={`${narrow ? 'absolute inset-x-0' : 'relative'} w-full overflow-hidden text-white`} style={{ aspectRatio: `${S.w} / ${S.h}`, background: `url(${LOBBY}/${S.img}) center / 100% 100% no-repeat`, borderRadius: narrow ? 0 : cq(3), ...(narrow ? { top: `${(-cropTop / (cropBottom - cropTop)) * 100}%` } : {}) }}>
                 <style>{SEARCH_CSS}</style>
                 {/* The title. */}
+                {!narrow && <>
                 <p className="flex items-center justify-center font-extrabold tracking-[0.16em] whitespace-nowrap text-white uppercase" style={{ ...box(0, S.title[0], PW, 26), gap: cq(0.9), fontSize: cq(1.65, 10) }}>
                     <Globe className="shrink-0" style={{ width: cq(1.9, 12), height: cq(1.9, 12) }} aria-hidden="true" /> Play online · {info.label || game.label}
                 </p>
@@ -135,6 +174,7 @@ export function OnlineSearch({ game, onLeft }) {
                 <p className="text-center text-[#c7c9e4]" style={{ ...box(0, S.title[2], PW, 24), fontSize: cq(1.8, 10.5) }}>
                     {filled} of {n} seated{filled < n ? (left != null ? ` · starts in ${left}s with whoever is here` : '') : ' · starting…'}
                 </p>
+                </>}
 
                 {/* The count down, in the ring at the table's middle. */}
                 <span className="flex flex-col items-center justify-center leading-none" style={box(...S.count)}>
@@ -178,16 +218,32 @@ export function OnlineSearch({ game, onLeft }) {
                 })}
 
                 {/* What is at stake. */}
-                <Card label="Entry fee" icon="coin.png" value={t.fee ? `₹${t.fee}` : 'Free'} at={S.cards[0]} box={box} />
-                <Card label="Ready pot" icon="coin.png" value={t.fee ? `₹${t.pot}` : '—'} at={S.cards[1]} box={box} />
-                <Card label="Winner gets" icon="trophy-gold.png" value={t.fee ? `₹${t.prize}` : 'XP'} gold at={S.cards[2]} box={box} />
+                {!narrow && <>
+                <Card label="Entry fee" icon="coin.png" value={t.fee ? `${t.fee} XP` : 'Free'} at={S.cards[0]} box={box} />
+                <Card label="Ready pot" icon="coin.png" value={t.fee ? `${t.pot} XP` : '—'} at={S.cards[1]} box={box} />
+                <Card label="Winner gets" icon="trophy-gold.png" value={t.fee ? `${t.prize} XP` : 'XP'} gold at={S.cards[2]} box={box} />
 
                 <button type="button" onClick={cancel} disabled={busy} data-cancel-search title={t.fee ? 'Leave the search — your fee comes back' : 'Leave the search'}
                     className="flex items-center justify-center border border-[#3d4170] bg-[#15183a]/95 font-bold text-white transition-colors hover:border-rose-400/60 hover:bg-[#2a1630] disabled:opacity-60"
                     style={{ ...box(...S.cancel), borderRadius: cq(1.2), gap: cq(1.2), fontSize: cq(1.95, 11) }}>
                     {busy ? <Loader2 className="animate-spin" style={{ width: cq(2), height: cq(2) }} aria-hidden="true" /> : <X style={{ width: cq(2.1), height: cq(2.1) }} aria-hidden="true" />} Cancel
                 </button>
+                </>}
             </div>
+            </div>
+            {narrow && (
+                <div className="mt-3">
+                    <div className="grid grid-cols-3 gap-2">
+                        <FlowCard label="Entry fee" icon="coin.png" value={t.fee ? `${t.fee} XP` : 'Free'} />
+                        <FlowCard label="Ready pot" icon="coin.png" value={t.fee ? `${t.pot} XP` : '—'} />
+                        <FlowCard label="Winner gets" icon="trophy-gold.png" value={t.fee ? `${t.prize} XP` : 'XP'} gold />
+                    </div>
+                    <button type="button" onClick={cancel} disabled={busy} data-cancel-search
+                        className="mx-auto mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-[#3d4170] bg-[#15183a]/95 px-6 py-2.5 text-sm font-bold text-white hover:border-rose-400/60 disabled:opacity-60">
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />} Cancel
+                    </button>
+                </div>
+            )}
             {n > 6 && (
                 <ul className="mt-3 flex flex-wrap justify-center gap-2" aria-label="The rest of the table" data-online-more-seats>
                     {Array.from({ length: n - 6 }, (_, k) => {
@@ -240,7 +296,7 @@ export function MatchIntro({ game, view }) {
             <div className="relative w-full max-w-3xl text-center">
                 <p className="text-xs font-black text-emerald-300 uppercase" style={{ animation: 'ot-title .7s ease-out both' }}>Match found</p>
                 <h2 className="mt-1 text-3xl font-black sm:text-4xl">{info.emoji} {info.label || game.label}</h2>
-                <p className="mt-1 text-sm text-white/70">{seats.length} players · {fee ? `₹${fee} entry · winner gets ₹${game.online.prize}` : 'Free table'}</p>
+                <p className="mt-1 text-sm text-white/70">{seats.length} players · {fee ? `${fee} XP entry · winner gets ${game.online.prize} XP` : 'Free table'}</p>
                 <ul className={`mt-8 flex flex-wrap items-center justify-center ${many ? 'gap-2' : 'gap-3 sm:gap-4'}`}>
                     {seats.map((s, i) => {
                         const color = view?.seats?.[i]?.color || PALETTE[i % PALETTE.length];
@@ -295,19 +351,19 @@ const tallyOf = (view, i) => {
  * page; the others are a row each here — picture, name, ✓ right, ✗ wrong, points — highest first, with the
  * time left. Up to twenty players.
  */
-export function PlayersBoard({ game, view }) {
+export function PlayersBoard({ game, view, dark = false }) {
     const left = useSecondsTo(view?.phaseEndsAt || view?.deadline || view?.endsAt || null);
     if (!view?.seats?.length) return null;
     const secret = !view.scores;
     const rows = game.seats.map((s, i) => ({ s, i, score: view.scores?.[i] ?? 0, out: (view.out || []).includes(i), ...tallyOf(view, i) }));
     const order = secret ? rows : [...rows].sort((a, b) => b.score - a.score || a.i - b.i);
     return (
-        <section aria-label="Live scores" className="rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4" data-players-board>
+        <section aria-label="Live scores" className={`rounded-3xl p-3 sm:p-4 ${dark ? 'border border-[#4b46b8]/60 bg-[#141845]/85 shadow-[0_0_30px_rgba(99,102,241,.15)]' : 'bg-white shadow-sm ring-1 ring-slate-200'}`} data-players-board>
             <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
-                <p className="text-xs font-black tracking-[0.18em] text-slate-500 uppercase">Live scores · {rows.length} players</p>
+                <p className={`text-xs font-black tracking-[0.18em] uppercase ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>Live scores · {rows.length} players</p>
                 <span className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-br from-[#1e1b4b] to-[#4c1d95] px-3 py-1 text-sm font-black text-white tabular-nums ${left != null && left <= 10 ? 'text-rose-300' : ''}`} data-board-timer>
                     <Clock size={13} aria-hidden="true" /> {left != null ? clock(left) : '—'}
-                    {game.online?.fee > 0 && <span className="rounded-full bg-amber-400 px-1.5 text-[10px] text-amber-950">₹{game.online.prize}</span>}
+                    {game.online?.fee > 0 && <span className="rounded-full bg-amber-400 px-1.5 text-[10px] text-amber-950">{game.online.prize} XP</span>}
                 </span>
             </div>
             <ol className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -315,17 +371,17 @@ export function PlayersBoard({ game, view }) {
                     const color = view.seats?.[r.i]?.color || PALETTE[r.i % PALETTE.length];
                     const you = game.you === r.i;
                     return (
-                        <li key={r.i} className={`flex min-w-0 items-center gap-2 rounded-2xl px-2.5 py-2 ${you ? 'bg-indigo-50 ring-2 ring-indigo-300' : 'bg-slate-50'} ${r.out ? 'opacity-50' : ''}`} data-score-row={r.i}>
-                            {!secret && <span className={`w-5 shrink-0 text-center text-xs font-black tabular-nums ${k === 0 && r.score > 0 ? 'text-amber-500' : 'text-slate-400'}`}>{k + 1}</span>}
+                        <li key={r.i} className={`flex min-w-0 items-center gap-2 rounded-2xl px-2.5 py-2 ${you ? (dark ? 'bg-indigo-500/20 ring-2 ring-indigo-400/70 shadow-[0_0_18px_rgba(99,102,241,.25)]' : 'bg-indigo-50 ring-2 ring-indigo-300') : dark ? 'bg-white/[.06]' : 'bg-slate-50'} ${r.out ? 'opacity-50' : ''}`} data-score-row={r.i}>
+                            {!secret && <span className={`w-5 shrink-0 text-center text-xs font-black tabular-nums ${k === 0 && r.score > 0 ? (dark ? 'text-amber-400' : 'text-amber-500') : dark ? 'text-white/40' : 'text-slate-400'}`}>{k + 1}</span>}
                             <Face src={game.avatars?.[r.i]} name={r.s.name} color={color} className="h-8 w-8 text-xs" />
                             <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-black leading-tight text-slate-900">{you ? 'You' : r.s.name}</span>
-                                <span className={`block truncate text-[11px] font-semibold leading-tight ${r.out ? 'text-slate-400' : r.last === true || r.done ? 'text-emerald-600' : r.last === false ? 'text-rose-600' : 'text-slate-500'}`}>
+                                <span className={`block truncate text-sm font-black leading-tight ${dark ? 'text-white' : 'text-slate-900'}`}>{you ? 'You' : r.s.name}</span>
+                                <span className={`block truncate text-[11px] font-semibold leading-tight ${r.out ? (dark ? 'text-white/40' : 'text-slate-400') : r.last === true || r.done ? (dark ? 'text-emerald-400' : 'text-emerald-600') : r.last === false ? (dark ? 'text-rose-400' : 'text-rose-600') : dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>
                                     {r.out ? <><LogOut size={11} className="mr-0.5 inline" aria-hidden="true" />Left</> : r.status}
                                 </span>
                             </span>
-                            {r.right != null && <span className="shrink-0 rounded-lg bg-emerald-100 px-1.5 py-0.5 text-[11px] font-black text-emerald-700 tabular-nums" title="Right">✓ {r.right}</span>}
-                            {r.wrong != null && <span className="shrink-0 rounded-lg bg-rose-100 px-1.5 py-0.5 text-[11px] font-black text-rose-600 tabular-nums" title="Wrong">✗ {r.wrong}</span>}
+                            {r.right != null && <span className={`shrink-0 rounded-lg px-1.5 py-0.5 text-[11px] font-black tabular-nums ${dark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700'}`} title="Right">✓ {r.right}</span>}
+                            {r.wrong != null && <span className={`shrink-0 rounded-lg px-1.5 py-0.5 text-[11px] font-black tabular-nums ${dark ? 'bg-rose-500/15 text-rose-300' : 'bg-rose-100 text-rose-600'}`} title="Wrong">✗ {r.wrong}</span>}
                             {!secret && <span className="w-12 shrink-0 text-right text-base font-black tabular-nums" style={{ color }} data-score={r.score}>{r.score}</span>}
                         </li>
                     );
@@ -335,34 +391,4 @@ export function PlayersBoard({ game, view }) {
     );
 }
 
-// How each game counts its points, for the end of a game.
-const RULES = {
-    finalvault: 'Opening the vault: 2,000 points + 2 for every second left. If time runs out: 200 for each chamber solved, −10 for each wrong answer.',
-    lostkingdom: 'Reaching the treasure: 2,000 points + 2 for every second left. If time runs out: 200 for each trial solved, −10 for each wrong answer.',
-    memorymatrix: 'Each round: 10 for each right cell, −5 for each wrong one, and 50 more for getting them all.',
-    sequence: 'Sequence rounds: 10 for each item in its place, 50 more for the whole sequence. Reaction rounds: 100 less 1 for every 10 ms after "Go"; a false start −20.',
-    sudoku: 'Each right number +10, each wrong one −5, each hint −15. Finishing the board: 200, 150, 100 or 50 more, by who finished first.',
-    chess: 'Checkmate, resignation or the clock decides it. No points: a win, a draw or a loss.',
-    // The solo games played as races and in turns (2026-10-29).
-    lightsout: 'Each board cleared +100, and 2 more for every second left if you clear them all.',
-    codebreaker: 'Each code cracked: 60, plus 10 for every guess under ten. Clear them all early: 2 more a second left.',
-    typingsprint: 'Each word typed right +100, each wrong one −20; 2 more a second left if you finish them all.',
-    speedsort: 'Each set sorted right +100, each wrong try −20; 2 more a second left if you finish them all.',
-    numberbonds: 'Each pair found +100, each wrong pair −20; 2 more a second left if you finish them all.',
-    mathsprint: 'Each sum right +100, each wrong answer −20; 2 more a second left if you finish them all.',
-    memorymatch: 'Each pair found +100, each miss −5; 2 more a second left if you find them all.',
-    tictactoe: 'Best of five rounds, the first to three wins. Each round won is 100 points.',
-    laststone: 'Best of five rounds, the first to three wins. Take the last stone to win a round.'
-};
-const QUIZ_RULE = 'Each right answer: +100 points. Each wrong answer: −20. No answer: 0.';
 
-export function PointsRule({ game }) {
-    const fee = game.online?.fee || 0;
-    return (
-        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700 ring-1 ring-slate-200" data-points-rule>
-            <p className="font-black text-slate-900">How the winner was decided</p>
-            <p className="mt-1">{RULES[game.game] || QUIZ_RULE}{game.game === 'chess' ? '' : ' Most points wins; level on points, the faster player is ahead.'}</p>
-            {fee > 0 && <p className="mt-1.5 font-semibold text-amber-800"><Trophy size={13} className="mr-1 inline" aria-hidden="true" />Prize: {Math.round(game.online.prizeShare * 100)}% of the ₹{game.online.pot} pot (₹{game.online.prize}) to the winner — shared if level. It is in their wallet.</p>}
-        </div>
-    );
-}

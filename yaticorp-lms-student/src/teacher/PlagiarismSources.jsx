@@ -4,9 +4,9 @@
  * this page can come to a journal database without sending anything out.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Library, Upload, Loader2, Trash2, FileText } from 'lucide-react';
+import { Library, Upload, Loader2, Trash2, FileText, Eye } from 'lucide-react';
 import teacherApi, { messageOf } from './teacherSession';
-import { Card, CardTitle, ErrorNote, OkNote } from './ui';
+import { Card, CardTitle, ErrorNote, OkNote, Modal } from './ui';
 import { btn, fmtDate, fmtNum } from './kit';
 import { readSourceFile, SOURCE_ACCEPT } from './readSourceFile';
 
@@ -17,6 +17,10 @@ export default function PlagiarismSources({ onCount }) {
     const [ok, setOk] = useState('');
     const [uploading, setUploading] = useState('');     // the file being read and sent
     const input = useRef(null);
+    // The source being read: its row at once, its text once loaded.
+    const [viewing, setViewing] = useState(null);
+    const [viewText, setViewText] = useState(null);
+    const [viewError, setViewError] = useState('');
 
     const load = useCallback(() => teacherApi.get('/plagiarism/sources')
         .then((r) => { setList(r.data.sources); setMax(r.data.max || 50); onCount?.(r.data.sources.length); })
@@ -49,6 +53,14 @@ export default function PlagiarismSources({ onCount }) {
         catch (e) { setError(messageOf(e, 'That source could not be removed.')); }
     };
 
+    const open = (s) => {
+        setViewing(s); setViewText(null); setViewError('');
+        teacherApi.get(`/plagiarism/sources/${s._id}`)
+            .then((r) => setViewText(r.data.text || ''))
+            .catch((e) => setViewError(messageOf(e, 'That source could not be opened.')));
+    };
+    const closeView = useCallback(() => setViewing(null), []);
+
     return (
         <Card>
             <CardTitle icon={Library} color="indigo" right={list && <span className="text-xs font-semibold text-slate-500">{list.length} of {max}</span>}>Your sources</CardTitle>
@@ -65,18 +77,33 @@ export default function PlagiarismSources({ onCount }) {
                 <OkNote>{ok}</OkNote>
             </div>
             {list?.length > 0 && (
-                <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
+                // Five sources tall (2026-10-30); the rest scroll inside the list.
+                <ul className={`mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200 ${list.length > 5 ? 'max-h-[16.6rem] overflow-y-auto overscroll-contain' : ''}`}>
                     {list.map((s) => (
                         <li key={s._id} className="flex items-center gap-2 px-3 py-2">
                             <FileText size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
-                            <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-semibold text-slate-800">{s.title}</span>
+                            <button type="button" onClick={() => open(s)} className="min-w-0 flex-1 text-left" title="Open this source">
+                                <span className="block truncate text-sm font-semibold text-slate-800 hover:text-indigo-700">{s.title}</span>
                                 <span className="block text-xs text-slate-500">{fmtNum(s.words)} words · added {fmtDate(s.createdAt)}</span>
-                            </span>
+                            </button>
+                            <button type="button" onClick={() => open(s)} aria-label={`Open source ${s.title}`} className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"><Eye size={15} /> <span className="hidden sm:inline">Open</span></button>
                             <button type="button" onClick={() => remove(s)} aria-label={`Remove source ${s.title}`} className="rounded-lg p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
                         </li>
                     ))}
                 </ul>
+            )}
+            {list?.length > 5 && <p className="mt-2 text-xs text-slate-400">Scroll for all {list.length} sources</p>}
+            {viewing && (
+                <Modal title={viewing.title} onClose={closeView} wide labelId="source-view-title"
+                    footer={<button type="button" onClick={closeView} className={btn.secondary}>Close</button>}>
+                    <p className="text-xs text-slate-500">
+                        {viewing.fileName ? <>From {viewing.fileName} · </> : null}{fmtNum(viewing.words)} words · added {fmtDate(viewing.createdAt)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">The text read from the file — what every check compares your writing with.</p>
+                    {viewError ? <div className="mt-3"><ErrorNote>{viewError}</ErrorNote></div>
+                        : viewText === null ? <p className="mt-4 flex items-center gap-2 text-sm text-slate-500"><Loader2 size={15} className="animate-spin" /> Opening…</p>
+                            : <div className="mt-3 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-800">{viewText || 'No text was found in this file.'}</div>}
+                </Modal>
             )}
         </Card>
     );

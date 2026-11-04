@@ -227,11 +227,44 @@ export default function FinalVaultTable({ view, onAction, busy }) {
     const cam = phase === 'travel' ? 'scale(1.9)' : `translate(${-look.x * 2}%, ${-look.y * 1.5}%) scale(1.04)`;
 
     return (
-        <div className="mx-auto w-full max-w-[1500px] space-y-4" data-vault data-phase={view.phase} data-chamber={shown} onPointerDown={() => { if (!prefs.started) audio.start(); }}>
+        <div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-4 overflow-x-clip" data-vault data-phase={view.phase} data-chamber={shown} onPointerDown={() => { if (!prefs.started) audio.start(); }}>
             <style>{CSS}</style>
+            {/* On a phone (2026-10-29, "not visible properly"): the title, clock, sound and chambers in a bar above the
+                chamber, full size — inside the picture they were too small to read. */}
+            <section className={`rounded-2xl p-3 md:hidden ${dark}`} data-vault-hud>
+                <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-lg font-extrabold leading-tight text-[#f4c55a]" style={cinzel}>The Final Vault</p>
+                        <p className="truncate text-[11px] font-bold uppercase text-[#f5e6c4]" style={cinzel}>Stage {Math.min(shown + 1, 5)} - {ch.subtitle}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className={`flex items-center gap-1.5 rounded-full border border-[#b8893a]/70 bg-black/40 px-3 py-1 text-xl font-black tabular-nums ${playing && share < 0.25 ? 'animate-pulse border-rose-500 text-rose-300' : ''}`}>
+                            <Hourglass size={18} className="text-[#f4c55a]" />{view.phase === 'ready' ? `0:0${Math.max(1, secondsLeft)}` : fmt(left)}
+                        </span>
+                        {me?.penaltyMs > 0 && <span className="rounded-full bg-rose-700/90 px-2 text-[11px] font-black text-white">+{Math.round(me.penaltyMs / 1000)}s penalty</span>}
+                    </div>
+                    <SoundBar audio={audio} prefs={prefs} style={{ position: 'relative', width: 96, height: 38 }} />
+                </div>
+                <ol className="relative mt-3 flex items-start justify-between" aria-label="Chambers">
+                    <span className="absolute left-[8%] right-[8%] top-4 h-1 -translate-y-1/2 rounded-full bg-black/60" aria-hidden="true" />
+                    <span className="absolute left-[8%] top-4 h-1 -translate-y-1/2 rounded-full bg-emerald-400 transition-all duration-700" style={{ width: `${(84 * Math.min(stage, 5)) / 5}%` }} aria-hidden="true" />
+                    {[0, 1, 2, 3, 4, 5].map((i) => {
+                        const done = i < stage || (i === 5 && me?.done);
+                        const now = i === stage && !me?.done;
+                        return (
+                            <li key={i} className="relative flex flex-1 flex-col items-center gap-1" aria-current={now ? 'step' : undefined}>
+                                <span className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${now ? 'border-[#ffd166] bg-gradient-to-b from-[#a8741f] to-[#4a2f0b] shadow-[0_0_12px_rgba(251,191,36,.9)]' : done ? 'border-[#d9c7a0] bg-gradient-to-b from-[#3f7aa8] to-[#123552]' : 'border-[#6b5a3a] bg-gradient-to-b from-[#2a2520] to-[#0d0b08]'}`}>
+                                    {i === 5 ? <span className="text-sm">{me?.done ? '💰' : '🧰'}</span> : done || now ? <Landmark size={15} className="text-[#ffe9b0]" /> : <Lock size={13} className="text-[#b9a88a]" />}
+                                </span>
+                                <span className={`text-[11px] font-bold ${now ? 'text-[#ffd166]' : 'text-[#f5e6c4]'}`}>{i === 5 ? 'Vault' : `Puzzle ${i + 1}`}</span>
+                            </li>
+                        );
+                    })}
+                </ol>
+            </section>
             <div className="relative md:aspect-[2000/1120]" style={{ containerType: 'inline-size' }}>
                 {/* ── The chamber ── */}
-                <div className="relative aspect-[2000/1120] w-full overflow-hidden rounded-2xl bg-black shadow-2xl md:absolute md:inset-0 md:aspect-auto" data-scene>
+                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-black shadow-2xl md:absolute md:inset-0 md:aspect-auto" data-scene>
                     <div className="absolute inset-0" style={{ transform: ch.zoom ? `translateX(${ch.zoom.dx}%) scale(${ch.zoom.s})` : 'none', transformOrigin: ch.zoom ? `${ch.zoom.x}% ${ch.zoom.y}%` : '50% 50%' }}>
                         <div className="absolute inset-0" style={{ transform: cam, transformOrigin: `${ch.dolly.x}% ${ch.dolly.y}%`, transition: phase === 'travel' ? 'transform 1.3s cubic-bezier(.55,0,.8,.4), filter 1.3s' : 'transform .9s ease', filter: phase === 'travel' ? 'brightness(1.35) blur(1.5px)' : 'none' }}>
                             <div key={shown} className="absolute inset-0" style={{ animation: phase === 'arrive' ? 'fv-arrive .9s ease-out both' : 'fv-breathe 18s ease-in-out infinite alternate' }}>
@@ -267,11 +300,11 @@ export default function FinalVaultTable({ view, onAction, busy }) {
                     {shake > 0 && <div key={shake} className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,transparent_40%,rgba(185,28,28,.65))]" style={{ animation: 'fv-flash .9s ease-out both' }} aria-hidden="true" />}
 
                     {/* ── The HUD ── */}
-                    <div className={`absolute z-30 flex flex-col items-center justify-center rounded-[0.6cqw] border-2 border-[#b8893a] ${dark}`} style={box(ch.plaque)} data-plaque>
+                    <div className={`absolute z-30 hidden flex-col items-center justify-center rounded-[0.6cqw] border-2 border-[#b8893a] md:flex ${dark}`} style={box(ch.plaque)} data-plaque>
                         <p className="font-extrabold leading-none text-[#f4c55a] [text-shadow:0_2px_0_#5a3a0c]" style={{ ...cinzel, fontSize: fs(11, 2.6, 52) }}>THE FINAL VAULT</p>
                         <p className="mt-[0.4cqw] font-bold uppercase leading-none text-[#f5e6c4]" style={{ ...cinzel, fontSize: fs(7, 1.05, 21) }}>Stage {Math.min(shown + 1, 5)} - {ch.subtitle}</p>
                     </div>
-                    <div className="absolute z-30" style={box(ch.tracker)} aria-label="Chambers" data-tracker>
+                    <div className="absolute z-30 hidden md:block" style={box(ch.tracker)} aria-label="Chambers" data-tracker>
                         <div className="relative flex h-full items-start justify-between">
                             <span className="absolute left-[7%] right-[7%] top-[31%] h-[0.25cqw] rounded-full bg-black/60" aria-hidden="true" />
                             <span className="absolute left-[7%] top-[31%] h-[0.25cqw] rounded-full bg-gradient-to-r from-emerald-400 to-emerald-300 shadow-[0_0_6px_#34d399] transition-all duration-700" style={{ width: `${(86 * Math.min(stage, 5)) / 5}%` }} aria-hidden="true" />
@@ -290,12 +323,12 @@ export default function FinalVaultTable({ view, onAction, busy }) {
                             })}
                         </div>
                     </div>
-                    <div className={`absolute z-30 flex items-center justify-center gap-[0.5cqw] rounded-full ${dark} ${playing && share < 0.25 ? 'animate-pulse border-rose-500' : ''}`} style={box(ch.timer)} data-timer>
+                    <div className={`absolute z-30 hidden items-center justify-center gap-[0.5cqw] rounded-full md:flex ${dark} ${playing && share < 0.25 ? 'animate-pulse border-rose-500' : ''}`} style={box(ch.timer)} data-timer>
                         <Hourglass className="text-[#f4c55a]" style={{ width: fs(12, 2, 40), height: fs(12, 2, 40) }} />
                         <span className="font-black tabular-nums" style={{ fontSize: fs(12, 2.4, 48) }}>{view.phase === 'ready' ? `0:0${Math.max(1, secondsLeft)}` : fmt(left)}</span>
                     </div>
-                    {me?.penaltyMs > 0 && <span className="absolute z-30 rounded-full bg-rose-700/90 px-[0.8cqw] font-black text-white" style={{ left: `${ch.timer.l + 1}%`, top: `${ch.timer.t + ch.timer.h + 0.8}%`, fontSize: fs(9, 0.95, 16) }} data-penalty>+{Math.round(me.penaltyMs / 1000)}s penalty</span>}
-                    <SoundBar audio={audio} prefs={prefs} style={box(ch.sound)} />
+                    {me?.penaltyMs > 0 && <span className="absolute z-30 hidden rounded-full bg-rose-700/90 md:block px-[0.8cqw] font-black text-white" style={{ left: `${ch.timer.l + 1}%`, top: `${ch.timer.t + ch.timer.h + 0.8}%`, fontSize: fs(9, 0.95, 16) }} data-penalty>+{Math.round(me.penaltyMs / 1000)}s penalty</span>}
+                    <div className="hidden md:block"><SoundBar audio={audio} prefs={prefs} style={box(ch.sound)} /></div>
 
                     {/* The standings (a phone has them under the chamber). */}
                     <ol className={`absolute z-30 hidden flex-col justify-start overflow-hidden rounded-[0.8cqw] p-[0.5cqw] md:flex ${dark}`} style={box(ch.board)} aria-label="Standings" data-race>
@@ -377,17 +410,17 @@ export default function FinalVaultTable({ view, onAction, busy }) {
             </div>
 
             {/* On a phone: the standings and the clues, under the chamber. */}
-            <section className="rounded-2xl bg-[#1d140a] p-3 text-[#f5e6c4] ring-1 ring-[#b8893a]/50 md:hidden" aria-label="Standings">
+            <section className="rounded-2xl bg-[#1d140a] p-3 text-[#f5e6c4] ring-1 ring-[#b8893a]/50 md:hidden" aria-label="Standings" data-vault-standings>
                 {standings.map(({ s, i, p, score }, rank) => (
-                    <div key={i} className={`flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm ${view.you === i ? 'bg-[#f4c55a]/10' : ''}`}>
+                    <div key={i} className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-base ${view.you === i ? 'bg-[#f4c55a]/10' : ''}`}>
                         <span className="w-4 text-center text-xs font-black">{rank + 1}</span>
                         <span className="h-3 w-3 rounded-full" style={{ background: s.color }} aria-hidden="true" />
                         <span className="min-w-0 flex-1 truncate font-bold">{s.name}{view.you === i ? ' (you)' : ''}</span>
-                        <span className="text-[11px] text-[#d9c7a0]">{p.done ? '✓' : `${p.at}/${p.of}`}</span>
+                        <span className="shrink-0 text-xs font-bold text-[#d9c7a0]">{p.done ? '✓' : `${p.at}/${p.of}`}</span>
                         <span className="w-12 text-right font-black tabular-nums">{score}</span>
                     </div>
                 ))}
-                {view.clues?.length > 0 && <p className="mt-2 border-t border-[#b8893a]/30 pt-2 text-xs">Clues: {view.clues.map((c) => `${c.label} ${c.glyph}`).join(' · ')}</p>}
+                {view.clues?.length > 0 && <p className="mt-2 break-words border-t border-[#b8893a]/30 px-1 pt-2 text-sm">Clues: {view.clues.map((c) => `${c.label} ${c.glyph}`).join(' · ')}</p>}
             </section>
 
             {/* Once it is over: every chamber, solved. */}

@@ -44,20 +44,32 @@ after(async () => {
     await mongoose.disconnect();
 });
 
-const add = (n) => asOrg('POST', '/me/teachers', { access: { teacher: true, research: false }, name: `Leader ${n}`, email: `tnc-leader${n}-${STAMP}@example.com`, phone: '9876543210', password: PASS });
+const add = (n) => asOrg('POST', '/me/teachers', { access: { teacher: true, research: false }, name: `Leader ${n}`, email: `tnc-leader${n}-${STAMP}@example.com`, phone: `98765432${n}0`, password: PASS });
 
 test('an organization adds two teachers without a card', async () => {
     const one = await add(1);
     assert.equal(one.status, 201, JSON.stringify(one.body));
     assert.equal((await add(2)).status, 201);
+    // Without a card: Scouts & Guides, 360, or both — not neither.
+    const neither = await asOrg('POST', '/me/teachers', { access: { teacher: true, research: false }, features: { scouts: false, mentor360: false }, name: 'Nothing On', phone: '9876500099' });
+    assert.equal(neither.status, 400);
+    assert.equal(neither.body.field, 'features');
+    // Teachers sign in with their mobile number: one number is not added twice.
+    const again = await asOrg('POST', '/me/teachers', { access: { teacher: true, research: false }, name: 'Same Number', phone: '+91 98765 43210' });
+    assert.equal(again.status, 400);
+    assert.equal(again.body.field, 'phone');
     const t = await Teacher.findById(one.body._id).lean();
     assert.equal(t.cardNumber, undefined);
     assert.equal(String(t.organizationId), String(org._id));
 });
 
-test('a card-less teacher signs in with email and reaches only clubs and units', async () => {
-    const login = await teacherApp.call(null)('POST', '/auth/login', { email: `TNC-LEADER1-${STAMP}@example.com`, password: PASS });
-    assert.equal(login.status, 200);
+test('a card-less teacher signs in with their mobile number (never email) and reaches only clubs and units', async () => {
+    const byEmail = await teacherApp.call(null)('POST', '/auth/login', { login: `TNC-LEADER1-${STAMP}@example.com`, password: PASS });
+    assert.equal(byEmail.status, 401);
+    assert.equal(byEmail.body.code, 'USE_CARD_OR_PHONE');
+    assert.equal((await teacherApp.call(null)('POST', '/auth/login', { email: `tnc-leader1-${STAMP}@example.com`, password: PASS })).status, 401, 'nor the older { email } form');
+    const login = await teacherApp.call(null)('POST', '/auth/login', { login: '98765 43210', password: PASS });
+    assert.equal(login.status, 200, JSON.stringify(login.body));
     assert.equal(login.body.research, false);
     const asLeader = teacherApp.call(login.body.token);
     assert.equal((await asLeader('GET', '/me')).status, 200);
@@ -66,7 +78,7 @@ test('a card-less teacher signs in with email and reaches only clubs and units',
     assert.equal((await asLeader('GET', '/overview')).status, 403);
     assert.equal((await asLeader('GET', '/projects')).status, 403);
     assert.equal((await asLeader('GET', '/plagiarism/reports')).status, 403);
-    assert.equal((await teacherApp.call(null)('POST', '/auth/login', { email: `tnc-leader1-${STAMP}@example.com`, password: 'wrong' })).status, 401);
+    assert.equal((await teacherApp.call(null)('POST', '/auth/login', { login: '9876543210', password: 'wrong' })).body.code, 'WRONG_PASSWORD');
 });
 
 test('a carded teacher keeps the research side and never signs in by email', async () => {
@@ -122,7 +134,7 @@ test('the admin sign-in sends a teacher to the LMS, only with their right passwo
         const right = await authApp.call(null)('POST', '/admin/login', { email: `tnc-leader1-${STAMP}@example.com`, password: PASS });
         assert.equal(right.status, 401);
         assert.equal(right.body.code, 'TEACHER_ACCOUNT');
-        assert.match(right.body.message, /choose Teacher, then Email/);
+        assert.match(right.body.message, /mobile number and password/);
         const wrong = await authApp.call(null)('POST', '/admin/login', { email: `tnc-leader1-${STAMP}@example.com`, password: 'Wrong-Pass1!' });
         assert.equal(wrong.body.message, 'Invalid email or password');
     } finally { await new Promise((r) => authApp.server.close(r)); }
