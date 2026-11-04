@@ -5,8 +5,8 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
+import SupportDialog from '../components/SupportDialog';
 import { AuthContext } from '../context/AuthContext';
-import useBackClose from '../native/useBackClose';
 import { safeNextPath } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession } from '../teacher/teacherSession';
 import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Loader2, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock, GraduationCap } from 'lucide-react';
@@ -19,69 +19,6 @@ const getPasswordStrengthError = (pw) => {
     if (!/[0-9]/.test(pw)) return 'Must include a number.';
     if (!/[^A-Za-z0-9]/.test(pw)) return 'Must include a special character.';
     return null;
-};
-
-// Contact Admin Modal
-const ContactAdminModal = ({ onClose, page = 'signup' }) => {
-    const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
-    const [loading, setLoading] = useState(false);
-    const [done, setDone] = useState(false);
-    const [error, setError] = useState('');
-    // Android's back button closes this, rather than leaving the page.
-    useBackClose(onClose);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            await api.post('/tickets', { ...form, page });
-            setDone(true);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to send. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div role="dialog" aria-modal="true" aria-labelledby="contact-admin-title" className="bg-[#2a2f45] rounded-2xl shadow-2xl ring-1 ring-white/10 w-full max-w-md overflow-hidden text-slate-100">
-                <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.04]">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-500/20 rounded-lg"><MessageCircleQuestion size={20} className="text-indigo-300" /></div>
-                        <div>
-                            <h2 id="contact-admin-title" className="text-lg font-bold text-slate-100">Contact Admin</h2>
-                            <a href="tel:9535440195" className="text-sm text-indigo-300 font-semibold hover:underline">📞 9535440195</a>
-                        </div>
-                    </div>
-                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-200 transition-colors"><X size={20} /></button>
-                </div>
-                {done ? (
-                    <div className="p-8 text-center">
-                        <div className="w-14 h-14 bg-emerald-500/15 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={28} className="text-emerald-400" /></div>
-                        <h3 className="font-bold text-slate-100 text-lg mb-1">Message Sent!</h3>
-                        <p className="text-slate-400 text-sm mb-4">We've received your request and will get back to you soon.</p>
-                        <button onClick={onClose} className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">Close</button>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                        {error && <div role="alert" className="bg-red-500/10 border border-red-400/30 text-red-300 p-3 rounded-lg text-sm">{error}</div>}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div><label htmlFor="contact-name" className="block text-xs font-semibold text-slate-200 mb-1">Name *</label><input id="contact-name" required autoComplete="name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-white/15 bg-black/15 rounded-lg text-sm text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Your name" /></div>
-                            <div><label htmlFor="contact-email" className="block text-xs font-semibold text-slate-200 mb-1">Email *</label><input id="contact-email" required type="email" autoComplete="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 border border-white/15 bg-black/15 rounded-lg text-sm text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="your@email.com" /></div>
-                        </div>
-                        <div><label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-200 mb-1">Subject *</label><input id="contact-subject" required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="w-full px-3 py-2 border border-white/15 bg-black/15 rounded-lg text-sm text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Brief description of your issue" /></div>
-                        <div><label htmlFor="contact-message" className="block text-xs font-semibold text-slate-200 mb-1">Message *</label><textarea id="contact-message" required rows="3" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className="w-full px-3 py-2 border border-white/15 bg-black/15 rounded-lg text-sm text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue..." /></div>
-                        <div className="flex justify-end space-x-3 pt-1">
-                            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-300 font-medium hover:bg-white/10 rounded-lg transition-colors text-sm">Cancel</button>
-                            <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center disabled:opacity-50"><Send size={14} className="mr-1.5" />{loading ? 'Sending...' : 'Send Message'}</button>
-                        </div>
-                    </form>
-                )}
-            </div>
-        </div>
-    );
 };
 
 
@@ -546,7 +483,7 @@ const Signup = () => {
             {/* The sign-in page's backdrop (2026-10-30): dark, with two quiet glows. */}
             <span aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[30rem] w-[44rem] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
             <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-48 -z-10 h-[28rem] w-[28rem] rounded-full bg-violet-500/10 blur-[120px]" />
-            {showContact && <ContactAdminModal onClose={() => setShowContact(false)} page="signup" />}
+            {showContact && <SupportDialog onClose={() => setShowContact(false)} page="signup" tone="dark" />}
 
             {/* One card, as on the sign-in page: no welcome panel beside it. */}
             <div className="lg-rise w-full max-w-[30rem] overflow-hidden rounded-3xl bg-[#2a2f45] shadow-[0_30px_70px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/10">

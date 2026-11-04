@@ -120,7 +120,8 @@ const dateLabel = (d) => d.toLocaleDateString('en-IN', { day: 'numeric', month: 
  *
  *   - the lesson is published, in a published course the student can open;
  *   - its module is not still drip-locked for this student;
- *   - it is done already, or it is the next lesson to do in course order.
+ *   - it is done already, or it is the next lesson to do in course order
+ *     (any lesson, for the demo cards).
  *
  * `courseId`, when given, is the course the request says the lesson is in.
  * Answers `{ ok: true, course, lesson, lessons, progress }` — the course's
@@ -155,7 +156,8 @@ const lessonAccess = async (user, lessonId, { courseId } = {}) => {
     const progress = await Progress.findOne({ userId: user._id, courseId: String(course._id) })
         .select('completedLessons passedQuizzes percentage').lean();
     const done = new Set((progress?.completedLessons || []).map(String));
-    if (!done.has(String(lessonId))) {
+    // The demo cards open lessons in any order (services/fullAccess.js; owner, 2026-11-04).
+    if (!done.has(String(lessonId)) && !require('./fullAccess').hasFullAccess(user)) {
         const next = lessons.find((l) => !done.has(String(l._id)));
         if (!next || String(next._id) !== String(lessonId)) {
             return deny(403, { code: 'LESSON_LOCKED', message: 'Finish the earlier lessons first.' });

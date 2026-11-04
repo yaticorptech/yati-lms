@@ -8,100 +8,12 @@ import { AuthContext } from '../context/AuthContext';
 import DeviceLimitDialog from '../components/DeviceLimitDialog';
 import { Navigate, Link, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
+import SupportDialog from '../components/SupportDialog';
 import { isNative } from '../native/platform';
 import useBackClose from '../native/useBackClose';
 import { SESSION_ENDED_KEY, safeNextPath } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession, TEACHER_SESSION_ENDED } from '../teacher/teacherSession';
 import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info } from 'lucide-react';
-
-// --- Contact Admin Modal ---
-const ContactAdminModal = ({ onClose, page = 'login' }) => {
-    const [form, setForm] = useState({ name: '', email: '', cardNumber: '', subject: '', message: '' });
-    const [loading, setLoading] = useState(false);
-    const [done, setDone] = useState(false);
-    const [error, setError] = useState('');
-    // Android's back button closes this, rather than leaving the page.
-    useBackClose(onClose);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            await api.post('/tickets', { ...form, page });
-            setDone(true);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to send. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div role="dialog" aria-modal="true" aria-labelledby="contact-admin-title" className="bg-[#2a2f45] rounded-2xl shadow-2xl ring-1 ring-white/10 w-full max-w-md overflow-hidden">
-                <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.04]">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-500/20 rounded-lg"><MessageCircleQuestion size={20} className="text-indigo-300" /></div>
-                        <div>
-                            <h2 id="contact-admin-title" className="text-lg font-bold text-slate-100">Contact Admin</h2>
-                            <a href="tel:9535440195" className="text-sm text-indigo-300 font-semibold hover:underline">📞 9535440195</a>
-                        </div>
-                    </div>
-                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-200 transition-colors"><X size={20} /></button>
-                </div>
-
-                {done ? (
-                    <div className="p-8 text-center">
-                        <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle2 size={28} className="text-emerald-400" />
-                        </div>
-                        <h3 className="font-bold text-slate-100 text-lg mb-1">Message Sent!</h3>
-                        <p className="text-slate-400 text-sm mb-4">We've received your request and will get back to you soon.</p>
-                        <button onClick={onClose} className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">Close</button>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                        {error && <div role="alert" className="bg-red-500/10 border border-red-400/30 text-red-300 p-3 rounded-lg text-sm">{error}</div>}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label htmlFor="contact-name" className="block text-xs font-semibold text-slate-200 mb-1">Name *</label>
-                                <input id="contact-name" required autoComplete="name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                                    className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Your name" />
-                            </div>
-                            <div>
-                                <label htmlFor="contact-email" className="block text-xs font-semibold text-slate-200 mb-1">Email *</label>
-                                <input id="contact-email" required type="email" autoComplete="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                                    className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="your@email.com" />
-                            </div>
-                        </div>
-                        <div>
-                            <label htmlFor="contact-card" className="block text-xs font-semibold text-slate-200 mb-1">Card Number (optional)</label>
-                            <input id="contact-card" autoComplete="off" value={form.cardNumber} onChange={e => setForm({ ...form, cardNumber: e.target.value })}
-                                className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="If you have one" />
-                        </div>
-                        <div>
-                            <label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-200 mb-1">Subject *</label>
-                            <input id="contact-subject" required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })}
-                                className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Brief description of your issue" />
-                        </div>
-                        <div>
-                            <label htmlFor="contact-message" className="block text-xs font-semibold text-slate-200 mb-1">Message *</label>
-                            <textarea id="contact-message" required rows="4" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })}
-                                className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue in detail..." />
-                        </div>
-                        <div className="flex justify-end space-x-3 pt-1">
-                            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-300 font-medium hover:bg-white/10 rounded-lg transition-colors text-sm">Cancel</button>
-                            <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center disabled:opacity-50">
-                                <Send size={14} className="mr-1.5" />{loading ? 'Sending...' : 'Send Message'}
-                            </button>
-                        </div>
-                    </form>
-                )}
-            </div>
-        </div>
-    );
-};
 
 // --- Forgot Password Modal ---
 // Three steps: the card (scanned, or its number typed), then whose account it
@@ -382,6 +294,32 @@ const Login = () => {
     const [scanning, setScanning] = useState(false);
     const [scanError, setScanError] = useState('');
     const [scannedCard, setScannedCard] = useState(false);
+    // Whose card the scan read, from the server.
+    const [scannedName, setScannedName] = useState('');
+    // A typed number, checked when the student moves on to the password:
+    // 'checking' | 'error' (with cardCheckError) | '' — found is scannedCard.
+    const [cardCheck, setCardCheck] = useState('');
+    const [cardCheckError, setCardCheckError] = useState('');
+    const checkedNumberRef = useRef('');
+    // One box takes a card or a mobile number (2026-10-30), so only a plain
+    // 12-digit entry is checked as a card; a number that is not a card (a
+    // mobile, a teacher's card) is simply left for the sign-in to decide.
+    const checkTypedCard = async () => {
+        const number = cardNumber.trim();
+        if (scanning || !number || scannedCard || checkedNumberRef.current === number) return;
+        checkedNumberRef.current = number;
+        if (!/^\d{12}$/.test(number)) return;
+        setCardCheck('checking'); setCardCheckError('');
+        try {
+            const res = await api.post('/auth/card-scan', { code: number, typed: true });
+            if (checkedNumberRef.current !== number) return;
+            setScannedName(res.data?.name || '');
+            setScannedCard(true);
+            setCardCheck('');
+        } catch {
+            if (checkedNumberRef.current === number) setCardCheck('');
+        }
+    };
     const [showHow, setShowHow] = useState(false);
     const scannerRef = useRef(null);
     const passwordRef = useRef(null);
@@ -415,6 +353,7 @@ const Login = () => {
             // A demo (presentation) card signs in by its scan alone: straight to the dashboard.
             if (res.data?.token && res.data?.role !== 'teacher') { enterApp(res.data, next); return; }
             setCardNumber(res.data.cardNumber);
+            setScannedName(res.data.name || '');
             setScannedCard(true);
             setError('');
             setTimeout(() => passwordRef.current?.focus(), 60);
@@ -504,7 +443,7 @@ const Login = () => {
             <span aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[30rem] w-[44rem] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
             <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-48 -z-10 h-[28rem] w-[28rem] rounded-full bg-violet-500/10 blur-[120px]" />
             {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
-            {showContact && <ContactAdminModal onClose={() => setShowContact(false)} page="login" />}
+            {showContact && <SupportDialog onClose={() => setShowContact(false)} page="login" tone="dark" />}
             {deviceConflict && (
                 <DeviceLimitDialog conflict={deviceConflict} onClose={() => setDeviceConflict(null)}
                     onReplace={(removeId) => replaceDevice(deviceConflict.ticket, removeId, next)} />
@@ -565,8 +504,9 @@ const Login = () => {
                                     <label htmlFor="login-card-number" className="mb-2 block text-sm font-semibold text-slate-200">Card or mobile number</label>
                                     <div className="relative">
                                         <input id="login-card-number" type="text" maxLength="20" inputMode="tel" autoComplete="username" value={cardNumber}
-                                            onChange={e => { setCardNumber(e.target.value.replace(/[^0-9A-Za-z+()\s-]/g, '')); setScannedCard(false); }}
-                                            className={`block w-full appearance-none rounded-xl border bg-black/15 py-3.5 pr-14 pl-4 font-mono tracking-[0.12em] text-slate-100 shadow-sm placeholder:font-sans placeholder:tracking-normal placeholder-slate-500 transition duration-200 focus:border-transparent focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500 ${scannedCard ? 'border-emerald-400/40' : 'border-white/10'}`}
+                                            onChange={e => { setCardNumber(e.target.value.replace(/[^0-9A-Za-z+()\s-]/g, '')); setScannedCard(false); setScannedName(''); setCardCheck(''); setCardCheckError(''); checkedNumberRef.current = ''; }}
+                                            onBlur={checkTypedCard} aria-invalid={cardCheck === 'error'} aria-describedby={cardCheck === 'error' ? 'login-card-check' : undefined}
+                                            className={`block w-full appearance-none rounded-xl border bg-black/15 py-3.5 pr-14 pl-4 font-mono tracking-[0.12em] text-slate-100 shadow-sm placeholder:font-sans placeholder:tracking-normal placeholder-slate-500 transition duration-200 focus:border-transparent focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500 ${scannedCard ? 'border-emerald-400/40' : cardCheck === 'error' ? 'border-red-400/50' : 'border-white/10'}`}
                                             placeholder="Card number or mobile number" />
                                         {/* Scan, inside the field: the camera opens below and fills the number in. */}
                                         <button ref={scanButtonRef} type="button" disabled={loading}
@@ -576,7 +516,9 @@ const Login = () => {
                                             {loading && !cardNumber ? <Loader2 size={18} className="animate-spin" /> : scanning ? <X size={18} /> : <ScanLine size={19} />}
                                         </button>
                                     </div>
-                                    {scannedCard && <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-300"><CheckCircle2 size={13} /> Card read from the scan</p>}
+                                    {scannedCard && <p role="status" className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-300"><CheckCircle2 size={13} className="shrink-0" /> {scannedName ? <span className="truncate">Card of <span className="text-emerald-200">{scannedName}</span></span> : 'Card found'}</p>}
+                                    {!scannedCard && cardCheck === 'checking' && <p role="status" className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-400"><Loader2 size={13} className="shrink-0 animate-spin" /> Checking card…</p>}
+                                    {!scannedCard && cardCheck === 'error' && <p id="login-card-check" role="alert" className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-300"><Info size={13} className="shrink-0" /> {cardCheckError}</p>}
                                     {/* html5-qrcode needs this element present before it starts. */}
                                     <div className={scanning ? 'mt-3' : 'hidden'}>
                                         <div id={SCANNER_ID} className="overflow-hidden rounded-xl bg-black ring-1 ring-white/10" />
