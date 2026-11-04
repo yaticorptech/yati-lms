@@ -33,13 +33,13 @@ const tableOf = (code) => {
 /** A language's sentences, read once ({} while there are none). */
 const linesOf = (code) => {
     if (!CODES.includes(code)) return null;
-    if (!(code in lines)) { let own = {}; try { own = require(`./lines/${code}`); } catch { /* none yet */ } lines[code] = { ...own, ...topicSounds(code).lines }; }
+    if (!(code in lines)) { let own = {}; try { own = require(`./lines/${code}`); } catch { /* none yet */ } lines[code] = require('../onTopic').soundLines(code, { ...own, ...topicSounds(code).lines }); }
     return lines[code];
 };
 /** A language's word meanings, read once ({} while there are none). */
 const glossesOf = (code) => {
     if (!CODES.includes(code)) return null;
-    if (!(code in glosses)) { let own = {}; try { own = require(`./glosses/${code}`); } catch { /* none yet */ } glosses[code] = { ...own, ...topicSounds(code).glosses }; }
+    if (!(code in glosses)) { let own = {}; try { own = require(`./glosses/${code}`); } catch { /* none yet */ } glosses[code] = require('../onTopic').soundGlosses(code, { ...own, ...topicSounds(code).glosses }); }
     return glosses[code];
 };
 /** A sentence's sound and its English, word by word ([[sound, English]…]), or null when they do not line up. */

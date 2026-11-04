@@ -162,3 +162,4 @@ export const WRITE_LINES = {
     ja: { ...counts((n, need) => (n >= need ? `${n} 文` : `${need} 文中 ${n} 文`), (w, min) => (min ? `${w} 語 · 少なくとも ${min}` : `${w} 語`)), bothLetters: (name) => `${name}の文字でも英語の文字でも入力できます。どちらも正解です。` },
     ko: { ...counts((n, need) => (n >= need ? `${n}문장` : `${need}문장 중 ${n}문장`), (w, min) => (min ? `${w}단어 · 최소 ${min}` : `${w}단어`)), bothLetters: (name) => `${name} 글자나 영어 글자로 입력하세요. 둘 다 정답이에요.` }
 };
+

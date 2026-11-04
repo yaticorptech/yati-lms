@@ -43,7 +43,8 @@ const roomOptions = (game, raw = {}) => {
     // A game for two (Tic-Tac-Toe, Last Stone): always 2.
     if (engine(game).maxSeats === 2) return { difficulty, players: 2 };
     const players = Number(raw.players ?? 4);
-    if (!SIZES.includes(players) || players > engine(game).maxSeats) throw new PlayError(`A room is for ${SIZES.join(', ')} players.`);
+    // Any number the maker types (2026-10-31), from 2 up to what the game seats.
+    if (!Number.isInteger(players) || players < 2 || players > engine(game).maxSeats) throw new PlayError(`A room is for 2 to ${engine(game).maxSeats} players.`);
     return { difficulty, players };
 };
 
@@ -77,12 +78,14 @@ const presentRoom = async (game, userId) => ({ game: games.present(game, userId,
 const createRoom = async (user, gameId, rawOptions) => {
     if (!ROOM_GAMES.includes(gameId)) throw new PlayError('Pick one of the Group Brain games.');
     // Group games: 30 minutes of play a day (career/controllers/gameController.js), then closed until midnight.
-    if (await require('../../career/controllers/gameController').groupTimeUp(user._id)) throw new PlayError("Today's 30 minutes of Group games are used up. Come back after midnight.", 403);
+    { const gc = require('../../career/controllers/gameController'); if (await gc.groupTimeUp(user._id)) throw new PlayError(await gc.groupTimeUpMessage(user._id), 403); }
     // The admin's settings: the game switched on, the difficulty allowed.
     const settings = (await getSettings()).games[gameId];
     if (!settings.enabled) throw new PlayError(`${engine(gameId).label} is switched off for now.`, 403);
     if (rawOptions?.difficulty && !settings.difficulties.includes(rawOptions.difficulty)) throw new PlayError(`${engine(gameId).label} can be played at ${settings.difficulties.join(', ')}.`);
     if (!rawOptions?.difficulty && !settings.difficulties.includes('medium')) rawOptions = { ...rawOptions, difficulty: settings.difficulties[0] };
+    // Earned in the solo games first: more solo levels for a bigger room (services/unlocks.js).
+    await require('./unlocks').check(user._id, gameId, roomOptions(gameId, rawOptions).players, PlayError);
     // A room whose time ran out is closed first, so it does not hold its maker.
     const open = await openRoomOf(user._id);
     if (open && (await games.catchUp(await games.load(open._id))).status !== 'abandoned') throw busyError(open);
@@ -110,7 +113,7 @@ const createRoom = async (user, gameId, rawOptions) => {
 const joinRoom = async (user, rawCode) => {
     const code = games.normal(rawCode);
     // Group games: 30 minutes of play a day (career/controllers/gameController.js), then closed until midnight.
-    if (await require('../../career/controllers/gameController').groupTimeUp(user._id)) throw new PlayError("Today's 30 minutes of Group games are used up. Come back after midnight.", 403);
+    { const gc = require('../../career/controllers/gameController'); if (await gc.groupTimeUp(user._id)) throw new PlayError(await gc.groupTimeUpMessage(user._id), 403); }
     if (!/^[A-Z0-9]{6}$/.test(code)) throw new PlayError('Enter the 6-character room code.');
     let game = await PlayGame.findOne({ code, kind: 'room' });
     if (!game) throw new PlayError('No room has that code. Check it with the person who made the room.', 404);
@@ -122,6 +125,7 @@ const joinRoom = async (user, rawCode) => {
         const e = engine(game.game);
         const size = sizeOf(game);
         if (game.seats.length >= size) throw new PlayError(`That room is full: it is for ${size} players.`, 409);
+        await require('./unlocks').check(user._id, game.game, size, PlayError);
         const other = await openRoomOf(user._id);
         if (other) throw busyError(other);
         const side = game.seats.length ? Math.max(...game.seats.map((s) => s.side)) + 1 : 0;

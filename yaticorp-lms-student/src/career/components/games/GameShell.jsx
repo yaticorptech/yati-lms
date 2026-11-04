@@ -207,7 +207,7 @@ export default function GameShell({
               `basis-full` gives it the whole width there. */}
           {!intro && !result && (
             <div className="order-last flex basis-full items-stretch justify-center divide-x divide-sky-100 overflow-hidden rounded-2xl bg-white/85 shadow-md shadow-sky-900/10 ring-1 ring-sky-100 ring-inset backdrop-blur sm:order-none sm:shrink-0 sm:basis-auto sm:justify-start">
-              {progress && <Readout label="Level" value={progress.level} icon={Star} />}
+              {progress && <Readout label={progress.tier === 'super hard' ? 'Super hard' : progress.tier === 'hard' ? 'Hard level' : 'Level'} value={progress.level} icon={Star} urgent={progress.tier === 'super hard'} />}
               {score !== undefined && <Readout label={scoreLabel} value={score} />}
               {seconds !== undefined && (
                 <Readout label="Time" value={`${seconds}s`} icon={Timer} urgent={seconds <= 10} />

@@ -7,7 +7,7 @@
  */
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { Trophy, Building2, Play, CheckCircle2, Wallet, Loader2, Copy } from 'lucide-react';
+import { Trophy, Building2, Play, CheckCircle2, CreditCard, Loader2, Copy } from 'lucide-react';
 import { HERO } from './gameRules';
 import { markCopied, wasCopied } from './copiedCode';
 
@@ -76,14 +76,14 @@ export const PayCard = ({ amount, pay, onPaid }) => {
     };
     return (
         <section className="flex flex-wrap items-center gap-4 rounded-3xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-5 shadow-sm" data-pay-card>
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-md"><Wallet size={22} aria-hidden="true" /></span>
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-md"><CreditCard size={22} aria-hidden="true" /></span>
             <div className="min-w-0 flex-1 basis-60">
                 <p className="font-black text-slate-900">Pay ₹{amount} to enroll</p>
                 <p className="text-sm text-slate-600">You are approved. Pay the entry fee online (UPI, card or net banking, through Razorpay) to take part — your joining code comes only after it is paid.</p>
                 {error && <p className="mt-1 text-sm font-semibold text-rose-700" role="alert">{error}</p>}
             </div>
             <button type="button" onClick={go} disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-500 px-5 text-sm font-black text-white shadow-md hover:bg-amber-600 disabled:opacity-60">
-                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Wallet size={16} aria-hidden="true" />} Pay ₹{amount} online
+                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CreditCard size={16} aria-hidden="true" />} Pay ₹{amount} online
             </button>
         </section>
     );

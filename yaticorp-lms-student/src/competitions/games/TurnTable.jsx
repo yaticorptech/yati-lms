@@ -10,6 +10,8 @@ import { GROUP_GAMES } from '../api';
 const MARK = ['✕', '◯'];
 
 export default function TurnTable({ view, onAction, busy }) {
+    // The dark room (2026-11-02): the page sets view.dark for the group games with no design of their own.
+    const dark = !!view.dark;
     const info = GROUP_GAMES[view.game] || {};
     const { left, share } = usePhaseClock({ status: view.status, phaseStartedAt: view.turnStartedAt, phaseEndsAt: view.turnStartedAt + view.turnMs, serverNow: view.serverNow });
     const seconds = Math.ceil(left / 1000);
@@ -24,12 +26,12 @@ export default function TurnTable({ view, onAction, busy }) {
                     const turn = active && view.turn === i;
                     const lead = !active && view.wins[i] > view.wins[1 - i];
                     return (
-                        <div key={i} className={`relative rounded-2xl border-2 bg-white p-3 shadow-sm transition-colors ${turn ? '' : 'border-slate-200'}`} style={turn ? { borderColor: s.color, boxShadow: `0 0 0 3px ${s.color}33` } : undefined} data-turn-seat={i}>
+                        <div key={i} className={`relative rounded-2xl border-2 p-3 transition-colors ${dark ? 'bg-[#141845]/85 shadow-[0_18px_40px_-16px_rgba(0,0,0,.8)]' : 'bg-white shadow-sm'} ${turn ? '' : dark ? 'border-[#4b46b8]/50' : 'border-slate-200'}`} style={turn ? { borderColor: s.color, boxShadow: `0 0 0 3px ${s.color}33` } : undefined} data-turn-seat={i}>
                             <div className="flex items-center gap-2.5">
                                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-black text-white" style={{ background: s.color }}>{lead ? <Crown size={18} /> : view.game === 'tictactoe' ? MARK[i] : (s.name || '?')[0]}</span>
                                 <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-sm font-black text-slate-900">{s.name}{view.you === i && <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] text-white" style={{ background: s.color }}>YOU</span>}</span>
-                                    <span className="block text-[11px] font-bold text-slate-500">{turn ? 'Their move' : 'Waiting'}</span>
+                                    <span className={`block truncate text-sm font-black ${dark ? 'text-white' : 'text-slate-900'}`}>{s.name}{view.you === i && <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] text-white" style={{ background: s.color }}>YOU</span>}</span>
+                                    <span className={`block text-[11px] font-bold ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>{turn ? 'Their move' : 'Waiting'}</span>
                                 </span>
                                 <span className="text-2xl font-black tabular-nums" style={{ color: s.color }}>{view.wins[i]}</span>
                             </div>
@@ -38,21 +40,21 @@ export default function TurnTable({ view, onAction, busy }) {
                 })}
             </div>
 
-            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <section className={dark ? 'overflow-hidden rounded-3xl border border-[#4b46b8]/50 bg-[#10142f]/90 shadow-[0_24px_60px_-20px_rgba(0,0,0,.85),0_0_40px_rgba(99,102,241,.12)]' : 'overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm'}>
                 <div className={`flex items-center justify-between gap-3 bg-gradient-to-r ${info.tone || 'from-indigo-500 to-violet-600'} px-5 py-3 text-white`}>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/90">Round {view.round} of {view.rounds} · first to {view.toWin}</p>
                     {active && <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-black tabular-nums ${seconds <= 5 ? 'bg-white text-rose-600' : 'bg-white/20'}`}><Timer size={14} /> {seconds}s</span>}
                 </div>
-                {active && <div className="h-1 bg-slate-100"><div className={`h-full ${share < 0.25 ? 'bg-rose-500' : 'bg-indigo-400'}`} style={{ width: `${share * 100}%` }} /></div>}
+                {active && <div className={`h-1 ${dark ? 'bg-white/10' : 'bg-slate-100'}`}><div className={`h-full ${share < 0.25 ? 'bg-rose-500' : 'bg-indigo-400'}`} style={{ width: `${share * 100}%` }} /></div>}
                 <div className="p-5 sm:p-7">
-                    <p className="mb-4 text-center text-sm font-bold text-slate-600" data-turn-status>
+                    <p className={`mb-4 text-center text-sm font-bold ${dark ? 'text-[#c7c9e4]' : 'text-slate-600'}`} data-turn-status>
                         {!active ? view.message : view.canMove ? 'Your move.' : `${view.seats[view.turn]?.name} is thinking…`}
                     </p>
                     {view.game === 'tictactoe' ? (
                         <div className="mx-auto grid max-w-[18rem] grid-cols-3 gap-2" data-ttt>
                             {view.board.map((x, i) => (
                                 <button key={i} type="button" onClick={() => x === null && move({ cell: i })} disabled={!can || x !== null} aria-label={`Square ${i + 1}${x !== null ? `: ${MARK[x]}` : ''}`}
-                                    className={`flex aspect-square items-center justify-center rounded-2xl text-5xl font-black transition-colors ${x === null ? `bg-slate-50 ring-1 ring-slate-200 ${can ? 'hover:bg-indigo-50' : ''}` : 'bg-white ring-1 ring-slate-200'}`}
+                                    className={`flex aspect-square items-center justify-center rounded-2xl text-5xl font-black transition-colors ${dark ? (x === null ? `bg-white/[.06] ring-1 ring-white/15 shadow-[inset_0_2px_6px_rgba(0,0,0,.5)] ${can ? 'hover:bg-indigo-500/20' : ''}` : 'bg-white/10 ring-1 ring-white/15') : x === null ? `bg-slate-50 ring-1 ring-slate-200 ${can ? 'hover:bg-indigo-50' : ''}` : 'bg-white ring-1 ring-slate-200'}`}
                                     style={x !== null ? { color: view.seats[x].color } : undefined}>
                                     {x !== null && MARK[x]}
                                 </button>
@@ -62,13 +64,13 @@ export default function TurnTable({ view, onAction, busy }) {
                         <div className="space-y-5" data-stones>
                             <div className="flex min-h-24 flex-wrap items-end justify-center gap-1.5">
                                 {Array.from({ length: view.board.left }, (_, i) => <span key={i} className="h-8 w-8 rounded-full bg-gradient-to-b from-stone-300 to-stone-500 shadow-[inset_0_-3px_4px_rgba(0,0,0,.25),0_2px_3px_rgba(0,0,0,.2)]" />)}
-                                {!view.board.left && <p className="text-sm font-bold text-slate-400">No stones left</p>}
+                                {!view.board.left && <p className={`text-sm font-bold ${dark ? 'text-white/40' : 'text-slate-400'}`}>No stones left</p>}
                             </div>
-                            <p className="text-center text-sm font-black text-slate-700">{view.board.left} stone{view.board.left === 1 ? '' : 's'} left · take 1, 2 or 3 · the last stone wins</p>
+                            <p className={`text-center text-sm font-black ${dark ? 'text-white/85' : 'text-slate-700'}`}>{view.board.left} stone{view.board.left === 1 ? '' : 's'} left · take 1, 2 or 3 · the last stone wins</p>
                             <div className="flex justify-center gap-2.5">
                                 {[1, 2, 3].map((n) => (
                                     <button key={n} type="button" onClick={() => move({ take: n })} disabled={!can || n > view.board.left}
-                                        className="min-w-20 rounded-2xl bg-indigo-600 px-4 py-3 text-lg font-black text-white shadow-md transition-transform hover:-translate-y-0.5 disabled:opacity-40">Take {n}</button>
+                                        className={`min-w-20 rounded-2xl bg-gradient-to-b from-indigo-500 to-indigo-700 px-4 py-3 text-lg font-black text-white transition-transform hover:-translate-y-0.5 disabled:opacity-40 ${dark ? 'shadow-[0_10px_24px_-8px_rgba(79,70,229,.7),inset_0_1px_0_rgba(255,255,255,.3)]' : 'shadow-md'}`}>Take {n}</button>
                                 ))}
                             </div>
                         </div>

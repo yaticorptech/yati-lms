@@ -5,6 +5,7 @@
  * Inserts at the cursor of the text box it is given.
  */
 import { Delete } from 'lucide-react';
+import { KEY_ROW, KEY_FIT } from './letters';
 
 const ROWS = [
     { label: 'Vowels', keys: ['ಅ', 'ಆ', 'ಇ', 'ಈ', 'ಉ', 'ಊ', 'ಋ', 'ಎ', 'ಏ', 'ಐ', 'ಒ', 'ಓ', 'ಔ'] },
@@ -35,14 +36,15 @@ export default function KannadaKeys({ inputRef, value, onChange, disabled = fals
         requestAnimationFrame(() => { if (el) { el.focus(); el.setSelectionRange(start - 1, start - 1); } });
     };
     return (
-        <div className="space-y-2 rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] p-2.5" lang="kn" data-kannada-keys>
+        <div className="@container space-y-2 rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] p-2.5" lang="kn" data-kannada-keys>
             {ROWS.map((r) => (
                 <div key={r.label}>
                     <p className="mb-1 text-[10px] font-extrabold uppercase tracking-wider text-[#AFAFAF]">{r.label}</p>
-                    <div className="flex flex-wrap gap-1">
+                    {/* Rows as a phone keyboard's (2026-11-03: on a phone, rows that wrapped left a gap on the right). */}
+                    <div className={KEY_ROW} data-key-grid>
                         {r.keys.map((k) => (
                             <button key={k} type="button" disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={() => insert(k)} aria-label={`Kannada ${k}`}
-                                className="lingo-tile kn h-10 min-w-10 px-1.5 text-lg leading-none text-[#4b4b4b] disabled:opacity-50">
+                                className={`lingo-tile kn h-10 px-0.5 text-lg leading-none text-[#4b4b4b] disabled:opacity-50 ${KEY_FIT}`}>
                                 {r.label === 'Signs' ? `◌${k}` : k}
                             </button>
                         ))}

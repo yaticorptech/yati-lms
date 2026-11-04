@@ -29,7 +29,7 @@ const Pad = ({ r, lit = null, onTap, disabled }) => (
     <div className={`mx-auto grid gap-3 ${r.items.length <= 4 ? 'max-w-xs grid-cols-2' : 'max-w-md grid-cols-3'}`} data-pad>
         {r.items.map((item, i) => (
             <button key={item} type="button" onClick={onTap ? () => onTap(i) : undefined} disabled={disabled || !onTap} data-item={i} data-lit={lit === i || undefined}
-                className={`flex h-20 items-center justify-center overflow-hidden rounded-2xl bg-white p-2 ring-1 transition-all duration-150 disabled:cursor-default sm:h-24 ${lit === i ? 'z-10 scale-110 shadow-[0_0_30px_rgba(244,63,94,0.55)] ring-4 ring-rose-400' : lit != null ? 'opacity-35 ring-slate-200' : 'shadow-sm ring-slate-200 hover:-translate-y-0.5 active:scale-95'}`}>
+                className={`flex h-20 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-white to-slate-200 p-2 text-slate-900 ring-1 shadow-[0_8px_18px_-8px_rgba(0,0,0,.6),inset_0_1px_0_rgba(255,255,255,.9)] transition-all duration-150 disabled:cursor-default sm:h-24 ${lit === i ? 'z-10 scale-110 shadow-[0_0_30px_rgba(244,63,94,0.55)] ring-4 ring-rose-400' : lit != null ? 'opacity-35 ring-slate-200' : 'shadow-sm ring-slate-200 hover:-translate-y-0.5 active:scale-95'}`}>
                 <Item set={r.set} value={item} />
             </button>
         ))}
@@ -86,7 +86,7 @@ export default function SequenceTable({ view, onAction, busy }) {
                     const current = r.sequence && step < r.length && into < r.stepMs * 0.75 ? r.sequence[step] : null;
                     return (
                         <div className="space-y-4 py-2" data-showing={step}>
-                            <p className="text-center text-sm font-bold text-rose-700" aria-live="polite">{step < r.length ? `Watch: ${Math.min(step + 1, r.length)} of ${r.length}` : 'Now tap it back in the same order!'}</p>
+                            <p className={`text-center text-sm font-bold ${view.dark ? 'text-rose-300' : 'text-rose-700'}`} aria-live="polite">{step < r.length ? `Watch: ${Math.min(step + 1, r.length)} of ${r.length}` : 'Now tap it back in the same order!'}</p>
                             <Pad r={r} lit={current} />
                         </div>
                     );
@@ -94,12 +94,12 @@ export default function SequenceTable({ view, onAction, busy }) {
                 const shown = mine?.sequence || taps;
                 return (
                     <div className="space-y-4">
-                        <div className="flex min-h-14 flex-wrap items-center justify-center gap-2 rounded-2xl bg-slate-50 p-2 ring-1 ring-slate-200" aria-label="Your sequence">
+                        <div className={`flex min-h-14 flex-wrap items-center justify-center gap-2 rounded-2xl p-2 ring-1 ${view.dark ? 'bg-white/[.06] ring-white/10' : 'bg-slate-50 ring-slate-200'}`} aria-label="Your sequence">
                             {Array.from({ length: r.length }, (_, k) => {
                                 const v = shown[k];
                                 const right = view.phase === 'reveal' && r.sequence ? r.sequence[k] === v : null;
                                 return (
-                                    <span key={k} className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-white ring-2 ${right === true ? 'ring-emerald-500' : right === false ? 'ring-rose-500' : 'ring-slate-200'}`}>
+                                    <span key={k} className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-white text-slate-900 ring-2 ${right === true ? 'ring-emerald-500' : right === false ? 'ring-rose-500' : 'ring-slate-200'}`}>
                                         {v != null ? <Item set={r.set} value={r.items[v]} /> : <span className="text-slate-300">{k + 1}</span>}
                                     </span>
                                 );
@@ -107,19 +107,19 @@ export default function SequenceTable({ view, onAction, busy }) {
                         </div>
                         {view.phase === 'reveal' && r.sequence && (
                             <div className="flex flex-wrap items-center justify-center gap-2" aria-label="The sequence">
-                                <span className="text-xs font-bold uppercase tracking-wide text-slate-500">It was</span>
-                                {r.sequence.map((v, k) => <span key={k} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-white ring-1 ring-slate-200"><Item set={r.set} value={r.items[v]} /></span>)}
+                                <span className={`text-xs font-bold uppercase tracking-wide ${view.dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>It was</span>
+                                {r.sequence.map((v, k) => <span key={k} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-white text-slate-900 ring-1 ring-slate-200"><Item set={r.set} value={r.items[v]} /></span>)}
                             </div>
                         )}
                         {view.phase === 'answer' && !mine && view.you != null && (
                             <>
                                 <Pad r={r} lit={flash} onTap={(i) => { tap(i); setFlash(i); setTimeout(() => setFlash(null), 180); }} disabled={!view.canAnswer || busy} />
                                 <div className="flex justify-center">
-                                    <button type="button" onClick={() => setTaps((t) => t.slice(0, -1))} disabled={!taps.length} className="inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-40"><Delete size={15} aria-hidden="true" /> Undo</button>
+                                    <button type="button" onClick={() => setTaps((t) => t.slice(0, -1))} disabled={!taps.length} className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold ring-1 disabled:opacity-40 ${view.dark ? 'text-white/80 ring-white/20 hover:bg-white/10' : 'text-slate-600 ring-slate-200 hover:bg-slate-50'}`}><Delete size={15} aria-hidden="true" /> Undo</button>
                                 </div>
                             </>
                         )}
-                        {view.phase === 'answer' && mine && <p className="text-center text-sm font-semibold text-slate-600">Sent. Waiting for the others…</p>}
+                        {view.phase === 'answer' && mine && <p className={`text-center text-sm font-semibold ${view.dark ? 'text-[#c7c9e4]' : 'text-slate-600'}`}>Sent. Waiting for the others…</p>}
                     </div>
                 );
             }}

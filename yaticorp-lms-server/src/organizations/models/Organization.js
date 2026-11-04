@@ -74,6 +74,15 @@ const organizationSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    // Certificate templates the organisation uploaded (Certificate Configuration, 2026-10-31): each a picture (JPEG
+    // data URL) the certificates' words are written on. Never selected by default — they are large.
+    // Its certificate defaults (the Smart Certificate Builder, 2026-10-31): logo, seal, signatures, lines, layout.
+    certificateDefaults: { type: mongoose.Schema.Types.Mixed, default: null, select: false },
+    certificateTemplates: {
+        type: [{ name: { type: String, default: '', maxlength: 80 }, image: { type: String, required: true }, addedAt: { type: Date, default: Date.now } }],
+        default: [],
+        select: false
+    },
     email: {
         type: String,
         required: true,

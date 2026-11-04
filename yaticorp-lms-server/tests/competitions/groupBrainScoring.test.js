@@ -5,7 +5,7 @@
  */
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, unlockGroupGames, makeAdmin, startApp, cleanup } = require('../helpers');
 const PlayGame = require('../../src/competitions/models/PlayGame');
 const M = require('../../src/competitions/groupbrain/models');
 const results = require('../../src/competitions/groupbrain/results');
@@ -20,6 +20,7 @@ before(async () => {
     p = [];
     for (const name of ['Gb Asha', 'Gb Ravi', 'Gb Meera']) {
         const u = await makeUser(name);
+        await unlockGroupGames(u.user._id);
         u.call = app.call(u.token);
         p.push(u);
     }

@@ -19,7 +19,11 @@ export const competitionsApi = {
     list: () => get('/'),
     detail: (id) => get(`/${id}`),
     me: () => get('/me'),
-    leaderboard: () => get('/leaderboard'),
+    // The results pop-ups I have been shown already, kept on my account (2026-10-31).
+    celebrated: () => get('/celebrated').then((d) => d.ids || []),
+    markCelebrated: (ids) => post('/celebrated', { ids }),
+    // `game`: one game's rankings (2026-11-04).
+    leaderboard: (game) => get('/leaderboard', game ? { params: { game } } : undefined),
     history: () => get('/history'),
     certificate: (id) => client.get(`/competitions/${id}/certificate`, { responseType: 'blob' }).then((r) => r.data).catch(unwrap),
     // Every competition certificate I have earned, for My Profile's frame.
@@ -58,9 +62,11 @@ export const competitionsApi = {
 export const roomsApi = {
     games: () => get('/rooms/games').then((d) => d.games || []),
     mine: () => get('/rooms/mine').then((d) => d.room || null),
+    // Which group games, at which sizes, my solo levels have unlocked (2026-10-31).
+    unlocks: () => get('/rooms/unlocks'),
     create: (game, options) => post('/rooms', { game, options }),
     join: (code) => post('/rooms/join', { code }),
-    // Play online (like online Ludo): the fees on offer, and a seat at a table (the fee comes from the wallet).
+    // Play online (like online Ludo): the fees on offer, and a seat at a table (the fee is XP).
     onlineInfo: () => get('/rooms/online'),
     online: (game, players, fee) => post('/rooms/online', { game, players, fee }),
     ready: (gameId, ready) => post(`/play/${gameId}/ready`, { ready }),
@@ -74,7 +80,9 @@ export const roomsApi = {
     profile: () => get('/rooms/profile'),
     certificate: (certId) => client.get(`/competitions/rooms/certificates/${certId}`, { responseType: 'blob' }).then((r) => r.data).catch(unwrap),
     // Anyone may check a certificate's ID (no sign-in needed).
-    verify: (certId) => get(`/group-brain/verify/${encodeURIComponent(certId)}`)
+    verify: (certId) => get(`/group-brain/verify/${encodeURIComponent(certId)}`),
+    // A Certificate Builder certificate (YC-XXXX-XXXX, 2026-10-31).
+    verifyIssued: (certId) => get(`/certificates/verify/${encodeURIComponent(certId)}`)
 };
 export const SKILL_LABELS = { memory: 'Memory', reasoning: 'Reasoning', spatial: 'Spatial', strategy: 'Strategy' };
 

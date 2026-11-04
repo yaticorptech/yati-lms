@@ -208,10 +208,15 @@ export default function Onboarding({ dash, onDone }) {
         if (course !== was || !english) steps.push(() => linguisticApi.setCourse(course, english ? null : level));
         steps.push(() => linguisticApi.setPlan(days));
         saves.push(steps.reduce((p, f) => p.then(f), Promise.resolve()));
+        // One who says they know the language well (Advanced) takes the Advanced entry test now (2026-10-31: "when the user goes
+        // directly to the advanced level, show the beginning test; without it, no Advanced"): passed, Advanced opens;
+        // not taken or not passed, they start at Beginner like everyone.
+        const toAdvanced = KNOW.find((k) => k.know === know)?.level === 'advanced';
         Promise.all(saves)
             // "Find my level" starts them at Beginner first, so leaving the test half-way never brings these questions back.
             .then(() => (!english ? null : linguisticApi.chooseLevel(level)))
-            .then(() => { forgetStart(); onDone(); })
+            .then(() => (toAdvanced ? linguisticApi.jump('advanced').catch(() => null) : null))
+            .then((jump) => { forgetStart(); if (jump?.lesson) navigate(`/linguistic/${jump.module}/${jump.lesson}`, { replace: true }); else onDone(); })
             .catch((e) => { setError(e.message); setBusy(false); });
     };
     const next = () => {
@@ -283,6 +288,12 @@ export default function Onboarding({ dash, onDone }) {
                                     </Choice>
                                 ))}
                             </div>
+                            {/* Advanced only through its test (2026-10-31). */}
+                            {KNOW.find((k) => k.know === know)?.level === 'advanced' && (
+                                <p className="mt-3 rounded-2xl border-2 px-4 py-3 text-[15px] font-semibold text-[#4b4b4b]" style={{ borderColor: COLORS.purple.light, background: '#FBF7FF' }} role="status" data-advanced-test-note>
+                                    To start at Advanced, you first take the Advanced entry test: how much do you know? 20 questions, 10 on Beginner and 10 on Advanced. Get half of each right and Advanced opens. Below that, you start from Beginner. You have one try.
+                                </p>
+                            )}
                         </>
                     )}
 
