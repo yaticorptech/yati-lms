@@ -1,8 +1,14 @@
 /**
  * The teacher's profile, in the student profile's shape: a cover with their
  * photo (upload one, cropped round, or pick an avatar), name and details,
- * their research in four figures, then their details form, organization (a
- * popup), password, and signing out.
+ * their research in four figures, then their details form, what they teach
+ * (with 360 on: course, section, subject — ../WhatITeach.jsx), organization
+ * (a popup), password, and signing out.
+ *
+ * A teacher without a card (added by their organization, signs in with their
+ * mobile number — teacher.research false) sees only what is theirs
+ * (2026-11-02): no card number, research area, institution or research
+ * figures; their mobile number is said to be their sign-in.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -13,6 +19,7 @@ import { Card, CardTitle, ErrorNote, OkNote, Field, StatTile, TeacherAvatar, Bad
 import { btn, inputClass, fmtNum, colorOf } from '../kit';
 import OrganizationDialog from '../OrganizationDialog';
 import PhotoPicker from '../../components/PhotoPicker';
+import WhatITeach from '../WhatITeach';
 
 // The banner's faint research icons, placed by hand; the smaller screens show fewer.
 const BANNER_ICONS = [
@@ -38,9 +45,22 @@ const FIELDS = [
     ['name', 'Full name', 80], ['email', 'Email', 254], ['phone', 'Phone', 20], ['designation', 'Designation', 100],
     ['institution', 'Institution', 200], ['department', 'Department', 200]
 ];
+// Without a card: the mobile number first (it is their sign-in), no institution (their organization says it).
+const FIELDS_NO_CARD = [
+    ['name', 'Full name', 80], ['phone', 'Mobile number', 20], ['designation', 'Designation', 100], ['department', 'Department', 200], ['email', 'Email', 254]
+];
+const CHECKS_NO_CARD = [
+    { key: 'profilePicture', label: 'a photo', field: 'photo' },
+    { key: 'email', label: 'email', field: 'me-email' },
+    { key: 'designation', label: 'designation', field: 'me-designation' },
+    { key: 'department', label: 'department', field: 'me-department' }
+];
 
 export default function TeacherProfile() {
     const { teacher, setTeacher, signOut } = useTeacher();
+    const card = Boolean(teacher?.cardNumber) || teacher?.research === true;
+    const fields = card ? FIELDS : FIELDS_NO_CARD;
+    const checks = card ? CHECKS : CHECKS_NO_CARD;
     const [f, setF] = useState(() => Object.fromEntries([...FIELDS.map(([k]) => [k, teacher?.[k] || '']), ['researchArea', teacher?.researchArea || '']]));
     const [saving, setSaving] = useState(false);
     const [errors, setErrors] = useState({});
@@ -69,20 +89,22 @@ export default function TeacherProfile() {
         onSaved: (t) => setTeacher(t),
         remove: () => teacherApi.put('/me', { profilePicture: '' }).then((r) => r.data)
     };
-    const role = [teacher?.designation, teacher?.department, teacher?.institution].filter(Boolean).join(' · ');
+    const role = [teacher?.designation, teacher?.department, card ? teacher?.institution : ''].filter(Boolean).join(' · ');
     const joined = teacher?.createdAt ? new Date(teacher.createdAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '';
     const info = [
-        { icon: CreditCard, color: 'emerald', label: 'Card number', value: teacher?.cardNumber || '—', mono: true },
+        card
+            ? { icon: CreditCard, color: 'emerald', label: 'Card number', value: teacher?.cardNumber || '—', mono: true }
+            : { icon: Phone, color: 'emerald', label: 'Mobile (your sign-in)', value: teacher?.phone || '—' },
         { icon: Mail, color: 'sky', label: 'Email', value: teacher?.email || '—' },
-        { icon: Phone, color: 'violet', label: 'Phone', value: teacher?.phone || '—' },
+        ...(card ? [{ icon: Phone, color: 'violet', label: 'Phone', value: teacher?.phone || '—' }] : []),
         org?.member
             ? { icon: Building2, color: 'amber', label: 'Organization', value: org.organization.name }
             : { icon: CalendarDays, color: 'amber', label: 'Joined', value: joined || '—' },
         ...(teacher?.researchArea ? [{ icon: Microscope, color: 'rose', label: 'Research area', value: teacher.researchArea }] : []),
         ...(org?.member && joined ? [{ icon: CalendarDays, color: 'teal', label: 'Joined', value: joined }] : [])
     ];
-    const missing = CHECKS.filter((c) => !String(teacher?.[c.key] || '').trim());
-    const complete = Math.round(((CHECKS.length - missing.length) / CHECKS.length) * 100);
+    const missing = checks.filter((c) => !String(teacher?.[c.key] || '').trim());
+    const complete = Math.round(((checks.length - missing.length) / checks.length) * 100);
     // "Complete profile": the photo picker, or the first empty field in the form.
     const finish = (m) => {
         if (m.field === 'photo') { setPicking(true); return; }
@@ -90,7 +112,8 @@ export default function TeacherProfile() {
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         el?.focus({ preventScroll: true });
     };
-    const tiles = stats ? [
+    // The research figures are for a teacher with a card (and its research tools).
+    const tiles = stats && card ? [
         { to: '/teacher/research-path', icon: Route, color: 'emerald', label: 'Research path', value: stats.research ? `${stats.research.percent}%` : '—', sub: stats.research ? `${stats.research.done} of ${stats.research.total} tasks` : 'Not started' },
         { to: '/teacher/publications', icon: BookMarked, color: 'violet', label: 'Publications', value: stats.publications.total, sub: `${stats.publications.published} published` },
         { to: stats.thesis ? `/teacher/thesis/${stats.thesis._id}` : '/teacher/thesis', icon: FileText, color: 'amber', label: 'Thesis words', value: stats.thesis ? fmtNum(stats.thesis.words) : '—', sub: stats.thesis ? `of ${fmtNum(stats.thesis.targetWords)}` : 'No thesis yet' },
@@ -162,7 +185,7 @@ export default function TeacherProfile() {
                             </div>
                             {role
                                 ? <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600"><Briefcase size={14} className="shrink-0 text-slate-400" aria-hidden="true" /><span className="truncate">{role}</span></p>
-                                : <p className="mt-1 text-sm text-slate-400">Add your designation and institution below.</p>}
+                                : <p className="mt-1 text-sm text-slate-400">{card ? 'Add your designation and institution below.' : 'Add your designation and department below.'}</p>}
                         </div>
                     </div>
 
@@ -184,7 +207,7 @@ export default function TeacherProfile() {
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-3 text-sm">
                                     <span className="font-semibold text-slate-800">Profile {complete}% complete</span>
-                                    <span className="text-xs text-slate-500 tabular-nums">{CHECKS.length - missing.length} of {CHECKS.length}</span>
+                                    <span className="text-xs text-slate-500 tabular-nums">{checks.length - missing.length} of {checks.length}</span>
                                 </div>
                                 <div className="mt-2"><Progress value={complete} tone="bg-amber-500" label="Profile complete" /></div>
                                 <p className="mt-2 text-xs text-slate-600">Still to add: {missing.map((m) => m.label).join(', ')}</p>
@@ -206,27 +229,37 @@ export default function TeacherProfile() {
             )}
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-                <Card>
-                    <CardTitle icon={UserCircle2} color="teal">Details</CardTitle>
-                    <form onSubmit={save} className="space-y-3" noValidate>
-                        <ErrorNote>{error}</ErrorNote>
-                        <OkNote>{note}</OkNote>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            {FIELDS.map(([k, label, max]) => (
-                                <Field key={k} id={`me-${k}`} label={label} error={errors[k]} optional={['designation', 'institution', 'department'].includes(k)}>
-                                    <input id={`me-${k}`} type={k === 'email' ? 'email' : k === 'phone' ? 'tel' : 'text'} maxLength={max} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} className={inputClass} />
-                                </Field>
-                            ))}
-                        </div>
-                        <Field id="me-research" label="Research area" optional error={errors.researchArea} hint="Used by the methodology advisor to tailor its answer.">
-                            <input id="me-research" maxLength={300} value={f.researchArea} onChange={(e) => setF((x) => ({ ...x, researchArea: e.target.value }))} className={inputClass} placeholder="e.g. Educational technology in rural higher education" />
-                        </Field>
-                        <Field id="me-card" label="Card number" hint="The card you sign in with. It cannot be changed.">
-                            <input id="me-card" readOnly value={teacher?.cardNumber || ''} className={`${inputClass} cursor-not-allowed bg-slate-50 font-mono text-slate-500`} />
-                        </Field>
-                        <button type="submit" disabled={saving} className={btn.primary}>{saving && <Loader2 size={15} className="animate-spin" />} Save details</button>
-                    </form>
-                </Card>
+                <div className="space-y-4">
+                    <Card>
+                        <CardTitle icon={UserCircle2} color="teal">Details</CardTitle>
+                        <form onSubmit={save} className="space-y-3" noValidate>
+                            <ErrorNote>{error}</ErrorNote>
+                            <OkNote>{note}</OkNote>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                {fields.map(([k, label, max]) => (
+                                    <div key={k} className={!card && k === 'email' ? 'sm:col-span-2' : ''}>
+                                        <Field id={`me-${k}`} label={label} error={errors[k]} optional={['designation', 'institution', 'department'].includes(k)}
+                                            hint={!card && k === 'phone' ? 'You sign in with this number and your password.' : undefined}>
+                                            <input id={`me-${k}`} type={k === 'email' ? 'email' : k === 'phone' ? 'tel' : 'text'} maxLength={max} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} className={inputClass} />
+                                        </Field>
+                                    </div>
+                                ))}
+                            </div>
+                            {card && (
+                                <>
+                                    <Field id="me-research" label="Research area" optional error={errors.researchArea} hint="Used by the methodology advisor to tailor its answer.">
+                                        <input id="me-research" maxLength={300} value={f.researchArea} onChange={(e) => setF((x) => ({ ...x, researchArea: e.target.value }))} className={inputClass} placeholder="e.g. Educational technology in rural higher education" />
+                                    </Field>
+                                    <Field id="me-card" label="Card number" hint="The card you sign in with. It cannot be changed.">
+                                        <input id="me-card" readOnly value={teacher?.cardNumber || ''} className={`${inputClass} cursor-not-allowed bg-slate-50 font-mono text-slate-500`} />
+                                    </Field>
+                                </>
+                            )}
+                            <button type="submit" disabled={saving} className={btn.primary}>{saving && <Loader2 size={15} className="animate-spin" />} Save details</button>
+                        </form>
+                    </Card>
+                    {teacher?.mentor360 && <WhatITeach />}
+                </div>
                 <div className="space-y-4">
                     <Card>
                         <CardTitle icon={Building2} color="sky">Organization</CardTitle>

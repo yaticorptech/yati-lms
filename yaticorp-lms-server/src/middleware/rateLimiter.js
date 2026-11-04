@@ -77,8 +77,11 @@ const loginLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-/** Just the digits of a card number, as the login reads it. */
-const cardKey = (req) => String(req.body?.cardNumber ?? '').replace(/\D/g, '');
+/** The card or mobile number signed in with (or a teacher's email), as the login reads it. */
+const cardKey = (req) => {
+    const s = String(req.body?.login ?? req.body?.cardNumber ?? '').trim().toLowerCase();
+    return s.includes('@') ? s : s.replace(/\D/g, '').slice(-12);
+};
 
 /**
  * Student sign-in, per card: ten wrong passwords for one card in fifteen
@@ -97,7 +100,7 @@ const loginCardLimiter = rateLimit({
     message: {
         status: 429,
         success: false,
-        message: 'Too many wrong passwords for this card. Wait 15 minutes, or use "Forgot password?" to set a new one.'
+        message: 'Too many wrong passwords for this card or number. Wait 15 minutes, or use "Forgot password?" to set a new one.'
     },
     standardHeaders: true,
     legacyHeaders: false,

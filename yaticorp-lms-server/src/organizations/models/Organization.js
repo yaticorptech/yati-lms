@@ -177,6 +177,43 @@ const organizationSchema = new mongoose.Schema({
         start: { type: String, default: '09:00' },                   // HH:MM, the organization's time
         end: { type: String, default: '17:00' },
         timezone: { type: String, default: 'Asia/Kolkata' }
+    },
+    // Its courses and 360 (2026-10-30, src/three60): the courses it offers
+    // (BBA, BCA…, "programs") each in sections, listed by the organization
+    // (Teachers → Courses & sections); each teacher marks the section and
+    // subject they teach in their 360 dashboard. Kept here, not in a
+    // collection of its own: the cluster is at its collection limit. Students
+    // see 360 once `enabled`.
+    three60: {
+        // Whether the platform's superadmin has unlocked 360 for this
+        // organization (2026-11-04). Off until they do: its 360 Activities page
+        // is locked, its teachers keep only What I teach, its students do not
+        // see 360. The organization's own switch below counts only once this is on.
+        allowed: { type: Boolean, default: false },
+        enabled: { type: Boolean, default: false },
+        programs: [new mongoose.Schema({
+            name: { type: String, required: true, trim: true, maxlength: 80 },
+            sections: [new mongoose.Schema({
+                name: { type: String, required: true, trim: true, maxlength: 40 },
+                // Who teaches this section, and what — each teacher adds their own.
+                teachers: [new mongoose.Schema({
+                    teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true },
+                    subject: { type: String, trim: true, maxlength: 80, default: '' }
+                })]
+            })]
+        }, { timestamps: true })],
+        // The activities of 360 (the 360 Activities page, 2026-10-31): in
+        // categories, each worth "up to N marks" (mode max) or "N points per
+        // proof" (mode each). Its students upload proof for them; their 360
+        // teachers check it and give the marks (src/three60/activities.js).
+        activityGroups: [new mongoose.Schema({
+            name: { type: String, required: true, trim: true, maxlength: 80 },
+            activities: [new mongoose.Schema({
+                name: { type: String, required: true, trim: true, maxlength: 120 },
+                mode: { type: String, enum: ['max', 'each'], default: 'max' },
+                marks: { type: Number, min: 0, max: 1000, default: 10 }
+            })]
+        })]
     }
 }, { timestamps: true });
 

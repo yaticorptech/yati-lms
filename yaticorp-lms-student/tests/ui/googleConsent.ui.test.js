@@ -82,7 +82,8 @@ describe('the Google permission dialog', { skip: skipWithoutStyles }, () => {
                 `the card leaves a gap rather than filling the screen: ${result.height}px in ${result.viewport}px`);
             assert.ok(result.top > 20, `and it does not sit against the top edge, top was ${result.top}px`);
             assert.ok(result.gapBelow > 20, `nor against the bottom edge, gap was ${result.gapBelow}px`);
-            assert.equal(result.scrolls, true, 'the permissions scroll inside it');
+            // Short since 2026-11-04: one line per permission, so it fits without scrolling.
+            assert.equal(result.scrolls, false, 'short enough to need no scrolling');
             assert.equal(result.firstVisible, true, 'starting at the first one');
             assert.ok(result.buttons.some((b) => /Continue to Google/.test(b)), 'the buttons stay put');
             assert.ok(result.buttons.some((b) => /Not now/.test(b)));

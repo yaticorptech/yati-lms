@@ -10,6 +10,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import saveToDrive from '../integrations/google/saveToDrive';
+import { ensureDriveLinked, askIfDriveRequired } from '../integrations/google/driveGate';
+
+const RESUME_DRIVE_REASON = 'The resume you upload is kept in your own Google Drive, in the YATICORP Learning folder.';
 import {
     FileText, Download, Upload, Trash2, Briefcase, ShieldCheck, Zap, RefreshCw, Lock, Lightbulb, CalendarDays, Check, Loader2, ExternalLink, Sparkles, AlertCircle, Info, X
 } from 'lucide-react';
@@ -97,16 +100,8 @@ export default function ResumeSection() {
         try {
             const fd = new FormData();
             fd.append('resume', file);
+            // Kept in the student's own Google Drive by the server (2026-11-02), shared by link.
             const r = await api.post('/user/resume', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-
-            // The resume they uploaded, kept in their own Drive alongside the
-            // generated one. Not awaited: the upload already succeeded and a
-            // Drive copy failing must not read as a failed upload.
-            saveToDrive(file, {
-                name: file.name,
-                description: 'The resume you uploaded to YATICORP.',
-                reason: 'So the resume you upload is also kept in your own Google Drive.'
-            });
 
             setResume(r.data.resume);
             setAts(r.data.ats);
@@ -122,7 +117,8 @@ export default function ResumeSection() {
                 setNotice('Uploaded and saved. The skill reader was unavailable, so your ATS resume uses your courses for now.');
             }
         } catch (err) {
-            if (!isWalletCancel(err)) setError(err.response?.data?.message || 'Upload failed. Please try again.');
+            if (askIfDriveRequired(err, RESUME_DRIVE_REASON)) setError('Link your Google Drive first: your resume is saved there.');
+            else if (!isWalletCancel(err)) setError(err.response?.data?.message || 'Upload failed. Please try again.');
         } finally {
             setUploading(false);
             if (inputRef.current) inputRef.current.value = '';
@@ -260,7 +256,7 @@ export default function ResumeSection() {
             {/* Remove only exists once there is something to remove; a disabled
                 "Remove" beside "Upload" used to greet every new student. */}
             <div className={`grid gap-2.5 px-4 py-3 sm:px-5 ${resume ? 'md:grid-cols-[1fr_1fr_1.5fr]' : 'md:grid-cols-[1fr_1.5fr]'}`}>
-                <Tile onClick={() => inputRef.current?.click()} disabled={uploading} icon={uploading ? Loader2 : Upload}
+                <Tile onClick={async () => { if (await ensureDriveLinked(RESUME_DRIVE_REASON)) inputRef.current?.click(); }} disabled={uploading} icon={uploading ? Loader2 : Upload}
                     title={resume ? 'Replace Resume' : 'Upload Resume'} sub={uploading ? 'Uploading…' : <>{resume ? 'Upload a new resume' : 'PDF or image, up to 5 MB'}</>} tone="indigo" />
                 {resume && <Tile onClick={remove} disabled={removing} icon={Trash2} title="Remove Resume" sub={removing ? 'Removing…' : 'Delete current resume'} tone="rose" />}
                 <Tile to="/jobs" icon={Briefcase} title={<>Find Matching Jobs <span aria-hidden="true">🚀</span></>} sub="Discover jobs that match your skills" tone="cta" />

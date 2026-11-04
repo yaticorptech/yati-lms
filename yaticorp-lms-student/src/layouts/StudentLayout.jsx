@@ -12,10 +12,11 @@ import MobileBottomNav from '../components/MobileBottomNav';
 import GeminiExhaustedDialog from '../components/GeminiExhaustedDialog';
 import useLive from '../live/useLive';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
+import { refresh as refreshGoogle } from '../integrations/google/googleStore';
 import LanguageToggle from '../components/LanguageToggle';
 import Marks360Chip from '../components/Marks360Chip';
 import InstallAppButton from '../components/InstallAppButton';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Globe, Shield } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Globe, Shield, Orbit } from 'lucide-react';
 import api from '../utils/api';
 import SupportDialog from '../components/SupportDialog';
 import { useRewards } from '../context/useRewards';
@@ -129,10 +130,40 @@ const readAdminView = () => {
     try { return JSON.parse(localStorage.getItem(ADMIN_VIEW_KEY) || 'null'); } catch { return null; }
 };
 
+// Whether the student's organization has opened 360 to them (src/pages/Student360.jsx):
+// asked when the app opens and when it comes back to the screen, and
+// remembered for the session so the menu item does not blink in on each page.
+const THREE60_KEY = 'three60-open';
+const useThree60 = (userId) => {
+    const [open, setOpen] = useState(() => { try { return !!userId && sessionStorage.getItem(THREE60_KEY) === String(userId); } catch { return false; } });
+    useEffect(() => {
+        if (!userId) return undefined;
+        let live = true;
+        const check = () => api.get('/user/360').then((r) => {
+            if (!live) return;
+            const yes = Boolean(r.data?.enabled);
+            setOpen(yes);
+            try {
+                if (yes) sessionStorage.setItem(THREE60_KEY, String(userId));
+                else sessionStorage.removeItem(THREE60_KEY);
+            } catch { /* storage unavailable */ }
+        }).catch(() => {});
+        check();
+        const onShow = () => { if (document.visibilityState === 'visible') check(); };
+        document.addEventListener('visibilitychange', onShow);
+        return () => { live = false; document.removeEventListener('visibilitychange', onShow); };
+    }, [userId]);
+    return open;
+};
+
 const StudentLayout = () => {
     const { user, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
     // The organization's access hours: outside them, the closed screen (components/PlatformClosed).
     const accessHours = useAccessHours(Boolean(user));
+    const three60 = useThree60(user?._id);
+    // Whether Google Drive is linked, known from the start: every upload checks it first (uploads are
+    // kept in the student's own Drive, 2026-11-02), and a phone opens the file picker only straight after a tap.
+    useEffect(() => { if (user?._id) refreshGoogle(); }, [user?._id]);
     const [adminView] = useState(readAdminView);
     // One active sign-in at a time: a sign-in on another device ('session' on the live stream)
     // makes this page check its own; if it was the older one the server answers 401 and the app
@@ -576,7 +607,13 @@ const StudentLayout = () => {
             { to: '/interview', label: 'Job Preparation', icon: Mic, also: '/jobs' }
         ].filter(Boolean) },
         // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint, Quiz and Hackathon): two sections since 2026-10-23.
-        { title: 'Activities', items: [{ to: '/extracurricular', label: 'Extra Curricular', icon: Shield }, { to: '/competitions', label: 'Competitions', icon: Trophy }, { to: '/games', label: 'Games', icon: Gamepad2 }] }
+        // 360 (their activities, proof and marks) heads it, once their organization opens it and a 360 teacher has added them (2026-10-31).
+        { title: 'Activities', items: [
+            three60 && { to: '/360', label: '360', icon: Orbit },
+            { to: '/extracurricular', label: 'Extra Curricular', icon: Shield },
+            { to: '/competitions', label: 'Competitions', icon: Trophy },
+            { to: '/games', label: 'Games', icon: Gamepad2 }
+        ].filter(Boolean) }
     ];
     const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.section || item.to) || (item.also && isSectionActive(item.also)));
 
@@ -766,6 +803,7 @@ const StudentLayout = () => {
                 isJobsEnabled={isJobsEnabled}
                 isCareerPathEnabled={isCareerPathEnabled}
                 isLinguisticEnabled={isLinguisticEnabled}
+                isThree60Enabled={three60}
                 user={user}
                 rewards={rw}
                 onOpenWallet={() => setWalletOpen(true)}

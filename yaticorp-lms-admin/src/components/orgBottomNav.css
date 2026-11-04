@@ -62,3 +62,11 @@
   .mbn-dot { opacity: 1; }
   .mbn-press { transition: none; }
 }
+
+/* The light island the bar is now (2026-11-02), as on the student side: a
+   hairline, a soft wide shadow for depth and a tight one for the edge. */
+.mbn-island {
+  box-shadow:
+    0 20px 40px -18px rgb(15 23 42 / 0.28),
+    0 2px 8px -2px rgb(15 23 42 / 0.08);
+}

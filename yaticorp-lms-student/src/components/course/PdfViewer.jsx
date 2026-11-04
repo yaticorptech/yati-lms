@@ -117,7 +117,12 @@ export default function PdfViewer({ url, title = 'Reading' }) {
     }, []);
 
     return (
-        <div ref={boxRef} data-pdf-viewer className="absolute inset-0 overflow-y-auto overscroll-contain bg-slate-200">
+        // Its own scroll only while the reading is showing, and a swipe at its
+        // top or bottom carries on to the page (no overscroll-contain): on a
+        // phone the box fills most of the screen, and a box that kept every
+        // swipe — or, loading or failed, had nothing to scroll — left the page
+        // stuck (2026-10-31).
+        <div ref={boxRef} data-pdf-viewer className={`absolute inset-0 bg-slate-200 ${state.status === 'ready' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
             {state.status === 'loading' && (
                 <div role="status" className="flex h-full flex-col items-center justify-center gap-3 text-slate-500">
                     <Loader2 size={28} className="animate-spin text-indigo-500" aria-hidden="true" />

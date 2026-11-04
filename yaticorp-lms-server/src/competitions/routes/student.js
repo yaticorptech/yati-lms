@@ -187,7 +187,9 @@ router.get('/certificates', wrap(async (req, res) => {
             words: team.place ? winnerWords({ competition: c, team, place: team.place }) : null
         };
     }).filter(Boolean).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
-    res.json({ certificates });
+    // Each with its number, as the PDF prints it (services/certificateNumbers).
+    const numbers = await require('../../services/certificateNumbers').numbersFor(req.user._id, certificates.map((c) => ({ key: `competition-${c.competitionId}`, added: c.completedAt })));
+    res.json({ certificates: certificates.map((c) => ({ ...c, number: numbers[`competition-${c.competitionId}`] || null })) });
 }));
 
 // Delete a competition certificate from My Profile. It only leaves the frame:
@@ -394,7 +396,10 @@ router.get('/:id/certificate', wrap(async (req, res) => {
     const playerName = team.players.find((p) => String(p.userId) === String(req.user._id))?.name || req.user.name;
     // Downloaded again: back in My Profile's frame if it was deleted from there.
     await Team.updateOne({ _id: team._id, 'players.userId': req.user._id }, { $set: { 'players.$.certificateHiddenAt': null } });
-    require('../services/certificate').draw(res, { competition, team, playerName, place: team.place || null });
+    // Its number in the student's series of certificates (YATI<card>-001, services/certificateNumbers), printed on it.
+    const key = `competition-${competition._id}`;
+    const number = (await require('../../services/certificateNumbers').numbersFor(req.user._id, [{ key, added: competition.completedAt }]))[key];
+    require('../services/certificate').draw(res, { competition, team, playerName, place: team.place || null, number });
 }));
 
 /* ── A quiz or a hackathon ───────────────────────────────────────────── */

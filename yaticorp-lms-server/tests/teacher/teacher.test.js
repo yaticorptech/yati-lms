@@ -122,11 +122,12 @@ describe('a teacher registers a card and signs in', () => {
         const atTeacher = await anon('POST', '/api/teacher/auth/login', { cardNumber: studentCard, password: 'whatever1A!' });
         assert.equal(atTeacher.status, 401);
         assert.equal(atTeacher.body.code, 'STUDENT_CARD');
-        assert.match(atTeacher.body.message, /Choose Student/);
+        // No Student / Teacher switch since 2026-10-30: the code tells the app where to sign in.
+        assert.match(atTeacher.body.message, /student account/);
         const atStudent = await anon('POST', '/api/auth/student/login', { cardNumber: reg.card.CardNumber, password: PASSWORD });
         assert.equal(atStudent.status, 401);
         assert.equal(atStudent.body.code, 'TEACHER_CARD');
-        assert.match(atStudent.body.message, /Choose Teacher/);
+        assert.match(atStudent.body.message, /teacher account/);
     });
 
     test('scanning a teacher card at the teacher sign-in gives its number; at the student one, a pointer', async () => {

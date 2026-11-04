@@ -41,6 +41,10 @@ const view = (t) => ({
     organizationId: t.organizationId || null,
     // An AI card opens the research tools; without one, only clubs and units.
     research: Boolean(t.cardNumber),
+    // What their organization turned on for them: 360 (they land there) and
+    // Scouts & Guides — only with an organization, which makes unit leaders.
+    mentor360: Boolean(t.mentor360) && Boolean(t.organizationId),
+    scouts: t.scouts !== false && Boolean(t.organizationId),
     role: 'teacher',
     createdAt: t.createdAt
 });
@@ -107,17 +111,42 @@ const withoutCard = (email) => {
     return e ? Teacher.findOne({ email: e, cardNumber: { $in: [null, ''] } }) : null;
 };
 
+/** Signed in: counted, stamped and answered with the session. */
+const welcome = async (res, teacher) => {
+    if (teacher.status !== 'active') return res.status(403).json(notActive(teacher));
+    await Teacher.updateOne({ _id: teacher._id }, { $inc: { loginCount: 1 }, $set: { lastLoginAt: new Date() } });
+    return res.json({ ...view(teacher), token: generateToken(teacher._id, 'teacher') });
+};
+
+// { login, password } — the one sign-in box (2026-10-30): a card number, a
+// mobile number or an email (utils/signInLookup) — or the older
+// { cardNumber | email, password }.
 const login = async (req, res) => {
     try {
-        const { cardNumber, email, password } = req.body || {};
-        // A teacher with no AI card (a club or Scouts leader) signs in with email.
+        const body = req.body || {};
+        const { password } = body;
+        let { cardNumber, email } = body;
+        if (body.login !== undefined && !cardNumber && !email) {
+            const { kindOf, byPhone, SHARED_PHONE, TOO_MANY_ON_PHONE, PASSWORD_NOT_SET } = require('../utils/signInLookup');
+            const k = kindOf(body.login);
+            if (typeof password !== 'string' || !password || k.kind === 'empty') return res.status(400).json({ message: 'Enter your card number or mobile number, and your password.' });
+            if (k.kind === 'email') email = k.value;
+            else if (k.kind === 'card' || (k.kind === 'card-or-phone' && (await findTeacherByCard(k.value)))) cardNumber = k.value;
+            else {
+                const found = await byPhone(Teacher, k.digits, password);
+                if (found.account) return welcome(res, found.account);
+                if (found.shared) return res.status(409).json({ code: 'PHONE_SHARED', message: SHARED_PHONE });
+                if (found.tooMany) return res.status(409).json({ code: 'PHONE_SHARED', message: TOO_MANY_ON_PHONE });
+                if (found.pending && !found.wrongPassword) return res.status(401).json({ code: 'PASSWORD_NOT_SET', message: PASSWORD_NOT_SET });
+                if (found.wrongPassword) return res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });
+                return res.status(401).json({ code: 'NO_ACCOUNT', message: 'No account found with this mobile number. Check the number, use your card number, or sign up.' });
+            }
+        }
+        // No sign-in by email (2026-10-31): a teacher without a card signs in with
+        // the mobile number their organization added them with; one with a card,
+        // with the card (or their mobile number).
         if (!cardNumber && email) {
-            if (typeof password !== 'string' || !password) return res.status(400).json({ message: 'Enter your email and password.' });
-            const byEmail = await withoutCard(email);
-            if (!byEmail || !(await byEmail.matchPassword(password))) return res.status(401).json({ message: 'Invalid email or password' });
-            if (byEmail.status !== 'active') return res.status(403).json(notActive(byEmail));
-            await Teacher.updateOne({ _id: byEmail._id }, { $inc: { loginCount: 1 }, $set: { lastLoginAt: new Date() } });
-            return res.json({ ...view(byEmail), token: generateToken(byEmail._id, 'teacher') });
+            return res.status(401).json({ code: 'USE_CARD_OR_PHONE', message: 'Sign in with your card number or mobile number, not your email.' });
         }
         if (!cardNumber || typeof password !== 'string' || !password) {
             return res.status(400).json({ message: 'Enter your card number and password.' });
@@ -126,15 +155,12 @@ const login = async (req, res) => {
         if (!teacher) {
             // A student's card, at the teacher sign-in: say where it belongs.
             if (await findUserByCardNumber(cardNumber)) {
-                return res.status(401).json({ code: 'STUDENT_CARD', message: 'This card is registered to a student account. Choose Student to sign in.' });
+                return res.status(401).json({ code: 'STUDENT_CARD', message: 'This card is registered to a student account.' });
             }
             return res.status(401).json({ code: 'NO_ACCOUNT', message: 'No teacher account found with this card number.' });
         }
         if (!(await teacher.matchPassword(password))) return res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });
-        if (teacher.status !== 'active') return res.status(403).json(notActive(teacher));
-
-        await Teacher.updateOne({ _id: teacher._id }, { $inc: { loginCount: 1 }, $set: { lastLoginAt: new Date() } });
-        res.json({ ...view(teacher), token: generateToken(teacher._id, 'teacher') });
+        return welcome(res, teacher);
     } catch (error) {
         console.error('[teacher] sign-in failed:', error.message);
         res.status(500).json({ message: 'Could not sign you in just now. Please try again.' });
@@ -239,7 +265,7 @@ const resetPassword = async (req, res) => {
         // Claimed, cleared and set in one update, so a link works once.
         const teacher = await Teacher.findOneAndUpdate(
             { resetPasswordToken: hashToken(token), resetPasswordExpiry: { $gt: new Date() } },
-            { $set: { password: await Teacher.hashPassword(newPassword), passwordChangedAt: new Date() }, $unset: { resetPasswordToken: '', resetPasswordExpiry: '' } }
+            { $set: { password: await Teacher.hashPassword(newPassword), passwordChangedAt: new Date(), passwordPending: false }, $unset: { resetPasswordToken: '', resetPasswordExpiry: '' } }
         );
         if (!teacher) return res.status(400).json({ message: 'Invalid or expired reset link. Please request a new one.' });
         res.json({ message: 'Password reset successful. You can now sign in.' });
@@ -342,4 +368,95 @@ const uploadPicture = async (req, res) => {
     }
 };
 
-module.exports = { protectTeacher, register, login, cardScan, forgotPassword, forgotPasswordPreview, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };
+/**
+ * "Verify as your organization's teacher" on the sign-up page (2026-10-30):
+ * a teacher with no AI card is added by their organization with their name
+ * and mobile number only. Given the number, this says whether an
+ * organization has added them. One who has not set up their account yet
+ * (needsPassword) gets their name and number back, for "Is this you?", and
+ * sets it up with orgSetup below; one who has, only their first name and
+ * organization, and is sent to sign in. It never reveals a password.
+ */
+const orgCheck = async (req, res) => {
+    try {
+        const { kindOf, phonePattern } = require('../utils/signInLookup');
+        const k = kindOf(req.body?.phone);
+        if (k.kind !== 'phone' && k.kind !== 'card-or-phone') return res.status(400).json({ field: 'phone', message: 'Enter the mobile number your organization added you with.' });
+        const found = await Teacher.find({ phone: { $regex: phonePattern(k.digits) }, cardNumber: { $in: [null, ''] }, organizationId: { $ne: null } })
+            .select('name phone organizationId status passwordPending').limit(5).lean();
+        if (!found.length) {
+            return res.status(404).json({ code: 'NOT_ADDED', message: 'No organization has added a teacher with this mobile number yet. Ask your organization to add you, then try again.' });
+        }
+        const Organization = require('../organizations/models/Organization');
+        const orgs = await Organization.find({ _id: { $in: found.map((t) => t.organizationId) } }).select('name').lean();
+        const names = Object.fromEntries(orgs.map((o) => [String(o._id), o.name]));
+        res.json({
+            verified: true,
+            teachers: found.map((t) => ({
+                firstName: String(t.name || '').trim().split(/\s+/)[0],
+                organization: names[String(t.organizationId)] || 'your organization',
+                active: t.status === 'active',
+                needsPassword: Boolean(t.passwordPending),
+                // For "Is this you?": only while the account is still to be set up.
+                ...(t.passwordPending ? { id: t._id, name: t.name, phone: t.phone } : {})
+            }))
+        });
+    } catch (error) {
+        console.error('[teacher] organization check failed:', error.message);
+        res.status(500).json({ message: 'Could not check just now. Please try again.' });
+    }
+};
+
+/**
+ * { phone, teacherId?, password, email, designation?, department?, researchArea? }:
+ * the account their organization added, set up by the teacher on the sign-up
+ * page — their password, then their email and details — and signed in. Only
+ * while it waits (passwordPending); after that it is a normal account, signed
+ * in with the mobile number and password. `teacherId` picks one when two
+ * organizations added the same number.
+ */
+const orgSetup = async (req, res) => {
+    try {
+        const body = req.body || {};
+        const { kindOf, phonePattern } = require('../utils/signInLookup');
+        const k = kindOf(body.phone);
+        if (k.kind !== 'phone' && k.kind !== 'card-or-phone') return res.status(400).json({ field: 'phone', message: 'Enter the mobile number your organization added you with.' });
+        const filter = { phone: { $regex: phonePattern(k.digits) }, cardNumber: { $in: [null, ''] }, organizationId: { $ne: null }, passwordPending: true };
+        if (body.teacherId !== undefined) {
+            if (!require('mongoose').isValidObjectId(body.teacherId)) return res.status(400).json({ message: 'Choose your account again.' });
+            filter._id = body.teacherId;
+        }
+        const found = await Teacher.find(filter).limit(2);
+        if (!found.length) return res.status(404).json({ code: 'NOT_PENDING', message: 'This account is already set up. Sign in with your mobile number and password.' });
+        if (found.length > 1) return res.status(409).json({ code: 'CHOOSE', message: 'More than one organization added this mobile number. Choose which one is you.' });
+        const teacher = found[0];
+        if (teacher.status !== 'active') return res.status(403).json(notActive(teacher));
+
+        const password = typeof body.password === 'string' ? body.password : '';
+        const weak = validatePasswordStrength(password);
+        if (weak) return res.status(400).json({ field: 'password', message: weak });
+        const email = String(body.email || '').trim().toLowerCase();
+        if (!EMAIL_PATTERN.test(email) || email.length > 254) return res.status(400).json({ field: 'email', message: 'Enter a valid email address.' });
+        if (await Teacher.exists({ email: new RegExp(`^\\s*${escapeRegExp(email)}\\s*$`, 'i'), _id: { $ne: teacher._id } })) {
+            return res.status(400).json({ field: 'email', code: 'EMAIL_TAKEN', message: 'Another teacher account already uses this email address.' });
+        }
+        teacher.password = password;
+        teacher.passwordPending = false;
+        teacher.email = email;
+        for (const [key, max] of [['designation', 100], ['department', 200], ['researchArea', 300]]) {
+            if (body[key] !== undefined) teacher[key] = String(body[key] || '').trim().slice(0, max);
+        }
+        try {
+            await teacher.save();
+        } catch (error) {
+            if (error?.code === 11000 && error.keyPattern?.email) return res.status(400).json({ field: 'email', code: 'EMAIL_TAKEN', message: 'Another teacher account already uses this email address.' });
+            throw error;
+        }
+        return welcome(res, teacher);
+    } catch (error) {
+        console.error('[teacher] account set-up failed:', error.message);
+        res.status(500).json({ message: 'Could not set up your account just now. Please try again.' });
+    }
+};
+
+module.exports = { protectTeacher, register, login, orgCheck, orgSetup, cardScan, forgotPassword, forgotPasswordPreview, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };

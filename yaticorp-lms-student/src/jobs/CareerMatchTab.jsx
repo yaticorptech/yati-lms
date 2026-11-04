@@ -11,6 +11,11 @@ import { jobsApi, learnerSkills } from './api';
 import usePricedJobLink from './usePricedJobLink';
 import { isWalletCancel } from '../utils/walletCharge';
 import GeminiCreditTip from '../components/GeminiCreditTip';
+import { ensureDriveLinked, askToLinkDrive } from '../integrations/google/driveGate';
+
+// The resume is kept in the student's own Google Drive (2026-11-02): linked first, or no upload.
+const RESUME_DRIVE_REASON = 'The resume you upload is kept in your own Google Drive, in the YATICORP Learning folder.';
+const pickAfterDrive = async (input) => { if (await ensureDriveLinked(RESUME_DRIVE_REASON)) input?.click(); };
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -104,7 +109,8 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
             onProfile(res.profile);
             setSource('upload');
         } catch (e) {
-            if (!isWalletCancel(e)) setError(e.message || 'Upload failed. Please try again.');
+            if (e.code === 'DRIVE_REQUIRED') { setError(e.message); askToLinkDrive(RESUME_DRIVE_REASON); }
+            else if (!isWalletCancel(e)) setError(e.message || 'Upload failed. Please try again.');
         } finally {
             setUploading(false);
             if (inputRef.current) inputRef.current.value = '';
@@ -136,7 +142,7 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
                     <p className="mt-1 text-slate-500">Choose the resume to match against, and we'll find the jobs that fit it best.</p>
                 </div>
                 <div className="mx-auto mt-6 grid max-w-2xl gap-4 sm:grid-cols-2">
-                    <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
+                    <button type="button" onClick={() => pickAfterDrive(inputRef.current)} disabled={uploading}
                         className="group flex flex-col items-center rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/50 p-6 text-center transition-all hover:-translate-y-0.5 hover:border-indigo-400 hover:bg-indigo-50 disabled:opacity-60">
                         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-indigo-600 shadow-sm">{uploading ? <Loader2 size={22} className="animate-spin" /> : <Upload size={22} />}</span>
                         <span className="mt-3 text-base font-bold text-slate-900">{uploading ? 'Uploading…' : 'Upload a resume'}</span>

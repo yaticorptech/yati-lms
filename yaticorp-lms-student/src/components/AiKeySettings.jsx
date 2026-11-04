@@ -9,6 +9,8 @@ import { KeyRound, ExternalLink, Trash2, CheckCircle2, AlertCircle, Loader2, Eye
 import api from '../utils/api';
 import useJobsAccess from '../hooks/useJobsAccess';
 import useConfirmDialog from './useConfirmDialog';
+import Portal from './Portal';
+import useBackClose from '../native/useBackClose';
 
 // The three screens a student goes through in Google AI Studio, drawn as
 // mock-ups in public/illustrations/ai-key.
@@ -21,11 +23,16 @@ export const KEY_STEPS = [
 const KeyGuide = () => {
     const [open, setOpen] = useState(false);
 
+    // A popup like the others (2026-11-02): above the phone's bottom bar (a Portal), Back and
+    // Escape close it, the page behind stays put, and "Open Google AI Studio" stays in view.
+    useBackClose(() => setOpen(false), open);
     useEffect(() => {
-        if (!open) return;
+        if (!open) return undefined;
         const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
         window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
+        const before = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = before; };
     }, [open]);
 
     return (
@@ -38,51 +45,55 @@ const KeyGuide = () => {
                 <HelpCircle size={14} /> How to get a key — 3 steps
             </button>
             {open && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setOpen(false)}>
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label="How to get a Gemini API key"
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl p-5"
-                    >
-                        <div className="flex items-start justify-between gap-3 mb-4">
-                            <div>
-                                <h3 className="font-black text-slate-900">Get your free Gemini key in 3 steps</h3>
-                                <p className="text-xs text-slate-500 mt-0.5">Takes about a minute. No card needed.</p>
+                <Portal>
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setOpen(false)}>
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="How to get a Gemini API key"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex max-h-[88dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+                        >
+                            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                                <div>
+                                    <h3 className="font-black text-slate-900">Get your free Gemini key in 3 steps</h3>
+                                    <p className="text-xs text-slate-500 mt-0.5">Takes about a minute. No card needed.</p>
+                                </div>
+                                <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
+                                    <X size={20} />
+                                </button>
                             </div>
-                            <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <ol className="grid gap-3 sm:grid-cols-3">
-                            {KEY_STEPS.map((s, i) => (
-                                <li key={s.img} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
-                                    <img
-                                        src={`/illustrations/ai-key/${s.img}`}
-                                        alt={`Step ${i + 1}: ${s.title}`}
-                                        className="w-full rounded-lg border border-slate-200 bg-white"
-                                    />
-                                    <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[0.65rem] flex items-center justify-center shrink-0">{i + 1}</span>
-                                        {s.title}
-                                    </p>
-                                    <p className="mt-1 text-[0.7rem] text-slate-500">{s.text}</p>
-                                </li>
-                            ))}
-                        </ol>
-                        <div className="mt-4 flex justify-end">
-                            <a
-                                href="https://aistudio.google.com/app/apikey"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold"
-                            >
-                                Open Google AI Studio <ExternalLink size={13} />
-                            </a>
+                            <ol className="grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain px-5 py-4 sm:grid-cols-3">
+                                {KEY_STEPS.map((s, i) => (
+                                    <li key={s.img} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                                        <img
+                                            src={`/illustrations/ai-key/${s.img}`}
+                                            alt={`Step ${i + 1}: ${s.title}`}
+                                            className="w-full rounded-lg border border-slate-200 bg-white"
+                                        />
+                                        <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[0.65rem] flex items-center justify-center shrink-0">{i + 1}</span>
+                                            {s.title}
+                                        </p>
+                                        <p className="mt-1 text-[0.7rem] text-slate-500">{s.text}</p>
+                                    </li>
+                                ))}
+                            </ol>
+                            {/* Always in view, under the steps however far they scroll. */}
+                            <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/80 px-5 py-3 sm:flex-row sm:justify-end">
+                                <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 sm:py-2">Close</button>
+                                <a
+                                    href="https://aistudio.google.com/app/apikey"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 sm:py-2 sm:text-xs"
+                                >
+                                    Open Google AI Studio <ExternalLink size={13} />
+                                </a>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Portal>
             )}
         </>
     );

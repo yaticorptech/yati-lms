@@ -261,7 +261,8 @@ export default function Plagiarism() {
             {history.length > 0 && (
                 <Card>
                     <CardTitle icon={History} color="indigo">Earlier checks</CardTitle>
-                    <ul className="divide-y divide-slate-100">
+                    {/* Five checks tall (2026-10-30); the older ones scroll inside the card. */}
+                    <ul className={`divide-y divide-slate-100 ${history.length > 5 ? 'max-h-[16.5rem] overflow-y-auto overscroll-contain pr-1' : ''}`}>
                         {history.map((r) => (
                             <li key={r._id} className="flex items-center gap-2 py-2">
                                 <button type="button" onClick={() => openReport(r._id)} className="min-w-0 flex-1 text-left">
@@ -274,6 +275,7 @@ export default function Plagiarism() {
                             </li>
                         ))}
                     </ul>
+                    {history.length > 5 && <p className="mt-2 border-t border-slate-100 pt-2 text-xs text-slate-400">Scroll for all {history.length} checks</p>}
                 </Card>
             )}
             {!history.length && !report && (

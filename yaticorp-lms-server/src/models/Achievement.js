@@ -19,7 +19,9 @@ const achievementSchema = new mongoose.Schema({
     fileUrl: { type: String, required: true },
     thumbnailUrl: { type: String, default: '' },
     fileType: { type: String, enum: ['image', 'pdf'], required: true },
-    storage: { type: String, enum: ['bunny', 'cloudinary'], default: 'bunny' },
+    // 'drive' (2026-11-02): in the student's own Google Drive, shared by link; driveFileId to delete it and download it.
+    storage: { type: String, enum: ['bunny', 'cloudinary', 'drive'], default: 'bunny' },
+    driveFileId: { type: String, default: '' },
     objectPath: { type: String, default: '' },   // Bunny
     // A PDF's page-one picture, drawn by the student's browser at upload
     // (Bunny has no PDF renderer); stored beside it, removed with it.

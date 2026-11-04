@@ -305,7 +305,11 @@ router.get('/:id/certificate', wrap(async (req, res) => {
     const college = e.collegeName || 'your college';
     const max = c.paper.length * c.pointsPerQuestion;
     const ord = { 1: '1st', 2: '2nd', 3: '3rd' }[cert.place];
+    // Its number in the student's series of certificates (YATI<card>-001), printed on it.
+    const key = `competition-${c._id}`;
+    const number = (await require('../../services/certificateNumbers').numbersFor(req.user._id, [{ key, added: c.resultsPublishedAt }]))[key];
     require('../services/certificate').draw(res, {
+        number,
         competition: { name: c.title, game: 'arena', organizedBy: c.organizedBy, completedAt: c.resultsPublishedAt },
         team: { teamName: e.name, collegeName: college },
         playerName: e.name,

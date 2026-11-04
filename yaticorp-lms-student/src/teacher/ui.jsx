@@ -109,9 +109,10 @@ export const Modal = ({ title, onClose, children, footer, wide = false, labelId 
             <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[2px]" onClick={onClose}>
                 <div role="dialog" aria-modal="true" aria-labelledby={labelId} onClick={(e) => e.stopPropagation()}
                     className={`flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl ${wide ? 'max-w-3xl' : 'max-w-lg'}`}>
-                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
-                        <h2 id={labelId} className="min-w-0 truncate text-base font-semibold text-slate-900">{title}</h2>
-                        <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X size={18} /></button>
+                    {/* A long title wraps rather than ending in "…" (2026-10-30). */}
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
+                        <h2 id={labelId} className="min-w-0 text-base font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{title}</h2>
+                        <button type="button" onClick={onClose} aria-label="Close" className="-mt-0.5 shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X size={18} /></button>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
                     {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-3">{footer}</div>}
