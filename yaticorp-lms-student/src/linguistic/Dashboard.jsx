@@ -7,7 +7,7 @@
  * number on them that changes is drawn live on top. The other cards follow underneath.
  * Every figure comes from the section's dashboard, loaded once by LingoShell.
  */
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Target, ChevronRight, Download, Play, Mic, PenLine, BookOpen, X, BarChart3, Check, ArrowRight, Zap, Gift } from 'lucide-react';
 import { createPortal } from 'react-dom';
@@ -52,21 +52,42 @@ function LevelBadge({ dash, overlay }) {
     );
 }
 
+/** Hello in each course's language, in its own letters, for the bubble (asked 2026-10-31: it said こんにちは to everyone). */
+const HELLO = {
+    en: 'Hello!', kn: 'ನಮಸ್ಕಾರ!', hi: 'नमस्ते!', ta: 'வணக்கம்!', te: 'నమస్కారం!', ml: 'നമസ്കാരം!', mr: 'नमस्कार!', bn: 'নমস্কার!',
+    gu: 'નમસ્તે!', pa: 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ!', or: 'ନମସ୍କାର!', ur: 'السلام علیکم!', es: '¡Hola!', fr: 'Bonjour !', de: 'Hallo!', pt: 'Olá!',
+    ru: 'Привет!', ar: 'مرحبًا!', zh: '你好！', ja: 'こんにちは！', ko: '안녕하세요!'
+};
+
 /**
  * The mascot's speech bubble, drawn sharp over the painted one (asked 2026-10-29: "its edges clearly visible"):
  * the scene fades in at its left edge, and on some widths the painted bubble sat in that fade. Placed from the
- * scene's right edge by its height (cqh), as the level card is, so it stays on the painted one.
+ * scene's right edge by its height (cqh), as the level card is, so it stays on the painted one. Its hello is in
+ * the course's language, made smaller when a long one (ਸਤ ਸ੍ਰੀ ਅਕਾਲ!) would not fit on its line.
  */
-const Bubble = () => (
-    <span aria-hidden="true" className="pointer-events-none absolute z-[1] flex flex-col justify-center rounded-[8cqh] bg-white shadow-[0_6px_18px_rgba(31,42,68,.14)]"
-        style={{ right: '285.2cqh', top: '15.2%', width: '70cqh', height: '32%', padding: '0 7cqh' }}>
-        <span className="block font-black leading-tight text-[#1F2A44]" style={{ fontSize: '7.6cqh' }} lang="ja">こんにちは！</span>
-        <span className="block font-bold leading-tight text-[#1F2A44]" style={{ fontSize: '5.4cqh', marginTop: '2cqh' }}>Let’s learn together!</span>
-        {/* The tail, toward the mascot. */}
-        <span className="absolute bg-white" style={{ right: '9cqh', bottom: '-5cqh', width: '7cqh', height: '7cqh', clipPath: 'polygon(0 0, 100% 0, 100% 100%)' }} />
-        <span className="absolute leading-none" style={{ right: '-4cqh', top: '-5cqh', fontSize: '11cqh' }}>🌸</span>
-    </span>
-);
+function Bubble({ code, phone }) {
+    const hello = HELLO[code] || HELLO.en;
+    const line = useRef(null);
+    useLayoutEffect(() => {
+        const el = line.current;
+        if (el && el.scrollWidth > el.clientWidth) el.style.fontSize = `calc(7.6cqh * ${(el.clientWidth / el.scrollWidth).toFixed(3)})`;
+    }, [hello]);
+    return (
+        // On a phone or tablet (2026-11-03) the picture is cut to the bubble and the mascot (2:1, at 31% across): there the
+        // painted bubble starts 39.4cqh from its left. Wider, it is placed from the picture's right edge, over the painted
+        // one, sharp (only the picture fades at its left edge); where the picture is cut so far that the painted one is
+        // cut, it stays whole at the picture's left edge (2026-11-03, "give the correct alignment"), never out over the
+        // heading — and with the mascot's head cut off too (narrower than 2.7 times its height) it is not drawn.
+        <span aria-hidden="true" className={`pointer-events-none absolute z-[1] flex flex-col justify-center rounded-[8cqh] bg-white shadow-[0_6px_18px_rgba(31,42,68,.14)] ${phone ? '' : '[@container(max-aspect-ratio:270/100)]:hidden'}`}
+            style={{ ...(phone ? { left: '39.4cqh' } : { right: 'min(285.2cqh, calc(100cqw - 72cqh))' }), top: '15.2%', width: '70cqh', height: '32%', padding: '0 7cqh' }} data-lingo-hello={code}>
+            <span key={hello} ref={line} className="block whitespace-nowrap font-black leading-tight text-[#1F2A44]" style={{ fontSize: '7.6cqh' }} lang={code} dir="auto">{hello}</span>
+            <span className="block font-bold leading-tight text-[#1F2A44]" style={{ fontSize: '5.4cqh', marginTop: '2cqh' }}>Let’s learn together!</span>
+            {/* The tail, toward the mascot. */}
+            <span className="absolute bg-white" style={{ right: '9cqh', bottom: '-5cqh', width: '7cqh', height: '7cqh', clipPath: 'polygon(0 0, 100% 0, 100% 100%)' }} />
+            <span className="absolute leading-none" style={{ right: '-4cqh', top: '-5cqh', fontSize: '11cqh' }}>🌸</span>
+        </span>
+    );
+}
 
 /**
  * The course's scene with, on its left, the journey line and Continue Learning with the lesson it opens. No
@@ -78,15 +99,17 @@ function Hero({ dash }) {
     const to = next ? `/linguistic?lesson=${next.id}` : '/linguistic';
     return (
         <section data-lingo-welcome aria-label="Welcome"
-            className="relative flex min-w-0 flex-col overflow-hidden rounded-[28px] bg-[linear-gradient(100deg,#fff6ee_0%,#fdeee4_28%,#f7eef1_48%,#eef1f8_70%)] shadow-[0_12px_32px_rgba(31,42,68,.12)] md:block md:h-[clamp(250px,16vw,300px)]">
+            className="relative flex min-w-0 flex-col overflow-hidden rounded-[28px] bg-[linear-gradient(100deg,#fff6ee_0%,#fdeee4_28%,#f7eef1_48%,#eef1f8_70%)] shadow-[0_12px_32px_rgba(31,42,68,.12)] lg:block lg:h-[clamp(250px,16vw,300px)]">
             {/* The scene (cut from the picture), fading into the sky on its left; the level card on it. */}
-            <div className="relative order-first aspect-[2/1] w-full md:absolute md:inset-y-0 md:right-0 md:aspect-auto md:w-[min(64%,calc(clamp(250px,16vw,300px)*4.82))] md:[container-type:size] lg:w-[min(70%,calc(clamp(250px,16vw,300px)*4.82))]">
+            {/* Side by side from a laptop's width (2026-11-03: was from a tablet's, where the picture was cut to its right part and the bubble fell outside it). */}
+            <div className="relative order-first aspect-[2/1] w-full overflow-hidden [container-type:size] lg:absolute lg:inset-y-0 lg:right-0 lg:aspect-auto lg:w-[min(70%,calc(clamp(250px,16vw,300px)*4.82))]">
                 {/* A phone: a taller crop around the bubble and the mascot (not the drawn card), unfaded. Wider: the whole scene from the right, fading in at its left edge. */}
                 <img src={`${ART}/hero-art.png?v=5`} alt="" draggable="false"
-                    className="absolute inset-0 h-full w-full select-none object-cover object-[31%_50%] md:object-right md:[-webkit-mask-image:linear-gradient(90deg,transparent_0%,#000_7%)] md:[mask-image:linear-gradient(90deg,transparent_0%,#000_7%)]" />
-                <span className="hidden md:block"><Bubble /><LevelBadge dash={dash} overlay /></span>
+                    className="absolute inset-0 h-full w-full select-none object-cover object-[31%_50%] lg:object-right lg:[-webkit-mask-image:linear-gradient(90deg,transparent_0%,#000_7%)] lg:[mask-image:linear-gradient(90deg,transparent_0%,#000_7%)]" />
+                <span className="lg:hidden"><Bubble code={dash.course?.code || 'en'} phone /></span>
+                <span className="hidden lg:block"><Bubble code={dash.course?.code || 'en'} /><LevelBadge dash={dash} overlay /></span>
             </div>
-            <div className="relative z-10 flex h-full flex-col justify-center p-5 sm:p-7 md:max-w-[36%] md:py-5 md:pl-[3%] md:pr-0 lg:max-w-[30%]">
+            <div className="relative z-10 flex h-full flex-col justify-center p-5 sm:p-7 lg:max-w-[30%] lg:py-5 lg:pl-[3%] lg:pr-0">
                 <h1 className="text-[clamp(1.35rem,2vw,2rem)] font-black leading-tight tracking-tight text-[#14213D]" data-lingo-welcome-line>
                     Let’s continue your <span className="text-[#F26B1D]">{course}</span> learning journey!
                 </h1>
@@ -99,7 +122,7 @@ function Hero({ dash }) {
                     </Link>
                 </div>
             </div>
-            <div className="relative px-5 pb-5 md:hidden"><LevelBadge dash={dash} /></div>
+            <div className="relative px-5 pb-5 sm:px-7 lg:hidden"><LevelBadge dash={dash} /></div>
         </section>
     );
 }
@@ -112,7 +135,7 @@ function Hero({ dash }) {
 const DOORS = [
     // In this order (asked 2026-10-29): Home, Learn, Writing, Practice, Badges. Home's picture is the Learn
     // card's, recoloured, with a house in place of the book; its words are drawn live (`text`).
-    { id: 'home', label: 'Start: your dashboard', w: 454, string: '#1E88F0', text: ['Start', 'Your dashboard'] },
+    { id: 'home', label: 'Start: your dashboard', w: 454, string: '#1E88F0', text: ['Start', 'Your dashboard'], v: 2 },
     { id: 'learn', to: '/linguistic', label: 'Learn: words and sentences', w: 454, string: '#6DBE5A' },
     { id: 'writing', to: '/linguistic/writing', label: 'Write: practise and improve', w: 422, string: '#3E9BE9', img: 'write', text: ['Write', 'Practice and improve'] },
     { id: 'practice', to: '/linguistic/practice', label: 'Practice: daily challenge and mistakes', w: 390, string: '#F2994A', img: 'practice2', text: ['Practice', 'Challenge & fix mistakes'] },
@@ -148,7 +171,7 @@ function Doors({ tab, onTab }) {
                                 arrow always whole) and a touch larger, so its cut edges fall outside the card's own. */}
                             <img src={`${ART}/card-${d.img || d.id}-tall.png?v=2`} alt="" draggable="false" className="block aspect-[4.4/1] w-full select-none object-cover object-right sm:aspect-[3.3/1]" style={{ transform: 'scale(1.03)' }} />
                             {/* The edge; the open door's in its colour, drawn inside so the card keeps its size (2026-10-29). */}
-                            <span aria-hidden="true" className={`pointer-events-none absolute inset-0 rounded-[18px] ring-inset ${on ? 'ring-2' : 'ring-1 ring-black/[.06]'}`} style={on ? { '--tw-ring-color': d.string } : undefined} />
+                            <span aria-hidden="true" className={`pointer-events-none absolute inset-0 rounded-[18px] ring-inset ${on ? 'ring-2' : 'ring-1 ring-black/[.06]'}`} style={on ? { '--tw-ring-color': d.string } : undefined} data-door-ring={on || undefined} />
                             {d.text && (
                                 <span className="pointer-events-none absolute inset-0 text-left [container-type:inline-size]">
                                     <span className="absolute top-[26.1%] block font-black leading-none text-[#17184a] sm:top-[32.5%]" style={{ left: '36%', fontSize: '5.7cqw' }}>{d.text[0]}</span>

@@ -70,8 +70,10 @@ const LinguisticLesson = React.lazy(() => import('./linguistic/LessonPage'));
 const LinguisticReview = React.lazy(() => import('./linguistic/Review'));
 const LinguisticDaily = React.lazy(() => import('./linguistic/Daily'));
 const LinguisticWriting = React.lazy(() => import('./linguistic/MyWriting'));
+const LinguisticNotes = React.lazy(() => import('./linguistic/Learnt'));
 const LinguisticSections = React.lazy(() => import('./linguistic/Sections'));
 const LinguisticRoadmap = React.lazy(() => import('./linguistic/Roadmap'));
+const LinguisticLetters = React.lazy(() => import('./linguistic/LettersChart'));
 const LinguisticDashboard = React.lazy(() => import('./linguistic/Dashboard'));
 
 /**
@@ -471,8 +473,10 @@ function App() {
             <Route path="practice" element={<React.Suspense fallback={<CareerFallback />}><LinguisticPractice /></React.Suspense>} />
             <Route path="badges" element={<React.Suspense fallback={<CareerFallback />}><LinguisticBadges /></React.Suspense>} />
             <Route path="writing" element={<React.Suspense fallback={<CareerFallback />}><LinguisticWriting /></React.Suspense>} />
+            <Route path="notes" element={<React.Suspense fallback={<CareerFallback />}><LinguisticNotes /></React.Suspense>} />
             <Route path="sections" element={<React.Suspense fallback={<CareerFallback />}><LinguisticSections /></React.Suspense>} />
             <Route path="roadmap" element={<React.Suspense fallback={<CareerFallback />}><LinguisticRoadmap /></React.Suspense>} />
+            <Route path="letters" element={<React.Suspense fallback={<CareerFallback />}><LinguisticLetters /></React.Suspense>} />
             <Route path="dashboard" element={<React.Suspense fallback={<CareerFallback />}><LinguisticDashboard /></React.Suspense>} />
           </Route>
           <Route path="linguistic/placement" element={<React.Suspense fallback={<CareerFallback />}><LinguisticPlacement /></React.Suspense>} />

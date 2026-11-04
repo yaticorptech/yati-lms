@@ -107,6 +107,7 @@ describe('a student who speaks English', () => {
         const path = (await api('GET', '/path')).body;
         assert.ok(path.levels.every((lv) => lv.units.every((u) => u.lessons.every((x) => x.module !== 'translation'))), 'no translation for an English speaker');
         const v = await LinguisticLesson.findOne({ seedKey: 'vocab-beginner-1' }).lean();
+        await require('./unlock').unlock(eve.user, ['vocab-beginner-1']);
         const page = (await api('GET', `/lessons/${v._id}`)).body;
         assert.equal(page.words.find((w) => w.word === 'mother').kannada, 'a female parent');
         assert.ok(page.quiz.some((q) => q.prompt === 'What does "family" mean?'));
@@ -182,6 +183,7 @@ describe('a student who speaks Japanese', () => {
 
     test('a vocabulary lesson in Japanese: the meanings, the questions, and the quiz passed with Japanese answers', async () => {
         const l = await lessonBy('vocab-beginner-1');
+        await require('./unlock').unlock(kenji.user, ['vocab-beginner-1']);
         const page = (await api('GET', `/lessons/${l._id}`)).body;
         assert.deepEqual([page.language, page.languageName], ['ja', 'Japanese']);
         assert.equal(page.words.find((w) => w.word === 'family').kannada, '家族');
@@ -197,7 +199,7 @@ describe('a student who speaks Japanese', () => {
         const into = await lessonBy('translation-beginner-kn-en');
         const page = (await api('GET', `/lessons/${into._id}`)).body;
         assert.ok(page.items.every((i) => !KANNADA.test(i.source)) && /[぀-ヿ一-鿿]/.test(page.items[0].source));
-        assert.equal((await api('POST', `/lessons/${into._id}/check`, { section: 'items', id: 'i1', given: 'water' })).body.correct, true);
+        assert.equal((await api('POST', `/lessons/${into._id}/check`, { section: 'items', id: 'i1', given: 'mother' })).body.correct, true);
 
         // Wrong once: kept for revision, in Japanese.
         assert.equal((await api('POST', `/lessons/${into._id}/check`, { section: 'items', id: 'i2', given: 'zzz' })).body.correct, false);

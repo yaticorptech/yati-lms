@@ -161,12 +161,43 @@ const voiceFor = (lang) => {
     const want = norm(lang), base = want.split('-')[0];
     return voices.find((v) => norm(v.lang) === want) || voices.find((v) => norm(v.lang).split('-')[0] === base) || null;
 };
+/*
+ * Kannada on a device with no Kannada voice (2026-10-31, "the Kannada voice is not audible"; most computers and
+ * many phones have none): Kannada, Telugu and Devanagari sit in Unicode in the same order, so a Kannada word
+ * written in Telugu or in Devanagari letters says the same, and the device's Telugu voice reads it — or else its
+ * Hindi or Marathi one. All on the device: nothing is sent anywhere.
+ */
+const KN_FROM = 0x0c80, KN_TO = 0x0cff;
+const STAND_INS = { kn: [{ lang: 'te-IN', base: 0x0c00 }, { lang: 'hi-IN', base: 0x0900, hindi: true }, { lang: 'mr-IN', base: 0x0900 }] };
+// Devanagari reads the short e and o (ಎ ಒ, ೆ ೊ) best as its own e and o.
+const DEVANAGARI_SHORT = { 'ऎ': 'ए', 'ऒ': 'ओ', 'ॆ': 'े', 'ॊ': 'ो' };
+// A Hindi voice has no ḷa, ṟa or ḻa (Marathi's does): the nearest sound it says (2026-10-31, "the correct pronunciation").
+const HINDI_NEAREST = { 'ळ': 'ल', 'ऱ': 'र', 'ऴ': 'ल', 'ऩ': 'न' };
+/** Kannada text in another script of the family (`base`: that script's first code point); other letters kept. */
+export const kannadaIn = (text, base, hindi = false) => [...String(text || '')].map((c) => {
+    const n = c.codePointAt(0);
+    if (n < KN_FROM || n > KN_TO) return c;
+    const out = String.fromCodePoint(n - KN_FROM + base);
+    if (base !== 0x0900) return out;
+    const d = DEVANAGARI_SHORT[out] || out;
+    return hindi ? HINDI_NEAREST[d] || d : d;
+}).join('');
+/** The voice to read `lang` with: its own, or a stand-in reading it in that one's letters; null when there is neither. */
+const readerFor = (lang) => {
+    const own = voiceFor(lang);
+    if (own) return { voice: own, lang, map: (t) => t };
+    for (const s of STAND_INS[norm(lang).split('-')[0]] || []) {
+        const v = voiceFor(s.lang);
+        if (v) return { voice: v, lang: s.lang, map: (t) => kannadaIn(t, s.base, !!s.hindi) };
+    }
+    return null;
+};
 /**
  * Whether the browser can read text in `lang` (2026-10-26: Kannada was silent
  * on a computer with no Kannada voice, with nothing said). While the voices
  * are not listed yet, it is given the benefit of the doubt.
  */
-export const canSpeakIn = (lang) => typeof window !== 'undefined' && !!window.speechSynthesis && (!voices.length || !!voiceFor(lang));
+export const canSpeakIn = (lang) => typeof window !== 'undefined' && !!window.speechSynthesis && (!voices.length || !!readerFor(lang));
 
 /**
  * Play a recording; with none, the browser's own voice reads the text, where
@@ -181,10 +212,13 @@ export const play = (src, text, lang = 'en-IN') => {
         return a;
     }
     if (text && typeof window !== 'undefined' && window.speechSynthesis) {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = lang;
-        const v = voiceFor(lang);
-        try { if (v) u.voice = v; } catch { /* not one of this browser's voices: its own pick */ }
+        // Its own voice, or for Kannada a Telugu, Hindi or Marathi one reading it in those letters (2026-10-31).
+        const r = readerFor(lang);
+        const u = new SpeechSynthesisUtterance(r ? r.map(text) : text);
+        u.lang = r ? r.lang : lang;
+        try { if (r) u.voice = r.voice; } catch { /* not one of this browser's voices: its own pick */ }
+        // A letter or a short word said slowly, to be heard clearly (2026-10-31).
+        if ([...String(text)].length <= 3) u.rate = 0.75;
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
     }
