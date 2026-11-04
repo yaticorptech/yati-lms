@@ -31,7 +31,15 @@ const SharedBioPage = React.lazy(() => import('./learningbio/SharedBioPage'));
 // Interview Ready — preparation, AI mock interviews, reports and history.
 const InterviewDashboard = React.lazy(() => import('./interview/InterviewDashboard'));
 // Competitions: online Chess, Rapid Fire, Code Clash and Brain Sprint in inter-college competitions, and Quiz and Hackathon challenges.
-const CompetitionsHome = React.lazy(() => import('./competitions/CompetitionsHome'));
+// The Competitions section (2026-11-04): a page each — Overview, Competitions, Games (and each game's),
+// My Teams, Leaderboard, Results & Certificates, Calendar, My Performance (competitions/hub/).
+const CompetitionsOverview = React.lazy(() => import('./competitions/hub/Overview'));
+const hubPage = (name) => React.lazy(() => import('./competitions/hub/pages').then((m) => ({ default: m[name] })));
+const HUB = {
+  game: hubPage('GameDetailPage'), completed: hubPage('CompletedPage'),
+  live: hubPage('LivePage'), open: hubPage('OpenPage'), upcoming: hubPage('UpcomingPage'),
+  teams: hubPage('TeamsPage'), leaderboard: hubPage('LeaderboardPage'), results: hubPage('ResultsPage')
+};
 // Extra Curricular: NCC, NSS, Scouts & Guides and the organization's clubs.
 const ExtraCurricular = React.lazy(() => import('./nccnss/ExtraCurricular'));
 const CompetitionDetail = React.lazy(() => import('./competitions/CompetitionDetail'));
@@ -382,6 +390,7 @@ function App() {
       <Route path="/jobs/guardian/:token" element={<React.Suspense fallback={<CareerFallback />}><GuardianReview /></React.Suspense>} />
       {/* Anyone may check a Group Brain certificate's ID (its QR code opens this). */}
       <Route path="/verify/group-brain/:certId?" element={<React.Suspense fallback={<CareerFallback />}><VerifyCertificate /></React.Suspense>} />
+      <Route path="/verify/certificate/:certId?" element={<React.Suspense fallback={<CareerFallback />}><VerifyCertificate /></React.Suspense>} />
       <Route path="/privacy" element={<React.Suspense fallback={<CareerFallback />}><Privacy /></React.Suspense>} />
       <Route path="/terms" element={<React.Suspense fallback={<CareerFallback />}><Terms /></React.Suspense>} />
       <Route path="/preview/:courseId" element={<React.Suspense fallback={<CareerFallback />}><CoursePreview /></React.Suspense>} />
@@ -401,13 +410,21 @@ function App() {
         <Route path="games" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CareerProviders><CareerGames /></CareerProviders></React.Suspense></EnglishOnly>} />
         {/* A Group Brain room — its lobby, game and result — is part of Games, not Competitions. */}
         <Route path="games/play/:gameId" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense></EnglishOnly>} />
-        <Route path="competitions" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CompetitionsHome /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CompetitionsOverview /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/live" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.live /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/open" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.open /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/upcoming" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.upcoming /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/completed" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.completed /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/games/:game" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.game /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/teams" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.teams /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/leaderboard" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.leaderboard /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/results" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.results /></React.Suspense></EnglishOnly>} />
         <Route path="extracurricular" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />
         <Route path="extracurricular/:id" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />
         <Route path="ncc-nss" element={<Navigate to="/extracurricular" replace />} />
         <Route path="competitions/play/:gameId" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/:id/quiz" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><QuizPage /></React.Suspense></EnglishOnly>} />
-        <Route path="competitions/arena" element={<Navigate to="/competitions?tab=competitions&game=quizarena" replace />} />
+        <Route path="competitions/arena" element={<Navigate to="/competitions/games/quizarena" replace />} />
         <Route path="competitions/arena/:id" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><ArenaDetail /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/arena/:id/play" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><ArenaPlay /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/:id" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CompetitionDetail /></React.Suspense></EnglishOnly>} />

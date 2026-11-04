@@ -40,6 +40,16 @@ const makeUser = async (label = 'Test') => {
 };
 
 /**
+ * Group games are earned in the solo games (src/competitions/services/unlocks.js, 2026-10-31): a test about
+ * playing them gives its students every solo game cleared, so every room size is open.
+ */
+const unlockGroupGames = async (userId, cleared = 500) => {
+    const GameProgress = require('../src/career/models/GameProgress');
+    const { GAME_IDS } = require('../src/career/data/gameIds');
+    await GameProgress.bulkWrite(GAME_IDS.map((gameId) => ({ updateOne: { filter: { userId, gameId }, update: { $set: { level: cleared + 1 } }, upsert: true } })));
+};
+
+/**
  * Let throwaway students past the Jobs lock (five Career Path skills at 25%,
  * enforced by the server since 2026-10-13) the way an exempt account is let
  * through: the account's own jobsAlwaysOpen switch. For tests about what Jobs
@@ -118,4 +128,4 @@ const fakeContext = (over = {}) => ({
     projects: [{ name: 'Sales Dashboard', description: 'A retail sales dashboard', skills: ['Python', 'SQL'] }], certificates: [], interests: ['Data'], hash: 'h1', ...over
 });
 
-module.exports = { connect, makeUser, makeAdmin, startApp, cleanup, forgetAudit, fakeContext, openJobs };
+module.exports = { connect, makeUser, unlockGroupGames, makeAdmin, startApp, cleanup, forgetAudit, fakeContext, openJobs };

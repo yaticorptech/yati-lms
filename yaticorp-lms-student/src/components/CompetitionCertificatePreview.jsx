@@ -1,3 +1,6 @@
+import CertificateCanvas from '../certificates/CertificateCanvas';
+import { imagesOfIssued } from '../certificates/design';
+
 /**
  * The picture of a Games & Competitions certificate: the PDF the server draws
  * (server: competitions/services/certificate.js), redrawn here with the same
@@ -51,6 +54,8 @@ const WinnerPreview = ({ c }) => {
 };
 
 export default function CompetitionCertificatePreview({ certificate: c }) {
+    // The organiser's own certificate (the Certificate Builder, 2026-10-31): drawn as it prints.
+    if (c.issued) return <CertificateCanvas template={c.issued.template} input={c.issued.input} images={imagesOfIssued(c.issued)} className="block h-full w-full bg-white" />;
     if (c.place && c.words) return <WinnerPreview c={c} />;
     const winner = !!c.place;
     const y = (placed, other) => (winner ? placed : other);

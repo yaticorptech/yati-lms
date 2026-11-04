@@ -61,6 +61,13 @@ const settingSchema = new mongoose.Schema({
         enabled: { type: Boolean, default: true },
         defaultLength: { type: Number, default: 10, min: 3, max: 25 }
     },
+    // The platform admin's own certificate templates (Certificate Builder, 2026-10-31): pictures the certificates'
+    // words are written on. Never selected by default — they are large.
+    certificateTemplates: {
+        type: [{ name: { type: String, default: '', maxlength: 80 }, image: { type: String, required: true }, addedAt: { type: Date, default: Date.now } }],
+        default: [],
+        select: false
+    },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Setting', settingSchema);

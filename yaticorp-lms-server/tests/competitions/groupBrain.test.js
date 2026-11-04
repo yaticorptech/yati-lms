@@ -6,7 +6,7 @@
  */
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeUser, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, unlockGroupGames, startApp, cleanup } = require('../helpers');
 const PlayGame = require('../../src/competitions/models/PlayGame');
 
 let app, p;
@@ -17,6 +17,7 @@ before(async () => {
     p = [];
     for (const name of ['Host Hana', 'Player Pia', 'Player Raj', 'Player Sam', 'Player Five']) {
         const u = await makeUser(name);
+        await unlockGroupGames(u.user._id);
         u.call = app.call(u.token);
         p.push(u);
     }

@@ -17,7 +17,12 @@ import { createContext, useContext, useEffect } from 'react';
 export const PlayClockContext = createContext(null);
 
 /** 754 → "12:34". */
-export const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+// An hour or more (2026-11-02, 2-hour group allowances) reads 1:59:30, not 119:30.
+export const clock = (seconds) => (seconds >= 3600
+    ? `${Math.floor(seconds / 3600)}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
+    : `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`);
+/** A day's allowance in words: "30 minutes", "2 hours". */
+export const limitWords = (sec) => (!sec ? '30 minutes' : sec % 3600 === 0 ? `${sec / 3600} hour${sec === 3600 ? '' : 's'}` : `${Math.round(sec / 60)} minutes`);
 
 /** Tells the hub's clock that a level is (or is no longer) in play. */
 export function useReportPlaying(playing) {

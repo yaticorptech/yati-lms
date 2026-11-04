@@ -18,6 +18,7 @@ import ChessTable from './games/ChessTable';
 import LudoTable from './games/LudoTable';
 import CarromTable from './games/CarromTable';
 import QuizTable from './games/QuizTable';
+import WordLogicTable from './games/WordLogicTable';
 import RaceTable from './games/RaceTable';
 import TurnTable from './games/TurnTable';
 import MemoryMatrixTable from './games/MemoryMatrixTable';
@@ -26,9 +27,9 @@ import SudokuTable from './games/SudokuTable';
 import FinalVaultTable from './games/vault/FinalVaultTable';
 import KingdomTable from './games/kingdom/KingdomTable';
 import RoomLobby from './RoomLobby';
-import { OnlineSearch, PlayersBoard, PointsRule, MatchIntro } from './OnlineTable';
+import { OnlineSearch, PlayersBoard, MatchIntro } from './OnlineTable';
 import useGroupTime from './useGroupTime';
-import { clock as playClock } from '../career/components/games/playClock';
+import { clock as playClock, limitWords } from '../career/components/games/playClock';
 import CompetitionGuard from './CompetitionGuard';
 import useLiveGame from './useLiveGame';
 import Portal from '../components/Portal';
@@ -44,6 +45,8 @@ const GROUP_QUIZ = Object.keys(GROUP_GAMES).filter((id) => GROUP_GAMES[id].table
 const TABLES = {
     chess: ChessTable, ludo: LudoTable, carrom: CarromTable,
     ...Object.fromEntries([...BRAIN_GAMES, ...GROUP_QUIZ].map((id) => [id, QuizTable])),
+    // Word Logic: its own design (2026-11-02).
+    wordlogic: WordLogicTable,
     memorymatrix: MemoryMatrixTable, sequence: SequenceTable, sudoku: SudokuTable,
     finalvault: FinalVaultTable, lostkingdom: KingdomTable,
     // The solo games played as races, and in turns for two (2026-10-29).
@@ -180,7 +183,6 @@ const RoomFinish = ({ game, onAgain, back, busy }) => {
                         </li>
                     ))}
                 </ol>
-                <div className="mt-4"><PointsRule game={game} /></div>
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
                     {game.you != null && (
                         <button type="button" onClick={onAgain} disabled={busy} data-play-again className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-700 disabled:opacity-50">
@@ -321,7 +323,10 @@ export default function GamePage() {
     // on, and the last one still playing wins. Caught: the browser's back
     // (a step of our own to return to), any link in the app (the sidebar, the
     // page's Back), and closing or reloading the tab (the browser's own ask).
-    const playingNow = game?.kind === 'room' && game?.status === 'active' && game?.you != null && !(view?.out || []).includes(game.you);
+    // Out: left, or (Sudoku, the stage games) left or closed / finished as their own view says it (2026-11-02:
+    // a Sudoku board closed by mistakes kept the guard up, and Back asked to leave a game already left).
+    const meOut = (v, you) => (v?.out || []).includes(you) || !!(v?.players?.[you] && (v.players[you].left || v.players[you].closed || v.players[you].finished || v.players[you].done || v.players[you].failed));
+    const playingNow = game?.kind === 'room' && game?.status === 'active' && game?.you != null && !meOut(view, game.you);
     const [leaving, setLeaving] = useState(null);       // { to } once a way out was taken
     useEffect(() => {
         if (!playingNow) return undefined;
@@ -343,6 +348,9 @@ export default function GamePage() {
             window.removeEventListener('beforeunload', onUnload);
             window.removeEventListener('popstate', onPop);
             document.removeEventListener('click', onClick, true);
+            // The guard's extra history step, taken back once the game no longer holds the student: else the
+            // browser's Back would land on this same page.
+            if (window.history.state?.groupGameGuard) window.history.back();
         };
     }, [playingNow]);
     // Leaving stays on this page: the result shows at once (2 players), or a
@@ -352,12 +360,14 @@ export default function GamePage() {
         setLeaving(null);
         onAction({ type: 'resign' }).catch(() => {});
     };
-    const leftGame = game?.kind === 'room' && game?.status === 'active' && game?.you != null && (view?.out || []).includes(game.you);
+    const leftGame = game?.kind === 'room' && game?.status === 'active' && game?.you != null && ((view?.out || []).includes(game.you) || !!view?.players?.[game.you]?.left);
     // Group games' 30 minutes a day (2026-10-29): the clock runs only while you are playing a group game here;
     // at zero you leave the game at once and the section locks until midnight.
     const [timesUp, setTimesUp] = useState(false);
-    const groupPlaying = game?.kind === 'room' && game?.status === 'active' && game?.you != null && !leftGame && !timesUp;
-    const { left: groupLeft } = useGroupTime(groupPlaying, () => {
+    // Only while still playing (2026-11-02): left, a board closed or finished, the game over — the clock stops at once
+    // (it used to run on until everyone else had finished).
+    const groupPlaying = playingNow && !leftGame && !timesUp;
+    const { left: groupLeft, limit: groupLimit } = useGroupTime(groupPlaying, () => {
         if (!groupPlaying) return;
         setTimesUp(true);
         onAction({ type: 'resign' }).catch(() => {});
@@ -401,13 +411,28 @@ export default function GamePage() {
     // An online table still looking for players: the dark page of the reference picture (2026-10-29),
     // edge to edge under the top bar; every other state keeps the light page.
     const searching = room && game.online && game.status === 'waiting';
+    // Chess in play (2026-11-02, the account owner's design): a dark wood-and-gold room, the board in the middle.
+    const chessDark = game.game === 'chess' && game.status !== 'waiting' && !searching;
+    // Every other group game in play (2026-11-02): the same dark room as the search, the game lit in the middle.
+    // Chess, Word Logic, The Final Vault and The Lost Kingdom keep their own designs.
+    const groupDark = room && game.status === 'active' && !!GROUP_GAMES[game.game]
+        && !['chess', 'wordlogic', 'finalvault', 'lostkingdom'].includes(game.game);
+    const dark = searching || chessDark || groupDark;
     return (
-        <div className={`space-y-4 pb-10 -mt-4 sidebar:-mt-8 ${searching ? '-mx-4 min-h-[calc(100vh-4rem)] bg-[radial-gradient(ellipse_at_50%_35%,#1b1f5c_0%,#0d0f2e_55%,#080a1f_100%)] px-4 pt-4 sidebar:-mx-8 sidebar:px-8 sidebar:pt-8' : ''}`} data-game-page={game.game} data-searching={searching || undefined}>
+        <div className={`relative space-y-4 pb-10 -mt-4 sidebar:-mt-8 ${searching || groupDark ? '-mx-4 min-h-[calc(100vh-4rem)] bg-[radial-gradient(ellipse_at_50%_35%,#1b1f5c_0%,#0d0f2e_55%,#080a1f_100%)] px-4 pt-4 sidebar:-mx-8 sidebar:px-8 sidebar:pt-8 shadow-[0_0_0_100vmax_#0a0c24] [clip-path:inset(0_-100vmax_-100vmax)]' : chessDark ? '-mx-4 min-h-[calc(100vh-4rem)] overflow-hidden bg-[radial-gradient(ellipse_at_50%_40%,#2a1a17_0%,#150e12_55%,#0b080b_100%)] px-4 pt-4 sidebar:-mx-8 sidebar:px-8 sidebar:pt-8 shadow-[0_0_0_100vmax_#0b080b] [clip-path:inset(0_-100vmax_-100vmax)]' : ''}`} data-game-page={game.game} data-searching={searching || undefined}>
+            {chessDark && (
+                // The room's pieces, from the design: a knight at the left, a king at the right, a fallen king above.
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 hidden xl:block">
+                    <img src="/games/chess/chess-knight.png" alt="" className="absolute bottom-0 left-0 w-[17%] max-w-[300px]" />
+                    <img src="/games/chess/chess-king.png" alt="" className="absolute right-0 bottom-0 w-[14%] max-w-[240px]" />
+                    <img src="/games/chess/chess-top.png" alt="" className="absolute top-0 right-[10%] w-[15%] max-w-[260px]" />
+                </div>
+            )}
             {timesUp && (
                 <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Group games time is up" data-group-time-up>
                     <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
                         <Clock size={34} className="mx-auto rounded-full bg-sky-100 p-1.5 text-sky-700" aria-hidden="true" />
-                        <p className="mt-3 text-lg font-black text-slate-900">Today&apos;s 30 minutes are up</p>
+                        <p className="mt-3 text-lg font-black text-slate-900">Today&apos;s {limitWords(groupLimit)} are up</p>
                         <p className="mt-1 text-sm text-slate-600">Group games are locked until midnight. Your solo games are still open.</p>
                         <button type="button" onClick={() => navigate(GROUP_HOME, { replace: true })} className="mt-5 w-full rounded-full bg-indigo-600 py-2.5 text-sm font-black text-white hover:bg-indigo-700">Back to Group games</button>
                     </div>
@@ -416,32 +441,37 @@ export default function GamePage() {
             {/* A competition match, on for me: no copying, no screenshots, no leaving until it is over. */}
             <CompetitionGuard active={game.kind === 'match' && game.you != null && (game.status === 'active' || (game.status === 'waiting' && !!game.joined))} />
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <Link to={back} onClick={goBack} className={`-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold ${searching ? 'text-[#a5a9da] hover:text-white' : 'text-slate-500 hover:text-indigo-700'}`}><ArrowLeft size={16} aria-hidden="true" /> Back</Link>
+                <Link data-game-back to={back} onClick={(e) => {
+                    // A group game left, lost or over (2026-11-02): Back always goes to Group games — the page before
+                    // could be this game's own table, or the guard's extra history step, and Back did nothing.
+                    if (room && !playingNow) { e.preventDefault(); navigate(GROUP_HOME, { replace: true }); return; }
+                    goBack(e);
+                }} className={`-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold ${chessDark ? 'relative rounded-full bg-white/5 px-3.5 text-white/90 ring-1 ring-white/15 hover:bg-white/10' : searching || groupDark ? 'text-[#a5a9da] hover:text-white' : 'text-slate-500 hover:text-indigo-700'}`}><ArrowLeft size={16} aria-hidden="true" /> Back</Link>
                 {game.you == null && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><Eye size={13} aria-hidden="true" /> Watching</span>}
             </div>
 
             {/* The game's name with what kind of game it is as a small badge
                 beside it, not a phrase after it: "Ludo · friendly game" broke
                 over two lines on a phone (2026-10-17, "make the ui better"). */}
-            <header className={`flex items-center gap-3 rounded-3xl border p-3 shadow-sm sm:p-4 ${searching ? 'border-[#4b46b8]/70 bg-[#141845]/85 shadow-[0_0_30px_rgba(99,102,241,.18)]' : 'border-slate-200 bg-white'}`}>
-                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl sm:h-12 sm:w-12 ${searching ? 'bg-white shadow-md' : 'bg-indigo-50'}`} aria-hidden="true">{game.emoji}</span>
+            <header className={`relative flex items-center gap-3 rounded-3xl border p-3 shadow-sm sm:p-4 ${chessDark ? 'border-transparent bg-transparent shadow-none' : searching || groupDark ? 'border-[#4b46b8]/70 bg-[#141845]/85 shadow-[0_0_30px_rgba(99,102,241,.18)]' : 'border-slate-200 bg-white'}`}>
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl sm:h-12 sm:w-12 ${chessDark ? 'border-2 border-[#d9a441] bg-gradient-to-b from-[#3a2412] to-[#1a0f08] text-[#f3c66a] shadow-[0_0_16px_rgba(217,164,65,.45)] sm:h-14 sm:w-14' : searching || groupDark ? 'bg-white shadow-md' : 'bg-indigo-50'}`} aria-hidden="true">{chessDark ? '♚' : game.emoji}</span>
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <h1 className={`text-lg font-black leading-tight sm:text-xl ${searching ? 'text-white' : 'text-slate-900'}`}>{game.label}</h1>
+                        <h1 className={`leading-tight ${chessDark ? 'text-2xl font-bold text-[#f3e3c3] sm:text-4xl' : `text-lg font-black sm:text-xl ${searching || groupDark ? 'text-white' : 'text-slate-900'}`}`} style={chessDark ? { fontFamily: '"Playfair Display",Georgia,"Times New Roman",serif' } : undefined}>{game.label}</h1>
                         {game.match && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">{game.match.roundName}</span>}
                         {room && (game.online
-                            ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset ${searching ? 'bg-emerald-400/10 text-emerald-300 ring-emerald-400/60' : 'bg-emerald-50 text-emerald-700 ring-emerald-200'}`}>Online · {game.online.fee ? `₹${game.online.fee} entry` : 'Free'}</span>
-                            : <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-indigo-700 ring-1 ring-inset ring-indigo-200">Group Brain · {game.options?.difficulty || 'medium'}</span>)}
+                            ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset ${dark ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/60' : 'bg-emerald-50 text-emerald-700 ring-emerald-200'}`}>Online · {game.online.fee ? `${game.online.fee} XP entry` : 'Free'}</span>
+                            : <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-indigo-700 ring-1 ring-inset ring-indigo-200">Group Brain</span>)}
                         {room && groupLeft != null && (
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ring-1 ring-inset ${groupLeft <= 60 ? 'bg-rose-50 text-rose-700 ring-rose-200' : searching ? 'bg-white/10 text-white ring-white/30' : 'bg-sky-50 text-sky-800 ring-sky-200'}`} title="Group games play left today (it runs only while you play)" data-group-time>
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ring-1 ring-inset ${groupLeft <= 60 ? 'bg-rose-50 text-rose-700 ring-rose-200' : dark ? 'bg-white/5 text-white ring-white/40' : 'bg-sky-50 text-sky-800 ring-sky-200'}`} title="Group games play left today (it runs only while you play)" data-group-time>
                                 <Clock size={12} aria-hidden="true" /> {playClock(groupLeft)} left today
                             </span>
                         )}
                     </div>
-                    <p className={`break-words text-sm ${searching ? 'text-[#c7c9e4]' : 'text-slate-500'}`}>{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
+                    <p className={`break-words text-sm ${chessDark ? 'text-[#d9cbb4]' : searching || groupDark ? 'text-[#c7c9e4]' : 'text-slate-500'}`}>{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
                 </div>
                 {game.status === 'active' && turnLeft != null && (
-                    <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-black tabular-nums ${turnLeft <= 10 ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-700'}`} aria-label="Time left this turn">
+                    <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-black tabular-nums ${turnLeft <= 10 ? 'bg-rose-50 text-rose-700' : dark ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-700'}`} aria-label="Time left this turn">
                         <Clock size={15} aria-hidden="true" /> {clock(turnLeft)}
                     </span>
                 )}
@@ -497,7 +527,7 @@ export default function GamePage() {
             {room && game.online && game.status === 'active' && (matched || view?.phase === 'ready') && <MatchIntro game={game} view={view} />}
             {/* A room's game on: every player at a corner, the time left between them (Chess draws its own two). */}
             {/* The live scores (2026-10-29): your own game below, the others only as names, ✓ right, ✗ wrong and points. */}
-            {liveBoard && <PlayersBoard game={game} view={view} />}
+            {liveBoard && game.game !== 'wordlogic' && <PlayersBoard game={game} view={view} dark={groupDark} />}
 
             {/* ── Waiting room ──────────────────────────────────────── */}
             {!room && game.status === 'waiting' && (
@@ -671,7 +701,7 @@ export default function GamePage() {
                             </div>
                             <h2 className="mt-3 text-2xl font-black [text-shadow:0_2px_0_rgba(0,0,0,.35)] sm:text-[1.7rem]">You left the match</h2>
                             <p className="mx-auto mt-1 max-w-sm text-xs text-white/70 sm:text-[13px]">
-                                The match goes on without you{game.online?.fee ? ` — your ₹${game.online.fee} entry stays in the pot` : ''}. Final results show here when it ends.
+                                The match goes on without you{game.online?.fee ? ` — your ${game.online.fee} XP entry stays in the pot` : ''}. Final results show here when it ends.
                             </p>
                             <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-300 ring-1 ring-emerald-400/30">
                                 <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" /></span>
@@ -732,7 +762,7 @@ export default function GamePage() {
             })()}
 
             {view && Table && !leftGame && !(room && game.status === 'finished' && ['memorymatrix', 'sequence'].includes(game.game)) && (
-                <Table view={{ ...view, you: game.you, avatars: game.avatars, liveBoard }} onAction={onAction} busy={!!busy || game.status !== 'active'} recapOnly={room && game.status === 'finished'} />
+                <Table view={{ ...view, you: game.you, avatars: game.avatars, liveBoard, dark: groupDark }} onAction={onAction} busy={!!busy || game.status !== 'active'} recapOnly={room && game.status === 'finished'} />
             )}
 
             {error && <p role="alert" className="sticky bottom-24 z-10 mx-auto max-w-xl rounded-xl bg-rose-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-lg sidebar:bottom-6">{error}</p>}

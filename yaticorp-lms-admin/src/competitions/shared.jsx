@@ -72,7 +72,16 @@ export const EntryFeeField = ({ value = { enabled: false, amount: 100 }, onChang
     </fieldset>
 );
 
+/** The saved certificates (Certificate 1, 2, …) a competition can pick, from this panel's Certificate Builder. */
+const certificatesApi = () => (window.location.pathname.startsWith('/organization') ? '/competitions/org/certificates' : '/competitions/admin/certificates');
+const useSavedCertificates = () => {
+    const [list, setList] = useState(null);
+    useEffect(() => { api.get(`${certificatesApi()}/designs`).then((r) => setList(r.data.designs || [])).catch(() => setList([])); }, []);
+    return list;
+};
+
 export const RewardsFields = ({ value, onChange, team = true }) => {
+    const saved = useSavedCertificates();
     const setPrize = (place, patch) => onChange({ prizes: value.prizes.map((p) => (p.place === place ? { ...p, ...patch } : p)) });
     return (
         <>
@@ -102,6 +111,17 @@ export const RewardsFields = ({ value, onChange, team = true }) => {
                                 <input type="checkbox" checked={value.participantsCert} onChange={(e) => onChange({ participantsCert: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
                                 Participation certificates for everyone else
                             </label>
+                            {(value.winnersCert || value.participantsCert) && (
+                                <label className="block pt-2 sm:w-1/2"><span className={LABEL}>Certificate</span>
+                                    <select value={value.designId || ''} onChange={(e) => onChange({ designId: e.target.value })} className={INPUT} data-certificate-design>
+                                        <option value="">Standard certificate</option>
+                                        {(saved || []).map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                                    </select>
+                                    <span className="mt-1 block text-xs text-slate-500">
+                                        {saved && !saved.length ? 'No saved certificates yet: make one in the Certificate Builder.' : 'The winners and participants get it with their own name, place, and this competition’s name and date.'}
+                                    </span>
+                                </label>
+                            )}
                         </fieldset>
         </>
     );
@@ -127,7 +147,7 @@ const blank = (organizer) => {
         maxTeams: 16, playersPerTeam: 2, playersPerSide: 1, teamsPerMatch: 4,
         entry: 'team', endsAt: '', quiz: { minutes: 15, questions: [blankQuestion()] }, hackathon: { problem: '', criteria: '' },
         gameOptions: { clockMinutes: 10, turnSeconds: 30, tokensPerPlayer: 4 },
-        rules: '', prizeDetails: '', bannerUrl: '', participationXp: 20, certificates: true, participationCertificates: true, entryFee: { enabled: false, amount: 100 },
+        rules: '', prizeDetails: '', bannerUrl: '', participationXp: 20, certificates: true, participationCertificates: true, certificateDesignId: '', entryFee: { enabled: false, amount: 100 },
         prizes: [{ place: 1, title: 'Winner', xp: 300, rewardPoints: 100 }, { place: 2, title: 'Runner-up', xp: 200, rewardPoints: 50 }, { place: 3, title: 'Third place', xp: 100, rewardPoints: 25 }],
         // Quiz Arena's own settings, used when it is the game chosen.
         arena: { maxParticipants: 500, playersPerCollege: 10, counts: { 1: 10, 2: 5, 3: 10 }, secondsPerQuestion: 20, pointsPerQuestion: 100, useBank: false }
@@ -211,7 +231,7 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                 maxParticipants: A.maxParticipants, playersPerCollege: A.playersPerCollege, counts: A.counts,
                 secondsPerQuestion: A.secondsPerQuestion, pointsPerQuestion: A.pointsPerQuestion,
                 prizes: f.prizes, participationXp: f.participationXp,
-                certificates: { winners: f.certificates, participants: f.participationCertificates },
+                certificates: { winners: f.certificates, participants: f.participationCertificates, designId: f.certificateDesignId || null },
                 entryFee: f.entryFee
             }, open).catch((err) => setError(errorOf(err))).finally(() => setBusy(''));
             return;
@@ -488,8 +508,8 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
 
                     <EntryFeeField value={f.entryFee} onChange={(entryFee) => set({ entryFee })} />
 
-                    <RewardsFields team={!isArena} value={{ prizes: f.prizes, participationXp: f.participationXp, winnersCert: f.certificates, participantsCert: f.participationCertificates }}
-                        onChange={(p) => set({ ...('prizes' in p && { prizes: p.prizes }), ...('participationXp' in p && { participationXp: p.participationXp }), ...('winnersCert' in p && { certificates: p.winnersCert }), ...('participantsCert' in p && { participationCertificates: p.participantsCert }) })} />
+                    <RewardsFields team={!isArena} value={{ prizes: f.prizes, participationXp: f.participationXp, winnersCert: f.certificates, participantsCert: f.participationCertificates, designId: f.certificateDesignId }}
+                        onChange={(p) => set({ ...('prizes' in p && { prizes: p.prizes }), ...('participationXp' in p && { participationXp: p.participationXp }), ...('winnersCert' in p && { certificates: p.winnersCert }), ...('participantsCert' in p && { participationCertificates: p.participantsCert }), ...('designId' in p && { certificateDesignId: p.designId }) })} />
 
                     {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
                 </div>

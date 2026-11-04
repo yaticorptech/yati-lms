@@ -4,8 +4,11 @@
  *   GET  /games                    the games: Chess, Ludo, Carrom
  *   GET  /                         competitions to look at (open, upcoming, live, finished)
  *   GET  /me                       my participation: competitions, upcoming / live / completed matches, results
- *   GET  /leaderboard              college, team and player rankings
+ *   GET  /leaderboard?game=        college, team and player rankings (one game's, with ?game=)
  *   GET  /history                  finished competitions, winners and results
+ *   GET  /seen-questions · POST    { keys } — the questions I have met (no repeats, solo or group)
+ *   GET  /celebrated               the results pop-ups I have already been shown
+ *   POST /celebrated               { ids } — mark them shown (once per win, on any device)
  *   GET  /:id                      one competition: details, teams, rounds and matches
  *   GET  /:id/certificate          my certificate, as a PDF, once it is over
  *
@@ -27,8 +30,9 @@
  *   GET  /rooms/mine               the room I am in now, if any
  *   POST /rooms                    { game, options: { difficulty } } — make a room → its code
  *   POST /rooms/join               { code } — join a room with its code
+ *   GET  /rooms/unlocks            the group games and room sizes my solo levels have unlocked
  *   GET  /rooms/online             the entry fees, table sizes and wait
- *   POST /rooms/online             { game, players, fee } — Play online: a seat at a table (fee from the wallet)
+ *   POST /rooms/online             { game, players, fee } — Play online: a seat at a table (fee in XP)
  *   GET  /rooms/history            my finished rooms
  *   GET  /rooms/leaderboard?type=points|chess|xp&period=all|week&game=   a leaderboard, and my place on it
  *   GET  /rooms/profile            my dashboard: totals, games, Brain Performance Score, chess rating, XP, achievements, certificates
@@ -43,6 +47,7 @@
  * 2026-10-23, and UNO with it: a friendly game saved before then answers 410.
  */
 const express = require('express');
+require('../services/seenQuestions');      // its model, for /seen-questions
 const Competition = require('../models/Competition');
 const Team = require('../models/Team');
 const Match = require('../models/Match');
@@ -59,7 +64,7 @@ const VISIBLE = ['registration', 'closed', 'live', 'completed'];
 // Quiz and Hackathon were removed on 2026-10-28: none is listed any more.
 const NO_CHALLENGES = { game: { $nin: ['quiz', 'hackathon'] } };
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((err) => {
-    if (err?.status) return res.status(err.status).json({ message: err.message, ...(err.roomId ? { roomId: err.roomId } : {}) });
+    if (err?.status) return res.status(err.status).json({ message: err.message, ...(err.roomId ? { roomId: err.roomId } : {}), ...(err.locked ? { locked: err.locked } : {}) });
     next(err);
 });
 
@@ -93,6 +98,7 @@ router.get('/', wrap(async (req, res) => {
 
 router.get('/me', wrap(async (req, res) => {
     await challenge.advanceDue();
+    let built = new Set();      // competitions with a Builder certificate for me (filled in with the results)
     const myTeams = await Team.find({ 'players.userId': req.user._id, status: { $in: ['pending', 'approved'] } }).lean();
     const comps = await Competition.find({ _id: { $in: myTeams.map((t) => t.competitionId) }, status: { $ne: 'draft' } , ...NO_CHALLENGES }).lean();
     for (const c of comps.filter((x) => x.status === 'live')) await openDue(c._id);
@@ -134,7 +140,12 @@ router.get('/me', wrap(async (req, res) => {
         completed: rows.filter((m) => m.status === 'completed').sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)),
         // My history: every finished competition I played in, where my team
         // finished, and its record — matches won of those played.
-        results: comps.filter((c) => c.status === 'completed' && !views.resultsHidden(c)).map((c) => {
+        results: (await (async () => {
+            const done = comps.filter((c) => c.status === 'completed' && !views.resultsHidden(c));
+            // A Builder certificate counts too (2026-10-31): the results pop-up and Download show it.
+            built = await require('../certificates/auto').issuedIds(req.user._id, 'competition', done.map((c) => String(c._id))).catch(() => new Set());
+            return done;
+        })()).map((c) => {
             const team = myTeams.find((t) => String(t.competitionId) === String(c._id));
             const decided = matches.filter((m) => String(m.competitionId) === String(c._id) && m.status === 'completed'
                 && m.sides.some((s) => String(s.teamId) === String(team?._id)));
@@ -144,14 +155,16 @@ router.get('/me', wrap(async (req, res) => {
                 collegeName: team?.collegeName || '',
                 place: team?.place || null,
                 score: { won: decided.filter((m) => String(m.winnerTeamId) === String(team?._id)).length, played: decided.length },
-                certificate: team?.status === 'approved' && require('../services/certificate').eligible(c, team)
+                certificate: built.has(String(c._id)) || (team?.status === 'approved' && require('../services/certificate').eligible(c, team))
             };
         })
     });
 }));
 
 router.get('/leaderboard', wrap(async (req, res) => {
-    res.json(await require('../services/leaderboardService').board());
+    // ?game=chess: that game's rankings only (2026-11-04).
+    const game = ['chess', 'rapidfire', 'codeclash', 'brainsprint'].includes(req.query.game) ? req.query.game : null;
+    res.json(await require('../services/leaderboardService').board({ game }));
 }));
 
 router.get('/history', wrap(async (req, res) => {
@@ -186,13 +199,77 @@ router.get('/certificates', wrap(async (req, res) => {
             // so the preview on My Profile says exactly the same.
             words: team.place ? winnerWords({ competition: c, team, place: team.place }) : null
         };
-    }).filter(Boolean).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+    }).filter(Boolean);
+    // The organisers' own certificates (Certificate Builder, 2026-10-31): drawn on My Profile as they print, and the
+    // Quiz Arena ones too. One a competition — the host's design first (certificates/auto.js).
+    const auto = require('../certificates/auto');
+    const { ArenaCompetition, ArenaEntry } = require('../arena/models');
+    const arenaIds = (await ArenaEntry.find({ userId: req.user._id, status: 'approved' }).select('competitionId').lean()).map((e) => String(e.competitionId));
+    const arenas = await ArenaCompetition.find({ _id: { $in: arenaIds }, resultsPublishedAt: { $ne: null } }).select('_id').lean();
+    const keys = [...comps.map((c) => ['competition', String(c._id)]), ...arenas.map((a) => ['arena', String(a._id)])];
+    for (const [kind, id] of keys) {
+        const built = await auto.forStudent(req.user._id, kind, id).catch(() => null);
+        if (!built) continue;
+        const { cert, design } = built;
+        const issued = issuedView(cert, design);
+        const old = kind === 'competition' && certificates.find((x) => x.competitionId === id);
+        if (old) { old.issued = issued; continue; }
+        const place = { first: 1, second: 2, third: 3 }[cert.award.kind] || null;
+        certificates.push({
+            ...(kind === 'arena' ? { arenaId: id } : { competitionId: id }),
+            name: design.competition.name, completedAt: cert.createdAt, place,
+            title: place ? ['', 'Winner', 'Runner-up', 'Third Place'][place] : 'Certificate of Participation',
+            playerName: cert.recipient.name, collegeName: cert.recipient.institution, issued
+        });
+    }
+    certificates.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
     res.json({ certificates });
 }));
+
+/** A Builder certificate as the student app draws it (its copy of certificates/templates.js). */
+const issuedView = (cert, design) => ({
+    certId: cert.certId,
+    template: design.template,
+    input: {
+        recipient: cert.recipient, award: cert.award, competition: design.competition.name, description: design.description,
+        details: design.details ? { type: design.details.mode, college: design.details.college, department: design.details.department, address: design.details.address, affiliation: design.details.affiliation, tagline: design.details.tagline, title: design.details.title, intro: design.details.intro } : undefined,
+        date: design.date, venue: design.venue, certId: cert.certId,
+        signatories: (design.signatories || []).map((s) => ({ name: s.name, designation: s.designation, signature: Boolean(s.signature) })),
+        brand: { name: design.branding?.name || '', tagline: design.branding?.tagline || '', org: design.branding?.org || '' },
+        hasLogo: Boolean(design.branding?.logo || design.branding?.yaticorp), ownLogo: Boolean(design.branding?.logo), hasSeal: Boolean(design.branding?.seal), noQr: design.scope === 'organization' && !design.showQr, plain: design.scope === 'organization', elements: design.elements || null, logoAt: design.branding?.logoAt || null, logoShape: design.branding?.logoShape || 'original', sealAt: design.branding?.sealAt || null
+    },
+    images: {
+        logo: design.branding?.logo || (design.branding?.yaticorp ? 'yaticorp' : ''), seal: design.branding?.seal || '', background: design.branding?.background || '',
+        ...Object.fromEntries((design.signatories || []).map((s, i) => [`sig${i}`, s.signature || '']))
+    }
+});
 
 // Delete a competition certificate from My Profile. It only leaves the frame:
 // the competition was played and the certificate stays the player's, so
 // downloading it again from Games & Competitions brings it back.
+// The questions I have met, so neither the solo nor the group games ask one again (services/seenQuestions.js).
+router.get('/seen-questions', wrap(async (req, res) => {
+    const doc = await require('mongoose').model('SeenQuestion').findOne({ userId: req.user._id }).select('keys').lean().catch(() => null);
+    res.json({ keys: (doc?.keys || []).filter((k) => k.startsWith('o')) });
+}));
+router.post('/seen-questions', wrap(async (req, res) => {
+    await require('../services/seenQuestions').add([req.user._id], Array.isArray(req.body?.keys) ? req.body.keys : []);
+    res.json({ ok: true });
+}));
+
+router.get('/celebrated', wrap(async (req, res) => {
+    const User = require('../../models/User');
+    const u = await User.findById(req.user._id).select('celebratedResults').lean();
+    res.json({ ids: u?.celebratedResults || [] });
+}));
+
+router.post('/celebrated', wrap(async (req, res) => {
+    const User = require('../../models/User');
+    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).filter((x) => typeof x === 'string' && /^(comp|arena)-[\w-]{1,64}$/.test(x)).slice(0, 50);
+    if (ids.length) await User.updateOne({ _id: req.user._id }, { $addToSet: { celebratedResults: { $each: ids } } });
+    res.json({ ok: true });
+}));
+
 router.delete('/certificates/:competitionId', wrap(async (req, res) => {
     if (!require('mongoose').isValidObjectId(req.params.competitionId)) return res.status(404).json({ message: 'Certificate not found.' });
     const r = await Team.updateOne(
@@ -279,10 +356,12 @@ router.get('/play/:gameId', wrap(async (req, res) => {
 /* ── Group Brain rooms ───────────────────────────────────────────────── */
 
 router.get('/rooms/games', wrap(async (req, res) => res.json({ games: await rooms.catalogue() })));
+// Which group games, at which room sizes, my solo levels have unlocked (services/unlocks.js).
+router.get('/rooms/unlocks', wrap(async (req, res) => res.json(await require('../services/unlocks').summary(req.user._id, require('../games').ROOM_GAMES))));
 router.get('/rooms/mine', wrap(async (req, res) => res.json(await rooms.myRoom(req.user._id))));
 router.post('/rooms', wrap(async (req, res) => res.status(201).json(await rooms.createRoom(req.user, String(req.body?.game || ''), req.body?.options || {}))));
 router.post('/rooms/join', wrap(async (req, res) => res.json(await rooms.joinRoom(req.user, req.body?.code))));
-// Play online (like online Ludo): a seat at a table of 2 or 4, the entry fee from the wallet (services/onlineService.js).
+// Play online (like online Ludo): a seat at a table of 2 or 4, the entry fee in XP (services/onlineService.js).
 router.get('/rooms/online', wrap(async (req, res) => { const o = require('../services/onlineService'); res.json({ fees: o.FEES, sizes: o.SIZES, waitSeconds: o.WAIT_MS / 1000, prizeShare: o.PRIZE_SHARE }); }));
 router.post('/rooms/online', wrap(async (req, res) => res.json(await require('../services/onlineService').findTable(req.user, String(req.body?.game || ''), { players: req.body?.players, fee: req.body?.fee }))));
 router.get('/rooms/history', wrap(async (req, res) => res.json(await rooms.history(req.user._id))));
@@ -386,6 +465,10 @@ router.get('/:id/certificate', wrap(async (req, res) => {
     const competition = await Competition.findById(c._id).lean();
     if (competition.status !== 'completed') return res.status(409).json({ message: 'Certificates are ready once the competition is over.' });
     if (views.resultsHidden(competition)) return res.status(409).json({ message: 'Certificates come with the results, once the organizer publishes them.' });
+    // The organiser's own certificate (the Certificate Builder, 2026-10-31), when they made one: issued by itself
+    // from the results, with my name and place.
+    const built = await require('../certificates/auto').forStudent(req.user._id, 'competition', String(c._id));
+    if (built) return require('../certificates/render').pdf(res, built.design, [built.cert], `Certificate_${competition.name}.pdf`);
     const team = await Team.findOne({ competitionId: c._id, status: 'approved', 'players.userId': req.user._id }).lean();
     if (!team) return res.status(403).json({ message: 'Only players of a team that took part get a certificate.' });
     if (!require('../services/certificate').eligible(competition, team)) {

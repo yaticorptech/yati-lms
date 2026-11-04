@@ -76,6 +76,7 @@ const competitionView = (c, { teams = [], myTeam = null } = {}) => {
         participationXp: c.participationXp || 0,
         entryFee: c.entryFee?.enabled ? { enabled: true, amount: c.entryFee.amount } : { enabled: false, amount: 0 },
         certificates: c.certificates !== false,
+        certificateDesignId: c.certificateDesignId ? String(c.certificateDesignId) : '',
         participationCertificates: c.participationCertificates !== false,
         status: c.status,
         teamsCount: approved.length,

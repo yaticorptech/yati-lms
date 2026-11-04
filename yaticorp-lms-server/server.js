@@ -83,6 +83,8 @@ app.use(cors({
 // 100 KB. Parsed here first, with room for them; the parser below then
 // leaves these requests alone.
 app.use('/api/teacher', express.json({ limit: '3mb' }));
+// The Certificate Builder sends its logo, signatures and seal as pictures in the request (2026-10-31).
+app.use(['/api/competitions/admin/certificates', '/api/competitions/org/certificates'], express.json({ limit: '6mb' }));
 app.use(express.json());
 
 // const { globalLimiter } = require('./src/middleware/rateLimiter');

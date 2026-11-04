@@ -15,7 +15,7 @@
  */
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeUser, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, unlockGroupGames, startApp, cleanup } = require('../helpers');
 const PlayGame = require('../../src/competitions/models/PlayGame');
 const { GroupBrainResult, GroupBrainSettings } = require('../../src/competitions/groupbrain/models');
 
@@ -25,7 +25,7 @@ before(async () => {
     await connect();
     await GroupBrainSettings.deleteMany({});
     app = startApp({ mount: '/api/competitions', router: require('../../src/competitions') });
-    [A, B, C] = await Promise.all(['Bot Ace', 'Bot Bea', 'Bot Cal'].map(async (n) => { const u = await makeUser(n); u.call = app.call(u.token); return u; }));
+    [A, B, C] = await Promise.all(['Bot Ace', 'Bot Bea', 'Bot Cal'].map(async (n) => { const u = await makeUser(n); await unlockGroupGames(u.user._id); u.call = app.call(u.token); return u; }));
 });
 after(async () => {
     const ids = [A, B, C].map((x) => x.user._id);

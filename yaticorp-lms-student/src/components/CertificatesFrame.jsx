@@ -19,6 +19,7 @@ import Portal from './Portal';
 import CertificatePreview from './CertificatePreview';
 import CompetitionCertificatePreview from './CompetitionCertificatePreview';
 import { competitionsApi } from '../competitions/api';
+import { arenaApi } from '../competitions/arena/api';
 import { saveBlob } from '../native/saveFile';
 import { AuthContext } from '../context/AuthContext';
 import { pdfPageOne } from '../utils/pdfPageOne';
@@ -43,7 +44,7 @@ const merge = (certificates, achievements, competitions = [], holder = '', group
         date: c.issuedAt || c.createdAt, added: c.createdAt || c.issuedAt, number: c.certificateNumber, thumbnailUrl: '', fileType: 'pdf'
     })),
     ...competitions.map((c) => ({
-        id: `competition-${c.competitionId}`, source: 'competition', raw: c,
+        id: `competition-${c.competitionId || `arena-${c.arenaId}`}`, source: 'competition', raw: c,
         title: `${c.title} · ${c.name}`, issuer: 'YATI LMS · Games & Competitions',
         date: c.completedAt, added: c.completedAt, thumbnailUrl: '', fileType: 'pdf'
     })),
@@ -303,9 +304,10 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
     useEffect(() => { loadCompetitions(); }, []);
 
     const downloadCompetition = (c) => {
-        setDownloadingCompetition(c.competitionId);
+        setDownloadingCompetition(c.competitionId || c.arenaId);
         setError('');
-        competitionsApi.certificate(c.competitionId)
+        // A Quiz Arena certificate (the organiser's own, 2026-10-31) comes from the arena's route.
+        (c.arenaId ? arenaApi.certificate(c.arenaId) : competitionsApi.certificate(c.competitionId))
             .then((blob) => saveBlob(blob, `Certificate_${c.name.replace(/\s+/g, '_')}.pdf`, { title: c.name }))
             .catch((err) => setError(err.message || 'Could not download that certificate.'))
             .finally(() => setDownloadingCompetition(null));
@@ -337,8 +339,8 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                 await api.delete(`/certificates/${item.raw._id}`);
                 onRemoved?.(item.raw._id);
             } else if (competition) {
-                await competitionsApi.hideCertificate(item.raw.competitionId);
-                setCompetitionCerts((rows) => rows.filter((c) => c.competitionId !== item.raw.competitionId));
+                if (item.raw.competitionId) await competitionsApi.hideCertificate(item.raw.competitionId);
+                setCompetitionCerts((rows) => rows.filter((c) => c !== item.raw));
             } else {
                 await api.delete(`/user/achievements/${item.raw.id}`);
                 setAchievements((rows) => rows.filter((a) => a.id !== item.raw.id));
@@ -461,9 +463,9 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                                         </button>
                                     ) : item.source === 'competition' ? (
                                         // Free, as it is in Games & Competitions.
-                                        <button type="button" onClick={() => downloadCompetition(item.raw)} disabled={downloadingCompetition === item.raw.competitionId}
+                                        <button type="button" onClick={() => downloadCompetition(item.raw)} disabled={downloadingCompetition === (item.raw.competitionId || item.raw.arenaId)}
                                             className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-60">
-                                            {downloadingCompetition === item.raw.competitionId ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
+                                            {downloadingCompetition === (item.raw.competitionId || item.raw.arenaId) ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
                                         </button>
                                     ) : (
                                         <a href={item.fileUrl} target="_blank" rel="noopener noreferrer"
