@@ -8,6 +8,7 @@ const Enrollment = require('../models/Enrollment');
 const generateToken = require('../utils/generateToken');
 const jwt = require('jsonwebtoken');
 const { deviceOf, admitDevice, replaceDevice, startSession } = require('../services/deviceGuard');
+const { kindOf, byPhone, SHARED_PHONE, TOO_MANY_ON_PHONE, PASSWORD_NOT_SET } = require('../utils/signInLookup');
 
 /** 409 with the devices in the way and a short ticket to swap one out (replaceDeviceLogin). */
 const refuseDevice = (res, user, device, conflict) => res.status(409).json({
@@ -50,35 +51,62 @@ const finishLogin = async (req, res, user) => {
     });
 };
 
+/** Past the password: active, on an allowed device, then in. */
+const admit = async (req, res, user) => {
+    if (user.status !== 'active') return res.status(401).json({ message: 'User account is not active' });
+    // Only 2 devices (services/deviceGuard.js): a new one past the limit is stopped here,
+    // with what the student needs to swap it in.
+    const device = deviceOf(req);
+    const admitted = await admitDevice(user, device);
+    if (!admitted.ok) return refuseDevice(res, user, device, admitted.conflict);
+    return finishLogin(req, res, user);
+};
+
 // @desc    Auth user & get token
-// @route   POST /api/user/login
+// @route   POST /api/auth/student/login  { login, password } — or { cardNumber, password } (older apps)
 // @access  Public
+//
+// `login` is whatever was typed in the one sign-in box (2026-10-30): a card
+// number or a mobile number (utils/signInLookup). A teacher's card or number
+// is answered TEACHER_CARD / TEACHER_ACCOUNT, and the app signs in there.
 const loginUser = async (req, res) => {
-    const { cardNumber, password } = req.body;
+    const { password } = req.body;
+    const typed = req.body.login ?? req.body.cardNumber;
+    const k = kindOf(typed);
 
     try {
+        if (k.kind === 'empty' || typeof password !== 'string' || !password) {
+            return res.status(400).json({ message: 'Enter your card number or mobile number, and your password.' });
+        }
+        // No one signs in by email here (2026-10-31): students and teachers use a card or mobile number.
+        if (k.kind === 'email') return res.status(401).json({ code: 'USE_CARD_OR_PHONE', message: 'Sign in with your card number or mobile number, not your email.' });
+
+        if (k.kind === 'phone' || (k.kind === 'card-or-phone' && !(await findUserByCardNumber(k.value)) && !(await require('../teacher/auth').findTeacherByCard(k.value)))) {
+            const found = await byPhone(User, k.digits, password);
+            if (found.account) return admit(req, res, found.account);
+            if (found.shared) return res.status(409).json({ code: 'PHONE_SHARED', message: SHARED_PHONE });
+            if (found.tooMany) return res.status(409).json({ code: 'PHONE_SHARED', message: TOO_MANY_ON_PHONE });
+            // Not a student's number with this password: a teacher's, perhaps.
+            const teacher = await byPhone(require('../teacher/models').Teacher, k.digits, password);
+            if (teacher.account || teacher.shared) return res.status(401).json({ code: 'TEACHER_ACCOUNT', message: 'This is a teacher account.' });
+            if (teacher.pending && !found.wrongPassword) return res.status(401).json({ code: 'PASSWORD_NOT_SET', message: PASSWORD_NOT_SET });
+            if (found.wrongPassword || teacher.wrongPassword) return res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });
+            return res.status(401).json({ code: 'NO_ACCOUNT', message: 'No account found with this mobile number. Check the number, use your card number, or sign up.' });
+        }
+
+        const cardNumber = k.value;
         const user = await findUserByCardNumber(cardNumber);
 
         if (user && (await user.matchPassword(password))) {
-            if (user.status !== 'active') {
-                return res.status(401).json({ message: 'User account is not active' });
-            }
-
-            // Only 2 devices (services/deviceGuard.js): a new one past the limit is stopped here,
-            // with what the student needs to swap it in.
-            const device = deviceOf(req);
-            const admitted = await admitDevice(user, device);
-            if (!admitted.ok) return refuseDevice(res, user, device, admitted.conflict);
-
-            return finishLogin(req, res, user);
+            return admit(req, res, user);
         } else if (!user && await require('../teacher/auth').findTeacherByCard(cardNumber)) {
-            // A teacher's card, at the student sign-in: say where it belongs.
-            res.status(401).json({ code: 'TEACHER_CARD', message: 'This card is registered to a teacher account. Choose Teacher to sign in.' });
+            // A teacher's card: the app signs in on the teacher side.
+            res.status(401).json({ code: 'TEACHER_CARD', message: 'This card is registered to a teacher account.' });
         } else if (user) {
             // The card is right: say it is the password, so they reset it rather than re-scan.
             res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });
         } else {
-            res.status(401).json({ code: 'NO_ACCOUNT', message: 'No account found with this card number. Check the number or sign up.' });
+            res.status(401).json({ code: 'NO_ACCOUNT', message: 'No account found with this card number or mobile number. Check it, or sign up.' });
         }
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });

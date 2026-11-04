@@ -21,7 +21,7 @@ import { startViewingOrganization } from '../utils/viewOrganization';
 import {
     Building2, Plus, Users, CheckCircle2, XCircle, AlertTriangle,
     Loader2, Copy, Check, ExternalLink, Ban, RotateCcw, Mail, Phone, MapPin, Globe, X,
-    UserPlus, UserMinus, ArrowRight, BookOpen, LayoutDashboard, Trash2, ChevronDown, History, Trophy
+    UserPlus, UserMinus, ArrowRight, BookOpen, LayoutDashboard, Trash2, ChevronDown, History, Trophy, Orbit
 } from 'lucide-react';
 import api from '../utils/api';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
@@ -60,6 +60,8 @@ const LIST_PAGE = 25;
 
 /** A ✕ or copy button's 40px tap target, with the icon in the middle. */
 const ICON_BTN = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600';
+/** The edge of the pinned Actions column while more of the table is out of sight under it. */
+const SHADOW = 'shadow-[-12px_0_12px_-10px_rgba(15,23,42,0.22)]';
 
 /** The organization's logo, or its first letters until it has uploaded one. */
 const OrgLogo = ({ org, size = 'h-10 w-10' }) => (org?.logo ? (
@@ -84,57 +86,143 @@ const StatusPill = ({ status }) => (
  * exactly the sort of thing nobody notices until a phone shows the wrong one.
  */
 /**
- * Whether an organization may publish its own courses, on its row: one small
- * button — "Enable" while courses are off, "2 / 5" (made / allowed) once they
- * are on. It opens the Course access popup, where the switch and limit are.
+ * What the platform has let each organization do (2026-11-04): Courses,
+ * Competitions and 360, one row each, the same in the table and on the phone
+ * cards. A row shows where it stands ("Enable" while off; "2 / 5", "Can host"
+ * or "Unlocked" once on) and opens a popup that says what the feature is
+ * before it is switched: Courses opens the Course access popup (switch and
+ * limit); Competitions and 360 open FeaturePopup. All three are off for every
+ * organization until switched on here.
  */
-const CoursesCell = ({ org, onOpen }) => {
-    const on = org.courseAccess?.enabled;
+const FEATURES = {
+    competitions: {
+        icon: Trophy, title: 'Competitions', tone: 'bg-amber-50 text-amber-800 ring-amber-200', iconTone: 'bg-amber-50 text-amber-600',
+        field: 'canHostCompetitions', endpoint: 'competition-hosting', onLabel: 'Can host',
+        aria: (org) => `${org.name} can host competitions`,
+        what: 'Lets the organization host its own inter-college competitions, not only enter teams in other colleges’ ones.',
+        gets: [
+            'Create and publish its own competitions from its dashboard (Host competitions).',
+            'Teams from other colleges can enter them.',
+            'Without it, it can still enter its own teams in competitions others host.'
+        ],
+        offNote: 'Turning it off keeps the competitions it already made; you run them from Competitions.'
+    },
+    three60: {
+        icon: Orbit, title: '360', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200', iconTone: 'bg-emerald-50 text-emerald-600',
+        field: 'three60Allowed', endpoint: 'three60', onLabel: 'Unlocked',
+        aria: (org) => `360 for ${org.name}`,
+        what: '360 tracks each student’s growth beyond the classroom (academics, campus involvement, skills, internships and more) and turns it into marks.',
+        gets: [
+            'Its 360 Activities page: the activities, in categories, and the most marks each can give.',
+            'Its 360 teachers check the proof students upload and give the marks.',
+            'Students on a 360 teacher’s list upload proof and see their 360 marks.'
+        ],
+        offNote: 'Locking it again stops its teachers and students using 360. Its activities, proof and marks are kept.'
+    }
+};
+
+/** One feature on a row: its name, and where it stands. Opens its popup. */
+const FeatureRow = ({ icon: Icon, label, on, value, tone, onClick, aria, title }) => (
+    <button type="button" onClick={onClick} aria-label={aria} aria-pressed={on} title={title}
+        className="group flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1 text-left transition-colors hover:bg-slate-100">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-600 group-hover:text-slate-800"><Icon size={13} aria-hidden />{label}</span>
+        <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ring-1 ${on ? tone : 'bg-white text-slate-500 ring-slate-200 group-hover:text-indigo-700 group-hover:ring-indigo-300'}`}>{value}</span>
+    </button>
+);
+
+/** Courses, Competitions and 360 for one organization. */
+const FeaturesList = ({ org, onCourses, onFeature }) => {
+    const courses = Boolean(org.courseAccess?.enabled);
     return (
-        <button onClick={() => onOpen(org)} aria-label={`Course access for ${org.name}`}
-            title={on ? `${org.courseCount || 0} of ${org.courseAccess.limit} courses used — change` : 'Let this organization publish its own courses'}
-            className={`inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${on
-                ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700'}`}>
-            <BookOpen size={13} />
-            {on ? <span className="tabular-nums">{org.courseCount || 0} / {org.courseAccess.limit}</span> : 'Enable'}
-        </button>
+        <div className="w-full min-w-[12rem] space-y-0.5">
+            <FeatureRow icon={BookOpen} label="Courses" on={courses} tone="bg-indigo-50 text-indigo-700 ring-indigo-200"
+                value={courses ? `${org.courseCount || 0} / ${org.courseAccess.limit}` : 'Enable'} onClick={() => onCourses(org)}
+                aria={`Course access for ${org.name}`} title={courses ? `${org.courseCount || 0} of ${org.courseAccess.limit} courses used — change` : 'What Courses is, and turn it on'} />
+            {Object.entries(FEATURES).map(([kind, f]) => {
+                const on = Boolean(org[f.field]);
+                return (
+                    <FeatureRow key={kind} icon={f.icon} label={f.title} on={on} tone={f.tone} value={on ? f.onLabel : 'Enable'}
+                        onClick={() => onFeature({ org, kind })} aria={f.aria(org)} title={`What ${f.title} is, and turn it ${on ? 'off' : 'on'}`} />
+                );
+            })}
+        </div>
+    );
+};
+
+/** What a feature is and what the organization gets with it, then the switch. */
+const FeaturePopup = ({ org, kind, onClose, onChanged }) => {
+    const f = FEATURES[kind];
+    const on = Boolean(org[f.field]);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const close = () => { if (!busy) onClose(); };
+    const { dialogProps, titleId } = useDialog(close);
+    const flip = () => {
+        setBusy(true); setError('');
+        api.put(`/organizations/admin/${org._id}/${f.endpoint}`, { enabled: !on })
+            .then(() => { onChanged(); onClose(); })
+            .catch((err) => { setError(err.response?.data?.message || 'Could not change it. Try again.'); setBusy(false); });
+    };
+    return (
+        <div {...dialogProps} className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 p-4 outline-none backdrop-blur-sm" aria-label={`${f.title}: ${org.name}`}
+            onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+            <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+                <div className="flex items-start gap-3 border-b border-slate-200 px-5 py-4">
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${f.iconTone}`}><f.icon size={20} aria-hidden /></span>
+                    <div className="min-w-0 flex-1">
+                        <h2 id={titleId} className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                            {f.title}
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${on ? f.tone : 'bg-slate-100 text-slate-500 ring-slate-200'}`}>{on ? 'On' : 'Off'}</span>
+                        </h2>
+                        <p className="truncate text-sm text-slate-500">{org.name}</p>
+                    </div>
+                    <button onClick={close} className={ICON_BTN} aria-label="Close"><X size={20} /></button>
+                </div>
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">
+                    <p className="text-sm leading-relaxed text-slate-600">{f.what}</p>
+                    <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">With it, {org.name} gets</p>
+                        <ul className="space-y-2">
+                            {f.gets.map((g) => (
+                                <li key={g} className="flex gap-2 text-sm text-slate-700"><CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-500" aria-hidden />{g}</li>
+                            ))}
+                        </ul>
+                    </div>
+                    {on && <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-800 ring-1 ring-amber-100">{f.offNote}</p>}
+                    {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+                </div>
+                <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+                    <button onClick={close} disabled={busy} className="min-h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100">Cancel</button>
+                    <button onClick={flip} disabled={busy}
+                        className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-bold disabled:opacity-60 ${on ? 'border border-rose-200 bg-white text-rose-600 hover:bg-rose-50' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                        {busy && <Loader2 size={15} className="animate-spin" />}
+                        {on ? `Turn off ${f.title}` : `Enable ${f.title}`}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 };
 
 /**
- * Whether an organization may host its own competitions (Games &
- * Competitions), on its row: "Enable" while it may not, "Can host" once it
- * may. Off for every organization until switched on here; switching it off
- * asks first, and keeps the competitions it already made, which the platform
- * admin then runs.
+ * Whether a box that scrolls sideways has more to its right, kept up to date
+ * as it scrolls or changes size: the table says so (a hint and a shadow on the
+ * pinned actions) only when it does not fit, never on a laptop where it does.
  */
-const HostingCell = ({ org, onChanged }) => {
-    const [value, setValue] = useState(null);
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState('');
-    const on = value ?? Boolean(org.canHostCompetitions);
-    const flip = () => {
-        if (on && !window.confirm(`Stop ${org.name} hosting competitions? Competitions it already made stay, and you run them from Competitions.`)) return;
-        setBusy(true); setError('');
-        api.put(`/organizations/admin/${org._id}/competition-hosting`, { enabled: !on })
-            .then((r) => { setValue(r.data.canHostCompetitions); onChanged(); })
-            .catch((err) => setError(err.response?.data?.message || 'Could not change it. Try again.'))
-            .finally(() => setBusy(false));
-    };
-    return (
-        <span className="inline-flex flex-col items-start">
-            <button onClick={flip} disabled={busy} aria-pressed={on} aria-label={`${org.name} can host competitions`}
-                title={on ? 'This organization can host its own competitions — switch off' : 'Let this organization host its own competitions'}
-                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors disabled:opacity-60 ${on
-                    ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700'}`}>
-                {busy ? <Loader2 size={13} className="animate-spin" /> : <Trophy size={13} />}
-                {on ? 'Can host' : 'Enable'}
-            </button>
-            {error && <span role="alert" className="mt-1 max-w-[10rem] text-[11px] leading-tight text-rose-600">{error}</span>}
-        </span>
-    );
+const useMoreToTheRight = () => {
+    const [el, setEl] = useState(null);
+    const [more, setMore] = useState(false);
+    useEffect(() => {
+        if (!el) return undefined;
+        const check = () => setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+        check();
+        el.addEventListener('scroll', check, { passive: true });
+        const watch = new ResizeObserver(check);
+        watch.observe(el);
+        if (el.firstElementChild) watch.observe(el.firstElementChild);
+        return () => { el.removeEventListener('scroll', check); watch.disconnect(); };
+    }, [el]);
+    return [setEl, more];
 };
 
 /** The Course access settings on their own, opened from a row's Courses button. */
@@ -201,7 +289,7 @@ const FILTERS = [
 ];
 
 /** The Organization ID is meant to be handed to students, so make it one tap to copy. */
-const CopyableCode = ({ code, small = false }) => {
+const CopyableCode = ({ code, small = false, oneLine = false }) => {
     const [copied, setCopied] = useState(false);
 
     const copy = async () => {
@@ -225,7 +313,8 @@ const CopyableCode = ({ code, small = false }) => {
             // negative margin then drew it over the name above.
             className={`group ${small ? '' : '-my-3 min-h-10'} inline-flex min-w-0 items-center gap-1.5 font-mono hover:text-indigo-600 ${small ? 'text-xs font-medium text-slate-600' : 'whitespace-nowrap text-sm font-semibold text-slate-700'}`}
         >
-            <span className={small ? 'break-all text-left' : 'truncate'}>{code}</span>
+            {/* In the table (oneLine) a long ID is cut short rather than broken mid-word; hover shows it. */}
+            <span className={small && !oneLine ? 'break-all text-left' : 'truncate'} title={oneLine ? code : undefined}>{code}</span>
             {copied
                 ? <Check size={small ? 12 : 14} className="shrink-0 text-emerald-600" />
                 : <Copy size={small ? 12 : 13} className="shrink-0 text-slate-300 group-hover:text-indigo-500" />}
@@ -257,6 +346,7 @@ const Organizations = () => {
     const [detail, setDetail] = useState(null);       // { organization, admins, studentCount, pendingRequests }
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailFocus, setDetailFocus] = useState(null);   // 'courses' to open at the Course access card
+    const [featureFor, setFeatureFor] = useState(null);             // { org, kind }: a Competitions or 360 popup
     const [courseAccessFor, setCourseAccessFor] = useState(null);   // the row whose Course access popup is open
     const [students, setStudents] = useState(null);   // { organization, students }
     const [decision, setDecision] = useState(null);   // { org, status, needsReason, title, verb }
@@ -329,6 +419,7 @@ const Organizations = () => {
 
     // Only the layout that is showing is built: the table from md up, cards below.
     const wide = useMediaQuery('(min-width: 768px)');
+    const [tableBox, moreRight] = useMoreToTheRight();
 
     const openDetail = async (organizationId, focus = null) => {
         setDetailFocus(typeof focus === 'string' ? focus : null);
@@ -511,22 +602,28 @@ const Organizations = () => {
                         sideways scroll nobody uses, so below that it becomes the
                         card list underneath — only one of them is built. */}
                     {wide ? (
-                    <div className="overflow-x-auto">
-                        {/* The ID sits under the name rather than in a column of
-                            its own, and Actions is pinned to the right edge: with
-                            eight columns the actions were the part that fell off
-                            the end, half a button showing at a normal laptop width. */}
-                        <table className="w-full text-left border-collapse min-w-[1000px]">
+                    <>
+                    {/* Only when the table does not fit (a tablet, a small laptop): say it scrolls. */}
+                    {moreRight && (
+                        <p className="flex items-center justify-end gap-1 border-b border-slate-100 px-5 py-2 text-xs font-medium text-slate-500">
+                            Scroll sideways to see every column <ArrowRight size={13} aria-hidden />
+                        </p>
+                    )}
+                    <div ref={tableBox} className="overflow-x-auto">
+                        {/* The ID and contact sit under the name, Registered under
+                            the status, and Courses, Competitions and 360 share one
+                            Features column (2026-11-04): the table fits a laptop
+                            beside the sidebar. Actions stays pinned to the right
+                            edge for narrower screens, with a shadow while more of
+                            the table is out of sight under it. */}
+                        <table className="w-full text-left border-collapse min-w-[960px]">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-xs tracking-wider text-slate-500 uppercase">
                                     <th className="px-5 py-3.5 font-semibold">Organization</th>
-                                    <th className="px-3 py-3.5 font-semibold">Contact</th>
                                     <th className="px-3 py-3.5 font-semibold">Students</th>
-                                    <th className="px-3 py-3.5 font-semibold">Courses</th>
-                                    <th className="px-3 py-3.5 font-semibold">Competitions</th>
+                                    <th className="px-3 py-3.5 font-semibold">Features</th>
                                     <th className="px-3 py-3.5 font-semibold">Status</th>
-                                    <th className="px-3 py-3.5 font-semibold">Registered</th>
-                                    <th className="sticky right-0 bg-slate-50 px-5 py-3.5 font-semibold text-right">Actions</th>
+                                    <th className={`sticky right-0 bg-slate-50 px-5 py-3.5 font-semibold text-right ${moreRight ? SHADOW : ''}`}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -543,16 +640,13 @@ const Organizations = () => {
                                                 <div className="min-w-0 max-w-[11rem] 2xl:max-w-[16rem]">
                                                     <div className="truncate font-semibold text-slate-800" title={org.name}>{org.name}</div>
                                                     <div className="mt-0.5 flex items-center gap-2">
-                                                        <CopyableCode code={org.orgCode} small />
+                                                        <CopyableCode code={org.orgCode} small oneLine />
                                                         <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-px text-[11px] font-medium text-slate-500">{org.typeLabel}</span>
                                                     </div>
+                                                    <div className="mt-0.5 truncate text-xs text-slate-500" title={[org.contactPerson, org.email].filter(Boolean).join(' · ')}>
+                                                        {org.contactPerson && <span className="font-medium text-slate-600">{org.contactPerson} · </span>}{org.email}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-3.5">
-                                            <div className="max-w-[10rem] 2xl:max-w-[11rem]">
-                                                <div className="truncate text-sm font-medium text-slate-700" title={org.contactPerson}>{org.contactPerson || '—'}</div>
-                                                <div className="truncate text-sm text-slate-500" title={org.email}>{org.email}</div>
                                             </div>
                                         </td>
                                         <td className="px-3 py-3.5">
@@ -577,11 +671,12 @@ const Organizations = () => {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="px-3 py-3.5"><CoursesCell org={org} onOpen={setCourseAccessFor} /></td>
-                                        <td className="px-3 py-3.5"><HostingCell org={org} onChanged={reload} /></td>
-                                        <td className="px-3 py-3.5"><StatusPill status={org.status} /></td>
-                                        <td className="whitespace-nowrap px-3 py-3.5 text-sm text-slate-600">{formatDate(org.createdAt)}</td>
-                                        <td className="sticky right-0 bg-white px-5 py-3.5 transition-colors group-hover:bg-slate-50">
+                                        <td className="px-3 py-3.5"><FeaturesList org={org} onCourses={setCourseAccessFor} onFeature={setFeatureFor} /></td>
+                                        <td className="px-3 py-3.5">
+                                            <StatusPill status={org.status} />
+                                            <div className="mt-1 whitespace-nowrap text-[11px] text-slate-400">Registered {formatDate(org.createdAt)}</div>
+                                        </td>
+                                        <td className={`sticky right-0 bg-white px-5 py-3.5 transition-colors group-hover:bg-slate-50 ${moreRight ? SHADOW : ''}`}>
                                             <div className="flex items-center justify-end gap-1 whitespace-nowrap [&>button]:min-h-10 [&>button]:rounded-lg [&>button]:px-2.5 [&>button]:py-1.5 [&>button:hover]:bg-slate-100">
                                                 <RowActions org={org} onDetail={openDetail} onDecide={ask} />
                                             </div>
@@ -591,6 +686,7 @@ const Organizations = () => {
                             </tbody>
                         </table>
                     </div>
+                    </>
                     ) : (
                     /* Phones: one card per organization, same information. */
                     <ul className="divide-y divide-slate-100">
@@ -608,7 +704,7 @@ const Organizations = () => {
                                 </div>
 
                                 {/* Students, courses, registered: side by side, the same size each. */}
-                                <dl className="mt-3 grid grid-cols-3 divide-x divide-slate-200 rounded-xl bg-slate-50 py-2.5 text-center ring-1 ring-slate-100">
+                                <dl className="mt-3 grid grid-cols-2 divide-x divide-slate-200 rounded-xl bg-slate-50 py-2.5 text-center ring-1 ring-slate-100">
                                     <div className="min-w-0 px-1">
                                         <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Students</dt>
                                         <dd className="mt-1">
@@ -624,17 +720,13 @@ const Organizations = () => {
                                         )}
                                     </div>
                                     <div className="min-w-0 px-1">
-                                        <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Courses</dt>
-                                        <dd className="mt-1"><CoursesCell org={org} onOpen={setCourseAccessFor} /></dd>
-                                    </div>
-                                    <div className="min-w-0 px-1">
                                         <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Registered</dt>
                                         <dd className="mt-1 text-xs font-medium text-slate-700">{formatDate(org.createdAt)}</dd>
                                     </div>
                                 </dl>
-                                <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
-                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Host competitions</span>
-                                    <HostingCell org={org} onChanged={reload} />
+                                <div className="mt-2 rounded-xl bg-slate-50 px-1.5 py-1.5 ring-1 ring-slate-100">
+                                    <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Features</p>
+                                    <FeaturesList org={org} onCourses={setCourseAccessFor} onFeature={setFeatureFor} />
                                 </div>
 
                                 <p className="mt-3 text-xs text-slate-500">
@@ -672,6 +764,9 @@ const Organizations = () => {
                 )}
                 {courseAccessFor && (
                     <CourseAccessModal org={courseAccessFor} onClose={() => setCourseAccessFor(null)} onSaved={reload} />
+                )}
+                {featureFor && (
+                    <FeaturePopup org={featureFor.org} kind={featureFor.kind} onClose={() => setFeatureFor(null)} onChanged={reload} />
                 )}
                 {students && (
                     <StudentsModal

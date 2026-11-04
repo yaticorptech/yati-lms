@@ -610,3 +610,67 @@ createRoot(document.getElementById('root')).render(
         assert.ok(result.onTop, 'and its top row is what is seen, not the app bar');
     });
 });
+
+/* ── 360 is the platform admin's to unlock (2026-11-04) ─────────────────── */
+
+describe('360 per organization', { skip: skipWithoutChrome }, () => {
+    const ORGS = [
+        { ...ACTIVE, _id: 'o1', name: 'ABC College', three60Allowed: false },
+        { ...ACTIVE, _id: 'o2', name: 'XYZ University', orgCode: 'XYZ-2026-0002', three60Allowed: true }
+    ];
+    // Remembers the switch, as the server does, so the list reloaded after it agrees.
+    const orgsApi = `
+window.__calls = [];
+const orgs = ${JSON.stringify(ORGS)};
+const reply = (data) => Promise.resolve({ data: JSON.parse(JSON.stringify(data)) });
+export default {
+  get: (url) => { window.__calls.push(['GET', url]); return reply({ organizations: orgs, totals: { all: 2, active: 2 }, types: [] }); },
+  put: (url, body) => { window.__calls.push(['PUT', url, body]);
+    orgs.find((o) => url.includes('/' + o._id + '/')).three60Allowed = body.enabled;
+    return reply({ message: 'Done.', three60Allowed: body.enabled }); },
+  post: () => reply({}), delete: () => reply({})
+};`;
+
+    test('Organizations has 360 in Features: a popup says what it is, then Enable unlocks it or Turn off locks it', async () => {
+        const { result, errors } = await screen({ entry, api: orgsApi, script: `
+            await sleep(700);
+            const cell = (name) => $('table button[aria-label="360 for ' + name + '"]');
+            const read = (name) => [cell(name).lastElementChild.innerText.trim(), cell(name).getAttribute('aria-pressed')];
+            const before = { abc: read('ABC College'), xyz: read('XYZ University') };
+            const popup = async (name, re) => {
+                cell(name).click(); await sleep(250);
+                const pop = $('[role=dialog][aria-label="360: ' + name + '"]');
+                const said = pop.innerText;
+                [...pop.querySelectorAll('button')].find((b) => re.test(b.innerText)).click(); await sleep(400);
+                return said;
+            };
+            // Cancel changes nothing.
+            cell('ABC College').click(); await sleep(250);
+            [...$('[role=dialog]').querySelectorAll('button')].find((b) => b.innerText.trim() === 'Cancel').click(); await sleep(200);
+            const putsAfterCancel = window.__calls.filter((c) => c[0] === 'PUT').length;
+            const onPopup = await popup('ABC College', /Enable 360/);
+            const offPopup = await popup('XYZ University', /Turn off 360/);
+            // Courses, Competitions and 360 share one Features column.
+            return { header: $$('th').map((th) => th.textContent.trim()).includes('Features') && /360/.test(cell('ABC College').closest('td').textContent), before, putsAfterCancel, onPopup, offPopup,
+                     after: { abc: read('ABC College'), xyz: read('XYZ University') },
+                     puts: window.__calls.filter((c) => c[0] === 'PUT') };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.header, '360 in the Features column');
+        assert.deepEqual(result.before, { abc: ['Enable', 'false'], xyz: ['Unlocked', 'true'] });
+        assert.equal(result.putsAfterCancel, 0, 'Cancel changes nothing');
+        assert.match(result.onPopup, /360 tracks each student’s growth/, 'the popup says what 360 is');
+        assert.match(result.onPopup, /With it, ABC College gets[\s\S]*360 Activities page/);
+        assert.match(result.offPopup, /Its activities, proof and marks are kept/);
+        assert.deepEqual(result.puts, [
+            ['PUT', '/organizations/admin/o1/three60', { enabled: true }],
+            ['PUT', '/organizations/admin/o2/three60', { enabled: false }]
+        ]);
+        assert.deepEqual(result.after, { abc: ['Unlocked', 'true'], xyz: ['Enable', 'false'] });
+        // Below 768px the page draws cards instead of the table.
+        const phone = await screen({ entry, api: orgsApi, width: 390, height: 900, script: `
+            await sleep(700);
+            return { table: !!$('table button[aria-label^="360 for"]'), cards: $$('ul button[aria-label^="360 for"]').length };` });
+        assert.deepEqual(phone.errors, []);
+        assert.deepEqual(phone.result, { table: false, cards: 2 }, 'the phone cards have it too');
+    });
+});

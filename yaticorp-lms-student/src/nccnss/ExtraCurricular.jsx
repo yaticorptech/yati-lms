@@ -15,9 +15,16 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Shield, Clock, Tent, CalendarCheck, Award, Plus, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Trash2, Target, HeartHandshake, Compass, Users, Sparkles, ArrowLeft } from 'lucide-react';
+import { Shield, Clock, Tent, CalendarCheck, Award, Plus, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Trash2, Target, HeartHandshake, Compass, Users, Sparkles, ArrowLeft, X, Upload } from 'lucide-react';
 import api from '../utils/api';
+import { ensureDriveLinked, askIfDriveRequired } from '../integrations/google/driveGate';
+
+// A proof photo or certificate is kept in the student's own Google Drive (2026-11-02), shared by link for their officer.
+const PROOF_DRIVE_REASON = 'Photos and certificates you send are kept in your own Google Drive, shared by link so your officer or unit leader can check them.';
 import FolderTabs from '../components/FolderTabs';
+import Portal from '../components/Portal';
+import Select from '../components/Select';
+import useBackClose from '../native/useBackClose';
 import { ActivityCalendar } from './ActivityCalendar';
 
 const BASE = '/organizations/student/nccnss';
@@ -66,11 +73,16 @@ const JoinPage = ({ data, onDone }) => {
     const [form, setForm] = useState({ unit: '', unitId: '', enrolmentNo: '', year: 1, certStage: '', note: '' });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-    const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+    const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setError(''); };
     const taken = (c) => data.memberships.find((m) => m.status !== 'rejected' && sameChoice(m, c));
+    // NCC or NSS, not both (2026-11-02; the server's rule, nccnss/corps.js): the other one, if they are in it or asked for it.
+    const OTHER_CORPS = { NCC: 'NSS', NSS: 'NCC' };
+    const blockedBy = (c) => OTHER_CORPS[c.scheme] && data.memberships.find((m) => m.scheme === OTHER_CORPS[c.scheme] && ['active', 'pending'].includes(m.status));
 
     const submit = async (e) => {
         e.preventDefault();
+        // The unit list is the app's own dropdown, with no "required" of its own: asked here.
+        if (choice.scheme === 'SCOUTS' && (data.scoutUnits || []).length && !form.unitId) { setError('Choose your unit.'); return; }
         setBusy(true); setError('');
         try {
             const res = await api.post(`${BASE}/join`, { ...form, scheme: choice.scheme, clubId: choice.clubId });
@@ -88,16 +100,20 @@ const JoinPage = ({ data, onDone }) => {
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {options.map((c) => {
                         const t = taken(c);
+                        const other = !t && blockedBy(c);
                         return (
-                            <button key={`${c.scheme}-${c.clubId || ''}`} type="button" disabled={!!t} onClick={() => setChoice(c)}
+                            <button key={`${c.scheme}-${c.clubId || ''}`} type="button" disabled={!!t || !!other} onClick={() => setChoice(c)}
                                 className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md disabled:pointer-events-none disabled:opacity-60">
                                 <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md ${c.tone}`}><c.icon size={19} /></span>
                                 <span className="min-w-0 flex-1">
                                     <span className="flex items-center gap-2">
                                         <span className="font-black text-slate-900">{c.name}</span>
                                         {t && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${t.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{t.status === 'pending' ? 'Requested' : 'Joined'}</span>}
+                                        {other && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">Not with {other.scheme}</span>}
                                     </span>
-                                    <span className="mt-0.5 block text-xs text-slate-500">{c.hint}</span>
+                                    <span className="mt-0.5 block text-xs text-slate-500">{other
+                                        ? `You ${other.status === 'pending' ? 'have asked to join' : 'are in'} ${other.scheme}. A student can be in NCC or NSS, not both.`
+                                        : c.hint}</span>
                                 </span>
                             </button>
                         );
@@ -125,24 +141,26 @@ const JoinPage = ({ data, onDone }) => {
             {rejected && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">Your last request to join {choice.name} was not accepted. Check with your teacher or officer, then ask again.</p>}
             <div className="grid gap-3 sm:grid-cols-2">
                 {scoutUnits.length > 0 && (
-                    <label><span className={LABEL}>Your unit</span>
-                        <select className={INPUT} value={form.unitId} onChange={(e) => set('unitId', e.target.value)} required>
-                            <option value="">Choose your unit</option>
+                    <div><span className={LABEL}>Your unit</span>
+                        <Select value={form.unitId} onChange={(e) => set('unitId', e.target.value)} aria-label="Your unit" title="Your unit" placeholder="Choose your unit" className={INPUT}>
                             {scoutUnits.map((u) => <option key={u._id} value={u._id}>{u.name} · {u.sectionLabel}</option>)}
-                        </select>
-                    </label>
+                        </Select>
+                    </div>
                 )}
                 {!club && !scoutUnits.length && <label><span className={LABEL}>{choice.scheme === 'SCOUTS' ? 'Troop / company' : 'Unit / company'}</span><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="As your officer calls it" /></label>}
                 <label><span className={LABEL}>{club ? 'Membership no. (if you have one)' : 'Enrolment no. (if you have one)'}</span><input className={INPUT} value={form.enrolmentNo} onChange={(e) => set('enrolmentNo', e.target.value)} /></label>
-                <label><span className={LABEL}>Year in {choice.name}</span>
-                    <select className={INPUT} value={form.year} onChange={(e) => set('year', e.target.value)}>{[1, 2, 3].map((y) => <option key={y} value={y}>Year {y}</option>)}</select>
-                </label>
+                <div><span className={LABEL}>Year in {choice.name}</span>
+                    <Select value={String(form.year)} onChange={(e) => set('year', e.target.value)} aria-label={`Year in ${choice.name}`} title={`Year in ${choice.name}`} className={INPUT}>
+                        {[1, 2, 3].map((y) => <option key={y} value={String(y)}>Year {y}</option>)}
+                    </Select>
+                </div>
                 {choice.scheme === 'NCC' && (
-                    <label><span className={LABEL}>Working towards</span>
-                        <select className={INPUT} value={form.certStage} onChange={(e) => set('certStage', e.target.value)}>
-                            <option value="">—</option>{['A', 'B', 'C'].map((c) => <option key={c} value={c}>{c} certificate</option>)}
-                        </select>
-                    </label>
+                    <div><span className={LABEL}>Working towards <span className="font-normal text-slate-400">(optional)</span></span>
+                        <Select value={form.certStage} onChange={(e) => set('certStage', e.target.value)} aria-label="Working towards" title="Working towards" placeholder="Not sure yet" className={INPUT}>
+                            <option value="">Not sure yet</option>
+                            {['A', 'B', 'C'].map((c) => <option key={c} value={c}>{c} certificate</option>)}
+                        </Select>
+                    </div>
                 )}
                 <label className="sm:col-span-2"><span className={LABEL}>Why do you want to join? (optional)</span>
                     <textarea className={INPUT} rows={3} maxLength={300} value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Anything your organization should know" />
@@ -154,41 +172,107 @@ const JoinPage = ({ data, onDone }) => {
     );
 };
 
+/**
+ * The popup the student's forms open in (2026-11-02): centred, the page behind dimmed and still,
+ * Back, Escape and a tap outside close it (not while sending), the fields scroll, the buttons stay.
+ */
+const FormPopup = ({ title, subtitle, icon: Icon, tone, busy, onClose, onSubmit, labelId, submitLabel, children }) => {
+    const close = () => { if (!busy) onClose(); };
+    useBackClose(close, true);
+    useEffect(() => {
+        const before = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = before; };
+    }, []);
+    useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape' && !busy) onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [busy, onClose]);
+    return (
+        <Portal>
+            <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:p-4" onClick={close}>
+                <form role="dialog" aria-modal="true" aria-labelledby={labelId} onSubmit={onSubmit} onClick={(e) => e.stopPropagation()} noValidate
+                    className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-pop-in">
+                    <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                        <div className="min-w-0">
+                            <h2 id={labelId} className="flex items-center gap-2 font-black text-slate-900">
+                                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${tone}`}><Icon size={16} /></span>
+                                {title}
+                            </h2>
+                            {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+                        </div>
+                        <button type="button" onClick={close} disabled={busy} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={18} /></button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+                    <div className="flex shrink-0 gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3">
+                        <button type="button" onClick={close} disabled={busy} className="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                        <button type="submit" disabled={busy} className={`${BTN} min-w-0 flex-1 !py-2.5 whitespace-nowrap sm:ml-auto sm:flex-none`}>{busy && <Loader2 size={16} className="animate-spin" />}{submitLabel}</button>
+                    </div>
+                </form>
+            </div>
+        </Portal>
+    );
+};
+
+/** A photo picker in the popups: the file's name once chosen, and where it is kept. */
+const PhotoBox = ({ file, onPick, label, hint, tone = 'indigo' }) => (
+    <label className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed px-3.5 py-3 transition-colors ${file ? 'border-emerald-300 bg-emerald-50/60' : tone === 'amber' ? 'border-amber-300 hover:border-amber-400 hover:bg-amber-50/50' : 'border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/40'}`}>
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${file ? 'bg-emerald-100 text-emerald-600' : tone === 'amber' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-50 text-indigo-600'}`}>{file ? <ImageIcon size={17} /> : <Upload size={17} />}</span>
+        <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-slate-800">{file ? file.name : 'Choose a photo (PNG, JPG or WebP)'}</span>
+            <span className="block text-[11px] text-slate-500">{file ? 'Tap to change' : hint}</span>
+        </span>
+        <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => onPick(e.target.files?.[0] || null)} aria-label={label} />
+    </label>
+);
+
+/**
+ * "Log activity", as a popup (2026-11-02): the type from the app's own dropdown (white, drawn
+ * by the page, not the system's grey menu), what, when, how long, where, and an optional photo,
+ * which is kept in the student's own Google Drive and shared by link for their officer.
+ */
 const LogForm = ({ memberId, onDone, onCancel }) => {
     const [form, setForm] = useState({ kind: 'social', title: '', date: today(), hours: 2, place: '' });
     const [photo, setPhoto] = useState(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-    const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+    const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setError(''); };
     const submit = async (e) => {
         e.preventDefault();
+        if (!form.title.trim()) { setError('Say what you did, e.g. Tree plantation drive.'); return; }
+        if (photo && !(await ensureDriveLinked(PROOF_DRIVE_REASON))) return;
         setBusy(true); setError('');
         const body = new FormData();
         Object.entries({ ...form, memberId }).forEach(([k, v]) => body.append(k, v));
         if (photo) body.append('proof', photo);
         try { onDone((await api.post(`${BASE}/activities`, body)).data.message); }
-        catch (err) { setError(errorOf(err, 'Could not log the activity.')); }
+        catch (err) { setError(askIfDriveRequired(err, PROOF_DRIVE_REASON) ? 'Link your Google Drive first: the photo is saved there.' : errorOf(err, 'Could not log the activity.')); }
         finally { setBusy(false); }
     };
     return (
-        <form onSubmit={submit} className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-                <label><span className={LABEL}>Type</span>
-                    <select className={INPUT} value={form.kind} onChange={(e) => set('kind', e.target.value)}>{KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+        <FormPopup title="Log an activity" subtitle="Your organization approves it, then the hours count." icon={Plus} tone="bg-indigo-50 text-indigo-600"
+            busy={busy} onClose={onCancel} onSubmit={submit} labelId="log-activity-title" submitLabel="Submit for approval">
+            <div className="grid gap-3.5 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                    <span className={LABEL}>Type</span>
+                    <Select value={form.kind} onChange={(e) => set('kind', e.target.value)} aria-label="Type" title="Type" className={INPUT}>
+                        {KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </Select>
+                </div>
+                <label className="sm:col-span-2"><span className={LABEL}>What did you do</span>
+                    <input className={INPUT} value={form.title} onChange={(e) => set('title', e.target.value)} maxLength={120} placeholder="e.g. Tree plantation drive" required />
                 </label>
-                <label><span className={LABEL}>What did you do</span><input className={INPUT} value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Tree plantation drive" required /></label>
                 <label><span className={LABEL}>Date</span><input type="date" className={INPUT} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} /></label>
-                <label><span className={LABEL}>Hours</span><input type="number" min="0" max="240" step="0.5" className={INPUT} value={form.hours} onChange={(e) => set('hours', e.target.value)} /></label>
-                <label><span className={LABEL}>Place</span><input className={INPUT} value={form.place} onChange={(e) => set('place', e.target.value)} /></label>
-                <label><span className={LABEL}>Photo / certificate proof (optional)</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] || null)} className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100" />
-                    <span className="mt-1 block text-xs text-slate-500">Saved to your own Google Drive (if connected) — only your teacher gets the link to verify it. Once verified, it shows on your calendar as completed.</span></label>
+                <label><span className={LABEL}>Hours</span><input type="number" inputMode="decimal" min="0" max="240" step="0.5" className={INPUT} value={form.hours} onChange={(e) => set('hours', e.target.value)} /></label>
+                <label className="sm:col-span-2"><span className={LABEL}>Place <span className="font-normal text-slate-400">(optional)</span></span><input className={INPUT} value={form.place} onChange={(e) => set('place', e.target.value)} maxLength={120} placeholder="e.g. Govt. School, Udupi" /></label>
+                <div className="sm:col-span-2">
+                    <span className={LABEL}>Photo or certificate <span className="font-normal text-slate-400">(optional)</span></span>
+                    <PhotoBox file={photo} onPick={setPhoto} label="Photo or certificate" hint="Kept in your own Google Drive, shared by link so your officer can check it." />
+                </div>
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <div className="flex gap-2">
-                <button type="submit" disabled={busy} className={BTN}>{busy && <Loader2 size={16} className="animate-spin" />}Submit for approval</button>
-                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>
-            </div>
-        </form>
+            {error && <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        </FormPopup>
     );
 };
 
@@ -277,46 +361,50 @@ const PromotionForm = ({ m, onDone, onCancel }) => {
     const [file, setFile] = useState(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-    const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'type' ? { name: v === 'rank' ? after[0] || '' : '' } : {}) }));
+    const set = (k, v) => { setForm((f) => ({ ...f, [k]: v, ...(k === 'type' ? { name: v === 'rank' ? after[0] || '' : '' } : {}) })); setError(''); };
     const submit = async (e) => {
         e.preventDefault();
+        if (!form.name.trim()) { setError(form.type === 'badge' ? 'Name the badge, e.g. First Aid.' : 'Name the training or camp.'); return; }
         if (!file) { setError('Add a photo of your certificate.'); return; }
+        if (!(await ensureDriveLinked(PROOF_DRIVE_REASON))) return;
         setBusy(true); setError('');
         const body = new FormData();
         Object.entries({ ...form, memberId: m._id }).forEach(([k, v]) => body.append(k, v));
         body.append('certificate', file);
         try { onDone((await api.post(`${BASE}/awards`, body)).data.message); }
-        catch (err) { setError(errorOf(err, 'Could not send it.')); setBusy(false); }
+        catch (err) { setError(askIfDriveRequired(err, PROOF_DRIVE_REASON) ? 'Link your Google Drive first: the certificate is saved there.' : errorOf(err, 'Could not send it.')); setBusy(false); }
     };
     return (
-        <form onSubmit={submit} className="mt-3 space-y-3 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-                <label><span className={LABEL}>What did you complete?</span>
-                    <select className={INPUT} value={form.type} onChange={(e) => set('type', e.target.value)}>
+        <FormPopup title="I passed an exam" subtitle="Your unit leader checks the certificate, then it goes on your record." icon={Award} tone="bg-amber-100 text-amber-700"
+            busy={busy} onClose={onCancel} onSubmit={submit} labelId="promotion-title" submitLabel="Send to my leader">
+            <div className="grid gap-3.5 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                    <span className={LABEL}>What did you complete?</span>
+                    <Select value={form.type} onChange={(e) => set('type', e.target.value)} aria-label="What did you complete?" title="What did you complete?" className={INPUT}>
                         {after.length > 0 && <option value="rank">Rank exam (promotion)</option>}
                         <option value="badge">Proficiency badge</option>
                         <option value="training">Training / camp</option>
-                    </select>
-                </label>
-                <label><span className={LABEL}>{form.type === 'rank' ? 'Promote me to' : 'Name'}</span>
+                    </Select>
+                </div>
+                <div className="sm:col-span-2">
+                    <span className={LABEL}>{form.type === 'rank' ? 'Promote me to' : 'Name'}</span>
                     {form.type === 'rank' ? (
-                        <select className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} required>
+                        <Select value={form.name} onChange={(e) => set('name', e.target.value)} aria-label="Promote me to" title="Promote me to" className={INPUT}>
                             {after.map((r, i) => <option key={r} value={r}>{r}{i === 0 ? ' (next)' : ''}</option>)}
-                        </select>
-                    ) : <input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={form.type === 'badge' ? 'e.g. First Aid' : 'e.g. District camp'} required />}
-                </label>
+                        </Select>
+                    ) : <input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={80} placeholder={form.type === 'badge' ? 'e.g. First Aid' : 'e.g. District camp'} aria-label="Name" required />}
+                </div>
                 <label><span className={LABEL}>Date passed</span><input type="date" className={INPUT} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} required /></label>
-                <label><span className={LABEL}>Certificate no. (optional)</span><input className={INPUT} value={form.certificateNo} onChange={(e) => set('certificateNo', e.target.value)} /></label>
-                <label><span className={LABEL}>Tested by (optional)</span><input className={INPUT} value={form.examiner} onChange={(e) => set('examiner', e.target.value)} /></label>
-                <label><span className={LABEL}>Certificate photo</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] || null)} required className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-amber-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-amber-800" /></label>
+                <label><span className={LABEL}>Certificate no. <span className="font-normal text-slate-400">(optional)</span></span><input className={INPUT} value={form.certificateNo} onChange={(e) => set('certificateNo', e.target.value)} maxLength={60} /></label>
+                <label className="sm:col-span-2"><span className={LABEL}>Tested by <span className="font-normal text-slate-400">(optional)</span></span><input className={INPUT} value={form.examiner} onChange={(e) => set('examiner', e.target.value)} maxLength={80} placeholder="e.g. District Commissioner" /></label>
+                <div className="sm:col-span-2">
+                    <span className={LABEL}>Certificate photo</span>
+                    <PhotoBox file={file} onPick={(f) => { setFile(f); setError(''); }} label="Certificate photo" tone="amber" hint="Kept in your own Google Drive, shared by link so your unit leader can check it." />
+                </div>
             </div>
-            <p className="text-xs text-slate-500">Your unit leader checks the certificate. Once they accept, {form.type === 'rank' ? 'your rank changes' : 'it is added to your record'} and you get a notification.</p>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <div className="flex gap-2">
-                <button type="submit" disabled={busy} className={BTN}>{busy && <Loader2 size={16} className="animate-spin" />}Send to my leader</button>
-                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button>
-            </div>
-        </form>
+            <p className="mt-3 text-xs text-slate-500">Once your unit leader accepts, {form.type === 'rank' ? 'your rank changes' : 'it is added to your record'} and you get a notification.</p>
+            {error && <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        </FormPopup>
     );
 };
 
@@ -333,7 +421,7 @@ const ScoutRecord = ({ m, reload, say }) => {
         <div className={`${CARD} p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><Award size={16} className="text-amber-600" /> Ranks, badges &amp; training</h2>
-                {!asking && <button type="button" onClick={() => setAsking(true)} className="inline-flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600"><Plus size={14} /> I passed an exam</button>}
+                <button type="button" onClick={() => setAsking(true)} className="inline-flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600"><Plus size={14} /> I passed an exam</button>
             </div>
             {ranks.length > 0 && (
                 <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
@@ -441,7 +529,7 @@ const Membership = ({ m, reload, say }) => {
                         <h2 className="font-black text-slate-900">My activities</h2>
                         <p className="text-xs text-slate-500">Drives, camps, parades and practice — your organization approves each one.</p>
                     </div>
-                    {!logging && <button onClick={() => setLogging(true)} className={`${BTN} shrink-0 !rounded-xl`}><Plus size={16} /> Log activity</button>}
+                    <button onClick={() => setLogging(true)} className={`${BTN} shrink-0 !rounded-xl`}><Plus size={16} /> Log activity</button>
                 </div>
                 {logging && <LogForm memberId={m._id} onCancel={() => setLogging(false)} onDone={(text) => { setLogging(false); say({ type: 'ok', text }); reload(); }} />}
                 {m.activities.length === 0 ? (

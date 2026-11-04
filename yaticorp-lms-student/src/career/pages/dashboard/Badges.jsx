@@ -29,14 +29,16 @@ const earnedOn = (value) => {
 // XP one finished task pays: the admin's 'career_task' rule (useXpRule below).
 
 /** One figure on the banner: glass tile, big number, what it counts. */
+// On a phone the icon sits above the number, so the label has the tile's whole width
+// ("Achievements" was cut to "AC…" beside the icon); side by side from sm up.
 const Stat = ({ icon: Icon, value, label, tone }) => (
-  <div className="group flex items-center gap-3 rounded-2xl bg-white/10 px-3.5 py-3 ring-1 ring-white/20 ring-inset backdrop-blur-sm transition-colors hover:bg-white/15">
-    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-lg transition-transform group-hover:scale-110 ${tone}`}>
+  <div className="group flex min-w-0 flex-col items-center gap-1.5 rounded-2xl bg-white/10 px-2 py-3 text-center ring-1 ring-white/20 ring-inset backdrop-blur-sm transition-colors hover:bg-white/15 sm:flex-row sm:gap-3 sm:px-3.5 sm:text-left">
+    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-lg transition-transform group-hover:scale-110 sm:h-10 sm:w-10 ${tone}`}>
       <Icon className="h-5 w-5" strokeWidth={2.4} />
     </span>
-    <span className="min-w-0 leading-tight">
+    <span className="min-w-0 max-w-full leading-tight">
       <span className="block text-2xl font-black text-white tabular-nums">{value}</span>
-      <span className="block truncate text-[11px] font-bold tracking-wide text-white/70 uppercase">{label}</span>
+      <span className="block truncate text-[11px] font-bold text-white/75 sm:tracking-wide sm:uppercase">{label}</span>
     </span>
   </div>
 );

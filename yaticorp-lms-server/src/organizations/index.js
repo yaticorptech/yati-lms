@@ -19,6 +19,7 @@
  *     PUT    /admin/:id/status           approve, reject, suspend, reinstate
  *     POST   /admin/:id/send-password-reset  email its admin a one-use reset link (never sets a password)
  *     PUT    /admin/:id/competition-hosting  let it host competitions { enabled }
+ *     PUT    /admin/:id/three60          unlock 360 for it { enabled }
  *     GET    /admin/:id/students         its students, with progress (?page= opt-in)
  *     GET    /admin/:id/assignable       students who could be put into it
  *     POST   /admin/:id/students         put a student into it
@@ -95,6 +96,7 @@ router.put('/admin/:id/status', superCtrl.setOrganizationStatus);
 router.post('/admin/:id/send-password-reset', superCtrl.sendAdminPasswordReset);
 router.put('/admin/:id/course-access', superCtrl.setCourseAccess);
 router.put('/admin/:id/competition-hosting', superCtrl.setCompetitionHosting);
+router.put('/admin/:id/three60', superCtrl.setThree60Access);
 router.get('/admin/:id/students', superCtrl.getOrganizationStudents);
 // Putting a student into an organization directly, and taking them back out.
 // Ahead of nothing else, but note the assignable list is a literal segment.
@@ -200,6 +202,9 @@ router.put('/me/requests/:requestId', orgCtrl.decideRequest);
 router.use('/me/teachers', require('../teacher/orgAdmin'));
 // NCC and NSS: members, activities to approve, events and attendance (src/nccnss/).
 router.use('/me/nccnss', require('../nccnss/orgAdmin'));
+// Its courses and their sections, who teaches each and what (Teachers →
+// Courses & sections); 360 uses them too (src/three60).
+router.use('/me/classes', require('../three60').orgAdmin);
 // Its users (full-rights sign-ins to this panel) and its audit log (./users.js).
 router.use('/me', require('./users'));
 // Bharat Scouts & Guides notices: an office publishes, every organization reads its feed (src/nccnss/notices.js).

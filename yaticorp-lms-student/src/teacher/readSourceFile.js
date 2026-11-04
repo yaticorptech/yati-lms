@@ -1,10 +1,12 @@
 /**
  * A paper the teacher uploads for the plagiarism check, turned into what the
  * server keeps: the text of a PDF or a text file, read here in the browser
- * with the app's own pdf.js (nothing is sent anywhere else), or a Word file
- * passed on as it is for the server to read.
+ * with the app's own pdf.js (nothing is sent anywhere else). A Word file is
+ * read here too (docxText.js); only a browser that cannot unpack one passes
+ * the file on as it is, for the server to read.
  */
 import { loadPdfjs } from '../components/course/loadPdfjs';
+import { docxText } from './docxText';
 
 export const MAX_SOURCE_BYTES = 15 * 1024 * 1024;
 export const SOURCE_ACCEPT = '.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
@@ -38,7 +40,13 @@ export const readSourceFile = async (file) => {
         try { return { fileName: name, text: await pdfText(await file.arrayBuffer()) }; }
         catch { throw new Error('That PDF could not be read. It may be protected with a password, or damaged.'); }
     }
-    if (ext === 'docx') return { fileName: name, docx: base64Of(await file.arrayBuffer()) };
+    if (ext === 'docx') {
+        const buffer = await file.arrayBuffer();
+        let text;
+        try { text = await docxText(buffer); } catch { throw new Error('That Word file could not be read. Save it as .docx (or PDF) and try again.'); }
+        // Read here: only the words go up, however large the file. Otherwise the server reads it.
+        return text === null ? { fileName: name, docx: base64Of(buffer) } : { fileName: name, text };
+    }
     if (ext === 'txt' || file.type === 'text/plain') return { fileName: name, text: await file.text() };
     if (ext === 'doc') throw new Error('Old .doc files cannot be read. Save it as .docx or PDF and upload that.');
     throw new Error('Upload a PDF, a Word (.docx) or a text (.txt) file.');

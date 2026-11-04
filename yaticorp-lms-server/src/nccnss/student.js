@@ -35,6 +35,8 @@ const { ScoutAward } = require('./models');
 
 const router = express.Router();
 const fail = (res, error, what) => {
+    // Proof goes to the student's own Drive (proofStore.js): not linked → 409 DRIVE_REQUIRED, the app asks them to link it.
+    if (require('../integrations/google/driveStore').sendDriveError(res, error)) return;
     console.error(`[nccnss] student ${what} failed:`, error.message);
     res.status(500).json({ message: `Could not ${what}. Please try again.` });
 };
@@ -193,6 +195,9 @@ router.post('/join', async (req, res) => {
             club = mongoose.isValidObjectId(b.clubId) ? await NccNssClub.findOne({ _id: b.clubId, organizationId: organization._id }).lean() : null;
             if (!club) return res.status(400).json({ message: 'Choose one of your organization\'s clubs.' });
         }
+        // NCC or NSS, not both (./corps.js).
+        const clash = await require('./corps').otherCorps(req.user._id, b.scheme);
+        if (clash) return res.status(409).json({ code: 'NCC_OR_NSS', message: require('./corps').corpsMessage(clash, b.scheme) });
         const { unit, error: unitError } = await scoutUnitFor(organization._id, b.scheme, b.unitId);
         if (unitError) return res.status(400).json({ message: unitError });
         const name = club ? club.name : schemeName({ scheme: b.scheme });

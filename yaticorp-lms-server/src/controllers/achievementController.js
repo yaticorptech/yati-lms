@@ -14,6 +14,7 @@ const axios = require('axios');
 const { Readable } = require('stream');
 const cloudinary = require('../config/cloudinary');
 const { uploadToBunny } = require('../utils/bunnyStorage');
+const { assertDriveLinked, storeInDrive, sendDriveError, sendFromDrive, removeFile } = require('../integrations/google/driveStore');
 const Achievement = require('../models/Achievement');
 
 const bunnyConfigured = () => !!(process.env.BUNNY_STORAGE_ZONE && process.env.BUNNY_STORAGE_API_KEY && process.env.BUNNY_CDN_HOST);
@@ -68,6 +69,8 @@ const publicView = (a) => ({
     thumbnailUrl: a.thumbnailUrl,
     fileType: a.fileType,
     originalName: a.originalName,
+    // In the student's Drive: the file comes through GET /achievements/:id/file for a download.
+    inDrive: a.storage === 'drive',
     createdAt: a.createdAt
 });
 
@@ -95,6 +98,8 @@ const createAchievement = (req, res) => {
                 const message = uploadErr.code === 'LIMIT_FILE_SIZE' ? 'That file is over 10 MB — export a lighter one.' : uploadErr.message;
                 return res.status(400).json({ message });
             }
+            // Kept in the student's own Google Drive, not here (2026-11-02): linked first, or no upload.
+            const toDrive = await assertDriveLinked(req.user._id);
             if (!req.file) return res.status(400).json({ message: 'Attach the certificate file.' });
             const title = String(req.body.title || '').trim().slice(0, 120);
             if (!title) return res.status(400).json({ message: 'Give the certificate a title.' });
@@ -106,7 +111,13 @@ const createAchievement = (req, res) => {
             const originalName = String(req.file.originalname || (isPdf ? 'certificate.pdf' : 'certificate.png')).slice(0, 200);
 
             let stored;
-            if (bunnyConfigured()) {
+            if (toDrive) {
+                // Their Drive, shared by link: the link opens it, Drive draws its picture (a PDF's first page too).
+                const d = await storeInDrive(req.user._id, req.file.buffer, {
+                    name: originalName, mimeType: isPdf ? 'application/pdf' : req.file.mimetype, description: `Certificate: ${title} — uploaded to YATICORP.`
+                });
+                stored = { storage: 'drive', driveFileId: d.driveFileId, fileUrl: d.viewUrl, thumbnailUrl: d.previewUrl, objectPath: '' };
+            } else if (bunnyConfigured()) {
                 const url = await uploadToBunny(req.file.buffer, originalName, 'lms_achievements');
                 // An image is its own preview. A PDF shows the picture of its
                 // first page the browser drew, when it sent one; otherwise the
@@ -138,10 +149,23 @@ const createAchievement = (req, res) => {
             });
             res.status(201).json({ achievement: publicView(row) });
         } catch (error) {
+            if (sendDriveError(res, error)) return;
             console.error('Achievement upload error:', error);
-            res.status(500).json({ message: 'Upload failed. Please try again.', error: error.message });
+            res.status(error.status === 502 ? 502 : 500).json({ message: error.status === 502 ? error.message : 'Upload failed. Please try again.', error: error.message });
         }
     });
+};
+
+// @route GET /api/user/achievements/:id/file — the file itself, for a download (from their Drive, nothing kept)
+const achievementFile = async (req, res) => {
+    try {
+        const row = await Achievement.findOne({ _id: req.params.id, userId: req.user._id }).lean();
+        if (!row) return res.status(404).json({ message: 'No such certificate.' });
+        if (row.storage !== 'drive' || !row.driveFileId) return res.redirect(row.fileUrl);
+        return sendFromDrive(res, req.user._id, row.driveFileId, row.originalName || 'certificate');
+    } catch (error) {
+        res.status(500).json({ message: 'Could not open the certificate.', error: error.message });
+    }
 };
 
 // @route PUT /api/user/achievements/:id  — title / issuer / date only
@@ -171,7 +195,9 @@ const deleteAchievement = async (req, res) => {
         if (!row) return res.status(404).json({ message: 'No such certificate.' });
         // Best effort: the record is gone either way; an orphan in storage
         // is a cost, not a leak the student can see.
-        const cleanup = row.storage === 'cloudinary' && row.publicId
+        const cleanup = row.storage === 'drive' && row.driveFileId
+            ? removeFile(req.user._id, row.driveFileId)
+            : row.storage === 'cloudinary' && row.publicId
             ? cloudinary.uploader.destroy(row.publicId, { resource_type: 'image' })
             : row.objectPath ? deleteFromBunny(row.objectPath) : Promise.resolve();
         cleanup.catch((e) => console.warn('[achievements] storage delete failed:', e.message));
@@ -182,4 +208,4 @@ const deleteAchievement = async (req, res) => {
     }
 };
 
-module.exports = { listAchievements, createAchievement, updateAchievement, deleteAchievement };
+module.exports = { listAchievements, createAchievement, updateAchievement, deleteAchievement, achievementFile };

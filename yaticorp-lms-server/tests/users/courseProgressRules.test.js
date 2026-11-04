@@ -230,7 +230,7 @@ describe('finishing the course', () => {
     test('issues the certificate and pays its XP, with no download', async () => {
         const cert = await M('Certificate').findOne({ userId: student.user._id, courseId: ids.flow }).lean();
         assert.ok(cert, 'the certificate is in the profile already');
-        assert.match(cert.certificateNumber, /^YATI.+-\d\d$/);
+        assert.match(cert.certificateNumber, /^YATI.+-\d{3}$/);
         const { LearningActivity } = require('../../src/rewards/models');
         // Recorded once, whether or not the admin pays XP for it.
         assert.equal(await LearningActivity.countDocuments({ userId: student.user._id, type: 'certificate_earned', refId: ids.flow }), 1);

@@ -32,6 +32,7 @@ import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { CARD, LABEL, INPUT, BTN, BTN2, Stat, Empty, Banner, Rows, Pill, PageHeader, Segmented, Avatar, LoadFailed, Dialog, DialogTitle, SearchInput, Bar } from '../../components/orgUi';
 import { formatDate } from '../../utils/dates';
 import BsgNoticeCard from '../../components/BsgNoticeCard';
+import Select from '../../components/Select';
 
 const BASE = '/organizations/me/nccnss';
 const SECTIONS = [['NSS', 'NSS'], ['NCC', 'NCC'], ['SCOUTS', 'Scouts & Guides'], ['CLUB', 'Clubs']];
@@ -458,12 +459,22 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
         URL.revokeObjectURL(url);
     };
 
+    const memberFilters = club ? [['', 'Everyone'], ['pending', 'Asked to join']] : [['', 'Everyone'], ['pending', 'Asked to join'], ['atRisk', 'Behind'], ['eligible', 'Eligible'], ...(scope.scheme === 'SCOUTS' ? [['former', 'Former']] : [])];
+    const memberCounts = { pending: overview?.totals.pendingMembers, atRisk: overview?.totals.atRisk };
+
     return (
         <div className="space-y-3">
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                <Segmented options={club ? [['', 'Everyone'], ['pending', 'Asked to join']] : [['', 'Everyone'], ['pending', 'Asked to join'], ['atRisk', 'Behind'], ['eligible', 'Eligible'], ...(scope.scheme === 'SCOUTS' ? [['former', 'Former']] : [])]}
-                    value={filter} onChange={setFilter} counts={{ pending: overview?.totals.pendingMembers, atRisk: overview?.totals.atRisk }} />
+                {/* Which members: tabs on a wider screen, a dropdown on a phone (2026-11-02). */}
+                <div className="hidden sm:block">
+                    <Segmented options={memberFilters} value={filter} onChange={setFilter} counts={memberCounts} />
+                </div>
+                <div className="sm:hidden">
+                    <Select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Show members" className={INPUT}>
+                        {memberFilters.map(([key, label]) => <option key={key || 'all'} value={key}>{memberCounts[key] ? `${label} (${memberCounts[key]})` : label}</option>)}
+                    </Select>
+                </div>
                 <div className="flex gap-2">
                     {scope.scheme === 'SCOUTS' && <UnitFilter value={unitId} onChange={setUnitId} />}
                     <SearchInput value={search} onChange={setSearch} placeholder="Search name, card, unit" />
@@ -1008,10 +1019,14 @@ const TargetsTab = ({ scheme, targets, onChanged }) => {
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             <div className={`${CARD} max-w-xl space-y-3 p-5`}>
                 <p className="text-sm text-slate-500">What a student needs for the {SCHEME_LABEL[scheme]} certificate. Progress, &ldquo;Behind&rdquo; and &ldquo;Eligible&rdquo; are worked out from these.</p>
-                <div className="grid grid-cols-3 gap-3">
-                    <Field label="Hours"><input type="number" min="0" className={INPUT} value={form.requiredHours} onChange={(e) => set('requiredHours', e.target.value)} /></Field>
-                    <Field label="Camps"><input type="number" min="0" className={INPUT} value={form.requiredCamps} onChange={(e) => set('requiredCamps', e.target.value)} /></Field>
-                    <Field label="Min attendance %"><input type="number" min="0" max="100" className={INPUT} value={form.minAttendance} onChange={(e) => set('minAttendance', e.target.value)} /></Field>
+                {/* Three boxes in a row, lined up along the bottom even if a label wraps on a phone. */}
+                <div className="grid grid-cols-3 items-end gap-3">
+                    <Field label="Hours"><input type="number" min="0" inputMode="numeric" className={INPUT} value={form.requiredHours} onChange={(e) => set('requiredHours', e.target.value)} /></Field>
+                    <Field label="Camps"><input type="number" min="0" inputMode="numeric" className={INPUT} value={form.requiredCamps} onChange={(e) => set('requiredCamps', e.target.value)} /></Field>
+                    <label className="block" title="The least attendance a student needs">
+                        <span className={LABEL}>Attendance %</span>
+                        <input type="number" min="0" max="100" inputMode="numeric" aria-label="Minimum attendance %" className={INPUT} value={form.minAttendance} onChange={(e) => set('minAttendance', e.target.value)} />
+                    </label>
                 </div>
                 <button onClick={save} disabled={busy} className={BTN}>{busy && <Loader2 size={16} className="animate-spin" />}Save targets</button>
             </div>

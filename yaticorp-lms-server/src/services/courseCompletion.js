@@ -140,7 +140,9 @@ const recordRepair = async ({ userId, type, courseId, day }) => {
 
 /**
  * The student's certificate for a course, created the first time it is asked
- * for: numbered YATI<card>-01 for their first, -02 for the second, and so on,
+ * for: numbered with the next of the student's certificate numbers,
+ * YATI<card>001, 002… (services/certificateNumbers.js — the same series as
+ * every other certificate on their profile; older ones kept YATI<card>-01),
  * with the "Earn a certificate" XP paid once on creation. With `repair` (a
  * completion found on a read, dated `day`), the XP is paid without touching
  * the streak (recordRepair). Answers `{ certificate, created, events }`.
@@ -151,16 +153,14 @@ const issueCertificate = async ({ userId, courseId, repair = false, day = null }
     const existing = await Certificate.findOne({ userId, courseId: course });
     if (existing) return { certificate: existing, created: false, events: [] };
 
-    const user = await require('../models/User').findById(userId).select('cardNumber').lean();
-    // Fallback for a card number the account does not have yet.
-    const card = user?.cardNumber || Math.random().toString(36).slice(2, 8).toUpperCase();
-    const heldSoFar = await Certificate.countDocuments({ userId });
+    const _id = new (require('mongoose').Types.ObjectId)();
+    const certificateNumber = await require('./certificateNumbers').nextNumber(userId, `course-${_id}`);
     let certificate;
     try {
         certificate = await Certificate.create({
-            userId, courseId: course,
+            _id, userId, courseId: course,
             pdfUrl: 'dynamic', // the PDF is drawn on each download, never stored
-            certificateNumber: `YATI${card}-${String(heldSoFar + 1).padStart(2, '0')}`,
+            certificateNumber,
             issuedAt: new Date()
         });
     } catch (err) {

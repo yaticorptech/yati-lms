@@ -20,15 +20,18 @@ const ownKeyFor = async (userId) => {
     const store = currentStore();
     if (store && store.ownGeminiKey !== undefined && store.ownGeminiKeyFor === String(userId)) return store.ownGeminiKey;
     let key = '';
+    let fullAccess = false;
     try {
         const user = await User.findById(userId).select('+geminiApiKey cardNumber').lean();
         // The demo cards run on the platform key from the environment, never
         // a key of their own (services/fullAccess.js).
-        key = user?.geminiApiKey && !require('../services/fullAccess').hasFullAccess(user) ? (open(user.geminiApiKey) || '') : '';
+        fullAccess = Boolean(user) && require('../services/fullAccess').hasFullAccess(user);
+        key = user?.geminiApiKey && !fullAccess ? (open(user.geminiApiKey) || '') : '';
     } catch (error) {
         console.error('[ai-key] Could not read the student key, using the platform key:', error.message);
     }
-    if (store) { store.ownGeminiKey = key; store.ownGeminiKeyFor = String(userId); }
+    // fullAccess too, for the "free credits used" header (career/services/aiQuota.js).
+    if (store) { store.ownGeminiKey = key; store.ownGeminiKeyFor = String(userId); store.fullAccess = fullAccess; }
     return key;
 };
 

@@ -47,12 +47,14 @@ const questionnaireSchema = new Schema({
 
 const teacherSchema = new Schema({
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, trim: true, lowercase: true },
+    // Unique where there is one (email_unique below). A teacher their organization
+    // added has none until they set up their account on the sign-up page (2026-10-30).
+    email: { type: String, set: (v) => (v == null || String(v).trim() === '' ? undefined : String(v).trim().toLowerCase()) },
     phone: { type: String, required: true, trim: true },
     // The AI card the teacher signs in with; it opens the research tools. An
-    // organization can also add a teacher with no card — a club or Scouts &
-    // Guides leader — who signs in with email and password and sees only their
-    // clubs and units. Unique among the teachers that have one (index below).
+    // organization can also add a teacher with no card — for Scouts & Guides
+    // and 360 — who signs in with their mobile number and password (never by
+    // email). Unique among the teachers that have one (index below).
     cardNumber: { type: String, set: (v) => (v == null || v === '' ? undefined : String(v).trim()) },
     password: { type: String, required: true },
     // 'pending' while the admin's approval is switched on and not yet given
@@ -61,6 +63,19 @@ const teacherSchema = new Schema({
     statusReason: { type: String, trim: true, default: '', maxlength: 500 },
     // Who made the account: the teacher at sign-up, the admin, or their organization.
     createdBy: { type: String, enum: ['self', 'admin', 'organization'], default: 'self' },
+    // What their organization turned on for them (2026-10-30), each on or off
+    // per teacher on its Teachers page: 360 (a mentor, src/three60) and Scouts
+    // & Guides (My Units). The dashboard shows only what is on; a teacher with
+    // both sees both. Scouts was always shown before, so it starts on.
+    mentor360: { type: Boolean, default: false },
+    scouts: { type: Boolean, default: true },
+    // 360: the students of their organization whose activities this teacher
+    // tracks, chosen by the teacher (src/three60). What is tracked comes later.
+    students360: { type: [Schema.Types.ObjectId], default: [] },
+    // Added by their organization with no password (2026-10-30): they set their
+    // own on the sign-up page ("Verify as your organization's teacher"), after a
+    // code sent to their email. Until then they cannot sign in.
+    passwordPending: { type: Boolean, default: false },
     // The college or school the teacher belongs to, as for students (User.organizationId).
     organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', default: null, index: true },
     organizationJoinedAt: { type: Date, default: null },
@@ -83,6 +98,7 @@ const teacherSchema = new Schema({
 }, { timestamps: true });
 
 teacherSchema.index({ cardNumber: 1 }, { unique: true, name: 'card_unique', partialFilterExpression: { cardNumber: { $type: 'string' } } });
+teacherSchema.index({ email: 1 }, { unique: true, name: 'email_unique', partialFilterExpression: { email: { $type: 'string' } } });
 
 /** Whether this teacher has an AI card, and with it the research tools. */
 teacherSchema.methods.hasResearch = function () { return Boolean(this.cardNumber); };
@@ -298,6 +314,12 @@ const Teacher = mongoose.models.Teacher || mongoose.model('Teacher', teacherSche
 // teacher is touched; only the old index goes, then the new one is built.
 Teacher.init().catch(() => {})
     .then(() => Teacher.collection.dropIndex('cardNumber_1'))
+    .then(() => Teacher.createIndexes())
+    .catch(() => {});
+// The same for email_1 (2026-10-30): unique over every teacher, so only one
+// could be without an email. email_unique is unique where there is one.
+Teacher.init().catch(() => {})
+    .then(() => Teacher.collection.dropIndex('email_1'))
     .then(() => Teacher.createIndexes())
     .catch(() => {});
 

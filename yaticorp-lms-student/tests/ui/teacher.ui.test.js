@@ -1,10 +1,10 @@
 /**
  * The teacher side in the browser.
  *
- *   - the sign-in page asks "Student or Teacher?" the first time, remembers
- *     the answer, and keeps a switch for it
- *   - a teacher signs in with card + password through the teacher API; a
- *     card of the other kind is pointed at the right sign-in
+ *   - the sign-in page has one box for a card number or a mobile number and
+ *     no Student / Teacher choice (2026-10-30): a student's account signs in
+ *     on the student side, a teacher's card or number is finished through the
+ *     teacher API, and a teacher with no card uses their email
  *   - "Register your card" is the student sign-up's three steps, asking for
  *     an institution instead of an Organization ID, any email address
  *   - the dashboard and its pages draw at phone and laptop widths without
@@ -90,71 +90,69 @@ createRoot(document.getElementById('root')).render(
 
 const SET = `const setVal = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };`;
 
-describe('signing in as a student or a teacher', { skip: skipWithoutStyles }, () => {
-    test('the first visit asks who is signing in; choosing Teacher changes the form and is remembered', async () => {
-        const { result, errors } = await screen({ entry: loginEntry(), api: apiModule({}), modules, styles: true, width: 1280, script: `
+const TEACHER_REPLY = `window.__treply = (m, u) => (u === '/auth/login' ? { _id: 't1', name: 'Dr. Meera Iyer', role: 'teacher', token: 'tok' } : null);`;
+const signIn = (who, password) => `
+            setVal($('#login-card-number'), ${JSON.stringify(who)}); setVal($('#login-password'), ${JSON.stringify(password)});
+            await sleep(100); $$('button[type=submit]')[0].click(); await sleep(500);`;
+
+describe('signing in: one box, and the account decides the side', { skip: skipWithoutStyles }, () => {
+    test('no Student / Teacher choice: one box for the card or mobile number', async () => {
+        const { result, errors } = await screen({ entry: loginEntry({ remembered: 'teacher' }), api: apiModule({}), modules, styles: true, width: 1280, script: `
             await sleep(500);
-            const asked = text($('#role-chooser-title'));
-            $$('[role=dialog] button').find((b) => /teacher/i.test(b.innerText)).click(); await sleep(300);
-            return { asked, gone: !$('#role-chooser-title'), heading: text($('h2')), remembered: localStorage.getItem('yati:signinAs'),
-                     register: $$('a').find((a) => /Register your card/.test(a.innerText))?.getAttribute('href'),
-                     pressed: $$('[aria-label="Signing in as"] [role=radio]').map((b) => b.innerText.trim() + ':' + b.getAttribute('aria-checked')) };` });
+            return { chooser: !!$('#role-chooser-title'), radios: $$('[role=radio]').length, heading: text($('h2')),
+                     label: text($('label[for="login-card-number"]')), placeholder: $('#login-card-number').getAttribute('placeholder'),
+                     signup: $$('a').find((a) => /Sign up here/.test(a.innerText))?.getAttribute('href') };` });
         assert.deepEqual(errors, []);
-        assert.match(result.asked, /Who's signing in/);
-        assert.equal(result.gone, true);
-        assert.equal(result.heading, 'Teacher sign in');
-        assert.equal(result.remembered, 'teacher');
-        assert.equal(result.register, '/signup?as=teacher');
-        assert.deepEqual(result.pressed, ['Student:false', 'Teacher:true']);
+        assert.equal(result.chooser, false, 'no "Who is signing in?" popup');
+        assert.equal(result.radios, 0, 'no Student / Teacher switch');
+        assert.equal(result.heading, 'Welcome back');
+        assert.equal(result.label, 'Card or mobile number');
+        assert.match(result.placeholder, /mobile number/);
+        assert.equal(result.signup, '/signup');
     });
 
-    test('a device that chose before is not asked again', async () => {
-        const { result, errors } = await screen({ entry: loginEntry({ remembered: 'student' }), api: apiModule({}), modules, styles: true, script: `
-            await sleep(400); return { asked: !!$('#role-chooser-title'), heading: text($('h2')) };` });
+    test('a student signs in with their mobile number, on the student side', async () => {
+        const { result, errors } = await screen({ entry: loginEntry({ studentLogin: 'Promise.resolve({ success: true })' }), api: apiModule({}), modules, styles: true, script: `
+            ${SET}${TEACHER_REPLY}
+            await sleep(400);${signIn('+91 98765 43210', 'Stud-Pass1!')}
+            return { login: window.__login, teacherCalls: window.__tcalls.filter((c) => c[1] === '/auth/login').length, entered: !!window.__entered };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.asked, false);
-        assert.match(result.heading, /get you signed in/);
+        assert.deepEqual(result.login, { card: '+91 98765 43210', password: 'Stud-Pass1!' });
+        assert.equal(result.teacherCalls, 0, 'the teacher sign-in is not used');
+        assert.equal(result.entered, false);
     });
 
-    test('a teacher signs in with card and password through the teacher API', async () => {
-        const { result, errors } = await screen({ entry: loginEntry({ remembered: 'teacher' }), api: apiModule({}), modules, styles: true, script: `
-            ${SET}
-            window.__treply = (m, u) => (u === '/auth/login' ? { _id: 't1', name: 'Dr. Meera Iyer', role: 'teacher', token: 'tok' } : null);
-            await sleep(300);
-            click(/Type Instead/); await sleep(150);
-            setVal($('#login-card-number'), '980000000001');
-            setVal($('#login-password'), 'Teach-Pass1!');
-            await sleep(100);
-            $$('button[type=submit]')[0].click(); await sleep(400);
-            return { calls: window.__tcalls, entered: window.__entered, studentLogin: window.__login || null };` });
+    test("a teacher's card or number is finished on the teacher side, and opens the teacher dashboard", async () => {
+        const { result, errors } = await screen({ entry: loginEntry({ studentLogin: "Promise.resolve({ success: false, code: 'TEACHER_ACCOUNT', error: 'This is a teacher account.' })" }), api: apiModule({}), modules, styles: true, script: `
+            ${SET}${TEACHER_REPLY}
+            await sleep(400);${signIn('9845012345', 'Teach-Pass1!')}
+            return { calls: window.__tcalls, entered: window.__entered, alert: text($('[role=alert]')) };` });
         assert.deepEqual(errors, []);
-        assert.deepEqual(result.calls.find((c) => c[1] === '/auth/login'), ['POST', '/auth/login', { cardNumber: '980000000001', password: 'Teach-Pass1!' }]);
+        assert.deepEqual(result.calls.find((c) => c[1] === '/auth/login'), ['POST', '/auth/login', { login: '9845012345', password: 'Teach-Pass1!' }]);
         assert.equal(result.entered.token, 'tok', 'the teacher session is entered');
-        assert.equal(result.studentLogin, null, 'the student sign-in is not used');
+        assert.ok(!result.alert, 'no error shown');
     });
 
-    test("a student's card at the teacher sign-in offers the student one, and the other way round", async () => {
-        const teacherSide = await screen({ entry: loginEntry({ remembered: 'teacher' }), api: apiModule({}), modules, styles: true, script: `
-            ${SET}
-            window.__treply = (m, u) => (u === '/auth/login' ? { error: 401, data: { code: 'STUDENT_CARD', message: 'This card is registered to a student account. Choose Student to sign in.' } } : null);
-            await sleep(300); click(/Type Instead/); await sleep(150);
-            setVal($('#login-card-number'), '240100019664'); setVal($('#login-password'), 'x'); await sleep(100);
-            $$('button[type=submit]')[0].click(); await sleep(400);
-            const alert = text($('[role=alert]'));
-            $$('[role=alert] button').find((b) => /Switch to Student/.test(b.innerText)).click(); await sleep(200);
-            return { alert, heading: text($('h2')) };` });
-        assert.deepEqual(teacherSide.errors, []);
-        assert.match(teacherSide.result.alert, /registered to a student account/);
-        assert.match(teacherSide.result.heading, /get you signed in/, 'switched to the student sign-in');
+    test('no email sign-in: a teacher without a card uses their mobile number in the same box', async () => {
+        const { result, errors } = await screen({ entry: loginEntry(), api: apiModule({}), modules, styles: true, script: `
+            ${SET}${TEACHER_REPLY}
+            await sleep(400);
+            return { emailLink: !!$$('button').find((b) => /Sign in with your email/.test(b.innerText)), emailBox: !!$('#login-teacher-email'), hint: document.body.innerText };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.emailLink, false);
+        assert.equal(result.emailBox, false);
+        assert.match(result.hint, /Teacher without a card\? Use the mobile number your organization added you with\./);
+    });
 
-        const studentSide = await screen({ entry: loginEntry({ remembered: 'student', studentLogin: "Promise.resolve({ success: false, code: 'TEACHER_CARD', error: 'This card is registered to a teacher account. Choose Teacher to sign in.' })" }), api: apiModule({}), modules, styles: true, script: `
-            ${SET}
-            await sleep(300); click(/Type Instead/); await sleep(150);
-            setVal($('#login-card-number'), '980000000001'); setVal($('#login-password'), 'x'); await sleep(100);
-            $$('button[type=submit]')[0].click(); await sleep(400);
-            return { offer: !!$$('[role=alert] button').find((b) => /Switch to Teacher/.test(b.innerText)) };` });
-        assert.deepEqual(studentSide.errors, []);
-        assert.equal(studentSide.result.offer, true);
+    test('a wrong password says so, and nothing opens', async () => {
+        const { result, errors } = await screen({ entry: loginEntry({ studentLogin: "Promise.resolve({ success: false, code: 'WRONG_PASSWORD', error: 'Wrong password. Try again, or use Forgot password.' })" }), api: apiModule({}), modules, styles: true, script: `
+            ${SET}${TEACHER_REPLY}
+            await sleep(400);${signIn('240100019664', 'nope')}
+            return { alert: text($('[role=alert]')), teacherCalls: window.__tcalls.filter((c) => c[1] === '/auth/login').length, entered: !!window.__entered };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.alert, /Wrong password/);
+        assert.equal(result.teacherCalls, 0);
+        assert.equal(result.entered, false);
     });
 });
 
@@ -169,6 +167,94 @@ createRoot(document.getElementById('root')).render(
     <MemoryRouter initialEntries={['/signup?as=teacher']}><Routes><Route path="/signup" element={<Signup />} /></Routes></MemoryRouter>
   </AuthContext.Provider>);`;
     const CARD = { valid: true, cardNumber: '980000000001', cvv: '123', qrCodeNumber: 'TQR1' };
+
+    // No AI card: the organization added them by name and mobile number
+    // (2026-10-30). The number is checked; one already set up is sent to sign
+    // in; one still to be set up confirms it is them, sets a password and
+    // gives their email and details here.
+    const orgCheck = (reply) => `${SET}
+            window.__treply = (m, u) => (u === '/auth/org-check' ? ${reply} : null);
+            await sleep(400);
+            const link = $$('button').find((b) => /Verify as your organization/.test(b.innerText));
+            const linkShown = !!link; link.click(); await sleep(200);
+            const cardGone = !$('#signup-card');
+            setVal($('#signup-org-phone'), '89876 54331'); await sleep(100);
+            $$('button[type=submit]').find((b) => /^Verify$/.test(b.innerText.trim())).click(); await sleep(400);
+            return { linkShown, cardGone, call: window.__tcalls.find((c) => c[1] === '/auth/org-check'),
+                     status: text($('[role=status]')), alert: text($('[role=alert]')),
+                     signIn: $$('a').find((a) => /Go to sign in/.test(a.innerText))?.getAttribute('href') || null,
+                     stepper: !!$$('span').find((x) => /Step 1 of 3/i.test(x.innerText) && x.offsetParent) };`;
+
+    test("a teacher with no card checks the mobile number their organization added them with", async () => {
+        const { result, errors } = await screen({ entry: signupEntry, api: apiModule({}), modules, styles: true, script: orgCheck("{ verified: true, teachers: [{ firstName: 'Geeta', organization: 'St Agnes College', active: true }] }") });
+        assert.deepEqual(errors, []);
+        assert.equal(result.linkShown, true, 'the option sits under the card number');
+        assert.equal(result.cardGone, true, 'the card box gives way to the mobile number');
+        assert.deepEqual(result.call, ['POST', '/auth/org-check', { phone: '89876 54331' }]);
+        assert.match(result.status, /Verified/);
+        assert.match(result.status, /Geeta, St Agnes College/);
+        assert.match(result.status, /Sign in with this mobile number and your password/);
+        assert.equal(result.signIn, '/login');
+        assert.equal(result.stepper, false, 'no three-step indicator for this check');
+    });
+
+    test('added by name and number only: "Is this you?", a password, their details, and in', async () => {
+        const replies = "({ '/auth/org-check': { verified: true, teachers: [{ firstName: 'Ravi', organization: 'St Agnes College', active: true, needsPassword: true, id: 't360', name: 'Ravi Kumar', phone: '89876 54331' }] }, '/auth/org-check/setup': { _id: 't360', role: 'teacher', mentor360: true, token: 'tok360' } })[u] || null";
+        const { result, errors } = await screen({ entry: signupEntry, api: apiModule({}), modules, styles: true, script: `${SET}
+            window.__treply = (m, u) => ${replies};
+            await sleep(400);
+            $$('button').find((b) => /Verify as your organization/.test(b.innerText)).click(); await sleep(200);
+            setVal($('#signup-org-phone'), '89876 54331'); await sleep(100);
+            $$('button[type=submit]').find((b) => /^Verify$/.test(b.innerText.trim())).click(); await sleep(400);
+            const isThisYou = text($('[role=status]'));
+            $$('button[type=submit]').find((b) => /Yes, this is me/.test(b.innerText)).click(); await sleep(200);
+            const onPassword = !!$('#signup-org-password');
+            setVal($('#signup-org-password'), 'Mentor-Pass1!');
+            setVal($('#signup-org-confirm'), 'Mentor-Pass9!'); await sleep(100);
+            $$('button[type=submit]').find((b) => /Continue/.test(b.innerText)).click(); await sleep(200);
+            const mismatch = text($('[role=alert]'));
+            setVal($('#signup-org-confirm'), 'Mentor-Pass1!'); await sleep(100);
+            $$('button[type=submit]').find((b) => /Continue/.test(b.innerText)).click(); await sleep(200);
+            const onDetails = !!$('#signup-org-email');
+            setVal($('#signup-org-email'), 'ravi@college.edu');
+            setVal($('#signup-org-designation'), 'Assistant Professor');
+            setVal($('#signup-org-department'), 'Commerce'); await sleep(100);
+            $$('button[type=submit]').find((b) => /Finish/.test(b.innerText)).click(); await sleep(400);
+            return { isThisYou, onPassword, mismatch, onDetails, noCodeCall: !window.__tcalls.some((c) => /code/.test(c[1])),
+                     setup: window.__tcalls.find((c) => c[1] === '/auth/org-check/setup'), entered: window.__entered };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.isThisYou, /Is this you\?/);
+        assert.match(result.isThisYou, /Ravi Kumar/);
+        assert.match(result.isThisYou, /89876 54331/);
+        assert.equal(result.onPassword, true);
+        assert.match(result.mismatch, /do not match/);
+        assert.equal(result.onDetails, true);
+        assert.equal(result.noCodeCall, true, 'no email code');
+        assert.deepEqual(result.setup, ['POST', '/auth/org-check/setup', { phone: '89876 54331', teacherId: 't360', password: 'Mentor-Pass1!', email: 'ravi@college.edu', designation: 'Assistant Professor', department: 'Commerce', researchArea: '' }]);
+        assert.equal(result.entered.token, 'tok360');
+    });
+
+    test('"No, this is not me" goes back to the mobile number', async () => {
+        const replies = "(u === '/auth/org-check' ? { verified: true, teachers: [{ firstName: 'Ravi', organization: 'St Agnes College', active: true, needsPassword: true, id: 't360', name: 'Ravi Kumar', phone: '89876 54331' }] } : null)";
+        const { result, errors } = await screen({ entry: signupEntry, api: apiModule({}), modules, styles: true, script: `${SET}
+            window.__treply = (m, u) => ${replies};
+            await sleep(400);
+            $$('button').find((b) => /Verify as your organization/.test(b.innerText)).click(); await sleep(200);
+            setVal($('#signup-org-phone'), '89876 54331'); await sleep(100);
+            $$('button[type=submit]').find((b) => /^Verify$/.test(b.innerText.trim())).click(); await sleep(400);
+            $$('button').find((b) => /No, this is not me/.test(b.innerText)).click(); await sleep(200);
+            return { phoneBack: !!$('#signup-org-phone'), alert: text($('[role=alert]')) };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.phoneBack, true);
+        assert.match(result.alert, /ask your organization/);
+    });
+
+    test('a number no organization has added says to ask them', async () => {
+        const { result, errors } = await screen({ entry: signupEntry, api: apiModule({}), modules, styles: true, script: orgCheck("{ error: 404, data: { code: 'NOT_ADDED', message: 'No organization has added a teacher with this mobile number yet. Ask your organization to add you, then try again.' } }") });
+        assert.deepEqual(errors, []);
+        assert.match(result.alert, /Ask your organization to add you/);
+        assert.equal(result.signIn, null);
+    });
 
     test('the same three steps, an institution instead of an Organization ID, any email, and the teacher API', async () => {
         const { result, errors } = await screen({ entry: signupEntry, api: apiModule({ '/auth/validate-qr': CARD }), modules, styles: true, width: 1280, budget: 20_000, script: `
