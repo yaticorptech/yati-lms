@@ -360,3 +360,77 @@ export function GameTokensArt({ className = '' }) {
     </svg>
   );
 }
+
+/**
+ * Group games, drawn to match GameTokensArt (2026-11-03): three players round a gold trophy on a lit podium,
+ * a spark of play between them — glossy tiles and gradients, nothing photographic.
+ */
+export function GroupPlayersArt({ className = '' }) {
+  const Player = ({ x, y, s = 1, body, skin = '#fcd9b8', hair, id }) => (
+    <g transform={`translate(${x} ${y}) scale(${s})`}>
+      <ellipse cx="0" cy="44" rx="24" ry="5" fill="#000" opacity="0.25" />
+      {/* Shoulders, as a glossy tile. */}
+      <path d="M-24 44 C-24 22 -14 14 0 14 C14 14 24 22 24 44 Z" fill={`url(#${body})`} />
+      <path d="M-18 40 C-18 24 -10 19 0 19 C10 19 18 24 18 40 Z" fill="#fff" opacity="0.14" />
+      {/* Head and hair. */}
+      <circle cx="0" cy="0" r="15" fill={skin} />
+      <path d={hair} fill={`url(#${id})`} />
+      <circle cx="-5" cy="1" r="1.8" fill="#1f2937" />
+      <circle cx="5" cy="1" r="1.8" fill="#1f2937" />
+      <path d="M-5 7 Q0 11 5 7" stroke="#b45309" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      <circle cx="-9" cy="5" r="2.4" fill="#fb7185" opacity="0.35" />
+      <circle cx="9" cy="5" r="2.4" fill="#fb7185" opacity="0.35" />
+    </g>
+  );
+  return (
+    <svg className={className} viewBox="0 0 220 200" aria-hidden focusable="false">
+      <defs>
+        <linearGradient id="gp-violet" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#a78bfa" /><stop offset="100%" stopColor="#6d28d9" /></linearGradient>
+        <linearGradient id="gp-sky" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#7dd3fc" /><stop offset="100%" stopColor="#1d4ed8" /></linearGradient>
+        <linearGradient id="gp-fuchsia" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f0abfc" /><stop offset="100%" stopColor="#a21caf" /></linearGradient>
+        <linearGradient id="gp-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#fde68a" /><stop offset="55%" stopColor="#f59e0b" /><stop offset="100%" stopColor="#b45309" /></linearGradient>
+        <linearGradient id="gp-hair1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7c2d12" /><stop offset="100%" stopColor="#431407" /></linearGradient>
+        <linearGradient id="gp-hair2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#334155" /><stop offset="100%" stopColor="#0f172a" /></linearGradient>
+        <linearGradient id="gp-hair3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#facc15" /><stop offset="100%" stopColor="#a16207" /></linearGradient>
+        <radialGradient id="gp-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#fbbf24" stopOpacity="0.55" /><stop offset="100%" stopColor="#fbbf24" stopOpacity="0" /></radialGradient>
+        <linearGradient id="gp-podium" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" /><stop offset="100%" stopColor="#312e81" /></linearGradient>
+      </defs>
+
+      {/* The podium, lit from the trophy. */}
+      <circle cx="110" cy="96" r="70" fill="url(#gp-glow)" />
+      <ellipse cx="110" cy="150" rx="78" ry="20" fill="url(#gp-podium)" />
+      <ellipse cx="110" cy="146" rx="78" ry="20" fill="#818cf8" opacity="0.55" />
+      <ellipse cx="110" cy="146" rx="62" ry="14" fill="none" stroke="#c7d2fe" strokeOpacity="0.6" strokeWidth="1.5" strokeDasharray="4 5" />
+
+      {/* The trophy. */}
+      <g>
+        <rect x="96" y="118" width="28" height="10" rx="3" fill="url(#gp-gold)" />
+        <rect x="104" y="104" width="12" height="16" rx="2" fill="url(#gp-gold)" />
+        <path d="M86 56 H134 V70 C134 90 122 104 110 104 C98 104 86 90 86 70 Z" fill="url(#gp-gold)" />
+        <path d="M86 62 C72 62 72 84 90 86" stroke="#f59e0b" strokeWidth="5" fill="none" strokeLinecap="round" />
+        <path d="M134 62 C148 62 148 84 130 86" stroke="#f59e0b" strokeWidth="5" fill="none" strokeLinecap="round" />
+        <path d="M92 60 H104 V78 C98 76 93 70 92 60 Z" fill="#fff" opacity="0.4" />
+        <path d="M110 66 l3.5 7 7.7 1.1 -5.6 5.4 1.3 7.7 -6.9 -3.6 -6.9 3.6 1.3 -7.7 -5.6 -5.4 7.7 -1.1 Z" fill="#fff7ed" opacity="0.95" />
+      </g>
+
+      {/* The players round it. */}
+      <Player x={44} y={112} s={1.05} body="gp-sky" id="gp-hair2" hair="M-15 -2 C-16 -16 -6 -20 0 -20 C10 -20 17 -13 15 -2 C10 -10 -8 -10 -15 -2 Z" />
+      <Player x={176} y={112} s={1.05} body="gp-fuchsia" id="gp-hair1" hair="M-16 4 C-19 -14 -8 -21 1 -20 C12 -19 19 -11 16 6 C14 -4 8 -9 0 -9 C-8 -9 -13 -3 -16 4 Z" />
+      <Player x={110} y={150} s={0.95} body="gp-violet" id="gp-hair3" hair="M-15 -3 C-15 -15 -7 -19 0 -19 C8 -19 15 -15 15 -3 C9 -8 4 -12 -2 -9 C-6 -12 -11 -9 -15 -3 Z" />
+
+      {/* Sparks between them. */}
+      <g fill="#fbbf24">
+        <path d="M40 46 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3 Z" />
+        <path d="M184 40 l2.4 5.6 5.6 2.4 -5.6 2.4 -2.4 5.6 -2.4 -5.6 -5.6 -2.4 5.6 -2.4 Z" />
+        <circle cx="70" cy="30" r="3" opacity="0.8" />
+        <circle cx="156" cy="80" r="2.5" opacity="0.8" />
+      </g>
+      {/* A chat bubble: playing together. */}
+      <g transform="translate(150 22)">
+        <rect x="0" y="0" width="40" height="26" rx="10" fill="#fff" />
+        <path d="M10 26 l-4 8 10 -8 Z" fill="#fff" />
+        <text x="20" y="18" textAnchor="middle" fontSize="13" fontWeight="900" fill="#6d28d9">VS</text>
+      </g>
+    </svg>
+  );
+}

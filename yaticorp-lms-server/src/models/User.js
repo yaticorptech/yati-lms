@@ -245,6 +245,9 @@ const userSchema = new mongoose.Schema({
     // carrying any other (or none, once this is set) is signed out (services/deviceGuard.js).
     activeSessionId: { type: String, default: '', select: false },
     residentialCard: { type: Boolean, default: false },
+    // The competition results whose congratulations pop-up this student has already been shown
+    // ('comp-<id>' / 'arena-<id>'), so it comes once per win on any device (2026-10-31).
+    celebratedResults: { type: [String], default: [], select: false },
 
     // The current password, sealed with AES-256-GCM (jobboard/utils/secretBox),
     // so a platform admin can read it back on the student's page

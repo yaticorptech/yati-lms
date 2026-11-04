@@ -20,12 +20,15 @@ const shuffle = (list, rng) => {
 const LEVEL = { easy: 1, medium: 2, hard: 3 };
 
 /** `count` questions from a bank, at the game's difficulty (its own level and the one below; any if too few). */
-const fromBank = (name) => (count, rng, level) => {
+const fromBank = (name) => (count, rng, level, met) => {
     const bank = BANKS[name];
     const top = LEVEL[level] || 2;
     const near = bank.filter((q) => q.level <= top && q.level >= top - 1);
     const pool = near.length >= count ? near : bank;
-    return shuffle(pool, rng).slice(0, count).map((q) => ({ topic: q.topic || '', prompt: q.prompt, options: q.options, answer: 0, explain: q.explain }));
+    // Not met yet first (quizCore's `met`), nearest the level among them; then the rest of the bank; then repeats.
+    const fresh = met ? (q) => !met({ prompt: q.prompt, options: q.options }) : () => true;
+    const order = [...shuffle(pool.filter(fresh), rng), ...shuffle(bank.filter((q) => fresh(q) && !pool.includes(q)), rng), ...shuffle(pool.filter((q) => !fresh(q)), rng)];
+    return order.slice(0, count).map((q) => ({ topic: q.topic || '', prompt: q.prompt, options: q.options, answer: 0, explain: q.explain }));
 };
 
 /** `count` made questions, none twice. */

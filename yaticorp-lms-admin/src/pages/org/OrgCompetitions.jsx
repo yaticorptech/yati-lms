@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import useGoBack from '../../hooks/useGoBack';
 import useStepParam from '../../hooks/useStepParam';
-import { X, Lock, Trophy, Users, CalendarClock, Check, Loader2, Send, Undo2, Swords, Search, Crown, ChevronDown, Gamepad2, Clock, Brain, ArrowLeft, Building2 } from 'lucide-react';
+import { X, Lock, Trophy, Users, CalendarClock, Check, Loader2, Send, Undo2, Swords, Search, Crown, ChevronDown, Gamepad2, Clock, Brain, ArrowLeft, Building2, Award, FileStack } from 'lucide-react';
 import api from '../../utils/api';
 import { Segmented, CARD, BTN, BTN2, INPUT, LABEL } from '../../components/orgUi';
 import { CardGridSkeleton } from '../../competitions/Skeletons';
@@ -249,9 +249,17 @@ export default function OrgCompetitions() {
                 <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.25em] text-white/80"><Building2 size={15} /> College coordinator</p>
                 <h1 className="mt-2 text-2xl font-black sm:text-3xl">Competition management</h1>
                 <p className="mt-1.5 max-w-2xl text-sm text-white/85">Enter your students in inter-college competitions, follow their approvals and entry fees, and — once allowed — host competitions of your own.</p>
-                <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold ring-1 ring-white/15">
-                    <span className={`h-2 w-2 rounded-full ${canHost ? 'bg-emerald-400' : 'bg-slate-300'}`} /> {canHost ? 'Hosting is on: you can run your own competitions' : 'Hosting is off: the platform admin can switch it on'}
-                </p>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold ring-1 ring-white/15">
+                        <span className={`h-2 w-2 rounded-full ${canHost ? 'bg-emerald-400' : 'bg-slate-300'}`} /> {canHost ? 'Hosting is on: you can run your own competitions' : 'Hosting is off: the platform admin can switch it on'}
+                    </p>
+                    {/* The Certificate Builder (2026-10-31). */}
+<div className="relative flex flex-wrap gap-2">
+                        {/* Every certificate made here, saved and handed out (2026-11-02). */}
+                        <Link to="/organization/competitions/certificates/issued" className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl bg-white/15 px-4 py-2.5 text-sm font-black text-white ring-1 ring-white/30 hover:bg-white/25" data-issued-certificates-link><FileStack size={17} /> Issued Certificates</Link>
+                        <Link to="/organization/competitions/certificates" className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl bg-white px-4 py-2.5 text-sm font-black text-indigo-700 shadow-lg hover:bg-indigo-50" data-create-certificate><Award size={17} /> Create Certificate</Link>
+                    </div>
+                </div>
             </header>
             <div className="space-y-2">
                 <Segmented options={[['enter', 'Take part'], ['host', 'Host competitions']]} value={tab}

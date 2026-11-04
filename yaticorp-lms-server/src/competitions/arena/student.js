@@ -98,9 +98,12 @@ router.get('/', wrap(async (req, res) => {
     // The top three of each contest whose results are out, for the Results tab.
     const done = shown.filter((c) => c.resultsPublishedAt).map((c) => c._id);
     const podium = done.length ? await ArenaEntry.find({ competitionId: { $in: done }, rank: { $gte: 1, $lte: 3 } }).select('competitionId rank name collegeName score').sort({ rank: 1 }).lean() : [];
+    // A Builder certificate counts too (2026-10-31): the results pop-up shows it.
+    const built = await require('../certificates/auto').issuedIds(req.user._id, 'arena', done.filter((id) => byComp.has(String(id))).map(String)).catch(() => new Set());
+    const withBuilt = (v, c) => (v.myResult && built.has(String(c._id)) ? { ...v, myResult: { ...v.myResult, certificate: true } } : v);
     res.json({
         competitions: shown.map((c) => ({
-            ...view(c, req.user, byComp.get(String(c._id)), now),
+            ...withBuilt(view(c, req.user, byComp.get(String(c._id)), now), c),
             winners: podium.filter((e) => String(e.competitionId) === String(c._id)).map((e) => ({ place: e.rank, name: e.name, collegeName: e.collegeName, score: e.score }))
         }))
     });
@@ -299,6 +302,9 @@ const certificateFor = (c, e) => {
 
 router.get('/:id/certificate', wrap(async (req, res) => {
     const c = await load(req.params.id);
+    // The organiser's own certificate (the Certificate Builder, 2026-10-31), when they made one.
+    const built = await require('../certificates/auto').forStudent(req.user._id, 'arena', String(c._id));
+    if (built) return require('../certificates/render').pdf(res, built.design, [built.cert], `Certificate_${c.title}.pdf`);
     const e = await ArenaEntry.findOne({ competitionId: c._id, userId: req.user._id }).lean();
     const cert = e && certificateFor(c, e);
     if (!cert) throw fail(404, c.resultsPublishedAt ? 'There is no certificate for you in this competition.' : 'Certificates come with the results, once they are published.');

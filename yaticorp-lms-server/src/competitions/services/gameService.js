@@ -116,7 +116,13 @@ const afterState = (game, state, c) => {
 const begin = async (game, seats, extra = {}) => {
     const c = ctx();
     const e = engine(game.game);
+    // The questions anyone at the table has met before are dealt last (services/seenQuestions.js).
+    const seen = require('./seenQuestions');
+    const players = seats.map((s) => s.userId).filter(Boolean);
+    c.met = seen.seenBy(await seen.load(players).catch(() => new Set()));
+    c.dealt = [];
     const state = e.create(engineSeats(seats), game.options || {}, c);
+    if (c.dealt.length) seen.add(players, c.dealt.flatMap((q) => [seen.keyOf(q), seen.optKey(q)])).catch((err) => console.error('[competitions] seen questions:', err.message));
     const saved = await commit(game, { ...extra, seats, startedAt: new Date(c.now), status: 'active', ...afterState(game, state, c) });
     if (saved?.status === 'finished') await finished(saved);
     return saved;

@@ -283,8 +283,8 @@ export const ContestForm = ({ contest, onCancel, onSaved }) => {
                             <textarea rows={3} maxLength={3000} value={f.instructions} onChange={(e) => set({ instructions: e.target.value })} className={INPUT} /></label>
                     </div>
                     <EntryFeeField value={f.entryFee} onChange={(entryFee) => set({ entryFee })} />
-                    <RewardsFields team={false} value={{ prizes: f.prizes, participationXp: f.participationXp, winnersCert: f.certificates.winners, participantsCert: f.certificates.participants }}
-                        onChange={(p) => set({ ...('prizes' in p && { prizes: p.prizes }), ...('participationXp' in p && { participationXp: p.participationXp }), certificates: { ...f.certificates, ...('winnersCert' in p && { winners: p.winnersCert }), ...('participantsCert' in p && { participants: p.participantsCert }) } })} />
+                    <RewardsFields team={false} value={{ prizes: f.prizes, participationXp: f.participationXp, winnersCert: f.certificates.winners, participantsCert: f.certificates.participants, designId: f.certificates.designId || '' }}
+                        onChange={(p) => set({ ...('prizes' in p && { prizes: p.prizes }), ...('participationXp' in p && { participationXp: p.participationXp }), certificates: { ...f.certificates, ...('winnersCert' in p && { winners: p.winnersCert }), ...('participantsCert' in p && { participants: p.participantsCert }), ...('designId' in p && { designId: p.designId || null }) } })} />
                     <ImageField label="Banner" value={f.bannerUrl} onChange={(bannerUrl) => set({ bannerUrl })} />
 
                     <fieldset className="grid gap-4 rounded-2xl border border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-5" disabled={off}>

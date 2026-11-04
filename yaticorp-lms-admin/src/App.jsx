@@ -119,7 +119,14 @@ import OrgNotFound from './pages/org/OrgNotFound';
 // Games & Competitions: the platform runs inter-college competitions; colleges enter teams.
 const Competitions = React.lazy(() => import('./pages/Competitions'));
 const CompetitionAdmin = React.lazy(() => import('./pages/CompetitionAdmin'));
+// The Admin Competition Dashboard (2026-11-04): what is on and what needs doing, across competitions.
+const CompetitionDashboard = React.lazy(() => import('./pages/CompetitionDashboard'));
 const OrgCompetitions = React.lazy(() => import('./pages/org/OrgCompetitions'));
+// The Certificate Builder (2026-10-31): one module, both dashboards.
+const CertificateBuilder = React.lazy(() => import('./certificates/CertificateBuilder'));
+const IssuedCertificates = React.lazy(() => import('./certificates/IssuedCertificates'));
+// Organisations: Certificate Configuration (intra- / inter-college, formal certificates), 2026-10-31.
+const CertificateConfiguration = React.lazy(() => import('./certificates/CertificateConfiguration'));
 // Quiz Arena: three-round live quiz contests, and their question bank.
 const QuizArena = React.lazy(() => import('./pages/QuizArena'));
 const QuizArenaCompetition = React.lazy(() => import('./pages/QuizArenaCompetition'));
@@ -156,6 +163,8 @@ function App() {
         <Route path="courses/:id" element={<OrgCourses><CourseEditor /></OrgCourses>} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
         <Route path="competitions" element={<OrgCompetitions />} />
+        <Route path="competitions/certificates" element={<CertificateConfiguration />} />
+        <Route path="competitions/certificates/issued" element={<IssuedCertificates side="organization" />} />
         <Route path="competitions/host/:id" element={<CompetitionAdmin apiBase="/competitions/org/host" backTo="/organization/competitions?tab=host" />} />
         {/* A hosting college's own Quiz Arena: its question bank and contests. */}
         <Route path="competitions/question-bank" element={<QuizArena />} />
@@ -194,6 +203,9 @@ function App() {
         <Route path="global-quiz" element={<GlobalQuiz />} />
         <Route path="announcements" element={<Announcements />} />
         <Route path="competitions" element={<SuperAdminRoute what="competitions"><Competitions /></SuperAdminRoute>} />
+        <Route path="competitions/dashboard" element={<SuperAdminRoute what="competitions"><CompetitionDashboard /></SuperAdminRoute>} />
+        <Route path="competitions/certificates" element={<SuperAdminRoute what="competitions"><CertificateBuilder side="platform" /></SuperAdminRoute>} />
+        <Route path="competitions/certificates/issued" element={<SuperAdminRoute what="competitions"><IssuedCertificates side="platform" /></SuperAdminRoute>} />
         <Route path="competitions/:id" element={<SuperAdminRoute what="competitions"><CompetitionAdmin /></SuperAdminRoute>} />
         {/* Quiz Arena lives in Games & Competitions: its contests in the list, its question bank a page of it. */}
         <Route path="competitions/question-bank" element={<SuperAdminRoute what="competitions"><QuizArena /></SuperAdminRoute>} />

@@ -19,11 +19,12 @@ const Competition = require('../models/Competition');
 
 const PLACE_POINTS = { 1: 10, 2: 6, 3: 4 };
 
-const board = async () => {
+/** `game`: one game's competitions only (the game-wise rankings, 2026-11-04); none: every game. */
+const board = async ({ game = null } = {}) => {
     const [teams, matches, comps] = await Promise.all([
         Team.find({ status: 'approved' }).lean(),
         Match.find({ status: 'completed', decidedBy: { $in: ['game', 'admin', 'walkover'] } }).lean(),
-        Competition.find({ status: 'completed', resultsPublishedAt: { $ne: null }, hostOrganizationId: null, game: { $nin: ['quiz', 'hackathon'] } }).select('name game status').lean()
+        Competition.find({ status: 'completed', resultsPublishedAt: { $ne: null }, hostOrganizationId: null, game: game || { $nin: ['quiz', 'hackathon'] } }).select('name game status').lean()
     ]);
     const compName = new Map(comps.map((c) => [String(c._id), c]));
     const teamRows = new Map(teams.filter((t) => compName.has(String(t.competitionId))).map((t) => [String(t._id), {

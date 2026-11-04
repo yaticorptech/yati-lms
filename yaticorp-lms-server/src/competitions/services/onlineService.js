@@ -2,7 +2,7 @@
  * Group Brain "Play online" (asked 2026-10-28): like online Ludo. A student
  * picks a game, a table of 2 or 4, and an entry fee; the server seats them at
  * a waiting table of the same game, size and fee, or opens one. The fee comes
- * out of their wallet as they sit down.
+ * out of their XP as they sit down.
  *
  *   A full table starts at once. A table not full after WAIT_MS starts with
  *   whoever is there (at least the game's minSeats); a player left alone gets
@@ -15,7 +15,7 @@
  *
  * A table is a PlayGame of kind 'room' with options.online, so the game, its
  * results and XP are a room's: only how it fills and starts differs.
- * Wallet entries are keyed (referenceKey), so a fee, refund or prize can
+ * XP entries are keyed (referenceKey), so a fee, refund or prize can
  * never be written twice.
  */
 const crypto = require('crypto');
@@ -41,8 +41,16 @@ const PRIZE_SHARE = 0.9;
 const TEST_FILL = process.env.NODE_ENV === 'test' ? {} : Object.fromEntries(ROOM_GAMES.map((id) => [id, engine(id).maxSeats === 2 ? 2 : 4]));
 const TEST_EMAILS = /^test\.ten\d+@yaticorp-test\.invalid$/;
 
-const wallet = () => require('../../rewards/services/walletService');
-const money = (n) => Math.round(Number(n) * 100) / 100;
+// The fee, the refunds and the prize are XP (2026-10-31, was wallet rupees): the same calls, on the student's XP.
+const wallet = () => {
+    const xp = require('../../rewards/services/xpService');
+    return {
+        debit: ({ userId, amount, source, referenceKey, description }) => xp.spendXp({ userId, amount, source, refId: referenceKey, description })
+            .catch((err) => { throw err.code === 'INSUFFICIENT_XP' ? Object.assign(err, { code: 'INSUFFICIENT_FUNDS' }) : err; }),
+        credit: ({ userId, amount, source, referenceKey, description }) => xp.addXp({ userId, amount, source, refId: referenceKey, description })
+    };
+};
+const money = (n) => Math.round(Number(n));
 const sameId = (a, b) => String(a) === String(b);
 const isOnline = (game) => game?.kind === 'room' && !!game.options?.online;
 
@@ -77,7 +85,7 @@ const start = async (game) => {
  */
 const settle = async (game) => {
     if (game.seats.length >= engine(game.game).minSeats) return start(game);
-    const saved = await games.commit(game, { status: 'abandoned', finishedAt: new Date(), outcome: { places: [], reason: 'No players found. Your entry fee is back in your wallet.' } });
+    const saved = await games.commit(game, { status: 'abandoned', finishedAt: new Date(), outcome: { places: [], reason: 'No players found. Your entry fee XP is back.' } });
     if (saved) await refundAll(saved, 'no players found');
     return saved;
 };
@@ -86,15 +94,18 @@ const settle = async (game) => {
 const findTable = async (user, gameId, raw = {}) => {
     if (!ROOM_GAMES.includes(gameId)) throw new PlayError('Pick one of the Group Brain games.');
     // Group games: 30 minutes of play a day (career/controllers/gameController.js), then closed until midnight.
-    if (await require('../../career/controllers/gameController').groupTimeUp(user._id)) throw new PlayError("Today's 30 minutes of Group games are used up. Come back after midnight.", 403);
+    { const gc = require('../../career/controllers/gameController'); if (await gc.groupTimeUp(user._id)) throw new PlayError(await gc.groupTimeUpMessage(user._id), 403); }
     const e = engine(gameId);
     const settings = (await getSettings()).games[gameId];
     if (!settings.enabled) throw new PlayError(`${e.label} is switched off for now.`, 403);
     // A game for two (Chess, Tic-Tac-Toe, Last Stone): a table of 2, whatever was asked.
     const players = e.maxSeats === 2 ? 2 : Number(raw.players);
-    if (!SIZES.includes(players) || players > e.maxSeats) throw new PlayError(`Pick a table of ${SIZES.join(', ')} players.`);
+    // Any number typed (2026-10-31), from 2 up to what the game seats.
+    if (!Number.isInteger(players) || players < 2 || players > e.maxSeats) throw new PlayError(`A table is for 2 to ${e.maxSeats} players.`);
+    // Earned in the solo games first (services/unlocks.js).
+    await require('./unlocks').check(user._id, gameId, players, PlayError);
     const fee = Number(raw.fee ?? 0);
-    if (!FEES.includes(fee)) throw new PlayError(`The entry fee is one of ${FEES.map((f) => (f ? `₹${f}` : 'Free')).join(', ')}.`);
+    if (!FEES.includes(fee)) throw new PlayError(`The entry fee is one of ${FEES.map((f) => (f ? `${f} XP` : 'Free')).join(', ')}.`);
     const difficulty = settings.difficulties.includes('medium') ? 'medium' : settings.difficulties[0];
     // A game I have left (resigned) does not hold me (roomService.openRoomOf).
     const busy = await require('./roomService').openRoomOf(user._id);
@@ -126,7 +137,7 @@ const findTable = async (user, gameId, raw = {}) => {
         const key = `gb-fee:${table._id}:${user._id}:${crypto.randomBytes(3).toString('hex')}`;
         if (fee > 0) {
             await wallet().debit({ userId: user._id, amount: fee, source: 'game_entry', referenceKey: key, description: `${e.label} online — entry fee`, meta: { gameId: String(table._id) } })
-                .catch((err) => { throw new PlayError(err.code === 'INSUFFICIENT_FUNDS' ? `Your wallet has less than ₹${fee}. Pick a smaller fee or play free.` : err.message, 402); });
+                .catch((err) => { throw new PlayError(err.code === 'INSUFFICIENT_FUNDS' ? `You have less than ${fee} XP. Pick a smaller fee or play free.` : err.message, 402); });
         }
         const seats = [...table.seats.map((s) => s.toObject()), { userId: user._id, name: user.name || 'Player', side: table.seats.length, joinedAt: new Date(), lastSeenAt: new Date(), ready: true }];
         const saved = await games.commit(table, { seats, options: { ...table.options, paid: { ...(table.options.paid || {}), [String(user._id)]: key } } });
