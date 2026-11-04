@@ -307,7 +307,8 @@ const competitionFrom = (b = {}, current = null) => {
         certificates: {
             winners: certs.winners !== false,
             participants: certs.participants !== false,
-            minScore: num(certs.minScore, 0, 1000000, 0)
+            minScore: num(certs.minScore, 0, 1000000, 0),
+            designId: isId(certs.designId) ? certs.designId : null
         }
     };
     if (out.counts[1] + out.counts[2] + out.counts[3] === 0) throw fail(400, 'The quiz needs at least one question.');
@@ -403,7 +404,7 @@ router.put('/:id', wrap(async (req, res) => {
         if (b.prizes !== undefined) c.prizes = prizesFrom(b.prizes);
         if (b.participationXp !== undefined) c.participationXp = num(b.participationXp, 0, 10000, c.participationXp);
         if (b.entryFee !== undefined) c.entryFee = { enabled: !!(b.entryFee?.enabled) && Math.round(Number(b.entryFee?.amount) || 0) > 0, amount: Math.max(0, Math.min(100000, Math.round(Number(b.entryFee?.amount) || 0))) };
-        if (b.certificates) c.certificates = { ...c.certificates, winners: b.certificates.winners !== false, participants: b.certificates.participants !== false };
+        if (b.certificates) c.certificates = { ...c.certificates, winners: b.certificates.winners !== false, participants: b.certificates.participants !== false, ...(b.certificates.designId !== undefined ? { designId: isId(b.certificates.designId) ? b.certificates.designId : null } : {}) };
         if (b.playersPerCollege !== undefined) c.playersPerCollege = num(b.playersPerCollege, 1, 500, c.playersPerCollege);
     }
     await c.save();

@@ -110,6 +110,9 @@ const writingStats = async (teacher) => {
 router.post('/auth/register', authLimiter, auth.register);
 router.post('/auth/login', loginLimiter, loginCardLimiter, auth.login);
 router.post('/auth/card-scan', cardLookupLimiter, auth.cardScan);
+router.post('/auth/org-check', cardLookupLimiter, auth.orgCheck);
+// …and, added without a password, sets up their account: password, email, details.
+router.post('/auth/org-check/setup', cardLookupLimiter, auth.orgSetup);
 router.post('/auth/forgot-password/preview', cardLookupLimiter, auth.forgotPasswordPreview);
 router.post('/auth/forgot-password', authLimiter, auth.forgotPassword);
 router.post('/auth/reset-password', authLimiter, auth.resetPassword);
@@ -303,7 +306,15 @@ router.use('/clubs', require('../nccnss/teacher'));
 
 /* ── Scouts & Guides units I lead (src/nccnss/leader.js) ──────────────── */
 
-router.use('/scout-units', require('../nccnss/leader'));
+// Each only while the organization has it on for this teacher (Teachers → the switches).
+const featureOn = (key, name) => (req, res, next) => (!auth.view(req.teacher)[key]
+    ? res.status(403).json({ code: 'FEATURE_OFF', message: `Your organization has not turned on ${name} for you.` })
+    : next());
+router.use('/scout-units', featureOn('scouts', 'Scouts & Guides'), require('../nccnss/leader'));
+
+/* ── 360: the classes I teach (course, section, subject) and their students (src/three60) ── */
+
+router.use('/360', featureOn('mentor360', '360'), require('../three60').mentor);
 
 // Everything below is the research side.
 router.use(needsCard);
@@ -1003,6 +1014,16 @@ router.post('/plagiarism/sources', async (req, res) => {
         const s = await PlagiarismSource.create({ teacherId: req.teacher._id, title, fileName: text(body.fileName, 300), text: content, words });
         res.status(201).json({ _id: s._id, title: s.title, fileName: s.fileName, words: s.words, createdAt: s.createdAt });
     } catch (error) { fail(res, 'add plagiarism source', error); }
+});
+
+// One source with its text, so the teacher can read what was taken from the
+// file (2026-10-30). Only the text is kept, not the file itself.
+router.get('/plagiarism/sources/:id', async (req, res) => {
+    try {
+        if (!validId(req.params.id)) return notFound(res, 'That source');
+        const s = await PlagiarismSource.findOne({ _id: req.params.id, teacherId: req.teacher._id }).select('title fileName words text createdAt').lean();
+        return s ? res.json(s) : notFound(res, 'That source');
+    } catch (error) { fail(res, 'plagiarism source', error); }
 });
 
 router.delete('/plagiarism/sources/:id', async (req, res) => {

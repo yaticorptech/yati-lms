@@ -6,7 +6,7 @@
  */
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeUser, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, unlockGroupGames, startApp, cleanup } = require('../helpers');
 const PlayGame = require('../../src/competitions/models/PlayGame');
 const { Wallet, WalletTransaction } = require('../../src/rewards/models');
 const walletService = require('../../src/rewards/services/walletService');
@@ -20,6 +20,7 @@ before(async () => {
     p = [];
     for (const name of ['Online One', 'Online Two', 'Online Three']) {
         const u = await makeUser(name);
+        await unlockGroupGames(u.user._id);
         u.call = app.call(u.token);
         await walletService.credit({ userId: u.user._id, amount: 100, source: 'admin_adjustment', description: 'test money' });
         p.push(u);

@@ -3,8 +3,8 @@
  * right it has — add one (name, email, a first password), rename them or set
  * a new password, take one away. The owner (the account the organization
  * registered with) cannot be removed, and only the owner edits it. Teachers
- * with a limited sign-in are under Teachers. What each user did is in the
- * Audit log. Server: src/organizations/users.js.
+ * with a limited sign-in are under Teachers. What each user does is still
+ * recorded, for the platform's admins. Server: src/organizations/users.js.
  */
 import React, { useState } from 'react';
 import { UserCog, Plus, Pencil, Trash2, Loader2, Crown } from 'lucide-react';
@@ -75,7 +75,7 @@ const OrgUsers = () => {
     const reload = useAutoRefresh(load, 60000, []);
     const done = (text) => { setEditing(null); setNotice({ kind: 'ok', text }); reload(); };
     const remove = async (u) => {
-        if (!window.confirm(`Remove ${u.name}? They can no longer sign in to this dashboard. What they did stays in the audit log.`)) return;
+        if (!window.confirm(`Remove ${u.name}? They can no longer sign in to this dashboard. What they did stays on record.`)) return;
         try { done((await api.delete(`/organizations/me/users/${u._id}`)).data.message); }
         catch (err) { setNotice({ kind: 'error', text: errorOf(err, 'Could not remove.') }); }
     };

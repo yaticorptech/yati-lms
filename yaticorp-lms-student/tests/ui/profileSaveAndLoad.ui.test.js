@@ -11,7 +11,8 @@
  *   - Upload Certificate with nothing chosen asks for the file
  *   - removing your own AI key asks first
  *   - a failed avatar save keeps the server's own words
- *   - "Not now" to Google holds for the rest of the visit
+ *   - "Not now" to Google files no copy; the next file asks again (since
+ *     2026-11-02: asked every time while Drive is not linked)
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -65,7 +66,8 @@ const App = () => {
 };
 createRoot(document.getElementById('root')).render(<App />);`;
 
-const TILES = `Object.fromEntries($$('[data-personal-info] dl > div').map((t) => [t.querySelector('dt').innerText.trim(), t.querySelector('dd').innerText.trim()]))`;
+// The labels as written (textContent): on screen they show in capitals.
+const TILES = `Object.fromEntries($$('[data-personal-info] dl > div').map((t) => [t.querySelector('dt').textContent.trim(), t.querySelector('dd').innerText.trim()]))`;
 // React-controlled inputs take a value through the native setter and an input event.
 const SET = `const setVal = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };`;
 const stubs = { 'integrations/google/saveToDrive': 'export default () => Promise.resolve(null);' };
@@ -77,8 +79,8 @@ describe('My Profile shows and saves what the server has', { skip: skipWithoutSt
                 await sleep(1500);
                 return { tiles: ${TILES}, saved: JSON.parse(localStorage.getItem('studentData')) };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.tiles['Full Name'], 'Corrected Name');
-        assert.equal(result.tiles['Phone Number'], '+91 90000 00000');
+        assert.equal(result.tiles['Full name'], 'Corrected Name');
+        assert.equal(result.tiles.Phone, '+91 90000 00000');
         assert.equal(result.tiles.Email.replace(/\s/g, ''), 'new@example.com');
         assert.equal(result.saved.name, 'Corrected Name', 'the device copy is brought up to date');
         assert.equal(result.saved.token, 't0', 'and keeps its token');
@@ -125,7 +127,9 @@ describe('My Profile shows and saves what the server has', { skip: skipWithoutSt
                 click(/Save Changes/); await sleep(500);
                 const email = $('input[type=email]');
                 const under = email.parentElement.querySelector('p');
-                return { under: under && under.innerText, open: !$('[data-personal-info] dl'), banner: !!$('[data-personal-info] .bg-red-50'), body: document.body.innerText };` });
+                // Edit Profile is a popup (2026-10-31): the details stay behind it.
+                const popup = $('[role=dialog][aria-labelledby=edit-profile-title]');
+                return { under: under && under.innerText, open: !!popup, banner: !!(popup && popup.querySelector('.bg-red-50')), body: document.body.innerText };` });
         assert.deepEqual(errors, []);
         assert.equal(result.under, 'An account already uses this email address. Use another one.');
         assert.equal(result.open, true, 'the form stays open to correct it');
@@ -285,7 +289,7 @@ createRoot(document.getElementById('root')).render(<App />);`;
         assert.equal(result.bare, 'Failed to update photo. Please try again.');
     });
 
-    test('"Not now" to Google holds for the rest of the visit', async () => {
+    test('"Not now" to Google files no copy, and the next file asks again (2026-11-02)', async () => {
         const googleApi = `
 export const getStatus = () => Promise.resolve({ available: true, connected: false, needsReconnect: false, email: '', permissions: [] });
 export const beginConnect = () => Promise.resolve({ url: 'https://accounts.google.com/' });
@@ -311,7 +315,7 @@ window.__save = () => saveToDrive(new Blob(['x'], { type: 'application/pdf' }), 
         assert.deepEqual(errors, []);
         assert.equal(result.askedFirst, true, 'the first file asks');
         assert.equal(result.r1.reason, 'declined');
-        assert.equal(result.askedAgain, false, 'the next file does not ask again');
-        assert.equal(result.r2.reason, 'declined', 'it simply files no copy');
+        assert.equal(result.askedAgain, true, 'the next file asks again while Drive is not linked');
+        assert.equal(result.r2, 'still waiting', 'and waits for the answer');
     });
 });

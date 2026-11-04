@@ -23,10 +23,10 @@ const Compass = ({ className = '' }) => (
 /** "The Lost Kingdom / Trial n : name" on parchment. */
 export const TitlePlaque = ({ line, style, className = '' }) => (
     <div className={`absolute z-30 flex items-center ${className}`} style={style} data-plaque>
-        <span className="relative z-10 shrink-0 drop-shadow-lg" style={{ width: 'clamp(44px, 5.6cqw, 96px)', height: 'clamp(44px, 5.6cqw, 96px)', marginRight: 'calc(-1 * clamp(10px, 1.2cqw, 22px))' }}><Compass className="h-full w-full" /></span>
+        <span className="relative z-10 shrink-0 drop-shadow-lg" style={{ width: 'clamp(30px, 5.6cqw, 96px)', height: 'clamp(30px, 5.6cqw, 96px)', marginRight: 'calc(-1 * clamp(8px, 1.2cqw, 22px))' }}><Compass className="h-full w-full" /></span>
         <div className="min-w-0 flex-1 rounded-r-lg border border-[#8a6a2f] text-[#2a1d0c] shadow-lg" style={{ background: 'linear-gradient(#efe2c2, #d9c39a)', padding: 'clamp(4px, .6cqw, 12px) clamp(8px, 1.2cqw, 22px) clamp(4px, .6cqw, 12px) clamp(14px, 1.8cqw, 32px)' }}>
-            <p className="font-bold leading-tight" style={{ ...serif, fontSize: fs(12, 1.75, 30) }}>The Lost Kingdom</p>
-            <p className="leading-tight" style={{ ...serif, fontSize: fs(9, 1.15, 20) }}>{line}</p>
+            <p className="truncate font-bold leading-tight" style={{ ...serif, fontSize: fs(12, 1.75, 30) }}>The Lost Kingdom</p>
+            <p className="truncate leading-tight" style={{ ...serif, fontSize: fs(10, 1.15, 20) }}>{line}</p>
         </div>
     </div>
 );
@@ -35,16 +35,16 @@ export const TitlePlaque = ({ line, style, className = '' }) => (
 export const RoundIcon = ({ icon: Icon, label, onClick, size = 4.2, active = false }) => (
     <button type="button" onClick={onClick} className="group flex flex-col items-center gap-[0.2cqw]" aria-label={label} data-hud-button={label.toLowerCase()}>
         <span className={`flex items-center justify-center rounded-full border-2 bg-gradient-to-b from-[#3a2a17] to-[#120c06] text-[#e9d3a0] shadow-[0_4px_10px_rgba(0,0,0,.6)] transition group-hover:text-white ${active ? 'border-amber-300 ring-2 ring-amber-400/60' : 'border-[#c9a45a]'}`}
-            style={{ width: `clamp(38px, ${size}cqw, 80px)`, height: `clamp(38px, ${size}cqw, 80px)` }}>
+            style={{ width: `clamp(32px, ${size}cqw, 80px)`, height: `clamp(32px, ${size}cqw, 80px)` }}>
             <Icon style={{ width: '48%', height: '48%' }} />
         </span>
-        <span className="font-semibold text-[#f3e6c8] [text-shadow:0_1px_3px_#000]" style={{ ...serif, fontSize: fs(9, 1, 17) }}>{label}</span>
+        <span className="hidden font-semibold text-[#f3e6c8] [text-shadow:0_1px_3px_#000] md:block" style={{ ...serif, fontSize: fs(9, 1, 17) }}>{label}</span>
     </button>
 );
 
 /** The four buttons at the top right. */
 export const TopIcons = ({ style, onMap, onClues, onInventory, onPause, counts = {} }) => (
-    <div className="absolute z-30 flex items-start justify-end gap-[1.1cqw]" style={style} data-top-icons>
+    <div className="absolute z-30 flex items-start justify-end gap-[max(4px,1.1cqw)]" style={style} data-top-icons>
         <RoundIcon icon={MapIcon} label="Map" onClick={onMap} />
         <span className="relative"><RoundIcon icon={ScrollText} label="Clues" onClick={onClues} />{counts.clues > 0 && <Badge n={counts.clues} />}</span>
         <span className="relative"><RoundIcon icon={Backpack} label="Inventory" onClick={onInventory} />{counts.relics > 0 && <Badge n={counts.relics} />}</span>

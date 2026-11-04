@@ -72,7 +72,7 @@ app.use(cors({
     },
     credentials: true,
     // Read by the student app to refresh the wallet balance after a priced feature.
-    exposedHeaders: ['X-Wallet-Charged'],
+    exposedHeaders: ['X-Wallet-Charged', 'X-AI-Credits'],
     // Every API call carries a token, so the browser asks first (an OPTIONS
     // request) — and without this it asked again before every single call,
     // doubling the requests a page makes (found in QA, 2026-10-16). Two hours is
@@ -82,7 +82,12 @@ app.use(cors({
 // The teacher side saves whole thesis chapters, which run past the default
 // 100 KB. Parsed here first, with room for them; the parser below then
 // leaves these requests alone.
+// A Word file for the plagiarism library comes whole (as base64) from a
+// browser that cannot read it itself: room for the 15 MB the upload allows.
+app.post('/api/teacher/plagiarism/sources', express.json({ limit: '21mb' }));
 app.use('/api/teacher', express.json({ limit: '3mb' }));
+// The Certificate Builder sends its logo, signatures and seal as pictures in the request (2026-10-31).
+app.use(['/api/competitions/admin/certificates', '/api/competitions/org/certificates'], express.json({ limit: '6mb' }));
 app.use(express.json());
 
 // const { globalLimiter } = require('./src/middleware/rateLimiter');

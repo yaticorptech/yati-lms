@@ -10,7 +10,7 @@ import MyDevices from '../components/MyDevices';
 import GoogleConnectionCard from '../integrations/google/GoogleConnectionCard';
 import {
     Award, Loader2, Check, X,
-    Flame, Gem, Coins, Building2
+    Flame, Gem, Coins, Building2, Pencil
 } from 'lucide-react';
 import ContinueStrip from '../components/ContinueStrip';
 import useBackClose from '../native/useBackClose';
@@ -108,6 +108,16 @@ const Profile = ({ view = 'dashboard' }) => {
     const [viewingPhoto, setViewingPhoto] = useState(false);
     const photoOpen = viewingPhoto && !!user?.profilePicture;
     useBackClose(() => setViewingPhoto(false), photoOpen);
+    // Edit Profile is a popup (2026-10-31): Back and Escape close it, and the page behind does not scroll.
+    useBackClose(() => { if (!saving) setEditing(false); }, editing);
+    useEffect(() => {
+        if (!editing) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape' && !saving) setEditing(false); };
+        window.addEventListener('keydown', onKey);
+        const before = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = before; };
+    }, [editing, saving]);
     useEffect(() => {
         if (!photoOpen) return undefined;
         const onKey = (e) => { if (e.key === 'Escape') setViewingPhoto(false); };
@@ -341,58 +351,66 @@ const Profile = ({ view = 'dashboard' }) => {
                         onEdit={openEdit}
                         onViewPhoto={() => setViewingPhoto(true)}
                         onChangePhoto={openPicker}
-                    >
-                        <div className="w-full space-y-4 text-slate-800 animate-pop-in">
-                        <div className="mb-1 flex items-center justify-between">
-                            <h2 className="font-bold text-slate-800">Edit Profile</h2>
-                            <button onClick={() => setEditing(false)} className="p-1 text-slate-400 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
-                        </div>
+                    />
+                    {/* Edit Profile, as a popup: a small card in the middle of the
+                        screen, on a phone too; the page behind is dimmed and blurred. */}
+                    {editing && (
+                        <Portal>
+                            <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-md"
+                                onClick={() => { if (!saving) setEditing(false); }}>
+                                <div role="dialog" aria-modal="true" aria-labelledby="edit-profile-title" onClick={(e) => e.stopPropagation()}
+                                    className="flex max-h-[88dvh] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white text-slate-800 shadow-2xl animate-pop-in">
+                                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                                        <h2 id="edit-profile-title" className="flex items-center gap-2 font-bold text-slate-800"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Pencil size={15} /></span> Edit Profile</h2>
+                                        <button type="button" onClick={() => setEditing(false)} disabled={saving} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
+                                    </div>
 
-                        {formErrors.api && (
-                            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{formErrors.api}</div>
-                        )}
+                                    <div className="min-h-0 space-y-3.5 overflow-y-auto px-5 py-4">
+                                        {formErrors.api && (
+                                            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{formErrors.api}</div>
+                                        )}
+                                        <div>
+                                            <label htmlFor="edit-name" className="mb-1 block text-xs font-bold text-slate-600">Full Name <span className="text-red-500">*</span></label>
+                                            <input id="edit-name" type="text" maxLength={60} value={form.name}
+                                                onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setFormErrors(p => ({ ...p, name: '' })); }}
+                                                className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.name ? 'border-red-400' : 'border-slate-300'}`}
+                                                placeholder="Your full name" />
+                                            {formErrors.name && <p className="mt-1 text-xs text-red-500">{formErrors.name}</p>}
+                                        </div>
+                                        <div>
+                                            <label htmlFor="edit-email" className="mb-1 block text-xs font-bold text-slate-600">Email Address <span className="text-red-500">*</span></label>
+                                            <input id="edit-email" type="email" value={form.email}
+                                                onChange={e => { setForm(p => ({ ...p, email: e.target.value })); setFormErrors(p => ({ ...p, email: '' })); }}
+                                                className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.email ? 'border-red-400' : 'border-slate-300'}`}
+                                                placeholder="you@example.com" />
+                                            {formErrors.email && <p className="mt-1 text-xs text-red-500">{formErrors.email}</p>}
+                                        </div>
+                                        <div>
+                                            <label htmlFor="edit-phone" className="mb-1 block text-xs font-bold text-slate-600">Phone Number <span className="text-red-500">*</span></label>
+                                            <input id="edit-phone" type="tel" value={form.phone} maxLength={16}
+                                                onChange={e => { setForm(p => ({ ...p, phone: e.target.value })); setFormErrors(p => ({ ...p, phone: '' })); }}
+                                                className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.phone ? 'border-red-400' : 'border-slate-300'}`}
+                                                placeholder="+91 98765 43210" />
+                                            {formErrors.phone && <p className="mt-1 text-xs text-red-500">{formErrors.phone}</p>}
+                                        </div>
+                                        <div>
+                                            <label htmlFor="edit-card" className="mb-1 block text-xs font-bold text-slate-600">Student Card ID <span className="font-normal text-slate-400">(not editable)</span></label>
+                                            <input id="edit-card" type="text" value={user?.cardNumber || ''} readOnly
+                                                className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-mono text-sm text-slate-500" />
+                                        </div>
+                                    </div>
 
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="mb-1 block text-xs font-bold text-slate-600">Full Name <span className="text-red-500">*</span></label>
-                                <input type="text" maxLength={60} value={form.name}
-                                    onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setFormErrors(p => ({ ...p, name: '' })); }}
-                                    className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.name ? 'border-red-400' : 'border-slate-300'}`}
-                                    placeholder="Your full name" />
-                                {formErrors.name && <p className="mt-1 text-xs text-red-500">{formErrors.name}</p>}
+                                    <div className="flex gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3.5">
+                                        <button type="button" onClick={() => setEditing(false)} disabled={saving} className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50">Cancel</button>
+                                        <button type="button" onClick={handleSave} disabled={saving}
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60">
+                                            {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : <><Check size={14} /> Save Changes</>}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <label className="mb-1 block text-xs font-bold text-slate-600">Email Address <span className="text-red-500">*</span></label>
-                                <input type="email" value={form.email}
-                                    onChange={e => { setForm(p => ({ ...p, email: e.target.value })); setFormErrors(p => ({ ...p, email: '' })); }}
-                                    className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.email ? 'border-red-400' : 'border-slate-300'}`}
-                                    placeholder="you@example.com" />
-                                {formErrors.email && <p className="mt-1 text-xs text-red-500">{formErrors.email}</p>}
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-xs font-bold text-slate-600">Phone Number <span className="text-red-500">*</span></label>
-                                <input type="tel" value={form.phone} maxLength={16}
-                                    onChange={e => { setForm(p => ({ ...p, phone: e.target.value })); setFormErrors(p => ({ ...p, phone: '' })); }}
-                                    className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.phone ? 'border-red-400' : 'border-slate-300'}`}
-                                    placeholder="+91 98765 43210" />
-                                {formErrors.phone && <p className="mt-1 text-xs text-red-500">{formErrors.phone}</p>}
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-xs font-bold text-slate-600">Student Card ID <span className="font-normal text-slate-400">(not editable)</span></label>
-                                <input type="text" value={user?.cardNumber || ''} readOnly
-                                    className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-500" />
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 pt-1">
-                            <button onClick={() => setEditing(false)} className="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50">Cancel</button>
-                            <button onClick={handleSave} disabled={saving}
-                                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60">
-                                {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : <><Check size={14} /> Save Changes</>}
-                            </button>
-                        </div>
-                    </div>
-                    </PersonalInfoCard>
+                        </Portal>
+                    )}
                 </>
             ) : (
                 <>

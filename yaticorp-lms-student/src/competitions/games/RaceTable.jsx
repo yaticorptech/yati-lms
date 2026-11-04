@@ -13,40 +13,40 @@ import { GROUP_GAMES } from '../api';
 const PEG = { red: '#ef4444', blue: '#0ea5e9', green: '#10b981', yellow: '#f59e0b', purple: '#8b5cf6', orange: '#f97316' };
 const btn = 'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-black transition-colors disabled:opacity-50';
 
-function LightsOut({ c, send }) {
+function LightsOut({ c, send, dark }) {
     return (
         <div className="mx-auto grid w-full max-w-xs gap-2" style={{ gridTemplateColumns: `repeat(${c.n}, minmax(0, 1fr))` }} data-lights>
             {c.board.map((on, i) => (
                 <button key={i} type="button" onClick={() => send({ cell: i })} aria-label={`Light ${i + 1}, ${on ? 'on' : 'off'}`}
                     className={`aspect-square rounded-xl transition-[background-color,box-shadow] duration-150 ${on ? 'bg-amber-300 shadow-[0_0_18px_rgba(251,191,36,.8)]' : 'bg-slate-800'}`} />
             ))}
-            <p className="col-span-full mt-1 text-center text-xs font-semibold text-slate-500">Taps: {c.taps}</p>
+            <p className={`col-span-full mt-1 text-center text-xs font-semibold ${dark ? 'text-white/60' : 'text-slate-500'}`}>Taps: {c.taps}</p>
         </div>
     );
 }
 
-function CodeBreaker({ c, send }) {
+function CodeBreaker({ c, send, dark }) {
     const [code, setCode] = useState([]);
     const add = (col) => setCode((x) => (x.length < 4 ? [...x, col] : x));
     return (
         <div className="mx-auto max-w-md space-y-4" data-code>
             <ol className="space-y-1.5">
                 {c.guesses.map((g, i) => (
-                    <li key={i} className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2">
-                        <span className="w-5 text-xs font-black text-slate-400">{i + 1}</span>
+                    <li key={i} className={`flex items-center gap-3 rounded-xl px-3 py-2 ${dark ? 'bg-white/[.06]' : 'bg-slate-50'}`}>
+                        <span className={`w-5 text-xs font-black ${dark ? 'text-white/40' : 'text-slate-400'}`}>{i + 1}</span>
                         <span className="flex gap-1.5">{g.code.map((p, k) => <span key={k} className="h-6 w-6 rounded-full shadow-inner" style={{ background: PEG[p] }} />)}</span>
-                        <span className="ml-auto text-xs font-bold text-slate-600">{g.exact} right place · {g.near} wrong place</span>
+                        <span className={`ml-auto text-xs font-bold ${dark ? 'text-white/70' : 'text-slate-600'}`}>{g.exact} right place · {g.near} wrong place</span>
                     </li>
                 ))}
             </ol>
             <div className="flex items-center justify-center gap-2">
-                {[0, 1, 2, 3].map((k) => <span key={k} className="h-10 w-10 rounded-full border-2 border-dashed border-slate-300" style={code[k] ? { background: PEG[code[k]], borderStyle: 'solid', borderColor: PEG[code[k]] } : undefined} />)}
+                {[0, 1, 2, 3].map((k) => <span key={k} className={`h-10 w-10 rounded-full border-2 border-dashed ${dark ? 'border-white/30' : 'border-slate-300'}`} style={code[k] ? { background: PEG[code[k]], borderStyle: 'solid', borderColor: PEG[code[k]] } : undefined} />)}
             </div>
             <div className="flex flex-wrap justify-center gap-2">
                 {c.colours.map((col) => <button key={col} type="button" onClick={() => add(col)} aria-label={col} className="h-10 w-10 rounded-full shadow-md transition-transform hover:scale-110" style={{ background: PEG[col] }} />)}
             </div>
             <div className="flex justify-center gap-2">
-                <button type="button" onClick={() => setCode((x) => x.slice(0, -1))} disabled={!code.length} className={`${btn} bg-slate-100 text-slate-700`}><Delete size={16} /> Undo</button>
+                <button type="button" onClick={() => setCode((x) => x.slice(0, -1))} disabled={!code.length} className={`${btn} ${dark ? 'bg-white/10 text-white/80 hover:bg-white/15' : 'bg-slate-100 text-slate-700'}`}><Delete size={16} /> Undo</button>
                 <button type="button" onClick={() => { send({ code }); setCode([]); }} disabled={code.length !== 4} className={`${btn} bg-indigo-600 text-white hover:bg-indigo-700`}>Guess ({c.left} left)</button>
             </div>
         </div>
@@ -54,7 +54,7 @@ function CodeBreaker({ c, send }) {
 }
 
 /** A word or a sum, typed; Enter sends. */
-function Typed({ big, numeric, send }) {
+function Typed({ big, numeric, send, dark }) {
     const [value, setValue] = useState('');
     const ref = useRef(null);
     useEffect(() => { ref.current?.focus(); }, []);
@@ -62,13 +62,13 @@ function Typed({ big, numeric, send }) {
         <form className="mx-auto flex max-w-sm flex-col items-center gap-4" onSubmit={(e) => { e.preventDefault(); if (value.trim()) { send({ value }); setValue(''); } }}>
             <p className="rounded-2xl bg-slate-900 px-6 py-3 text-center text-3xl font-black tracking-wide text-white sm:text-4xl" data-prompt>{big}</p>
             <input ref={ref} value={value} onChange={(e) => setValue(e.target.value)} inputMode={numeric ? 'numeric' : 'text'} autoComplete="off" autoCapitalize="off" spellCheck="false"
-                aria-label={numeric ? 'Your answer' : 'Type the word'} className="w-full rounded-2xl border-2 border-slate-200 px-4 py-3 text-center text-2xl font-bold outline-none focus:border-indigo-500" />
+                aria-label={numeric ? 'Your answer' : 'Type the word'} className={`w-full rounded-2xl border-2 px-4 py-3 text-center text-2xl font-bold outline-none focus:border-indigo-500 ${dark ? 'border-white/20 bg-white/10 text-white placeholder:text-white/30' : 'border-slate-200'}`} />
             <button type="submit" disabled={!value.trim()} className={`${btn} w-full bg-indigo-600 text-white hover:bg-indigo-700`}>Enter</button>
         </form>
     );
 }
 
-function SpeedSort({ c, send }) {
+function SpeedSort({ c, send, dark }) {
     const [order, setOrder] = useState([]);
     const tap = (n) => {
         if (order.includes(n)) return;
@@ -78,21 +78,21 @@ function SpeedSort({ c, send }) {
     };
     return (
         <div className="mx-auto max-w-md space-y-4" data-sort>
-            <p className="text-center text-sm font-semibold text-slate-600">Tap them from smallest to largest.</p>
+            <p className={`text-center text-sm font-semibold ${dark ? 'text-[#c7c9e4]' : 'text-slate-600'}`}>Tap them from smallest to largest.</p>
             <div className="flex flex-wrap justify-center gap-2.5">
                 {c.numbers.map((n) => (
                     <button key={n} type="button" onClick={() => tap(n)} disabled={order.includes(n)}
-                        className={`min-w-16 rounded-2xl px-4 py-3 text-2xl font-black shadow-sm transition-transform ${order.includes(n) ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-900 ring-1 ring-slate-200 hover:-translate-y-0.5'}`}>
+                        className={`min-w-16 rounded-2xl px-4 py-3 text-2xl font-black shadow-sm transition-transform ${order.includes(n) ? 'bg-emerald-100 text-emerald-700' : `bg-gradient-to-b from-white to-slate-200 text-slate-900 ring-1 ring-slate-200 hover:-translate-y-0.5 ${dark ? 'shadow-[0_8px_18px_-8px_rgba(0,0,0,.7),inset_0_1px_0_rgba(255,255,255,.9)]' : ''}`}`}>
                         {n}{order.includes(n) && <span className="ml-1 text-xs align-top">{order.indexOf(n) + 1}</span>}
                     </button>
                 ))}
             </div>
-            <div className="flex justify-center"><button type="button" onClick={() => setOrder([])} disabled={!order.length} className={`${btn} bg-slate-100 text-slate-700`}><RotateCcw size={15} /> Start again</button></div>
+            <div className="flex justify-center"><button type="button" onClick={() => setOrder([])} disabled={!order.length} className={`${btn} ${dark ? 'bg-white/10 text-white/80 hover:bg-white/15' : 'bg-slate-100 text-slate-700'}`}><RotateCcw size={15} /> Start again</button></div>
         </div>
     );
 }
 
-function NumberBonds({ c, send }) {
+function NumberBonds({ c, send, dark }) {
     const [first, setFirst] = useState(null);
     const tap = (i) => {
         if (first === null) return setFirst(i);
@@ -102,10 +102,10 @@ function NumberBonds({ c, send }) {
     };
     return (
         <div className="mx-auto max-w-md space-y-4" data-bonds>
-            <p className="text-center"><span className="text-sm font-semibold text-slate-600">Make</span> <span className="ml-1 rounded-xl bg-slate-900 px-4 py-1.5 text-3xl font-black text-white">{c.target}</span></p>
+            <p className="text-center"><span className={`text-sm font-semibold ${dark ? 'text-[#c7c9e4]' : 'text-slate-600'}`}>Make</span> <span className="ml-1 rounded-xl bg-slate-900 px-4 py-1.5 text-3xl font-black text-white">{c.target}</span></p>
             <div className="grid grid-cols-3 gap-2.5">
                 {c.tiles.map((n, i) => (
-                    <button key={i} type="button" onClick={() => tap(i)} className={`rounded-2xl py-4 text-2xl font-black shadow-sm transition-transform hover:-translate-y-0.5 ${first === i ? 'bg-indigo-600 text-white' : 'bg-white text-slate-900 ring-1 ring-slate-200'}`}>{n}</button>
+                    <button key={i} type="button" onClick={() => tap(i)} className={`rounded-2xl py-4 text-2xl font-black shadow-sm transition-transform hover:-translate-y-0.5 ${first === i ? 'bg-indigo-600 text-white shadow-[0_0_18px_rgba(99,102,241,.5)]' : `bg-gradient-to-b from-white to-slate-200 text-slate-900 ring-1 ring-slate-200 ${dark ? 'shadow-[0_8px_18px_-8px_rgba(0,0,0,.7),inset_0_1px_0_rgba(255,255,255,.9)]' : ''}`}`}>{n}</button>
                 ))}
             </div>
         </div>
@@ -128,6 +128,8 @@ function MemoryMatch({ c, send }) {
 }
 
 export default function RaceTable({ view, onAction, busy }) {
+    // The dark room (2026-11-02): the page sets view.dark for the group games with no design of their own.
+    const dark = !!view.dark;
     const { left, share } = usePhaseClock(view);
     const info = GROUP_GAMES[view.game] || {};
     const c = view.current;
@@ -142,17 +144,17 @@ export default function RaceTable({ view, onAction, busy }) {
     const send = (extra) => { if (!busy && c) onAction({ type: ACTION[view.kind], stage: c.index, ...extra }).catch(() => {}); };
     const key = `${c?.index}:${me?.mistakes}`;
     const body = !c ? null
-        : view.kind === 'lightsout' ? <LightsOut c={c} send={send} />
-            : view.kind === 'codebreaker' ? <CodeBreaker key={c.index} c={c} send={send} />
-                : view.kind === 'typingsprint' ? <Typed key={key} big={c.word} send={send} />
-                    : view.kind === 'mathsprint' ? <Typed key={key} big={`${c.text} = ?`} numeric send={send} />
-                        : view.kind === 'speedsort' ? <SpeedSort key={key} c={c} send={send} />
-                            : view.kind === 'numberbonds' ? <NumberBonds key={key} c={c} send={send} />
+        : view.kind === 'lightsout' ? <LightsOut c={c} send={send} dark={dark} />
+            : view.kind === 'codebreaker' ? <CodeBreaker key={c.index} c={c} send={send} dark={dark} />
+                : view.kind === 'typingsprint' ? <Typed key={key} big={c.word} send={send} dark={dark} />
+                    : view.kind === 'mathsprint' ? <Typed key={key} big={`${c.text} = ?`} numeric send={send} dark={dark} />
+                        : view.kind === 'speedsort' ? <SpeedSort key={key} c={c} send={send} dark={dark} />
+                            : view.kind === 'numberbonds' ? <NumberBonds key={key} c={c} send={send} dark={dark} />
                                 : view.kind === 'memorymatch' ? <MemoryMatch c={c} send={send} /> : null;
     return (
         <div className="mx-auto w-full max-w-3xl space-y-4" data-race-table={view.game} data-phase={view.phase}>
             {view.phase === 'ready' && view.status === 'active' && (
-                <section className={`rounded-3xl bg-gradient-to-br ${info.tone || 'from-indigo-500 to-violet-600'} p-8 text-center text-white shadow-lg`} data-ready>
+                <section className={`rounded-3xl bg-gradient-to-br ${info.tone || 'from-indigo-500 to-violet-600'} p-8 text-center text-white ${dark ? 'shadow-[0_30px_60px_-20px_rgba(0,0,0,.9),0_0_50px_rgba(99,102,241,.25),inset_0_1px_0_rgba(255,255,255,.25)]' : 'shadow-lg'}`} data-ready>
                     <p className="text-5xl">{info.emoji}</p>
                     <p className="mt-2 text-sm font-bold uppercase tracking-[0.25em] text-white/80">Get ready</p>
                     <p className="mt-1 text-6xl font-black tabular-nums">{Math.max(1, seconds)}</p>
@@ -160,7 +162,7 @@ export default function RaceTable({ view, onAction, busy }) {
                 </section>
             )}
             {view.phase === 'play' && view.status === 'active' && (
-                <section className={`overflow-hidden rounded-3xl border-2 bg-white shadow-sm transition-colors ${flash ? 'border-rose-400' : 'border-slate-200'}`} data-race>
+                <section className={`overflow-hidden rounded-3xl border-2 transition-colors ${dark ? `bg-[#10142f]/90 shadow-[0_24px_60px_-20px_rgba(0,0,0,.85),0_0_40px_rgba(99,102,241,.12)] ${flash ? 'border-rose-400' : 'border-[#4b46b8]/50'}` : `bg-white shadow-sm ${flash ? 'border-rose-400' : 'border-slate-200'}`}`} data-race>
                     <div className={`bg-gradient-to-r ${info.tone || 'from-indigo-500 to-violet-600'} px-5 py-3 text-white`}>
                         <div className="flex items-center justify-between gap-3">
                             <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/90">{me?.done ? 'All done!' : `${view.kind === 'memorymatch' ? 'Pairs' : 'Puzzle'} ${Math.min((me?.stage || 0) + 1, view.total)} of ${view.total}`}</p>
@@ -168,19 +170,19 @@ export default function RaceTable({ view, onAction, busy }) {
                         </div>
                         <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/25"><div className="h-full bg-white transition-[width] duration-300" style={{ width: `${(Math.min(me?.stage || 0, view.total) / view.total) * 100}%` }} /></div>
                     </div>
-                    <div className="h-1 bg-slate-100"><div className={`h-full ${share < 0.2 ? 'bg-rose-500' : 'bg-indigo-400'}`} style={{ width: `${share * 100}%` }} /></div>
+                    <div className={`h-1 ${dark ? 'bg-white/10' : 'bg-slate-100'}`}><div className={`h-full ${share < 0.2 ? 'bg-rose-500' : 'bg-indigo-400'}`} style={{ width: `${share * 100}%` }} /></div>
                     <div className="p-5 sm:p-7">
                         {me?.done
-                            ? <p className="flex flex-col items-center gap-2 py-6 text-center text-lg font-black text-emerald-700"><Check size={36} className="rounded-full bg-emerald-100 p-1.5" /> Finished! Waiting for the others…</p>
+                            ? <p className={`flex flex-col items-center gap-2 py-6 text-center text-lg font-black ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}><Check size={36} className={`rounded-full p-1.5 ${dark ? 'bg-emerald-500/20' : 'bg-emerald-100'}`} /> Finished! Waiting for the others…</p>
                             : body}
-                        {flash && <p className="mt-3 text-center text-sm font-black text-rose-600" role="status">Not quite — try again.</p>}
+                        {flash && <p className={`mt-3 text-center text-sm font-black ${dark ? 'text-rose-300' : 'text-rose-600'}`} role="status">Not quite — try again.</p>}
                     </div>
                 </section>
             )}
             {view.status !== 'active' && view.review && (
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" data-review>
-                    <h3 className="text-base font-black text-slate-900">The answers</h3>
-                    <ol className="mt-2 space-y-1 text-sm text-slate-700">{view.review.map((r, i) => <li key={i}><span className="font-bold">{r.title} {i + 1}:</span> {r.solution}</li>)}</ol>
+                <section className={`rounded-3xl border p-5 shadow-sm ${dark ? 'border-[#4b46b8]/50 bg-[#141845]/85' : 'border-slate-200 bg-white'}`} data-review>
+                    <h3 className={`text-base font-black ${dark ? 'text-white' : 'text-slate-900'}`}>The answers</h3>
+                    <ol className={`mt-2 space-y-1 text-sm ${dark ? 'text-slate-200' : 'text-slate-700'}`}>{view.review.map((r, i) => <li key={i}><span className="font-bold">{r.title} {i + 1}:</span> {r.solution}</li>)}</ol>
                 </section>
             )}
         </div>

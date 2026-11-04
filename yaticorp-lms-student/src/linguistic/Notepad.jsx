@@ -10,9 +10,11 @@ import { createPortal } from 'react-dom';
 import {
     X, Plus, Save, Pencil, Trash2, Eraser, Bold, Italic, Underline, Strikethrough, List, ListOrdered,
     AlignLeft, AlignCenter, AlignRight, AlignJustify, Indent, Outdent, Quote, Undo2, Redo2, RemoveFormatting,
-    Highlighter, Baseline, StickyNote, ArrowLeft
+    Highlighter, Baseline, StickyNote, ArrowLeft, Keyboard, ChevronDown
 } from 'lucide-react';
 import { linguisticApi } from './api';
+import { LANGS } from './meta';
+import NoteKeys, { rememberedKeys } from './parts/NoteKeys';
 
 const TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'DEL', 'H1', 'H2', 'H3', 'P', 'DIV', 'BR', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'SPAN', 'FONT', 'SUB', 'SUP', 'HR']);
 const STYLES = ['color', 'background-color', 'text-align', 'font-size', 'font-weight', 'font-style', 'text-decoration', 'margin-left', 'padding-left'];
@@ -130,6 +132,37 @@ function Toolbar({ run, state }) {
 const EMPTY = { block: 'p', size: '3', align: 'left' };
 const BTN = 'inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-extrabold transition-colors disabled:opacity-40';
 
+/** The Keyboard button, before Save (2026-10-31): a list of languages; picking one opens that keyboard. */
+function KeysMenu({ open, code, onPick, onClose }) {
+    const [menu, setMenu] = useState(false);
+    const box = useRef(null);
+    useEffect(() => {
+        if (!menu) return undefined;
+        const out = (e) => { if (!box.current?.contains(e.target)) setMenu(false); };
+        document.addEventListener('mousedown', out);
+        return () => document.removeEventListener('mousedown', out);
+    }, [menu]);
+    return (
+        <div ref={box} className="relative">
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu((m) => !m)} aria-haspopup="menu" aria-expanded={menu} title="Keyboard: any language"
+                className={`${BTN} ${open ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`} data-note-keys-toggle>
+                <Keyboard size={16} /> <span className="hidden sm:inline">Keyboard</span> <ChevronDown size={14} />
+            </button>
+            {menu && (
+                <div role="menu" className="absolute right-0 top-full z-10 mt-1 max-h-[60vh] w-56 overflow-y-auto rounded-xl bg-white py-1 shadow-xl ring-1 ring-slate-200" data-note-keys-menu>
+                    {Object.entries(LANGS).map(([c, l]) => (
+                        <button key={c} type="button" role="menuitem" onMouseDown={(e) => e.preventDefault()} onClick={() => { onPick(c); setMenu(false); }} lang={c}
+                            className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-bold hover:bg-sky-50 ${open && code === c ? 'text-sky-700' : 'text-slate-700'}`} data-key-lang={c}>
+                            <span>{l.native}</span><span className="text-xs font-semibold text-slate-400">{l.name}</span>
+                        </button>
+                    ))}
+                    {open && <button type="button" role="menuitem" onClick={() => { onClose(); setMenu(false); }} className="mt-1 w-full border-t border-slate-100 px-3 py-2 text-left text-sm font-bold text-rose-600 hover:bg-rose-50">Hide keyboard</button>}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function Notepad({ onClose }) {
     const [notes, setNotes] = useState(null);
     const [error, setError] = useState(null);
@@ -141,6 +174,8 @@ export default function Notepad({ onClose }) {
     const [state, setState] = useState(EMPTY);
     const [words, setWords] = useState(0);
     const [list, setList] = useState(true);             // phones: the list, or the note
+    const [keys, setKeys] = useState(false);            // the floating language keyboard
+    const [keyLang, setKeyLang] = useState(rememberedKeys);
     const ed = useRef(null);
 
     const open = useCallback((n, edit) => {
@@ -185,6 +220,8 @@ export default function Notepad({ onClose }) {
         setWords((ed.current?.innerText || '').trim().split(/\s+/).filter(Boolean).length);
         refresh();
     };
+    // A key tapped on a saved note opens it for editing, as a tool does.
+    const startEditing = useCallback(() => { setEditing(true); if (ed.current) ed.current.contentEditable = 'true'; }, []);
     const run = (cmd, value) => {
         // The toolbar is always there (asked 2026-10-29): a tool on a saved note opens it for editing first.
         if (!editing) { setEditing(true); if (ed.current) ed.current.contentEditable = 'true'; }
@@ -272,6 +309,7 @@ export default function Notepad({ onClose }) {
                         <input value={current?.title || ''} onChange={(e) => { setCurrent((c) => ({ ...c, title: e.target.value })); setDirty(true); setSaved(null); }} readOnly={!editing} maxLength={120} placeholder="Title"
                             className="min-w-0 flex-1 basis-40 bg-transparent text-lg font-extrabold sm:text-xl text-slate-800 outline-none placeholder:text-slate-300" data-note-title />
                         <div className="flex items-center gap-1.5">
+                            <KeysMenu open={keys} code={keyLang} onPick={(c) => { setKeyLang(c); setKeys(true); }} onClose={() => setKeys(false)} />
                             {editing
                                 ? <button type="button" onClick={save} disabled={busy} className={`${BTN} bg-emerald-600 text-white hover:bg-emerald-700`} data-note-save><Save size={16} /> {busy ? 'Saving…' : 'Save'}</button>
                                 : <button type="button" onClick={() => { setEditing(true); setTimeout(() => ed.current?.focus(), 0); }} className={`${BTN} bg-sky-600 text-white hover:bg-sky-700`} data-note-edit><Pencil size={16} /> Edit</button>}
@@ -288,6 +326,7 @@ export default function Notepad({ onClose }) {
                             data-placeholder="Start writing… what you learnt today, new words, sentences to remember."
                             className={`note-body mx-auto min-h-full max-w-3xl px-5 py-6 text-[16px] leading-relaxed text-slate-800 outline-none sm:px-10 sm:py-8 ${editing ? 'cursor-text' : ''}`} data-note-body />
                     </div>
+                    {keys && <NoteKeys code={keyLang} onCode={setKeyLang} editorRef={ed} onStart={startEditing} onClose={() => setKeys(false)} />}
                     <footer className="flex items-center justify-between gap-2 border-t border-slate-200 px-4 py-2 text-xs font-bold text-slate-400">
                         <span>{words} word{words === 1 ? '' : 's'}</span>
                         <span className={error ? 'text-rose-600' : saved ? 'text-emerald-600' : ''}>{error || (saved ? 'Saved' : dirty ? 'Not saved yet · Ctrl+S to save' : editing ? 'Editing' : current?.updatedAt ? `Saved ${when(current.updatedAt)}` : '')}</span>

@@ -55,10 +55,13 @@ let askState = null;
 
 export const consentRequest = () => askState;
 
-/** Ask for consent. Resolves true once connected, false if declined. */
-export const requestConsent = (reason) =>
+/**
+ * Ask for consent. Resolves true once connected, false if declined.
+ * `required`: an upload waits on it (2026-11-02: uploads are kept only in the student's Drive).
+ */
+export const requestConsent = (reason, { required = false } = {}) =>
   new Promise((resolve) => {
-    askState = { reason, resolve };
+    askState = { reason, resolve, required };
     emit();
   });
 

@@ -118,6 +118,8 @@ const progressSchema = new Schema({
     // The course being learnt (null = English), and where each other course was started.
     course: { type: String, default: null },
     courseStart: { type: Schema.Types.Mixed, default: {} },
+    // A try at going straight to a section not open yet (2026-10-31), by course: { level, status: open | passed | failed, percent }.
+    jumps: { type: Schema.Types.Mixed, default: {} },
     selfRating: { type: Number, default: null, min: 0, max: 4 },
     // From the start screens too (2026-10-26, as other learning apps ask): the skills they most want to improve,
     // the topics they like, and when in the day they like to learn.

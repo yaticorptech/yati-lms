@@ -104,6 +104,28 @@ export const LAYOUTS = {
     ]
 };
 
+/**
+ * The languages written in the English alphabet as a whole keyboard (2026-10-31, Spanish: "only this much will be
+ * there?" — it had only the accents): every letter in the rows of that language's own keyboard (Spanish ñ after l,
+ * French AZERTY, German QWERTZ with ü ö ä ß, Portuguese ç after l), then its accents and marks.
+ */
+export const LATIN = {
+    es: { rows: ['qwertyuiop', 'asdfghjklñ', 'zxcvbnm'], accents: [...'áéíóúü'], marks: ['¿', '¡', '.', ',', '?', '!'] },
+    fr: { rows: ['azertyuiop', 'qsdfghjklm', 'wxcvbn'], accents: [...'éèêëàâçîïôûùüœæÿ'], marks: ['’', '«', '»', '.', ',', '?', '!'] },
+    de: { rows: ['qwertzuiopü', 'asdfghjklöä', 'yxcvbnmß'], accents: [], marks: ['„', '“', '.', ',', '?', '!'] },
+    pt: { rows: ['qwertyuiop', 'asdfghjklç', 'zxcvbnm'], accents: [...'áâãàéêíóôõú'], marks: ['.', ',', '?', '!'] }
+};
+/** A letter in capitals with Shift on (ß has none of its own here). */
+export const capitalOf = (k) => (k === 'ß' ? k : k.toLocaleUpperCase());
+
+/**
+ * Letter keys in rows as a phone keyboard's (2026-11-03, "give the correct alignment for all languages"): every key one
+ * width, as many to a line as the keyboard's width holds (6 on a phone, up to 12 on a laptop), full lines edge to edge
+ * and a shorter last line in the middle. The keyboard's box is the container (`@container`).
+ */
+export const KEY_ROW = 'flex flex-wrap justify-center gap-1';
+export const KEY_FIT = 'flex-none min-w-0 basis-[calc((100%_-_1.25rem)/6_-_0.1px)] @md:basis-[calc((100%_-_1.75rem)/8_-_0.1px)] @xl:basis-[calc((100%_-_2.25rem)/10_-_0.1px)] @2xl:basis-[calc((100%_-_2.75rem)/12_-_0.1px)]';
+
 /** Whether a language has letter keys (Chinese has thousands of characters: its word tiles, or the device's keyboard, instead). */
 export const hasLetters = (code) => code === 'kn' || !!LAYOUTS[code];
 

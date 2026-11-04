@@ -1,6 +1,6 @@
 /**
- * Ranks, badges and trainings (src/nccnss/awards.js): a unit leader proposes
- * one, the organization approves it, and the member's current rank follows —
+ * Ranks, badges and trainings (src/nccnss/awards.js): a unit leader's
+ * promotion counts at once, and the member's current rank follows —
  * on the organization's list, the leader's unit and the student's own page,
  * and through a transfer. A rank must be one of the section's; a staff
  * sign-in records only in the units its teacher leads.
@@ -56,16 +56,14 @@ after(async () => {
     await mongoose.disconnect();
 });
 
-test('a leader proposes a rank of the section; the organization approves it', async () => {
+test('a leader promotes to a rank of the section, and it counts at once', async () => {
     const wrong = await asLeader('POST', `/${troop._id}/members/${memberId}/awards`, { type: 'rank', name: 'Golden Arrow' });
     assert.equal(wrong.status, 400);
-    const proposed = await asLeader('POST', `/${troop._id}/members/${memberId}/awards`, { type: 'rank', name: 'Pratham Sopan', examiner: 'DOC' });
-    assert.equal(proposed.status, 201);
-    // Not on the record until approved.
-    assert.equal((await asOrg('GET', '/me/nccnss/members?scheme=SCOUTS')).body.members[0].rank, '');
-    const queue = await asOrg('GET', '/me/nccnss/awards');
-    assert.equal(queue.body.awards.length, 1);
-    assert.equal((await asOrg('PUT', `/me/nccnss/awards/${proposed.body.award._id}`, { decision: 'approve' })).status, 200);
+    const promoted = await asLeader('POST', `/${troop._id}/members/${memberId}/awards`, { type: 'rank', name: 'Pratham Sopan', examiner: 'DOC' });
+    assert.equal(promoted.status, 201);
+    // The leader tested them, so nothing waits for the organization.
+    assert.equal(promoted.body.award.status, 'approved');
+    assert.equal((await asOrg('GET', '/me/nccnss/awards')).body.awards.length, 0);
     assert.equal((await asOrg('GET', '/me/nccnss/members?scheme=SCOUTS')).body.members[0].rank, 'Pratham Sopan');
     const unit = await asLeader('GET', `/${troop._id}`);
     assert.equal(unit.body.members[0].rank, 'Pratham Sopan');

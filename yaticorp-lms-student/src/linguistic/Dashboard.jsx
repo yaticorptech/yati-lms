@@ -7,9 +7,9 @@
  * number on them that changes is drawn live on top. The other cards follow underneath.
  * Every figure comes from the section's dashboard, loaded once by LingoShell.
  */
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
-import { Target, ChevronRight, Download, Award, Play, Languages, Mic, PenLine, BookOpen, X, BarChart3, Check, ArrowRight, Compass, ListChecks, Zap, Gift } from 'lucide-react';
+import { Target, ChevronRight, Download, Play, Mic, PenLine, BookOpen, X, BarChart3, Check, ArrowRight, Zap, Gift } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { saveBlob } from '../native/saveFile';
 import { linguisticApi } from './api';
@@ -20,26 +20,7 @@ import { planLabel, planStatus, markedDays } from './parts/plan';
 
 const ART = '/linguistic/dashboard';
 
-const CARD = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-/** The three cards under the roadmap (2026-10-29): equal height, a colour strip on top, lifting on hover. */
-const PREMIUM = 'relative flex h-full flex-col overflow-hidden rounded-[22px] border border-slate-100 bg-white p-5 pt-6 shadow-[0_8px_26px_rgba(31,42,68,.08)] transition-[box-shadow,border-color] duration-300 hover:border-indigo-100 hover:shadow-[0_22px_44px_rgba(31,42,68,.14)]';
-const Strip = ({ from, to }) => <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5" style={{ background: `linear-gradient(90deg, ${from}, ${to})` }} />;
-const CERT_COLOR = { beginner: 'green', intermediate: 'gold', advanced: 'red' };
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
-
-/** A thin bar, the profile dashboard's way. */
-const Line = ({ value, color = '#6366f1', track = '#e0e7ff', label }) => (
-    <span className="block h-2 overflow-hidden rounded-full" style={{ background: track }} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
-        <span className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${value}%`, background: color }} />
-    </span>
-);
-
-const Heading = ({ icon: Icon, title, to, link }) => (
-    <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-base font-black text-slate-800"><Icon size={18} className="text-indigo-500" /> {title}</h2>
-        {to && <Link to={to} className="inline-flex shrink-0 items-center gap-0.5 text-sm font-bold text-indigo-600 hover:text-indigo-700">{link} <ChevronRight size={16} /></Link>}
-    </div>
-);
 
 /** The level card: in the scene on a wide screen (over the one drawn there), a card of its own on a phone. */
 function LevelBadge({ dash, overlay }) {
@@ -71,21 +52,42 @@ function LevelBadge({ dash, overlay }) {
     );
 }
 
+/** Hello in each course's language, in its own letters, for the bubble (asked 2026-10-31: it said こんにちは to everyone). */
+const HELLO = {
+    en: 'Hello!', kn: 'ನಮಸ್ಕಾರ!', hi: 'नमस्ते!', ta: 'வணக்கம்!', te: 'నమస్కారం!', ml: 'നമസ്കാരം!', mr: 'नमस्कार!', bn: 'নমস্কার!',
+    gu: 'નમસ્તે!', pa: 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ!', or: 'ନମସ୍କାର!', ur: 'السلام علیکم!', es: '¡Hola!', fr: 'Bonjour !', de: 'Hallo!', pt: 'Olá!',
+    ru: 'Привет!', ar: 'مرحبًا!', zh: '你好！', ja: 'こんにちは！', ko: '안녕하세요!'
+};
+
 /**
  * The mascot's speech bubble, drawn sharp over the painted one (asked 2026-10-29: "its edges clearly visible"):
  * the scene fades in at its left edge, and on some widths the painted bubble sat in that fade. Placed from the
- * scene's right edge by its height (cqh), as the level card is, so it stays on the painted one.
+ * scene's right edge by its height (cqh), as the level card is, so it stays on the painted one. Its hello is in
+ * the course's language, made smaller when a long one (ਸਤ ਸ੍ਰੀ ਅਕਾਲ!) would not fit on its line.
  */
-const Bubble = () => (
-    <span aria-hidden="true" className="pointer-events-none absolute z-[1] flex flex-col justify-center rounded-[8cqh] bg-white shadow-[0_6px_18px_rgba(31,42,68,.14)]"
-        style={{ right: '285.2cqh', top: '15.2%', width: '70cqh', height: '32%', padding: '0 7cqh' }}>
-        <span className="block font-black leading-tight text-[#1F2A44]" style={{ fontSize: '7.6cqh' }} lang="ja">こんにちは！</span>
-        <span className="block font-bold leading-tight text-[#1F2A44]" style={{ fontSize: '5.4cqh', marginTop: '2cqh' }}>Let’s learn together!</span>
-        {/* The tail, toward the mascot. */}
-        <span className="absolute bg-white" style={{ right: '9cqh', bottom: '-5cqh', width: '7cqh', height: '7cqh', clipPath: 'polygon(0 0, 100% 0, 100% 100%)' }} />
-        <span className="absolute leading-none" style={{ right: '-4cqh', top: '-5cqh', fontSize: '11cqh' }}>🌸</span>
-    </span>
-);
+function Bubble({ code, phone }) {
+    const hello = HELLO[code] || HELLO.en;
+    const line = useRef(null);
+    useLayoutEffect(() => {
+        const el = line.current;
+        if (el && el.scrollWidth > el.clientWidth) el.style.fontSize = `calc(7.6cqh * ${(el.clientWidth / el.scrollWidth).toFixed(3)})`;
+    }, [hello]);
+    return (
+        // On a phone or tablet (2026-11-03) the picture is cut to the bubble and the mascot (2:1, at 31% across): there the
+        // painted bubble starts 39.4cqh from its left. Wider, it is placed from the picture's right edge, over the painted
+        // one, sharp (only the picture fades at its left edge); where the picture is cut so far that the painted one is
+        // cut, it stays whole at the picture's left edge (2026-11-03, "give the correct alignment"), never out over the
+        // heading — and with the mascot's head cut off too (narrower than 2.7 times its height) it is not drawn.
+        <span aria-hidden="true" className={`pointer-events-none absolute z-[1] flex flex-col justify-center rounded-[8cqh] bg-white shadow-[0_6px_18px_rgba(31,42,68,.14)] ${phone ? '' : '[@container(max-aspect-ratio:270/100)]:hidden'}`}
+            style={{ ...(phone ? { left: '39.4cqh' } : { right: 'min(285.2cqh, calc(100cqw - 72cqh))' }), top: '15.2%', width: '70cqh', height: '32%', padding: '0 7cqh' }} data-lingo-hello={code}>
+            <span key={hello} ref={line} className="block whitespace-nowrap font-black leading-tight text-[#1F2A44]" style={{ fontSize: '7.6cqh' }} lang={code} dir="auto">{hello}</span>
+            <span className="block font-bold leading-tight text-[#1F2A44]" style={{ fontSize: '5.4cqh', marginTop: '2cqh' }}>Let’s learn together!</span>
+            {/* The tail, toward the mascot. */}
+            <span className="absolute bg-white" style={{ right: '9cqh', bottom: '-5cqh', width: '7cqh', height: '7cqh', clipPath: 'polygon(0 0, 100% 0, 100% 100%)' }} />
+            <span className="absolute leading-none" style={{ right: '-4cqh', top: '-5cqh', fontSize: '11cqh' }}>🌸</span>
+        </span>
+    );
+}
 
 /**
  * The course's scene with, on its left, the journey line and Continue Learning with the lesson it opens. No
@@ -97,15 +99,17 @@ function Hero({ dash }) {
     const to = next ? `/linguistic?lesson=${next.id}` : '/linguistic';
     return (
         <section data-lingo-welcome aria-label="Welcome"
-            className="relative flex min-w-0 flex-col overflow-hidden rounded-[28px] bg-[linear-gradient(100deg,#fff6ee_0%,#fdeee4_28%,#f7eef1_48%,#eef1f8_70%)] shadow-[0_12px_32px_rgba(31,42,68,.12)] md:block md:h-[clamp(250px,16vw,300px)]">
+            className="relative flex min-w-0 flex-col overflow-hidden rounded-[28px] bg-[linear-gradient(100deg,#fff6ee_0%,#fdeee4_28%,#f7eef1_48%,#eef1f8_70%)] shadow-[0_12px_32px_rgba(31,42,68,.12)] lg:block lg:h-[clamp(250px,16vw,300px)]">
             {/* The scene (cut from the picture), fading into the sky on its left; the level card on it. */}
-            <div className="relative order-first aspect-[2/1] w-full md:absolute md:inset-y-0 md:right-0 md:aspect-auto md:w-[min(64%,calc(clamp(250px,16vw,300px)*4.82))] md:[container-type:size] lg:w-[min(70%,calc(clamp(250px,16vw,300px)*4.82))]">
+            {/* Side by side from a laptop's width (2026-11-03: was from a tablet's, where the picture was cut to its right part and the bubble fell outside it). */}
+            <div className="relative order-first aspect-[2/1] w-full overflow-hidden [container-type:size] lg:absolute lg:inset-y-0 lg:right-0 lg:aspect-auto lg:w-[min(70%,calc(clamp(250px,16vw,300px)*4.82))]">
                 {/* A phone: a taller crop around the bubble and the mascot (not the drawn card), unfaded. Wider: the whole scene from the right, fading in at its left edge. */}
                 <img src={`${ART}/hero-art.png?v=5`} alt="" draggable="false"
-                    className="absolute inset-0 h-full w-full select-none object-cover object-[31%_50%] md:object-right md:[-webkit-mask-image:linear-gradient(90deg,transparent_0%,#000_7%)] md:[mask-image:linear-gradient(90deg,transparent_0%,#000_7%)]" />
-                <span className="hidden md:block"><Bubble /><LevelBadge dash={dash} overlay /></span>
+                    className="absolute inset-0 h-full w-full select-none object-cover object-[31%_50%] lg:object-right lg:[-webkit-mask-image:linear-gradient(90deg,transparent_0%,#000_7%)] lg:[mask-image:linear-gradient(90deg,transparent_0%,#000_7%)]" />
+                <span className="lg:hidden"><Bubble code={dash.course?.code || 'en'} phone /></span>
+                <span className="hidden lg:block"><Bubble code={dash.course?.code || 'en'} /><LevelBadge dash={dash} overlay /></span>
             </div>
-            <div className="relative z-10 flex h-full flex-col justify-center p-5 sm:p-7 md:max-w-[36%] md:py-5 md:pl-[3%] md:pr-0 lg:max-w-[30%]">
+            <div className="relative z-10 flex h-full flex-col justify-center p-5 sm:p-7 lg:max-w-[30%] lg:py-5 lg:pl-[3%] lg:pr-0">
                 <h1 className="text-[clamp(1.35rem,2vw,2rem)] font-black leading-tight tracking-tight text-[#14213D]" data-lingo-welcome-line>
                     Let’s continue your <span className="text-[#F26B1D]">{course}</span> learning journey!
                 </h1>
@@ -118,7 +122,7 @@ function Hero({ dash }) {
                     </Link>
                 </div>
             </div>
-            <div className="relative px-5 pb-5 md:hidden"><LevelBadge dash={dash} /></div>
+            <div className="relative px-5 pb-5 sm:px-7 lg:hidden"><LevelBadge dash={dash} /></div>
         </section>
     );
 }
@@ -131,7 +135,7 @@ function Hero({ dash }) {
 const DOORS = [
     // In this order (asked 2026-10-29): Home, Learn, Writing, Practice, Badges. Home's picture is the Learn
     // card's, recoloured, with a house in place of the book; its words are drawn live (`text`).
-    { id: 'home', label: 'Start: your dashboard', w: 454, string: '#1E88F0', text: ['Start', 'Your dashboard'] },
+    { id: 'home', label: 'Start: your dashboard', w: 454, string: '#1E88F0', text: ['Start', 'Your dashboard'], v: 2 },
     { id: 'learn', to: '/linguistic', label: 'Learn: words and sentences', w: 454, string: '#6DBE5A' },
     { id: 'writing', to: '/linguistic/writing', label: 'Write: practise and improve', w: 422, string: '#3E9BE9', img: 'write', text: ['Write', 'Practice and improve'] },
     { id: 'practice', to: '/linguistic/practice', label: 'Practice: daily challenge and mistakes', w: 390, string: '#F2994A', img: 'practice2', text: ['Practice', 'Challenge & fix mistakes'] },
@@ -152,7 +156,7 @@ const HangString = ({ at, color }) => (
 function Doors({ tab, onTab }) {
     const navigate = useNavigate();
     return (
-        <nav role="tablist" aria-label="Language Learning" className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:!mt-11 xl:flex xl:gap-3" data-lingo-doors>
+        <nav role="tablist" aria-label="Language Learning" className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4 xl:!mt-11 xl:flex xl:gap-3" data-lingo-doors>
             {DOORS.map((d) => {
                 // Home is lit while the dashboard's own cards show; Learn (another page) never is.
                 const on = d.id === 'home' ? tab === 'learn' : d.id !== 'learn' && tab === d.id;
@@ -162,16 +166,16 @@ function Doors({ tab, onTab }) {
                         <HangString at="78%" color={d.string} />
                         <button type="button" role={d.id === 'learn' ? 'link' : 'tab'} aria-selected={d.id === 'learn' ? undefined : on} aria-controls={d.id === 'learn' ? undefined : 'lingo-tab-panel'} aria-label={d.label} data-door={d.id} data-active={on || undefined}
                             onClick={() => (d.id === 'learn' ? navigate(d.to) : onTab(d.id === 'home' || on ? 'learn' : d.id))}
-                            className={`group relative block w-full overflow-hidden rounded-[18px] transition-[transform,box-shadow] duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${on ? 'translate-y-[3px] shadow-[0_14px_28px_rgba(31,42,68,.18)]' : 'shadow-[0_8px_22px_rgba(31,42,68,.10)] group-hover/door:translate-y-[3px] group-hover/door:shadow-[0_16px_30px_rgba(31,42,68,.16)]'}`}
-                            style={on ? { boxShadow: `0 0 0 3px ${d.string}, 0 14px 28px rgba(31,42,68,.18)` } : undefined}>
+                            className={`group relative block w-full overflow-hidden rounded-[18px] transition-[transform,box-shadow] duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${on ? 'shadow-[0_10px_24px_rgba(31,42,68,.14)]' : 'shadow-[0_8px_22px_rgba(31,42,68,.10)] group-hover/door:translate-y-[3px] group-hover/door:shadow-[0_16px_30px_rgba(31,42,68,.16)]'}`}>
                             {/* All five one size (2026-10-29): the same shape, each picture filling it from the right (its
                                 arrow always whole) and a touch larger, so its cut edges fall outside the card's own. */}
-                            <img src={`${ART}/card-${d.img || d.id}-tall.png?v=1`} alt="" draggable="false" className="block w-full select-none object-cover object-right" style={{ aspectRatio: '3.3 / 1', transform: 'scale(1.03)' }} />
-                            <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[18px] ring-1 ring-inset ring-black/[.06]" />
+                            <img src={`${ART}/card-${d.img || d.id}-tall.png?v=2`} alt="" draggable="false" className="block aspect-[4.4/1] w-full select-none object-cover object-right sm:aspect-[3.3/1]" style={{ transform: 'scale(1.03)' }} />
+                            {/* The edge; the open door's in its colour, drawn inside so the card keeps its size (2026-10-29). */}
+                            <span aria-hidden="true" className={`pointer-events-none absolute inset-0 rounded-[18px] ring-inset ${on ? 'ring-2' : 'ring-1 ring-black/[.06]'}`} style={on ? { '--tw-ring-color': d.string } : undefined} data-door-ring={on || undefined} />
                             {d.text && (
                                 <span className="pointer-events-none absolute inset-0 text-left [container-type:inline-size]">
-                                    <span className="absolute block font-black leading-none text-[#17184a]" style={{ left: '36%', top: '32.5%', fontSize: '5.7cqw' }}>{d.text[0]}</span>
-                                    <span className="absolute block font-bold leading-none whitespace-nowrap text-[#4a5875]" style={{ left: '36%', top: '56.5%', fontSize: '3.9cqw' }}>{d.text[1]}</span>
+                                    <span className="absolute top-[26.1%] block font-black leading-none text-[#17184a] sm:top-[32.5%]" style={{ left: '36%', fontSize: '5.7cqw' }}>{d.text[0]}</span>
+                                    <span className="absolute top-[58.8%] block font-bold leading-none whitespace-nowrap text-[#4a5875] sm:top-[56.5%]" style={{ left: '36%', fontSize: '3.9cqw' }}>{d.text[1]}</span>
                                 </span>
                             )}
                         </button>
@@ -307,44 +311,61 @@ function Roadmap({ dash }) {
     );
 }
 
-/** A card of the right-hand column: its icon and title, and a link at the right. */
-const SideHead = ({ icon: Icon, tint, title, action }) => (
-    <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2.5 text-lg font-black text-[#14213D]"><Icon size={22} strokeWidth={2.5} style={{ color: tint }} /> {title}</h2>
-        {action}
-    </div>
+/*
+ * The cards under the roadmap, as the reference picture (2026-10-29, "completely like the one in the second
+ * image"): white cards, each headed by its picture, the title's last word in green, a line under it and a green
+ * link; the pictures (globe, medals, flags, notepad, gift) cut from that picture.
+ */
+const GREEN = '#1E8E3E';
+const CARD2 = 'relative flex h-full min-w-0 flex-col overflow-hidden rounded-[22px] border border-slate-100 bg-white p-5 shadow-[0_8px_26px_rgba(31,42,68,.08)] sm:p-6';
+const GREEN_LINK = 'inline-flex shrink-0 items-center gap-1 text-[15px] font-bold hover:opacity-80';
+const ROW = 'rounded-2xl bg-white shadow-[0_2px_10px_rgba(31,42,68,.08)] ring-1 ring-slate-100';
+const Pic = ({ name, className = '' }) => <img src={`${ART}/dash-${name}.png`} alt="" draggable="false" className={`select-none object-contain ${className}`} />;
+/** A green bar, as the picture's. */
+const GreenBar = ({ value, label, className = '' }) => (
+    <span className={`block h-2.5 overflow-hidden rounded-full bg-[#E9ECEF] ${className}`} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
+        <span className="block h-full rounded-full bg-gradient-to-r from-[#2EAA4A] to-[#7AD66B] transition-[width] duration-700" style={{ width: `${value}%` }} />
+    </span>
 );
-const SIDE_LINK = 'inline-flex shrink-0 items-center gap-1 text-sm font-extrabold text-indigo-600 hover:text-indigo-700';
-/** Icon tiles in the picture's soft colours. */
-const TILE = {
-    orange: ['#FFF1DE', '#F59E0B'], purple: ['#F1EAFE', '#8B5CF6'], blue: ['#E5F1FE', '#3B82F6'],
-    green: ['#E6F6E0', '#3F9E2B'], red: ['#FFE8EA', '#EF4444'], gold: ['#FFF4D6', '#D49A00'], grey: ['#F1F5F9', '#64748B']
+/** A card's head: its picture, the title (last word green), a line under it, a link on the right. */
+const CardHead = ({ pic, title, sub, action }) => {
+    const words = title.split(' '), last = words.pop();
+    return (
+        <div className="mb-4 flex items-start gap-3.5">
+            <Pic name={pic} className="h-12 w-12 shrink-0 sm:h-14 sm:w-14" />
+            <div className="min-w-0 flex-1">
+                <h2 className="text-[22px] font-black leading-tight text-[#14213D] sm:text-[26px]">{words.join(' ')} <span style={{ color: GREEN }}>{last}</span></h2>
+                {sub && <p className="mt-0.5 text-sm font-medium text-slate-500 sm:text-[15px]">{sub}</p>}
+            </div>
+            {action}
+        </div>
+    );
 };
-const CHIP = { orange: ['#FFE6C7', '#C2410C'], purple: ['#ECE3FD', '#6D28D9'], blue: ['#DCEBFE', '#1D4ED8'] };
+const Go = ({ to, children, ...rest }) => <Link to={to} className={GREEN_LINK} style={{ color: GREEN }} {...rest}>{children} <ArrowRight size={16} strokeWidth={2.6} /></Link>;
 
 /** Each skill: lessons done and the average quiz score; a row opens the path at that skill. */
 function Skills({ dash }) {
     const rows = MODULE_ORDER.map((id) => dash.modules.find((m) => m.id === id)).filter((m) => m && m.total);
     if (!rows.length) return null;
     return (
-        <section className={PREMIUM} data-lingo-skills>
-            <Strip from="#6366f1" to="#0ea5e9" />
-            <SideHead icon={Target} tint="#7C3AED" title="Your skills" action={<Link to="/linguistic/sections" className={SIDE_LINK}>View All <ArrowRight size={16} /></Link>} />
-            <ul className="space-y-1">
+        <section className={CARD2} data-lingo-skills>
+            <CardHead pic="h-skills" title="Your skills" sub="Track your learning progress" action={<Go to="/linguistic/sections">View All</Go>} />
+            <ul className="divide-y divide-slate-100 border-t border-slate-100">
                 {rows.map((m) => {
-                    const meta = MODULES[m.id], c = COLORS[meta.color], [tile, ink] = TILE[meta.color] || TILE.grey, Icon = meta.icon;
+                    const meta = MODULES[m.id], Icon = meta.icon, v = pct(m.completed, m.total);
                     return (
                         <li key={m.id} data-skill={m.id}>
-                            <Link to={`/linguistic?unit=${m.id}`} className="group -mx-2 flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-slate-50">
-                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: tile, color: ink }}><Icon size={20} strokeWidth={2.4} /></span>
+                            <Link to={`/linguistic?unit=${m.id}`} className="group flex items-center gap-4 py-4 hover:bg-slate-50/60">
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#EAF6EC] text-[#1F6F3A]"><Icon size={28} strokeWidth={2} /></span>
                                 <span className="min-w-0 flex-1">
-                                    <span className="mb-1.5 flex items-baseline justify-between gap-2 text-[15px]">
-                                        <span className="truncate font-bold text-[#2B3445]">{meta.short}</span>
-                                        <span className="shrink-0 text-sm font-semibold tabular-nums text-[#4B5568]">{m.completed}/{m.total}{m.average != null && <> · avg {m.average}%</>}</span>
+                                    <span className="flex items-baseline justify-between gap-2">
+                                        <span className="truncate text-lg font-bold text-[#14213D]">{meta.short}</span>
+                                        <span className="shrink-0 text-lg font-black tabular-nums" style={{ color: GREEN }}>{v}%</span>
                                     </span>
-                                    <Line value={pct(m.completed, m.total)} color={c.face} track="#EDF0F5" label={`${meta.short}: ${m.completed} of ${m.total} lessons`} />
+                                    <span className="block text-sm text-slate-500">{m.completed} / {m.total} lessons{m.average != null && <> · {m.average}% average</>}</span>
+                                    <GreenBar value={v} className="mt-2" label={`${meta.short}: ${m.completed} of ${m.total} lessons`} />
                                 </span>
-                                <ChevronRight size={18} className="shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5" />
+                                <ChevronRight size={20} strokeWidth={2.6} className="shrink-0 text-[#14213D] transition-transform group-hover:translate-x-0.5" />
                             </Link>
                         </li>
                     );
@@ -354,7 +375,8 @@ function Skills({ dash }) {
     );
 }
 
-/** Beginner, Intermediate, Advanced: progress, and the certificate once earned. */
+/** Beginner, Intermediate, Advanced: a medal each, the lessons done, and the certificate once earned. */
+const MEDALS = ['m-gold', 'm-silver', 'm-bronze'];
 function Levels({ dash }) {
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
@@ -363,25 +385,27 @@ function Levels({ dash }) {
         linguisticApi.certificatePdf(level).then((blob) => saveBlob(blob, `${dash.course?.name || 'English'}_${levelOf(level).label}_Certificate.pdf`, { title: 'Certificate' })).catch((e) => setError(e.message)).finally(() => setBusy(''));
     };
     return (
-        <section className={PREMIUM} data-lingo-levels>
-            <Strip from="#f59e0b" to="#f97316" />
-            <Heading icon={Award} title="Levels & certificates" to="/linguistic/badges" link="All" />
+        <section className={CARD2} data-lingo-levels>
+            <CardHead pic="h-levels" title="Levels & certificates" sub="Complete levels and earn certificates" action={<Go to="/linguistic/badges">All</Go>} />
             <ul className="space-y-3">
-                {dash.levels.map((l) => {
-                    const meta = levelOf(l.level), c = COLORS[CERT_COLOR[l.level]];
+                {dash.levels.map((l, i) => {
+                    const meta = levelOf(l.level);
                     return (
-                        <li key={l.level} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3" data-level-row={l.level}>
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: l.certificate ? c.face : COLORS.grey.light }}><Award size={20} className={l.certificate ? 'text-white' : 'text-slate-400'} /></span>
-                            <span className="min-w-0 flex-1">
-                                <span className="mb-1.5 flex items-baseline justify-between gap-2 text-sm">
-                                    <span className="truncate font-bold text-slate-700">{meta.label} <span className="font-semibold text-slate-400">· {meta.cefr}</span></span>
-                                    <span className="shrink-0 tabular-nums text-slate-500">{l.completed}/{l.total}</span>
+                        <li key={l.level} className={`${ROW} flex items-center gap-3 p-3 pr-2`} data-level-row={l.level}>
+                            <Pic name={MEDALS[i] || 'm-bronze'} className={`h-14 w-14 shrink-0 ${l.certificate || l.completed ? '' : 'opacity-90'}`} />
+                            <Link to="/linguistic/badges" className="group flex min-w-0 flex-1 items-center gap-2">
+                                <span className="min-w-0 flex-1">
+                                    <span className="flex items-baseline justify-between gap-2">
+                                        <span className="truncate text-[17px] font-bold text-[#14213D]">{meta.label} <span style={{ color: GREEN }}>· {meta.cefr}</span></span>
+                                        <span className="shrink-0 text-sm tabular-nums text-slate-600">{l.completed} / {l.total}</span>
+                                    </span>
+                                    <GreenBar value={pct(l.completed, l.total)} className="mt-2" label={`${meta.label}: ${l.completed} of ${l.total} lessons`} />
                                 </span>
-                                <Line value={pct(l.completed, l.total)} color={c.face} track={c.light} label={`${meta.label}: ${l.completed} of ${l.total} lessons`} />
-                            </span>
+                                <ChevronRight size={20} strokeWidth={2.6} className="shrink-0 text-[#14213D] transition-transform group-hover:translate-x-0.5" />
+                            </Link>
                             {l.certificate && (
                                 <button type="button" onClick={() => download(l.level)} disabled={busy === l.level} data-certificate={l.level}
-                                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-60">
+                                    className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold text-white disabled:opacity-60" style={{ background: GREEN }}>
                                     <Download size={14} /> {busy === l.level ? '…' : 'PDF'}
                                 </button>
                             )}
@@ -433,44 +457,47 @@ function KnowsSheet({ dash, onClose, onSaved }) {
 
 /**
  * The languages the student speaks, writes and reads (asked last on the start screens, 2026-10-28): how many
- * and which, for each; a row (or Change) opens the questions again.
+ * and which, for each, beside the globe; a row (or Change) opens the questions again.
  */
+const KNOW_PIC = { speak: 'f-uk', write: 'f-in', read: 'f-book' };
 function KnowsCard({ dash, onSaved }) {
     const [open, setOpen] = useState(false);
     const name = (code) => (dash.languages || []).find((l) => l.code === code) || { code, name: langOf(code).name, native: langOf(code).name };
     return (
-        <section className={PREMIUM} data-lingo-knows>
-            <Strip from="#8b5cf6" to="#d946ef" />
-            <SideHead icon={Languages} tint="#7C3AED" title="Your languages"
-                action={dash.knows && <button type="button" onClick={() => setOpen(true)} className={SIDE_LINK} data-knows-change>Change <ArrowRight size={16} /></button>} />
-            {dash.knows ? (
-                <ul className="space-y-1">
-                    {KNOWS.map((k) => {
-                        const list = dash.knows[k.id] || [], [tile, ink] = TILE[k.color], [chip, chipInk] = CHIP[k.color], Icon = k.icon;
-                        return (
-                            <li key={k.id} data-knows-row={k.id} data-count={list.length}>
-                                <button type="button" onClick={() => setOpen(true)} className="group -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-slate-50">
-                                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-[inset_0_-3px_0_rgba(0,0,0,.05)]" style={{ background: tile, color: ink }}><Icon size={22} strokeWidth={2.2} /></span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block text-[15px] font-bold text-[#2B3445]">{k.label} · <span className="tabular-nums">{list.length} language{list.length === 1 ? '' : 's'}</span></span>
-                                        <span className="mt-1 flex flex-wrap gap-1.5">
-                                            {list.map((code) => (
-                                                <span key={code} className="rounded-full px-3 py-0.5 text-xs font-bold" style={{ background: chip, color: chipInk }} lang={code}>{name(code).native}</span>
-                                            ))}
+        <section className={CARD2} data-lingo-knows>
+            <CardHead pic="h-lang" title="Your languages" sub="Learn, practise and explore new languages"
+                action={dash.knows && <button type="button" onClick={() => setOpen(true)} className={GREEN_LINK} style={{ color: GREEN }} data-knows-change>Change <ArrowRight size={16} strokeWidth={2.6} /></button>} />
+            <div className="flex flex-1 items-end gap-2">
+                {dash.knows ? (
+                    <ul className="relative z-10 min-w-0 flex-1 space-y-3">
+                        {KNOWS.map((k) => {
+                            const list = dash.knows[k.id] || [];
+                            return (
+                                <li key={k.id} data-knows-row={k.id} data-count={list.length}>
+                                    <button type="button" onClick={() => setOpen(true)} className={`${ROW} group flex w-full items-center gap-3 p-3 text-left hover:ring-emerald-200`}>
+                                        <Pic name={KNOW_PIC[k.id]} className="h-12 w-12 shrink-0 sm:h-14 sm:w-14" />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-[17px] font-bold text-[#14213D]">{k.label} · <span className="tabular-nums">{list.length} language{list.length === 1 ? '' : 's'}</span></span>
+                                            <span className="mt-1.5 flex flex-wrap gap-1.5">
+                                                {list.map((code, i) => (
+                                                    <span key={code} className={`rounded-lg px-3 py-1 text-sm font-semibold ${i ? 'bg-[#EEF0F2] text-[#14213D]' : 'bg-[#E3F4E6] text-[#1F6F3A]'}`} lang={code}>{name(code).native}</span>
+                                                ))}
+                                            </span>
                                         </span>
-                                    </span>
-                                    <ChevronRight size={18} className="shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5" />
-                                </button>
-                            </li>
-                        );
-                    })}
-                </ul>
-            ) : (
-                <div className="flex flex-col items-start gap-3" data-knows-ask>
-                    <p className="text-sm font-semibold text-slate-600">Tell us which languages you speak, write and read: they are kept here, with the one you are learning.</p>
-                    <Chunky color="blue" onClick={() => setOpen(true)} className="!min-h-10 !text-sm" data-knows-start>Tell us</Chunky>
-                </div>
-            )}
+                                        <ChevronRight size={20} strokeWidth={2.6} className="shrink-0 text-[#14213D] transition-transform group-hover:translate-x-0.5" />
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                ) : (
+                    <div className="relative z-10 flex min-w-0 flex-1 flex-col items-start gap-3 self-start" data-knows-ask>
+                        <p className="text-[15px] font-medium text-slate-600">Tell us which languages you speak, write and read: they are kept here, with the one you are learning.</p>
+                        <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-[15px] font-bold text-white shadow-[0_6px_16px_rgba(30,142,62,.3)] hover:brightness-105" style={{ background: GREEN }} data-knows-start>Tell us <ArrowRight size={16} strokeWidth={2.6} /></button>
+                    </div>
+                )}
+                <Pic name="globe" className="pointer-events-none -mb-5 -mr-5 hidden w-[30%] max-w-[170px] shrink-0 self-end sm:-mb-6 sm:-mr-6 sm:block" />
+            </div>
             {open && <KnowsSheet dash={dash} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); onSaved(); }} />}
         </section>
     );
@@ -485,74 +512,68 @@ function CourseCard({ dash }) {
     const other = dash.course && dash.course.code !== 'en';
     const placed = dash.placement;
     const body = other
-        ? { mark: langOf(dash.course.code).mark, title: `${dash.course.name} course`, text: `Words and sentences, Beginner to Advanced, taught in ${dash.language?.name || 'Kannada'}.`, to: '/linguistic', link: 'Open path' }
+        ? { tag: 'Featured course', title: `${dash.course.name} course`, text: `Words and sentences, Beginner to Advanced, taught in ${dash.language?.name || 'Kannada'}.`, to: '/linguistic', link: 'Start learning' }
         : !placed
-            ? { icon: Compass, title: 'Find your level', text: 'A 15-question test, about 5 minutes. Start where you belong.', to: '/linguistic/placement', link: 'Take the test' }
-            : { icon: Compass, title: `${placed.chosen ? 'You chose' : 'Placed at'} ${levelOf(placed.level).label}`, text: placed.chosen ? 'Not sure? The placement test finds your level.' : `${placed.score}/${placed.total} on the placement test.`, to: '/linguistic/placement', link: placed.chosen ? 'Take the test' : 'Retake' };
+            ? { tag: 'Your level', title: 'Find your level', text: 'A 15-question test, about 5 minutes. Start where you belong.', to: '/linguistic/placement', link: 'Take the test' }
+            : { tag: 'Your level', title: `${placed.chosen ? 'You chose' : 'Placed at'} ${levelOf(placed.level).label}`, text: placed.chosen ? 'Not sure? The placement test finds your level.' : `${placed.score}/${placed.total} on the placement test.`, to: '/linguistic/placement', link: placed.chosen ? 'Take the test' : 'Retake' };
     return (
-        <section className={PREMIUM} data-lingo-course>
-            <Strip from="#22c55e" to="#14b8a6" />
-            <div className="flex items-start gap-3.5">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-b from-[#34d399] to-[#16a34a] text-lg font-black text-white shadow-[0_8px_18px_rgba(22,163,74,.3)]" lang={other ? dash.course.code : undefined}>
-                    {body.mark || <body.icon size={22} strokeWidth={2.4} />}
-                </span>
-                <div className="min-w-0 flex-1">
-                    <h2 className="text-lg font-black leading-tight text-[#14213D]">{body.title}</h2>
-                    <p className="mt-1 text-sm leading-relaxed text-slate-500">{body.text}</p>
-                </div>
+        <section className={`${CARD2} !h-auto gap-4 !p-4 sm:!flex-row sm:items-center sm:!p-6`} data-lingo-course>
+            <div className="min-w-0 sm:flex-1">
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: GREEN }}>{body.tag}</p>
+                <h2 className="mt-1 text-xl font-black leading-tight text-[#14213D] sm:text-2xl">{body.title}</h2>
+                <p className="mt-1 text-[15px] leading-relaxed text-slate-500">{body.text}</p>
             </div>
-            <Link to={body.to} className={`${SIDE_LINK} mt-auto pt-4`}>{body.link} <ArrowRight size={16} /></Link>
+            <Link to={body.to} className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl px-6 text-base font-bold text-white bg-gradient-to-b from-[#ff8a3d] to-[#f35b0f] shadow-[0_8px_18px_rgba(243,91,15,.35)] hover:brightness-110 sm:w-auto">{body.link} <ArrowRight size={18} strokeWidth={2.6} /></Link>
         </section>
     );
 }
 function MistakesBox({ dash }) {
     const n = dash.mistakes || 0;
     return (
-        <section className={PREMIUM} data-mistakes={n}>
-            <Strip from="#f43f5e" to="#fb923c" />
-            <div className="flex items-start gap-3.5">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-b from-[#fb7185] to-[#e11d48] text-white shadow-[0_8px_18px_rgba(225,29,72,.28)]"><ListChecks size={22} strokeWidth={2.4} /></span>
-                <div className="min-w-0 flex-1">
-                    <h2 className="text-lg font-black leading-tight text-[#14213D]">{n ? `${n} mistake${n === 1 ? '' : 's'} to fix` : 'No mistakes to fix'}</h2>
-                    <p className="mt-1 text-sm leading-relaxed text-slate-500">{n ? 'Practise them until you get them right.' : 'Wrong answers come here to practise.'}</p>
-                </div>
+        <section className={`${CARD2} !h-auto gap-4 !p-4 sm:!flex-row sm:items-center sm:!p-3 sm:!pr-6`} data-mistakes={n}>
+            <Pic name="notes" className="mx-auto h-32 w-auto max-w-full shrink-0 sm:mx-0 sm:w-[34%] sm:max-w-[200px]" />
+            <div className="min-w-0 sm:flex-1">
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: GREEN }}>Practice</p>
+                <h2 className="mt-1 text-xl font-black leading-tight text-[#14213D] sm:text-2xl">{n ? `${n} mistake${n === 1 ? '' : 's'} to fix` : 'No mistakes to fix'}</h2>
+                <p className="mt-1 text-[15px] leading-relaxed text-slate-500">{n ? 'Practise them until you get them right.' : 'Wrong answers come here to practise.'}</p>
             </div>
             {n > 0
-                ? <div className="mt-auto pt-4"><Link to="/linguistic/review" className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-[#fb7185] to-[#e11d48] text-sm font-extrabold text-white shadow-[0_8px_18px_rgba(225,29,72,.25)] transition-[filter] hover:brightness-105">Fix now <ArrowRight size={16} /></Link></div>
-                : <p className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-bold text-emerald-600"><Check size={16} strokeWidth={3} /> All clear</p>}
+                ? <Link to="/linguistic/review" className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl border-2 bg-white px-8 text-base font-bold hover:bg-emerald-50 sm:w-auto" style={{ borderColor: GREEN, color: GREEN }}>Fix now <ChevronRight size={18} strokeWidth={2.8} /></Link>
+                : <p className="inline-flex items-center gap-1.5 text-base font-bold" style={{ color: GREEN }}><Check size={18} strokeWidth={3} /> All clear</p>}
         </section>
     );
 }
 function QuestsBox({ dash }) {
     const goal = dash.dailyGoal || 30;
     const rows = [
-        { icon: Zap, tint: ['#FFF4D6', '#D49A00'], bar: '#F5B300', title: `Earn ${goal} XP`, value: dash.today?.xp || 0, goal },
-        { icon: BookOpen, tint: ['#E6F6E0', '#3F9E2B'], bar: '#58CC02', title: `Complete ${QUEST_LESSONS} lessons`, value: dash.today?.lessons || 0, goal: QUEST_LESSONS },
-        { icon: Target, tint: ['#E5F1FE', '#3B82F6'], bar: '#3B82F6', title: 'Do the daily challenge', value: dash.daily?.done ? 1 : 0, goal: 1, to: '/linguistic/daily' }
+        { icon: Zap, title: `Earn ${goal} XP`, value: dash.today?.xp || 0, goal },
+        { icon: BookOpen, title: `Complete ${QUEST_LESSONS} lessons`, value: dash.today?.lessons || 0, goal: QUEST_LESSONS },
+        { icon: Target, title: 'Do the daily challenge', value: dash.daily?.done ? 1 : 0, goal: 1, to: '/linguistic/daily' }
     ];
-    const done = rows.filter((r) => r.value >= r.goal).length;
     return (
-        <section className={PREMIUM} data-quests>
-            <Strip from="#f59e0b" to="#3b82f6" />
-            <SideHead icon={Gift} tint="#D49A00" title="Daily quests" action={<span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-extrabold text-amber-700 ring-1 ring-amber-200">{done}/{rows.length} done</span>} />
-            <ul className="space-y-3.5">
+        <section className={CARD2} data-quests>
+            <Pic name="gift" className="pointer-events-none absolute right-4 top-2 hidden w-[24%] max-w-[180px] sm:block" />
+            <div className="relative sm:pr-[24%]"><CardHead pic="h-quests" title="Daily quests" sub="Complete daily goals and earn rewards" /></div>
+            <ul className="relative space-y-4">
                 {rows.map((r) => {
                     const v = Math.min(100, Math.round((r.value / r.goal) * 100));
                     const ok = r.value >= r.goal;
                     const inner = (
                         <>
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: r.tint[0], color: r.tint[1] }}><r.icon size={19} strokeWidth={2.4} /></span>
+                            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#EAF6EC]" style={{ color: GREEN }}><r.icon size={28} strokeWidth={2.2} /></span>
                             <span className="min-w-0 flex-1">
-                                <span className="mb-1.5 flex items-baseline justify-between gap-2 text-[15px]">
-                                    <span className={`truncate font-bold ${ok ? 'text-slate-400 line-through' : 'text-[#2B3445]'}`}>{r.title}</span>
-                                    <span className="shrink-0 text-xs font-extrabold tabular-nums text-slate-500">{Math.min(r.value, r.goal)}/{r.goal}</span>
+                                <span className={`block truncate text-lg font-bold ${ok ? 'text-slate-400 line-through' : 'text-[#14213D]'}`}>{r.title}</span>
+                                <span className="mt-1.5 flex items-center gap-3">
+                                    <GreenBar value={Math.max(v, 4)} className="flex-1" label={`${r.title}: ${r.value} of ${r.goal}`} />
+                                    <span className="w-12 shrink-0 text-right text-[15px] tabular-nums text-slate-600">{Math.min(r.value, r.goal)} / {r.goal}</span>
                                 </span>
-                                <Line value={v} color={ok ? '#22c55e' : r.bar} track="#EDF0F5" label={`${r.title}: ${r.value} of ${r.goal}`} />
                             </span>
-                            {ok ? <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"><Check size={15} strokeWidth={3.5} /></span> : <Gift size={20} className="shrink-0 text-slate-300" />}
+                            <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-[0_3px_10px_rgba(31,42,68,.12)] ring-1 ring-slate-100 ${ok ? 'text-white' : 'bg-white'}`} style={ok ? { background: GREEN } : { color: GREEN }}>
+                                {ok ? <Check size={22} strokeWidth={3} /> : <Gift size={24} strokeWidth={2.2} />}
+                            </span>
                         </>
                     );
-                    return <li key={r.title}>{r.to && !ok ? <Link to={r.to} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-slate-50">{inner}</Link> : <div className="flex items-center gap-3">{inner}</div>}</li>;
+                    return <li key={r.title}>{r.to && !ok ? <Link to={r.to} className="-mx-2 flex items-center gap-3.5 rounded-xl px-2 hover:bg-slate-50">{inner}</Link> : <div className="flex items-center gap-3.5">{inner}</div>}</li>;
                 })}
             </ul>
         </section>
@@ -579,15 +600,18 @@ export default function Dashboard() {
                     <>
                     {/* The roadmap across the whole row; under it the languages, the skills and the levels, side by side. */}
                     <div data-lingo-dashboard-cards><Roadmap dash={dash} /></div>
-                    <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3" data-lingo-dashboard-trio>
+                    <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]" data-lingo-dashboard-trio>
                         <KnowsCard dash={dash} onSaved={reload} />
                         <Skills dash={dash} />
                         <div className="min-w-0 md:col-span-2 xl:col-span-1"><Levels dash={dash} /></div>
                     </div>
-                    <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3" data-lingo-dashboard-more>
-                        <CourseCard dash={dash} />
-                        <MistakesBox dash={dash} />
-                        <div className="min-w-0 md:col-span-2 xl:col-span-1"><QuestsBox dash={dash} /></div>
+                    {/* As the picture: the course and the mistakes, one over the other, beside today's quests. */}
+                    <div className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]" data-lingo-dashboard-more>
+                        <div className="flex min-w-0 flex-col gap-5 xl:[&>*]:flex-1">
+                            <CourseCard dash={dash} />
+                            <MistakesBox dash={dash} />
+                        </div>
+                        <QuestsBox dash={dash} />
                     </div>
                     </>
                 )}

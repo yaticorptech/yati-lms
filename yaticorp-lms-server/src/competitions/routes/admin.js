@@ -109,7 +109,8 @@ const fromBody = (body, current = null) => {
         participationXp: num(b.participationXp ?? current?.participationXp, 0, 10000, 0),
         entryFee: feeFrom(b.entryFee, current?.entryFee),
         certificates: b.certificates == null ? current?.certificates !== false : !!b.certificates,
-        participationCertificates: b.participationCertificates == null ? current?.participationCertificates !== false : !!b.participationCertificates
+        participationCertificates: b.participationCertificates == null ? current?.participationCertificates !== false : !!b.participationCertificates,
+        certificateDesignId: b.certificateDesignId === undefined ? current?.certificateDesignId || null : (mongoose.isValidObjectId(b.certificateDesignId) ? b.certificateDesignId : null)
     };
 };
 

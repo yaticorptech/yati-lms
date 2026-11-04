@@ -1,50 +1,48 @@
 /**
- * One-off: give every certificate the numbered form YATI<card number>-NN,
- * where NN counts the student's certificates in the order they were issued.
- * Certificates issued before the sequence existed were all numbered
- * YATI<card number>, so a student with three courses had three identical
- * numbers. Certificates already carrying a suffix are renumbered too, so the
- * sequence per student is consistent with issue order.
+ * Puts every student's certificate numbers into the one format (2026-10-31):
+ * YATI<card number>-001, -002, … oldest certificate first — course
+ * certificates (whose PDFs then print the new number), uploads and the
+ * competition certificates already numbered. Numbers made before this format
+ * (YATI<card>-01, YATI<card>001) are replaced.
  *
- *   node scripts/renumberCertificates.js --dry-run   # report only
- *   node scripts/renumberCertificates.js             # apply
+ *   node scripts/renumberCertificates.js            # what would change, nothing written
+ *   node scripts/renumberCertificates.js --apply    # renumber
+ *
+ * Uses MONGO_URI from .env. Safe to run again: a student already in the format
+ * is renumbered to the same numbers.
  */
 require('dotenv').config();
 const mongoose = require('mongoose');
-const Certificate = require('../src/models/Certificate');
-const User = require('../src/models/User');
-
-const dryRun = process.argv.includes('--dry-run');
 
 (async () => {
+    const apply = process.argv.includes('--apply');
     await mongoose.connect(process.env.MONGO_URI || process.env.MONGODB_URI);
-    const certs = await Certificate.find({}).sort({ issuedAt: 1, createdAt: 1, _id: 1 }).lean();
-    const userIds = [...new Set(certs.map(c => String(c.userId)))];
-    const users = await User.find({ _id: { $in: userIds } }).select('cardNumber').lean();
-    const cardOf = new Map(users.map(u => [String(u._id), u.cardNumber]));
+    const User = require('../src/models/User');
+    const Certificate = require('../src/models/Certificate');
+    const Achievement = require('../src/models/Achievement');
+    const { renumber, FORMAT } = require('../src/services/certificateNumbers');
 
-    const byUser = new Map();
-    certs.forEach(c => { const k = String(c.userId); if (!byUser.has(k)) byUser.set(k, []); byUser.get(k).push(c); });
-
-    const changes = [];
-    for (const [uid, list] of byUser) {
-        // Keep whatever base the student already has when there is no card:
-        // the old number without its suffix, or a fresh code if there is none.
-        const fallback = (list.find(c => c.certificateNumber)?.certificateNumber || '').replace(/-\d+$/, '').replace(/^YATI/, '')
-            || Math.random().toString(36).substr(2, 6).toUpperCase();
-        const base = `YATI${cardOf.get(uid) || fallback}`;
-        list.forEach((c, i) => {
-            const next = `${base}-${String(i + 1).padStart(2, '0')}`;
-            if (c.certificateNumber !== next) changes.push({ _id: c._id, from: c.certificateNumber, to: next });
-        });
+    const ids = new Set([
+        ...(await Certificate.distinct('userId')).map(String),
+        ...(await Achievement.distinct('userId')).map(String),
+        ...(await User.find({ 'certificateNumbers.0': { $exists: true } }).distinct('_id')).map(String)
+    ]);
+    let changed = 0;
+    for (const id of ids) {
+        const user = await User.findById(id).select('name cardNumber +certificateNumbers').lean();
+        if (!user) continue;
+        const oldCourse = await Certificate.countDocuments({ userId: id, certificateNumber: { $not: FORMAT } });
+        const oldProfile = (user.certificateNumbers || []).filter((e) => !FORMAT.test(e.number || '')).length;
+        const needs = oldCourse || oldProfile || !(user.certificateNumbers || []).length;
+        if (!needs) continue;
+        changed += 1;
+        if (apply) {
+            const numbers = await renumber(id);
+            console.log(`${user.name || id} (${user.cardNumber}): ${Object.values(numbers).join(', ') || 'no certificates'}`);
+        } else {
+            console.log(`${user.name || id} (${user.cardNumber}): ${oldCourse} course and ${oldProfile} profile numbers to put right`);
+        }
     }
-
-    console.log(`${certs.length} certificate(s) held by ${byUser.size} student(s); ${changes.length} to renumber.`);
-    changes.slice(0, 20).forEach(ch => console.log(`  ${ch.from || '(none)'}  ->  ${ch.to}`));
-    if (changes.length > 20) console.log(`  ... and ${changes.length - 20} more`);
-    if (dryRun || changes.length === 0) { console.log(dryRun ? 'Dry run: nothing written.' : 'Nothing to do.'); await mongoose.disconnect(); return; }
-
-    const res = await Certificate.bulkWrite(changes.map(ch => ({ updateOne: { filter: { _id: ch._id }, update: { $set: { certificateNumber: ch.to } } } })));
-    console.log(`Renumbered ${res.modifiedCount} certificate(s).`);
+    console.log(`${changed} of ${ids.size} students ${apply ? 'renumbered' : 'to renumber (run with --apply)'}.`);
     await mongoose.disconnect();
-})().catch((e) => { console.error(e.message); process.exit(1); });
+})().catch((error) => { console.error(error); process.exit(1); });

@@ -238,7 +238,16 @@ const makeEngine = (config) => {
             const level = LEVELS.includes(o.difficulty) ? o.difficulty : 'medium';
             const count = clampNumber(o.questionCount, config.questions.fallback, config.questions.min, config.questions.max);
             const seconds = clampNumber(o.questionSeconds, Math.round(config.seconds.fallback * LEVEL_TIME[level]), config.seconds.min, config.seconds.max);
-            let raw = config.pick(count, ctx.rng, level);
+            // Questions nobody at the table has met first (services/seenQuestions.js, 2026-10-31): drawn again for
+            // any already met, and those only used when there is nothing new left.
+            const met = typeof ctx.met === 'function' ? ctx.met : null;
+            let raw = config.pick(count, ctx.rng, level, met);
+            for (let tries = 0; met && tries < 6 && raw.some(met); tries += 1) {
+                const have = new Set(raw.map((q) => q.prompt + JSON.stringify(q.options)));
+                const more = config.pick(count, ctx.rng, level, met).filter((q) => !met(q) && !have.has(q.prompt + JSON.stringify(q.options)));
+                raw = [...raw.filter((q) => !met(q)), ...more, ...raw.filter(met)].slice(0, count);
+            }
+            if (Array.isArray(ctx.dealt)) ctx.dealt.push(...raw);
             const extra = (Array.isArray(o.extraQuestions) ? o.extraQuestions : [])
                 .filter((q) => q && typeof q.prompt === 'string' && Array.isArray(q.options) && q.options.length === 4 && new Set(q.options.map(String)).size === 4 && [0, 1, 2, 3].includes(q.answer));
             if (extra.length) {

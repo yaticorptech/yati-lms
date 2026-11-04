@@ -255,9 +255,13 @@ describe('a reading', { skip: skipWithoutChrome }, () => {
             const open = find(/^Open/);
             if (open) open.click();
             await sleep(100);
-            return { said: text(document.body), open: !!open, opened: window.__opened || null, download: !!find(/Download/) };` });
+            const box = $('[data-pdf-viewer]').className;
+            return { said: text(document.body), open: !!open, opened: window.__opened || null, download: !!find(/Download/), box };` });
         assert.deepEqual(errors.filter((e) => !/403/.test(e)), []);
         assert.match(result.said, /could not be shown here/);
+        // Nothing to scroll in the grey box: a swipe on it scrolls the page (2026-10-31).
+        assert.match(result.box, /\boverflow-hidden\b/);
+        assert.doesNotMatch(result.box, /overscroll-contain|overflow-y-auto/);
         assert.equal(result.open, true);
         assert.equal(result.opened, '/handbook.pdf');
         assert.equal(result.download, false);

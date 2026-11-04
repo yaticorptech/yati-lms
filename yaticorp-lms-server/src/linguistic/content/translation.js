@@ -30,44 +30,48 @@ const EN_KN_TIPS = [
 ];
 
 module.exports = [
+    // Each Section 1 unit's sentences on its own topic (2026-11-04, the user: "the unit says Family but the content
+    // inside is different"): the first three items and two quiz questions go to a topic's first unit (Family; School
+    // and friends), the rest to its second (Food, size and feelings; Read and write) — parts.js. The sentences other
+    // languages say them in: content/onTopic.js.
     {
         seedKey: 'translation-beginner-kn-en', module: 'translation', level: 'beginner', order: 1, direction: 'kn-en',
-        title: 'Daily conversation: Kannada → English',
-        summary: 'Greetings, names and everyday sentences.',
+        title: 'Family and feelings: Kannada → English',
+        summary: 'Family, home, food and feelings, in words and sentences.',
         learn: { intro: 'Translate each Kannada word or sentence into English.', points: KN_EN_TIPS },
         items: [
-            item('i1', 'word', 'vocabulary', 'ನೀರು', 'water', 'ನೀರು means water.'),
-            item('i2', 'word', 'vocabulary', 'ಪುಸ್ತಕ', 'book', 'ಪುಸ್ತಕ means book.', ['a book']),
-            item('i3', 'sentence', 'daily conversation', 'ನನ್ನ ಹೆಸರು ರಾಣಿ.', 'My name is Rani.', 'ನನ್ನ = my, ಹೆಸರು = name. English adds "is".', ['I am Rani.', 'I\'m Rani.']),
-            item('i4', 'sentence', 'daily conversation', 'ನೀವು ಹೇಗಿದ್ದೀರಿ?', 'How are you?', 'This is the common greeting. English needs "are".'),
-            item('i5', 'sentence', 'daily conversation', 'ನಾನು ಚೆನ್ನಾಗಿದ್ದೇನೆ.', 'I am fine.', 'ಚೆನ್ನಾಗಿದ್ದೇನೆ means "I am well".', ['I\'m fine.', 'I am well.', 'I am good.', 'I\'m good.', 'I am doing well.', 'I am fine, thank you.']),
-            item('i6', 'sentence', 'grammar', 'ಇದು ನನ್ನ ಮನೆ.', 'This is my house.', 'ಇದು = this. English needs the verb "is".', ['This is my home.'])
+            item('i1', 'word', 'vocabulary', 'ತಾಯಿ', 'mother', 'ತಾಯಿ means mother (ಅಮ್ಮ is what you call her).', ['a mother', 'mom', 'mum', 'mummy']),
+            item('i2', 'sentence', 'grammar', 'ಇದು ನನ್ನ ಮನೆ.', 'This is my house.', 'ಇದು = this. English needs the verb "is".', ['This is my home.']),
+            item('i3', 'sentence', 'vocabulary', 'ನನ್ನ ಕುಟುಂಬ ದೊಡ್ಡದು.', 'My family is big.', 'ಕುಟುಂಬ = family, ದೊಡ್ಡದು = (is) big. English needs "is".', ['My family is large.', 'I have a big family.', 'Our family is big.']),
+            item('i4', 'word', 'vocabulary', 'ಊಟ', 'food', 'ಊಟ means food or a meal.', ['meal', 'a meal']),
+            item('i5', 'sentence', 'vocabulary', 'ನಾನು ಖುಷಿಯಾಗಿದ್ದೇನೆ.', 'I am happy.', 'ಖುಷಿ = happiness; ಖುಷಿಯಾಗಿದ್ದೇನೆ = I am happy. English needs "am".', ['I\'m happy.', 'I am glad.', 'I\'m glad.']),
+            item('i6', 'sentence', 'grammar', 'ಆನೆ ದೊಡ್ಡದು.', 'The elephant is big.', 'ಆನೆ = elephant, ದೊಡ್ಡದು = (is) big. English adds "the" and "is".', ['An elephant is big.', 'Elephants are big.', 'The elephant is large.'])
         ],
         quiz: [
-            item('q1', 'sentence', 'grammar', 'ನಾನು ಶಾಲೆಗೆ ಹೋಗುತ್ತೇನೆ.', 'I go to school.', 'ಹೋಗುತ್ತೇನೆ can mean "I go" or "I will go". The verb moves to after "I".', ['I will go to school.', 'I am going to school.']),
-            item('q2', 'sentence', 'vocabulary', 'ಅವಳು ನನ್ನ ತಂಗಿ.', 'She is my younger sister.', 'ತಂಗಿ is a younger sister (ಅಕ್ಕ is an elder sister).', ['She is my sister.', 'She is my little sister.']),
-            item('q3', 'sentence', 'daily conversation', 'ದಯವಿಟ್ಟು ಬಾಗಿಲು ಮುಚ್ಚಿ.', 'Please close the door.', 'ದಯವಿಟ್ಟು = please, ಬಾಗಿಲು = door, ಮುಚ್ಚಿ = close.', ['Please shut the door.', 'Close the door, please.', 'Please close the door.']),
-            item('q4', 'sentence', 'daily conversation', 'ಧನ್ಯವಾದಗಳು.', 'Thank you.', 'ಧನ್ಯವಾದಗಳು is the polite way to say thank you.', ['Thanks.', 'Thank you very much.', 'Thanks a lot.'])
+            item('q1', 'sentence', 'vocabulary', 'ಅವಳು ನನ್ನ ತಂಗಿ.', 'She is my younger sister.', 'ತಂಗಿ is a younger sister (ಅಕ್ಕ is an elder sister).', ['She is my sister.', 'She is my little sister.']),
+            item('q2', 'sentence', 'vocabulary', 'ಇವರು ನನ್ನ ತಂದೆ.', 'This is my father.', 'ಇವರು is a polite "this (person)"; ತಂದೆ = father.', ['He is my father.', 'This is my dad.']),
+            item('q3', 'sentence', 'grammar', 'ಇಲಿ ಚಿಕ್ಕದು.', 'The mouse is small.', 'ಇಲಿ = mouse, ಚಿಕ್ಕದು = (is) small.', ['A mouse is small.', 'Mice are small.', 'The mouse is little.']),
+            item('q4', 'sentence', 'vocabulary', 'ಊಟ ರುಚಿಯಾಗಿದೆ.', 'The food is tasty.', 'ರುಚಿ = taste; ರುಚಿಯಾಗಿದೆ = is tasty.', ['The food is delicious.', 'The meal is tasty.', 'The food is good.'])
         ]
     },
     {
         seedKey: 'translation-beginner-en-kn', module: 'translation', level: 'beginner', order: 2, direction: 'en-kn',
-        title: 'Everyday words: English → Kannada',
-        summary: 'Simple words and sentences from daily life.',
+        title: 'School and study: English → Kannada',
+        summary: 'School, friends, reading and writing.',
         learn: { intro: 'Translate each English word or sentence into Kannada.', points: EN_KN_TIPS },
         items: [
             item('i1', 'word', 'vocabulary', 'friend', 'ಸ್ನೇಹಿತ', 'Friend is ಸ್ನೇಹಿತ (or ಗೆಳೆಯ; for a girl, ಸ್ನೇಹಿತೆ or ಗೆಳತಿ).', ['ಗೆಳೆಯ', 'ಸ್ನೇಹಿತೆ', 'ಗೆಳತಿ']),
             item('i2', 'word', 'vocabulary', 'school', 'ಶಾಲೆ', 'School is ಶಾಲೆ.'),
-            item('i3', 'sentence', 'daily conversation', 'Good morning.', 'ಶುಭೋದಯ.', 'The usual greeting is ಶುಭೋದಯ.', ['ಶುಭ ಮುಂಜಾನೆ.']),
-            item('i4', 'sentence', 'grammar', 'I am a student.', 'ನಾನು ವಿದ್ಯಾರ್ಥಿ.', 'Kannada needs no word for "am" or "a" here.', ['ನಾನು ವಿದ್ಯಾರ್ಥಿನಿ.', 'ನಾನೊಬ್ಬ ವಿದ್ಯಾರ್ಥಿ.', 'ನಾನು ಒಬ್ಬ ವಿದ್ಯಾರ್ಥಿ.']),
-            item('i5', 'sentence', 'daily conversation', 'What is your name?', 'ನಿಮ್ಮ ಹೆಸರು ಏನು?', 'ನಿಮ್ಮ is polite; with a friend you can say ನಿನ್ನ.', ['ನಿನ್ನ ಹೆಸರು ಏನು?', 'ನಿಮ್ಮ ಹೆಸರೇನು?', 'ನಿನ್ನ ಹೆಸರೇನು?']),
-            item('i6', 'sentence', 'vocabulary', 'The food is tasty.', 'ಊಟ ರುಚಿಯಾಗಿದೆ.', 'ರುಚಿ = taste; ರುಚಿಯಾಗಿದೆ = is tasty.', ['ಆಹಾರ ರುಚಿಯಾಗಿದೆ.', 'ಊಟ ರುಚಿಕರವಾಗಿದೆ.', 'ಆಹಾರ ರುಚಿಕರವಾಗಿದೆ.'])
+            item('i3', 'sentence', 'grammar', 'I am a student.', 'ನಾನು ವಿದ್ಯಾರ್ಥಿ.', 'Kannada needs no word for "am" or "a" here.', ['ನಾನು ವಿದ್ಯಾರ್ಥಿನಿ.', 'ನಾನೊಬ್ಬ ವಿದ್ಯಾರ್ಥಿ.', 'ನಾನು ಒಬ್ಬ ವಿದ್ಯಾರ್ಥಿ.']),
+            item('i4', 'word', 'vocabulary', 'read', 'ಓದು', 'Read is ಓದು (politely ಓದಿ).', ['ಓದಿ', 'ಓದುವುದು']),
+            item('i5', 'sentence', 'grammar', 'I write a letter.', 'ನಾನು ಪತ್ರ ಬರೆಯುತ್ತೇನೆ.', 'ಪತ್ರ = letter, ಬರೆಯುತ್ತೇನೆ = I write. The verb goes at the end.', ['ನಾನು ಒಂದು ಪತ್ರ ಬರೆಯುತ್ತೇನೆ.', 'ನಾನು ಪತ್ರವನ್ನು ಬರೆಯುತ್ತೇನೆ.', 'ನಾನು ಕಾಗದ ಬರೆಯುತ್ತೇನೆ.']),
+            item('i6', 'sentence', 'vocabulary', 'This lesson is easy.', 'ಈ ಪಾಠ ಸುಲಭ.', 'ಪಾಠ = lesson, ಸುಲಭ = easy. Kannada needs no word for "is".', ['ಈ ಪಾಠ ಸುಲಭವಾಗಿದೆ.', 'ಈ ಪಾಠವು ಸುಲಭ.'])
         ],
         quiz: [
-            item('q1', 'sentence', 'daily conversation', 'Where is the bus stand?', 'ಬಸ್ ನಿಲ್ದಾಣ ಎಲ್ಲಿದೆ?', 'ಎಲ್ಲಿ = where; ಎಲ್ಲಿದೆ = where is (it).', ['ಬಸ್ ಸ್ಟ್ಯಾಂಡ್ ಎಲ್ಲಿದೆ?']),
-            item('q2', 'sentence', 'grammar', 'I like mangoes.', 'ನನಗೆ ಮಾವಿನ ಹಣ್ಣು ಇಷ್ಟ.', 'Kannada says "to me, mango is liked": ನನಗೆ … ಇಷ್ಟ.', ['ನನಗೆ ಮಾವಿನಹಣ್ಣು ಇಷ್ಟ.', 'ನನಗೆ ಮಾವಿನ ಹಣ್ಣುಗಳು ಇಷ್ಟ.', 'ನನಗೆ ಮಾವಿನಹಣ್ಣುಗಳು ಇಷ್ಟ.']),
-            item('q3', 'sentence', 'daily conversation', 'Come here.', 'ಇಲ್ಲಿ ಬನ್ನಿ.', 'ಬನ್ನಿ is polite; ಬಾ is used with friends and children.', ['ಇಲ್ಲಿ ಬಾ.']),
-            item('q4', 'sentence', 'grammar', 'It is raining.', 'ಮಳೆ ಬರುತ್ತಿದೆ.', 'Kannada says "rain is coming": ಮಳೆ ಬರುತ್ತಿದೆ.', ['ಮಳೆ ಬೀಳುತ್ತಿದೆ.'])
+            item('q1', 'sentence', 'grammar', 'This is my book.', 'ಇದು ನನ್ನ ಪುಸ್ತಕ.', 'ಇದು = this, ನನ್ನ = my, ಪುಸ್ತಕ = book.', ['ಇದು ನನ್ನ ಪುಸ್ತಕವು.']),
+            item('q2', 'sentence', 'vocabulary', 'My friend is a teacher.', 'ನನ್ನ ಸ್ನೇಹಿತ ಶಿಕ್ಷಕ.', 'ಸ್ನೇಹಿತ = friend, ಶಿಕ್ಷಕ = teacher (a woman: ಶಿಕ್ಷಕಿ). Kannada needs no "is" or "a".', ['ನನ್ನ ಗೆಳೆಯ ಶಿಕ್ಷಕ.', 'ನನ್ನ ಸ್ನೇಹಿತ ಒಬ್ಬ ಶಿಕ್ಷಕ.', 'ನನ್ನ ಸ್ನೇಹಿತೆ ಶಿಕ್ಷಕಿ.', 'ನನ್ನ ಗೆಳತಿ ಶಿಕ್ಷಕಿ.']),
+            item('q3', 'sentence', 'grammar', 'I get up early.', 'ನಾನು ಬೇಗ ಏಳುತ್ತೇನೆ.', 'ಬೇಗ = early, ಏಳುತ್ತೇನೆ = I get up.', ['ನಾನು ಬೆಳಿಗ್ಗೆ ಬೇಗ ಏಳುತ್ತೇನೆ.', 'ನಾನು ಬೇಗನೆ ಏಳುತ್ತೇನೆ.']),
+            item('q4', 'sentence', 'vocabulary', 'She reads every day.', 'ಅವಳು ಪ್ರತಿದಿನ ಓದುತ್ತಾಳೆ.', 'ಪ್ರತಿದಿನ = every day, ಓದುತ್ತಾಳೆ = she reads.', ['ಅವಳು ದಿನಾ ಓದುತ್ತಾಳೆ.', 'ಅವಳು ದಿನಾಲೂ ಓದುತ್ತಾಳೆ.', 'ಅವಳು ದಿನವೂ ಓದುತ್ತಾಳೆ.'])
         ]
     },
     {

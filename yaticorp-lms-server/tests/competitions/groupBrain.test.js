@@ -6,7 +6,7 @@
  */
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeUser, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, unlockGroupGames, startApp, cleanup } = require('../helpers');
 const PlayGame = require('../../src/competitions/models/PlayGame');
 
 let app, p;
@@ -17,6 +17,7 @@ before(async () => {
     p = [];
     for (const name of ['Host Hana', 'Player Pia', 'Player Raj', 'Player Sam', 'Player Five']) {
         const u = await makeUser(name);
+        await unlockGroupGames(u.user._id);
         u.call = app.call(u.token);
         p.push(u);
     }
@@ -201,7 +202,7 @@ describe('Group Brain rooms', () => {
     });
 
     test('every game starts with its players and shows each of them the same round', async () => {
-        const ids = (await p[0].call('GET', '/rooms/games')).body.games.map((g) => g.id).filter((id) => id !== 'chess');
+        const ids = (await p[0].call('GET', '/rooms/games')).body.games.map((g) => g.id).filter((id) => id !== 'chess' && !require('../../src/competitions/games/turns').TURNS.includes(id));
         for (const id of ids) {
             const room = await make(p[0], id, 'easy');
             for (const x of [p[1], p[2]]) { await x.call('POST', '/rooms/join', { code: room.code }); await x.call('POST', `/play/${room.id}/ready`, {}); }

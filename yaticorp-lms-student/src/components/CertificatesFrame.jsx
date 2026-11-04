@@ -8,10 +8,10 @@
  *              rest hang in the gallery beneath.
  */
 import { useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import saveToDrive from '../integrations/google/saveToDrive';
+import { ensureDriveLinked, askIfDriveRequired } from '../integrations/google/driveGate';
 import { Link } from 'react-router-dom';
 import {
-    Award, Download, Loader2, Upload, Trash2, ExternalLink, Sparkles, BadgeCheck, CalendarDays, ShieldCheck, Briefcase, ArrowRight, ChevronRight, BookOpen, Lightbulb, FileText, X, Image as ImageIcon, Lock, RefreshCw, Frame, Check, Info
+    Award, Download, Loader2, Upload, Trash2, Eye, Sparkles, BadgeCheck, CalendarDays, ShieldCheck, Briefcase, ArrowRight, ChevronRight, BookOpen, Lightbulb, FileText, X, Image as ImageIcon, Lock, RefreshCw, Frame, Check, Info
 } from 'lucide-react';
 import api from '../utils/api';
 import { Tile, Feature, Artwork } from './profileBlocks';
@@ -19,7 +19,8 @@ import Portal from './Portal';
 import CertificatePreview from './CertificatePreview';
 import CompetitionCertificatePreview from './CompetitionCertificatePreview';
 import { competitionsApi } from '../competitions/api';
-import { saveBlob } from '../native/saveFile';
+import { arenaApi } from '../competitions/arena/api';
+import { saveBlob, openExternal } from '../native/saveFile';
 import { AuthContext } from '../context/AuthContext';
 import { pdfPageOne } from '../utils/pdfPageOne';
 import useConfirmDialog from './useConfirmDialog';
@@ -43,16 +44,50 @@ const merge = (certificates, achievements, competitions = [], holder = '', group
         date: c.issuedAt || c.createdAt, added: c.createdAt || c.issuedAt, number: c.certificateNumber, thumbnailUrl: '', fileType: 'pdf'
     })),
     ...competitions.map((c) => ({
-        id: `competition-${c.competitionId}`, source: 'competition', raw: c,
+        id: `competition-${c.competitionId || `arena-${c.arenaId}`}`, source: 'competition', raw: c,
         title: `${c.title} · ${c.name}`, issuer: 'YATI LMS · Games & Competitions',
-        date: c.completedAt, added: c.completedAt, thumbnailUrl: '', fileType: 'pdf'
+        date: c.completedAt, added: c.completedAt, number: c.number || '', thumbnailUrl: '', fileType: 'pdf'
     })),
     ...achievements.map((a) => ({
         id: `up-${a.id}`, source: 'upload', raw: a,
         title: a.title, issuer: a.issuer || 'Uploaded by you',
-        date: a.issuedOn || a.createdAt, added: a.createdAt || a.issuedOn, thumbnailUrl: a.thumbnailUrl, fileUrl: a.fileUrl, fileType: a.fileType
+        date: a.issuedOn || a.createdAt, added: a.createdAt || a.issuedOn, thumbnailUrl: a.thumbnailUrl, fileUrl: a.fileUrl, fileType: a.fileType, inDrive: Boolean(a.inDrive)
     }))
 ].sort((a, b) => new Date(b.added || 0) - new Date(a.added || 0));
+
+/**
+ * A certificate the student uploaded, in YATICORP's frame with its number on
+ * the frame's foot (2026-10-31) — as the View popup shows it.
+ */
+const UploadedFrame = ({ src, title, number }) => (
+    // A white frame (asked 2026-10-31: white, no yellow line), the number on its foot.
+    <div className="mx-auto w-fit max-w-full rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-slate-200 sm:p-3.5" data-uploaded-frame>
+        <img src={src} alt={title} className="mx-auto max-h-[58dvh] w-auto rounded-md object-contain" />
+        {/* Only the number on the foot, to the right (no name there, 2026-10-31). */}
+        {number && <p className="mt-2.5 px-1 text-right font-mono text-[11px] font-bold tracking-wide text-slate-700 sm:text-xs" data-frame-number>Certificate No. {number}</p>}
+    </div>
+);
+
+/** The same frame drawn round an uploaded picture, for Download: a PNG with the number on it. */
+const framedPicture = async (blob, number) => {
+    const img = await createImageBitmap(blob);
+    const pad = Math.max(16, Math.round(Math.max(img.width, img.height) * 0.035));
+    const mat = Math.round(pad * 0.4);
+    const band = Math.round(pad * 1.6);
+    const W = img.width + 2 * (pad + mat);
+    const H = img.height + 2 * mat + pad + band;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const g = canvas.getContext('2d');
+    // White, with a hairline round the edge — no coloured or yellow border.
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    g.strokeStyle = '#e2e8f0'; g.lineWidth = Math.max(1, Math.round(pad / 12)); g.strokeRect(g.lineWidth / 2, g.lineWidth / 2, W - g.lineWidth, H - g.lineWidth);
+    g.drawImage(img, pad + mat, pad + mat);
+    const y = H - band / 2;
+    g.textBaseline = 'middle';
+    if (number) { g.fillStyle = '#334155'; g.font = `bold ${Math.round(band * 0.38)}px Menlo, Consolas, monospace`; g.textAlign = 'right'; g.fillText(`Certificate No. ${number}`, W - pad, y); }
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+};
 
 /* How many the frame holds: two rows on a laptop (12, six to a row) and a
    tablet (8, four to a row), four rows on a phone (8, two to a row — the
@@ -84,7 +119,7 @@ const Framed = ({ item, large = false }) => (
                 {item.source === 'course' ? (
                     <CertificatePreview name={item.holder} course={item.title} number={item.number} issuedAt={item.date} />
                 ) : item.source === 'competition' ? (
-                    <CompetitionCertificatePreview certificate={item.raw} />
+                    <CompetitionCertificatePreview certificate={item.raw} number={item.number} />
                 ) : item.source === 'groupbrain' ? (
                     // A Group Brain certificate: its title and ID, as on the PDF.
                     <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-indigo-50 via-white to-violet-50 px-2 text-center">
@@ -109,6 +144,8 @@ const Framed = ({ item, large = false }) => (
         )}
     </div>
 );
+
+const DRIVE_REASON = 'Certificates you upload are kept in your own Google Drive, in the YATICORP Learning folder.';
 
 const UploadDialog = ({ onClose, onDone }) => {
     const [file, setFile] = useState(null);
@@ -154,19 +191,11 @@ const UploadDialog = ({ onClose, onDone }) => {
             fd.append('issuer', issuer.trim());
             fd.append('issuedOn', issuedOn);
             fd.append('kind', kind);
+            // Kept in the student's own Google Drive by the server (2026-11-02), shared by link.
             const res = await api.post('/user/achievements', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-
-            // The same certificate into the student's own Drive, so it is not
-            // only in this site's storage. Not awaited: the upload already
-            // succeeded and a Drive copy failing must not read as a failure.
-            saveToDrive(file, {
-                name: `${title.trim()} - ${file.name}`,
-                description: `Certificate uploaded to YATICORP${issuer.trim() ? `, issued by ${issuer.trim()}` : ''}.`,
-                reason: 'So the certificates you upload are also kept in your own Google Drive.'
-            });
-
             onDone(res.data.achievement);
         } catch (err) {
+            if (askIfDriveRequired(err, DRIVE_REASON)) { setError('Link your Google Drive first: your certificates are saved there.'); return; }
             setError(err.response?.data?.message || 'Upload failed. Please try again.');
         } finally {
             setBusy(false);
@@ -303,9 +332,10 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
     useEffect(() => { loadCompetitions(); }, []);
 
     const downloadCompetition = (c) => {
-        setDownloadingCompetition(c.competitionId);
+        setDownloadingCompetition(c.competitionId || c.arenaId);
         setError('');
-        competitionsApi.certificate(c.competitionId)
+        // A Quiz Arena certificate (the organiser's own, 2026-10-31) comes from the arena's route.
+        (c.arenaId ? arenaApi.certificate(c.arenaId) : competitionsApi.certificate(c.competitionId))
             .then((blob) => saveBlob(blob, `Certificate_${c.name.replace(/\s+/g, '_')}.pdf`, { title: c.name }))
             .catch((err) => setError(err.message || 'Could not download that certificate.'))
             .finally(() => setDownloadingCompetition(null));
@@ -337,8 +367,8 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                 await api.delete(`/certificates/${item.raw._id}`);
                 onRemoved?.(item.raw._id);
             } else if (competition) {
-                await competitionsApi.hideCertificate(item.raw.competitionId);
-                setCompetitionCerts((rows) => rows.filter((c) => c.competitionId !== item.raw.competitionId));
+                if (item.raw.competitionId) await competitionsApi.hideCertificate(item.raw.competitionId);
+                setCompetitionCerts((rows) => rows.filter((c) => c !== item.raw));
             } else {
                 await api.delete(`/user/achievements/${item.raw.id}`);
                 setAchievements((rows) => rows.filter((a) => a.id !== item.raw.id));
@@ -354,9 +384,46 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
     const trash = (item) => item.source !== 'groupbrain' && (
         <button type="button" onClick={() => remove(item)} disabled={removingId === item.id} aria-label={`Delete ${item.title}`} title="Delete"
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-60">
-            {removingId === item.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={13} />}
+            {removingId === item.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={14} />}
         </button>
     );
+
+    /* Download, View and Delete on every certificate, as symbols (2026-10-31).
+       An uploaded file is fetched and saved under its title; where the browser
+       may not read it (another site's file), it opens instead. */
+    const [downloadingUpload, setDownloadingUpload] = useState(null);
+    const [viewing, setViewing] = useState(null);
+    useBackClose(() => setViewing(null), Boolean(viewing));
+    useEffect(() => {
+        if (!viewing) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setViewing(null); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [viewing]);
+    const downloadUpload = async (item) => {
+        setDownloadingUpload(item.id); setError('');
+        try {
+            // In their Drive: the file comes through our server from it (nothing is kept here).
+            const blob = item.inDrive
+                ? (await api.get(`/user/achievements/${item.id}/file`, { responseType: 'blob' })).data
+                : await fetch(item.fileUrl).then((r) => { if (!r.ok) throw new Error('fetch'); return r.blob(); });
+            const name = String(item.title || 'Certificate').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || 'Certificate';
+            // A picture comes down in YATICORP's frame, its number on it; a PDF as it was uploaded.
+            const framed = item.fileType !== 'pdf' ? await framedPicture(blob, numberOf(item)).catch(() => null) : null;
+            if (framed) await saveBlob(framed, `${name}_${numberOf(item) || 'certificate'}.png`, { title: item.title });
+            else await saveBlob(blob, `${name}.${item.fileType === 'pdf' ? 'pdf' : (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')}`, { title: item.title });
+        } catch { openExternal(item.fileUrl); }
+        finally { setDownloadingUpload(null); }
+    };
+    const download = (item) => (item.source === 'course' ? onDownload(item.raw)
+        : item.source === 'competition' ? downloadCompetition(item.raw)
+            : item.source === 'upload' ? downloadUpload(item) : undefined);
+    const downloading = (item) => (item.source === 'course' ? downloadingId === item.raw._id
+        : item.source === 'competition' ? downloadingCompetition === item.raw.competitionId
+            : downloadingUpload === item.id);
+    // An uploaded PDF opens as itself; everything else large, in a popup.
+    const view = (item) => (item.source === 'upload' && item.fileType === 'pdf' ? openExternal(item.fileUrl) : setViewing(item));
+    const ICON = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 focus:outline-none focus-visible:ring-2 disabled:opacity-60';
 
     // The holder's name is written on the certificate's picture.
     const { user } = useContext(AuthContext) || {};
@@ -365,6 +432,29 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
     const framed = items.slice(0, frameSize);
     const outOfFrame = items.length - framed.length;
     const busy = loading || loadingUploads || loadingCompetitions;
+
+    // Each certificate's number, YATI<card>001, 002… (server services/certificateNumbers.js):
+    // asked for once everything has loaded; the server gives the next ones,
+    // oldest first, to any that have none yet, and keeps them.
+    const [numbers, setNumbers] = useState({});
+    const known = useRef({});
+    const itemsKey = items.map((i) => i.id).join('|');
+    useEffect(() => {
+        if (busy) return undefined;
+        const missing = items.filter((i) => !known.current[i.id]);
+        if (!missing.length) return undefined;
+        let live = true;
+        api.post('/user/certificate-numbers', { items: missing.map((i) => ({ key: i.id, added: i.added })) })
+            .then((r) => {
+                if (!live) return;
+                known.current = { ...known.current, ...(r.data?.numbers || {}) };
+                setNumbers(known.current);
+            })
+            .catch(() => { /* the cards show without numbers rather than an error */ });
+        return () => { live = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [itemsKey, busy]);
+    const numberOf = (item) => numbers[item.id] || item.number || '';
     const someFailed = loadFailed || uploadsFailed || competitionsFailed;
     const [retrying, setRetrying] = useState(false);
     const retry = async () => {
@@ -390,7 +480,7 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                         <p className="text-xs text-slate-500 sm:text-sm">Your achievements, in one frame — earned here or uploaded from anywhere.</p>
                     </div>
                 </div>
-                <button type="button" onClick={() => setUploading(true)}
+                <button type="button" onClick={async () => { if (await ensureDriveLinked(DRIVE_REASON)) setUploading(true); }}
                     className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:from-indigo-700 hover:to-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2">
                     <Upload size={16} /> Upload Certificate
                 </button>
@@ -453,24 +543,21 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                                     tells nobody anything, so the frame speaks for
                                     itself and the name stays in the tooltip. */}
                                 <Framed item={item} />
-                                <div className="mt-auto flex items-center gap-1 pt-2">
-                                    {item.source === 'course' ? (
-                                        <button type="button" onClick={() => onDownload(item.raw)} disabled={downloadingId === item.raw._id}
-                                            className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-60">
-                                            {downloadingId === item.raw._id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
+                                {/* Its own number, under the card. */}
+                                {/* The number alone, in full: it wraps rather than being cut off on a phone. */}
+                                {numberOf(item) && <p data-certificate-number className="mt-1.5 break-all text-center font-mono text-[10px] font-semibold leading-tight text-slate-500" title={`Certificate number ${numberOf(item)}`}>{numberOf(item)}</p>}
+                                {/* Download, View, Delete — symbols, the same on every certificate. */}
+                                <div className="mt-auto flex items-center justify-center gap-1 pt-2">
+                                    {item.source !== 'groupbrain' && (
+                                        <button type="button" onClick={() => download(item)} disabled={downloading(item)} aria-label={`Download ${item.title}`} title="Download"
+                                            className={`${ICON} hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-emerald-400`}>
+                                            {downloading(item) ? <Loader2 size={13} className="animate-spin" /> : <Download size={14} />}
                                         </button>
-                                    ) : item.source === 'competition' ? (
-                                        // Free, as it is in Games & Competitions.
-                                        <button type="button" onClick={() => downloadCompetition(item.raw)} disabled={downloadingCompetition === item.raw.competitionId}
-                                            className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-60">
-                                            {downloadingCompetition === item.raw.competitionId ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
-                                        </button>
-                                    ) : (
-                                        <a href={item.fileUrl} target="_blank" rel="noopener noreferrer"
-                                            className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
-                                            <ExternalLink size={12} /> Open
-                                        </a>
                                     )}
+                                    <button type="button" onClick={() => view(item)} aria-label={`View ${item.title}`} title="View"
+                                        className={`${ICON} hover:bg-indigo-50 hover:text-indigo-700 focus-visible:ring-indigo-400`}>
+                                        <Eye size={15} />
+                                    </button>
                                     {trash(item)}
                                 </div>
                             </article>
@@ -507,6 +594,39 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                     </button>
                 </div>
             </div>
+
+            {viewing && (
+                <Portal>
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/70 p-3 backdrop-blur-sm sm:p-6" onClick={() => setViewing(null)}>
+                        <div role="dialog" aria-modal="true" aria-labelledby="cert-view-title" onClick={(e) => e.stopPropagation()}
+                            className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up">
+                            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+                                <div className="min-w-0">
+                                    <h3 id="cert-view-title" className="truncate font-bold text-slate-800">{viewing.title}</h3>
+                                    <p className="truncate text-xs text-slate-500">{[viewing.issuer, viewing.date && fmtDate(viewing.date), numberOf(viewing)].filter(Boolean).join(' · ')}</p>
+                                </div>
+                                <button type="button" onClick={() => setViewing(null)} aria-label="Close" className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X size={18} /></button>
+                            </div>
+                            <div className="min-h-0 overflow-auto bg-slate-50 p-3 sm:p-5">
+                                {viewing.source === 'upload'
+                                    ? <UploadedFrame src={viewing.inDrive ? viewing.thumbnailUrl : viewing.fileUrl || viewing.thumbnailUrl} title={viewing.title} number={numberOf(viewing)} />
+                                    : viewing.source === 'competition'
+                                        ? <div className="mx-auto max-w-2xl overflow-hidden rounded-lg shadow"><CompetitionCertificatePreview certificate={viewing.raw} number={numberOf(viewing)} /></div>
+                                        : <div className="mx-auto max-w-2xl"><Framed item={viewing} large /></div>}
+                            </div>
+                            <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">
+                                {viewing.source !== 'groupbrain' && (
+                                    <button type="button" onClick={() => download(viewing)} disabled={downloading(viewing)}
+                                        className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">
+                                        {downloading(viewing) ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download
+                                    </button>
+                                )}
+                                <button type="button" onClick={() => setViewing(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </Portal>
+            )}
 
             {showAbout && (
                 <Portal>

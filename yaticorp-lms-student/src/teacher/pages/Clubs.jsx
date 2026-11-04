@@ -9,6 +9,8 @@ import { Users, Plus, CalendarDays, Trash2, ArrowLeft, Crown, MapPin } from 'luc
 import teacherApi, { messageOf } from '../teacherSession';
 import { PageHeader, Card, CardTitle, EmptyState, Loading, ErrorNote, OkNote, Field, Modal, Badge } from '../ui';
 import { btn, inputClass, fmtDate } from '../kit';
+import { useTeacher, hasResearch } from '../useTeacher';
+import useConfirmDialog from '../../components/useConfirmDialog';
 
 const KINDS = [['meeting', 'Meeting'], ['practice', 'Practice / rehearsal'], ['competition', 'Competition / match'], ['performance', 'Performance / show'], ['drive', 'Drive / activity'], ['camp', 'Camp / trip']];
 const KIND_LABEL = Object.fromEntries(KINDS);
@@ -92,12 +94,13 @@ const ClubDetail = ({ id, onBack }) => {
     const [adding, setAdding] = useState(false);
     const [marking, setMarking] = useState(null);
     const [now] = useState(() => Date.now());
+    const [confirm, confirmDialog] = useConfirmDialog();
 
     const load = useCallback(() => teacherApi.get(`/clubs/${id}`).then((r) => { setData(r.data); setError(''); }).catch((err) => setError(messageOf(err, 'Could not load the club.'))), [id]);
     useEffect(() => { load(); }, [load]);
     const done = (msg) => { setAdding(false); setMarking(null); setOk(msg); load(); };
     const remove = async (e) => {
-        if (!window.confirm(`Delete "${e.title}"?`)) return;
+        if (!(await confirm({ title: `Delete "${e.title}"?`, message: "It comes off the members’ calendar, and its attendance goes with it.", confirmLabel: 'Delete', destructive: true }))) return;
         try { done((await teacherApi.delete(`/clubs/${id}/events/${e._id}`)).data.message); } catch (err) { setError(messageOf(err, 'Could not delete.')); }
     };
 
@@ -150,11 +153,15 @@ const ClubDetail = ({ id, onBack }) => {
             </div>
             {adding && <EventModal clubId={id} onClose={() => setAdding(false)} onDone={done} />}
             {marking && <AttendanceModal clubId={id} event={marking} members={members} onClose={() => setMarking(null)} onDone={done} />}
+            {confirmDialog}
         </div>
     );
 };
 
 export default function TeacherClubs() {
+    // A teacher without a card with nothing turned on lands here (App.jsx teacherHome).
+    const { teacher } = useTeacher();
+    const nothingOn = !hasResearch(teacher) && !teacher?.mentor360 && !teacher?.scouts;
     const [clubs, setClubs] = useState(null);
     const [error, setError] = useState('');
     const [open, setOpen] = useState(null);
@@ -166,7 +173,11 @@ export default function TeacherClubs() {
     return (
         <div className="space-y-5">
             <PageHeader icon={Users} title="My Clubs" subtitle="Clubs you are in charge of. Add their events; the members see them on their calendar." />
-            {!clubs ? (error ? <ErrorNote onRetry={load}>{error}</ErrorNote> : <Loading />) : clubs.length === 0 ? (
+            {!clubs ? (error ? <ErrorNote onRetry={load}>{error}</ErrorNote> : <Loading />) : clubs.length === 0 && nothingOn ? (
+                <EmptyState icon={Users} title="Nothing is turned on for you yet">
+                    Your organization turns on Scouts &amp; Guides, 360 or both for you. Once it does, they show up in your menu.
+                </EmptyState>
+            ) : clubs.length === 0 ? (
                 <EmptyState icon={Users} title="No clubs in your charge">
                     Your organization chooses the teacher in charge of each club. Once they pick you, the club shows up here.
                 </EmptyState>

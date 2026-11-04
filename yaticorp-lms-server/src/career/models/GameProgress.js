@@ -14,7 +14,7 @@ const gameProgressSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     gameId: { type: String, required: true, trim: true },
-    // Highest level reached (the one the student is on now), 1…90.
+    // Highest level reached (the one the student is on now), 1…500.
     level: { type: Number, default: 1, min: 1 },
     // Best stars per level, keyed by level number as a string: { "1": 3, "2": 2 }.
     stars: { type: Map, of: Number, default: {} },

@@ -64,4 +64,30 @@ const addXp = async ({ userId, amount, source, refId = null, courseId = null, de
   return { duplicate: false, xp: user.xp, level, oldLevel, leveledUp, amount };
 };
 
-module.exports = { addXp };
+/**
+ * Spend XP (2026-10-31: Group games' online tables charge their entry fee in XP). Taken only if the student has that
+ * much — otherwise INSUFFICIENT_XP — and once per refId. Their level follows the new total.
+ */
+const spendXp = async ({ userId, amount, source, refId, description = '' }) => {
+  amount = Math.round(Number(amount) || 0);
+  if (amount <= 0) return { skipped: true };
+  const key = `${source}:${refId}`;
+  let txn;
+  try {
+    txn = await XpTransaction.create({ userId, amount: -amount, source, refId: String(refId), key, description });
+  } catch (err) {
+    if (isDuplicate(err)) return { duplicate: true };
+    throw err;
+  }
+  const user = await User.findOneAndUpdate({ _id: userId, xp: { $gte: amount } }, { $inc: { xp: -amount } }, { returnDocument: 'after', select: 'xp level' });
+  if (!user) {
+    await XpTransaction.deleteOne({ _id: txn._id });
+    throw Object.assign(new Error('Not enough XP.'), { code: 'INSUFFICIENT_XP' });
+  }
+  const level = levelFor(user.xp, (await getConfig()).levelThresholds);
+  if (level !== user.level) await User.updateOne({ _id: userId, xp: user.xp }, { $set: { level } });
+  await XpTransaction.updateOne({ _id: txn._id }, { $set: { balanceAfter: user.xp } });
+  return { xp: user.xp, level };
+};
+
+module.exports = { addXp, spendXp };

@@ -105,12 +105,12 @@ const OrgDashboard = React.lazy(() => import('./pages/org/OrgDashboard'));
 const OrgStudents = React.lazy(() => import('./pages/org/OrgStudents'));
 const OrgStudentDetail = React.lazy(() => import('./pages/org/OrgStudentDetail'));
 const OrgTeachers = React.lazy(() => import('./pages/org/OrgTeachers'));
+const Org360Activities = React.lazy(() => import('./pages/org/Org360Activities'));
 const OrgNccNss = React.lazy(() => import('./pages/org/OrgNccNss'));
 // Research: a teacher's own teacher dashboard, inside the organization panel.
 const OrgResearch = React.lazy(() => import('./pages/org/OrgResearch'));
 const OrgSettings = React.lazy(() => import('./pages/org/OrgSettings'));
 const OrgUsers = React.lazy(() => import('./pages/org/OrgUsers'));
-const OrgAuditLog = React.lazy(() => import('./pages/org/OrgAuditLog'));
 const OrgBsgNotices = React.lazy(() => import('./pages/org/OrgBsgNotices'));
 const OrgBsgDashboard = React.lazy(() => import('./pages/org/OrgBsgDashboard'));
 // A BSG office's home is its Scouts & Guides overview; every other organization's is its dashboard.
@@ -119,7 +119,14 @@ import OrgNotFound from './pages/org/OrgNotFound';
 // Games & Competitions: the platform runs inter-college competitions; colleges enter teams.
 const Competitions = React.lazy(() => import('./pages/Competitions'));
 const CompetitionAdmin = React.lazy(() => import('./pages/CompetitionAdmin'));
+// The Admin Competition Dashboard (2026-11-04): what is on and what needs doing, across competitions.
+const CompetitionDashboard = React.lazy(() => import('./pages/CompetitionDashboard'));
 const OrgCompetitions = React.lazy(() => import('./pages/org/OrgCompetitions'));
+// The Certificate Builder (2026-10-31): one module, both dashboards.
+const CertificateBuilder = React.lazy(() => import('./certificates/CertificateBuilder'));
+const IssuedCertificates = React.lazy(() => import('./certificates/IssuedCertificates'));
+// Organisations: Certificate Configuration (intra- / inter-college, formal certificates), 2026-10-31.
+const CertificateConfiguration = React.lazy(() => import('./certificates/CertificateConfiguration'));
 // Quiz Arena: three-round live quiz contests, and their question bank.
 const QuizArena = React.lazy(() => import('./pages/QuizArena'));
 const QuizArenaCompetition = React.lazy(() => import('./pages/QuizArenaCompetition'));
@@ -148,6 +155,7 @@ function App() {
         {/* Requests are the Students page's tab now; the old address still lands there. */}
         <Route path="requests" element={<Navigate to="/organization/students?view=requests" replace />} />
         <Route path="teachers" element={<OrgTeachers />} />
+        <Route path="360-activities" element={<Org360Activities />} />
         <Route path="ncc-nss" element={<OrgNccNss />} />
         <Route path="research" element={<OrgResearch />} />
         <Route path="research/:tool" element={<OrgResearch />} />
@@ -155,6 +163,8 @@ function App() {
         <Route path="courses/:id" element={<OrgCourses><CourseEditor /></OrgCourses>} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
         <Route path="competitions" element={<OrgCompetitions />} />
+        <Route path="competitions/certificates" element={<CertificateConfiguration />} />
+        <Route path="competitions/certificates/issued" element={<IssuedCertificates side="organization" />} />
         <Route path="competitions/host/:id" element={<CompetitionAdmin apiBase="/competitions/org/host" backTo="/organization/competitions?tab=host" />} />
         {/* A hosting college's own Quiz Arena: its question bank and contests. */}
         <Route path="competitions/question-bank" element={<QuizArena />} />
@@ -162,7 +172,8 @@ function App() {
         {/* English (Linguistic Ability) is no longer in the organization panel; an old link goes to the dashboard. */}
         <Route path="linguistic" element={<Navigate to="/organization" replace />} />
         <Route path="users" element={<OrgUsers />} />
-        <Route path="audit" element={<OrgAuditLog />} />
+        {/* The organization's Audit log is gone (2026-10-30); an old link goes to the dashboard. */}
+        <Route path="audit" element={<Navigate to="/organization" replace />} />
         <Route path="bsg-notices" element={<OrgBsgNotices />} />
         <Route path="settings" element={<OrgSettings />} />
         {/* Any other address in here: said inside the shell, menu and all. */}
@@ -192,6 +203,9 @@ function App() {
         <Route path="global-quiz" element={<GlobalQuiz />} />
         <Route path="announcements" element={<Announcements />} />
         <Route path="competitions" element={<SuperAdminRoute what="competitions"><Competitions /></SuperAdminRoute>} />
+        <Route path="competitions/dashboard" element={<SuperAdminRoute what="competitions"><CompetitionDashboard /></SuperAdminRoute>} />
+        <Route path="competitions/certificates" element={<SuperAdminRoute what="competitions"><CertificateBuilder side="platform" /></SuperAdminRoute>} />
+        <Route path="competitions/certificates/issued" element={<SuperAdminRoute what="competitions"><IssuedCertificates side="platform" /></SuperAdminRoute>} />
         <Route path="competitions/:id" element={<SuperAdminRoute what="competitions"><CompetitionAdmin /></SuperAdminRoute>} />
         {/* Quiz Arena lives in Games & Competitions: its contests in the list, its question bank a page of it. */}
         <Route path="competitions/question-bank" element={<SuperAdminRoute what="competitions"><QuizArena /></SuperAdminRoute>} />

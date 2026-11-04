@@ -53,6 +53,9 @@ router.post('/progress/update', protectUser, updateProgress);
 router.get('/bundles', protectUser, getBundles);
 router.get('/bundles/:id', protectUser, getBundleContent);
 
+// 360: my program, section and mentor, once my organization opens it (src/three60).
+router.use('/360', protectUser, require('../three60').student);
+
 // Settings Routes
 const userSettingsController = require('../controllers/userSettingsController');
 router.get('/settings', protectUser, userSettingsController.getUserSettings);
@@ -109,17 +112,24 @@ router.get('/tickets', protectUser, getMyTickets);
 router.get('/certificates', protectUser, getMyCertificates);
 
 // Achievements — certificates the student uploads themselves (profile frame)
-const { listAchievements, createAchievement, updateAchievement, deleteAchievement } = require('../controllers/achievementController');
+const { listAchievements, createAchievement, updateAchievement, deleteAchievement, achievementFile } = require('../controllers/achievementController');
+// The number under each certificate on My Certificates, given once and kept (services/certificateNumbers.js).
+router.post('/certificate-numbers', protectUser, async (req, res) => {
+    try { res.json({ numbers: await require('../services/certificateNumbers').numbersFor(req.user._id, req.body?.items) }); }
+    catch (error) { console.error('[certificates] numbers failed:', error.message); res.status(500).json({ message: 'Could not number your certificates just now.' }); }
+});
 router.get('/achievements', protectUser, listAchievements);
 router.post('/achievements', protectUser, xpOnSuccess('achievement_added', () => `achievement:${today()}`), createAchievement);
 router.put('/achievements/:id', protectUser, updateAchievement);
 router.delete('/achievements/:id', protectUser, deleteAchievement);
+router.get('/achievements/:id/file', protectUser, achievementFile);
 
 // Resume — the student's own file, and the ATS resume built from their courses
 const { getResume, uploadResume, deleteResume, getAtsData, downloadAts } = require('../controllers/resumeController');
 router.get('/resume', protectUser, getResume);
 // Priced under Wallet rules → Upload a resume; refunded if the upload fails.
-router.post('/resume', protectUser, chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () => 'resume'), uploadResume);
+// Kept in the student's own Google Drive (2026-11-02): linked first, before anything is charged.
+router.post('/resume', protectUser, require('../integrations/google/driveStore').requireDriveFor, chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () => 'resume'), uploadResume);
 router.delete('/resume', protectUser, deleteResume);
 router.get('/resume/ats/data', protectUser, getAtsData);
 router.get('/resume/ats', protectUser, chargeWallet('download_resume'), downloadAts);
