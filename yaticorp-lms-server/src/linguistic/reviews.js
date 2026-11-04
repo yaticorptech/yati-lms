@@ -22,7 +22,7 @@ const { localize } = require('./languages');
 const courses = require('./courses');
 const parts = require('./parts');
 const NOTES = require('./content/asks/notes');
-const { nextShown, ASSESSMENT_PASS } = require('./levels');
+const { nextShown, ASSESSMENT_PASS, SHOWN } = require('./levels');
 
 /**
  * Advanced's Writing track (2026-10-29, units.js TRACKS): each Advanced article's writing tasks (a letter, an email,
@@ -46,7 +46,7 @@ const KINDS = [
  * meaning, hearing them and using them. One per unit (a level's Words lessons
  * by their `order`), at the unit's end.
  */
-const UNIT = { review: 'unit', module: 'vocabulary', title: 'Unit review', summary: 'This unit’s words again: match the pairs, then a quick quiz with listening.' };
+const UNIT = { review: 'unit', module: 'vocabulary', title: 'Unit review', summary: 'This unit’s words again: a quick quiz with listening.' };
 // A unit's listening stop (2026-10-24, Duolingo's headphones): its words, heard and picked.
 const HEAR = { review: 'hear', module: 'vocabulary', title: 'Listening', summary: 'Hear this unit’s words and pick each one.' };
 const unitOrders = (level) => [...new Set(CONTENT.filter((l) => l.level === level && l.module === 'vocabulary').map((l) => Number(l.order) || 1))];
@@ -59,6 +59,15 @@ const unitOrders = (level) => [...new Set(CONTENT.filter((l) => l.level === leve
  */
 const ASSESSMENT = { review: 'assessment', module: 'vocabulary', order: 103, summary: 'A test on this section. Pass it to open the next one.' };
 const assessmentTitle = (level) => `${LEVEL_LABEL[level]} assessment`;
+/**
+ * The entry test of a section after the first (asked 2026-10-31: "when the user directly enters the advanced level,
+ * give one assessment of how much English they know"): 20 questions, half on the section before it and half on its
+ * own; passed with half of each right, the section opens without the one before (service.js `startJump`). Not on
+ * the path: it is offered under the section while it is shut.
+ */
+const ENTRY = { review: 'entry', module: 'vocabulary', order: 0 };
+const entryTitle = (level) => `${LEVEL_LABEL[level]} entry test`;
+const beforeOf = (level) => SHOWN[SHOWN.indexOf(level) - 1] || null;
 
 /** Every review's stub: four per level and one of each per unit, in the English course and in every other course. */
 const stubs = () => courses.courseCodes().flatMap((code) => LEVELS.flatMap((level) => {
@@ -67,6 +76,7 @@ const stubs = () => courses.courseCodes().flatMap((code) => LEVELS.flatMap((leve
     return [
         ...KINDS.map((k) => ({ ...base, seedKey: `${prefix}review-${k.review}-${level}`, review: k.review, module: k.module, order: k.order, title: k.title, summary: k.summary })),
         ...(nextShown(level) ? [{ ...base, seedKey: `${prefix}review-assessment-${level}`, review: 'assessment', module: ASSESSMENT.module, order: ASSESSMENT.order, title: assessmentTitle(level), summary: ASSESSMENT.summary }] : []),
+        ...(beforeOf(level) ? [{ ...base, seedKey: `${prefix}review-entry-${level}`, review: 'entry', module: ENTRY.module, order: ENTRY.order, title: entryTitle(level), summary: `How much do you know? 20 questions on ${LEVEL_LABEL[beforeOf(level)]} and ${LEVEL_LABEL[level]}. Half of each right, and ${LEVEL_LABEL[level]} opens.` }] : []),
         ...(code === 'en' && writeLevels().includes(level) ? readingAt(level).map((r) => ({ ...base, seedKey: `review-write-${level}-${Number(r.order) || 1}`, review: 'write', module: 'reading', order: Number(r.order) || 1, part: 2, title: `Writing: ${r.title}`, summary: 'Write the letter, email or paragraph; it is checked here.' })) : []),
         // One of each per unit: a topic's two units (parts.js), the second's seedKey ending "~2".
         ...unitOrders(level).flatMap((order) => parts.PARTS.flatMap((part) => [UNIT, HEAR].map((k) => ({
@@ -131,6 +141,7 @@ const build = (stub, helper) => {
     };
     const level = LEVEL_LABEL[stub.level];
     if (stub.review === 'assessment') return assessmentOf(stub, helper, out, level);
+    if (stub.review === 'entry') return entryOf(stub, helper, out);
     if (stub.review === 'write') {
         const src = readingAt(stub.level).find((l) => (Number(l.order) || 1) === stub.order);
         const own = src && localize(src, helper);
@@ -149,7 +160,7 @@ const build = (stub, helper) => {
             : stub.review === 'listen' || stub.review === 'hear'
             ? { intro: `Turn your sound on: you will hear words from ${stub.review === 'hear' ? 'this unit' : level}, and pick the one you hear. Tap the speaker to hear it again.` }
             : stub.review === 'unit'
-                ? { intro: `The ${out.words.length} words of this unit again. Match the pairs, then a quick quiz: their meaning, hearing them, and using them.` }
+                ? { intro: `The ${out.words.length} words of this unit again, in a quick quiz: their meaning, hearing them, and using them.` }
                 : { intro: `All ${out.words.length} words of ${level} again. Match the pairs, then take the quiz.` };
         return out;
     }
@@ -200,4 +211,17 @@ function assessmentOf(stub, helper, out, level) {
     return out;
 }
 
-module.exports = { KINDS, UNIT, HEAR, ASSESSMENT, stubs, build };
+/**
+ * The entry test made whole (`ENTRY`): the words, grammar and sentences of the section before it and of its own, a
+ * half of the test from each (service.js quizOf); half of each right to pass.
+ */
+function entryOf(stub, helper, out) {
+    const before = beforeOf(stub.level);
+    const half = (level) => { const h = assessmentOf({ ...stub, level }, helper, {}, LEVEL_LABEL[level]); return { level, words: h.words, grammar: h.grammar, sentences: h.sentences, pool: h.pool }; };
+    out.entry = { from: before, halves: [half(before), half(stub.level)] };
+    out.passingScore = ASSESSMENT_PASS;
+    out.learn = { intro: `The ${LEVEL_LABEL[stub.level]} entry test: how much do you know? 20 questions — 10 on ${LEVEL_LABEL[before]}, 10 on ${LEVEL_LABEL[stub.level]}. Get half of each right (${ASSESSMENT_PASS}% or more of each) and ${LEVEL_LABEL[stub.level]} opens now. Below that, you learn from ${LEVEL_LABEL[before]}, from its start. You have one try.` };
+    return out;
+}
+
+module.exports = { KINDS, UNIT, HEAR, ASSESSMENT, ENTRY, stubs, build };

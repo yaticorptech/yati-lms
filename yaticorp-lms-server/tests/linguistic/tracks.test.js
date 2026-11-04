@@ -38,7 +38,8 @@ describe('Advanced by skill', () => {
             assert.ok(u.note, `${u.title}: what it is for`);
             assert.ok(!u.lessons.some((x) => x.stop), `${u.title}: no chests or practice stops`);
         }
-        assert.deepEqual((await track('stories')).lessons.map((x) => x.module), ['reading', 'reading', 'reading', 'reading'], 'the four articles');
+        // Each article followed by its topic's picture story (comics.js, 2026-10-31).
+        assert.deepEqual((await track('stories')).lessons.map((x) => x.type), ['story', 'comic', 'story', 'comic', 'story', 'comic', 'story', 'comic'], 'the four articles, each with a picture story after it');
         assert.deepEqual((await track('listening')).lessons.map((x) => x.module), ['speaking', 'speaking', 'speaking', 'speaking'], 'the four conversations');
         assert.deepEqual((await track('writing')).lessons.map((x) => x.type), ['writing', 'writing', 'writing', 'writing']);
     });

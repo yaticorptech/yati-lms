@@ -72,18 +72,23 @@ describe('courses', () => {
     test('the course path: Vocabulary and Translation only, Beginner open', async () => {
         const path = (await api('GET', '/path')).body;
         assert.equal(path.course.code, 'kn');
-        const modules = new Set(path.levels.flatMap((l) => lessonsOf(l).map((x) => x.module)));
+        const modules = new Set(path.levels.flatMap((l) => lessonsOf(l).filter((x) => x.review !== 'comic').map((x) => x.module)));
         assert.deepEqual([...modules].sort(), ['translation', 'vocabulary']);
+        // And the picture stories in Kannada, in Advanced (2026-11-02).
+        assert.deepEqual(lessonsOf(path.levels.find((l) => l.level === 'advanced')).filter((x) => x.review === 'comic').map((x) => x.title), ['ಚಿತ್ರಕಥೆ: ಹಂಚಿಕೊಂಡ ಬಾವಿ', 'ಚಿತ್ರಕಥೆ: ಮೂರು ಬೆಳ್ಳಿ ನಾಣ್ಯಗಳು', 'ಚಿತ್ರಕಥೆ: ರಸ್ತೆ ಮತ್ತು ಆಲದ ಮರ', 'ಚಿತ್ರಕಥೆ: ಪ್ರಾಮಾಣಿಕ ದೋಣಿಯವನು']);
         assert.equal(path.levels.find((l) => l.level === 'beginner').open, true);
         assert.equal(path.levels.find((l) => l.level === 'advanced').open, false);
-        assert.deepEqual(path.levels[0].units.map((u) => u.title), ['Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Time and days', 'My day', 'Level review'], 'the same units as English');
-        assert.deepEqual(path.levels[0].units[0].lessons.map((x) => x.stop || x.review || x.module), ['vocabulary', 'translation', 'chest', 'hear', 'practice', 'unit']);
+        assert.deepEqual(path.levels[0].units.map((u) => u.title), ['Letters', 'Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Time and days', 'My day', 'Level review'], 'the same units as English, the Kannada letters first (2026-10-31)');
+        assert.deepEqual(path.levels[0].units[0].lessons.map((x) => x.title), ['All letters', 'Letters: Vowels', 'Letters: Consonants 1', 'Letters: Consonants 2', 'Letters: Vowel signs'], 'the varnamala, first all on one page');
+        assert.deepEqual(path.levels[0].units[1].lessons.map((x) => x.stop || x.review || x.module), ['vocabulary', 'translation', 'chest', 'hear', 'practice', 'unit']);
         assert.ok(lessonsOf(path.levels[0]).some((x) => /write in Kannada/.test(x.title)));
     });
 
     test('a vocabulary lesson: Kannada words, their meanings in Hindi, questions both ways', async () => {
         const path = (await api('GET', '/path')).body;
-        const first = path.levels[0].units[0].lessons[0];
+        const first = path.levels[0].units[1].lessons[0];
+        // Past the Kannada letters (the first unit since 2026-10-31), as a student who learnt them.
+        await unlockIds(hindi.user, [first.id]);
         const l = (await api('GET', `/lessons/${first.id}`)).body;
         assert.deepEqual([l.target, l.targetName, l.language], ['kn', 'Kannada', 'hi']);
         assert.equal(l.words.length, 4, 'the first unit\'s half of the topic\'s words');
@@ -100,7 +105,7 @@ describe('courses', () => {
 
     test('each level has four reviews, locked until the unit’s lessons are done; Listen and pick asks by sound', async () => {
         const path = (await api('GET', '/path')).body;
-        const unitEnd = path.levels[0].units[0].lessons.at(-1);
+        const unitEnd = path.levels[0].units[1].lessons.at(-1);
         assert.deepEqual([unitEnd.title, unitEnd.open], ['Unit review', false], 'each unit ends with its review');
         const levelReview = path.levels[0].units.at(-1);
         assert.deepEqual(levelReview.lessons.map((l) => [l.title, l.open]), [['Word review', false], ['Listen and pick', false], ['Sentence review', false], ['Level checkpoint', false], ['Beginner assessment', false]], 'and the assessment that opens Advanced (2026-10-29)');
@@ -114,7 +119,7 @@ describe('courses', () => {
     });
 
     test('finishing Beginner: a Kannada certificate, and the English course untouched', async () => {
-        for (let guard = 0; guard < 40; guard++) {
+        for (let guard = 0; guard < 60; guard++) {
             const path = (await api('GET', '/path')).body;
             const next = lessonsOf(path.levels[0]).find((x) => x.open && x.status !== 'completed');
             if (!next) break;
@@ -146,7 +151,7 @@ describe('courses', () => {
     });
 
     test('a unit\'s treasure chest: opened once for bonus XP, once the lesson before it is done', async () => {
-        const before = (await api('GET', '/path')).body.levels[0].units[0].lessons.find((n) => n.stop === 'chest');
+        const before = (await api('GET', '/path')).body.levels[0].units[1].lessons.find((n) => n.stop === 'chest');
         assert.deepEqual([before.open, before.status], [true, 'new']);
         const r = await api('POST', '/chest/beginner-1');
         assert.equal(r.status, 200, JSON.stringify(r.body));
@@ -154,7 +159,7 @@ describe('courses', () => {
         assert.equal((await api('POST', '/chest/beginner-1')).status, 409, 'once');
         assert.equal((await api('POST', '/chest/advanced-1')).status, 404, 'Advanced has tracks, no chests (2026-10-29)');
         assert.equal((await api('POST', '/chest/nowhere-9')).status, 404);
-        const after = (await api('GET', '/path')).body.levels[0].units[0].lessons.find((n) => n.stop === 'chest');
+        const after = (await api('GET', '/path')).body.levels[0].units[1].lessons.find((n) => n.stop === 'chest');
         assert.equal(after.status, 'completed');
     });
 

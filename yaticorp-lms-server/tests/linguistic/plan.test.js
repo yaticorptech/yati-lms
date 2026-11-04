@@ -45,7 +45,7 @@ describe('the learning plan', () => {
         assert.equal(p.schedule.length, 14);
         assert.equal(p.schedule.reduce((n, d) => n + d.lessons.length, 0), p.total, 'every lesson has its day');
         assert.ok(p.schedule[0].today && p.schedule[0].lessons.length >= 4, 'today: four or five lessons');
-        assert.equal(p.schedule[0].lessons[0].title, 'Family', 'starting with the first unit');
+        assert.equal(p.schedule[0].lessons[0].title, 'Letters A–I', 'starting with the letters (2026-10-31)');
 
         const path = (await api('GET', '/path')).body;
         const types = typesOf(path);

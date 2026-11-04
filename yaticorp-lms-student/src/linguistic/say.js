@@ -46,7 +46,7 @@ const KN = {
     'Hear the sample': 'ಮಾದರಿ ಕೇಳಿ', 'They tick by themselves as you say them': 'ನೀವು ಹೇಳುತ್ತಿದ್ದಂತೆ ಇವು ತಾವಾಗಿಯೇ ಗುರುತಾಗುತ್ತವೆ',
     'What we heard': 'ನಾವು ಕೇಳಿದ್ದು', 'Type what you said': 'ನೀವು ಹೇಳಿದ್ದನ್ನು ಟೈಪ್ ಮಾಡಿ',
     'Write at least 3 sentences. End each one with a full stop.': 'ಕನಿಷ್ಠ 3 ವಾಕ್ಯಗಳನ್ನು ಬರೆಯಿರಿ. ಪ್ರತಿಯೊಂದನ್ನೂ ಪೂರ್ಣವಿರಾಮದಿಂದ (.) ಮುಗಿಸಿ.',
-    'Tap the matching pairs': 'ಹೊಂದುವ ಜೋಡಿಗಳನ್ನು ಒತ್ತಿ', 'Warm up: this unit’s words': 'ಅಭ್ಯಾಸ: ಈ ಘಟಕದ ಪದಗಳು', 'Use word bank': 'ಪದಗಳ ಸಂಗ್ರಹ ಬಳಸಿ', 'Use keyboard': 'ಕೀಬೋರ್ಡ್ ಬಳಸಿ',
+    'Tap the matching pairs': 'ಹೊಂದುವ ಜೋಡಿಗಳನ್ನು ಒತ್ತಿ', 'Wrong choices': 'ತಪ್ಪು ಆಯ್ಕೆಗಳು', 'Right answer': 'ಸರಿಯಾದ ಉತ್ತರ', 'You chose': 'ನೀವು ಆರಿಸಿದ್ದು', 'Review your mistakes': 'ನಿಮ್ಮ ತಪ್ಪುಗಳನ್ನು ನೋಡಿ', 'Your answer': 'ನಿಮ್ಮ ಉತ್ತರ', 'Warm up: this unit’s words': 'ಅಭ್ಯಾಸ: ಈ ಘಟಕದ ಪದಗಳು', 'Use word bank': 'ಪದಗಳ ಸಂಗ್ರಹ ಬಳಸಿ', 'Use keyboard': 'ಕೀಬೋರ್ಡ್ ಬಳಸಿ',
     'Hint: ': 'ಸುಳಿವು: ',
     // The sheet under a checked answer
     'Correct solution:': 'ಸರಿಯಾದ ಉತ್ತರ:', 'Nearly — check the spelling:': 'ಸ್ವಲ್ಪದರಲ್ಲಿ ತಪ್ಪಿತು — ಕಾಗುಣಿತ ನೋಡಿ:',

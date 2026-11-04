@@ -64,9 +64,13 @@ export const buildLesson = (lesson) => {
 
     // Learn the concept.
     if (learn.intro || learn.points?.length || learn.examples?.length || learn.kannadaNote) add({ part: 'learn', kind: 'notes', learn, title: lesson.title });
-    // (A level's word review goes straight to the pairs: its words were each learnt in their lesson.)
+    // (A level's word review goes straight to the pairs: its words were each learnt in their lesson. So does a Letters
+    // lesson, 2026-10-31: its letters were each seen and heard on the Letters chart, "don't give them again".)
+    const letters = lesson.review === 'letters';
     if (m === 'vocabulary' && lesson.words?.length && !lesson.review) add({ part: 'learn', kind: 'words', words: lesson.words, language });
     if (m === 'reading' && learn.passage) add({ part: 'learn', kind: 'passage', passage: learn.passage });
+    // A picture story (Advanced, 2026-10-31): its comic page.
+    if (lesson.comic) add({ part: 'learn', kind: 'comic', comic: lesson.comic });
     if (m === 'speaking' && learn.dialogue) add({ part: 'learn', kind: 'dialogue', dialogue: learn.dialogue, audio: learn.audio, phrases: learn.phrases || [] });
 
     // A warm-up on the unit's words (asked 2026-10-24: every lesson mixes its tasks, the Duolingo way):
@@ -77,9 +81,20 @@ export const buildLesson = (lesson) => {
 
     // Practise, with the answer and why after each.
     if (m === 'vocabulary' && lesson.words?.length) {
-        pairRounds(lesson.words).forEach((round) => add({ part: 'practice', kind: 'pairs', words: round, language }));
+        // Matching pairs once a unit (2026-10-29): in its Words lesson (and a level's word review), not again in the
+        // unit's review or its listening stop.
+        // A Letters lesson whose letters each have a word (English, 2026-10-31): "A for 🍎 apple" cards; then (asked the
+        // same day, "after this, give the match the following") each letter matched to its word and picture, not its sound.
+        // In Kannada and Hindi too, a few letters have no word (ಙ, ಞ …): they are matched to their sounds, as before.
+        const worded = letters ? lesson.words.filter((w) => w.for) : [];
+        if (worded.length) {
+            add({ part: 'learn', kind: 'letterWords', words: worded, language });
+            pairRounds(worded.map((w) => ({ ...w, kannada: `${w.pic} ${w.for}` }))).forEach((round) => add({ part: 'practice', kind: 'pairs', words: round, language, letterWords: true }));
+            const bySound = lesson.words.filter((w) => !w.for);
+            if (bySound.length >= 2) pairRounds(bySound).forEach((round) => add({ part: 'practice', kind: 'pairs', words: round, language }));
+        } else if (!['unit', 'hear'].includes(lesson.review)) pairRounds(lesson.words).forEach((round) => add({ part: 'practice', kind: 'pairs', words: round, language }));
         // Spelling is English's; a course in another language matches and quizzes its words.
-        if (!lesson.course) spellPicks(lesson.words).forEach((i) => {
+        if (!lesson.course && !letters) spellPicks(lesson.words).forEach((i) => {
             const w = lesson.words[i];
             add({ part: 'practice', kind: 'question', section: 'spell', retry: true, word: w, language,
                 q: { id: `spell:${i}`, type: 'spelling', prompt: tr(language)('Type this word in English'), hint: `${w.word[0]}${'_'.repeat(Math.max(0, w.word.length - 1))} (${line(language, 'lettersCount', w.word.length)})`, kannada: w.kannada, audio: w.audio } });
@@ -96,7 +111,7 @@ export const buildLesson = (lesson) => {
     if (quiz.length) {
         add({ part: 'quiz', kind: 'intro', mascot: 'flex-determined', title: tr(language)('Quiz time!'), quiz: true,
             text: line(language, 'quizIntro', quiz.length, lesson.passingScore) });
-        const context = m === 'reading' && learn.passage ? { passage: learn.passage } : m === 'speaking' && learn.dialogue ? { dialogue: learn.dialogue } : null;
+        const context = lesson.comic ? { comic: lesson.comic } : m === 'reading' && learn.passage ? { passage: learn.passage } : m === 'speaking' && learn.dialogue ? { dialogue: learn.dialogue } : null;
         quiz.forEach((q) => (q.type === 'translation'
             ? add({ part: 'quiz', kind: 'translate', section: 'quiz', collect: q.id, item: q, direction: q.direction || lesson.direction, language })
             : add({ part: 'quiz', kind: 'question', section: 'quiz', collect: q.id, q, context })));
@@ -143,7 +158,7 @@ export const answered = (step, value) => {
     return !!givenOf(step, value).trim();
 };
 
-export const isInfo = (step) => ['notes', 'words', 'passage', 'dialogue', 'intro'].includes(step?.kind);
+export const isInfo = (step) => ['notes', 'words', 'passage', 'comic', 'letterWords', 'dialogue', 'intro', 'missReview'].includes(step?.kind);
 
 /**
  * The sheet under a checked answer: its tone (right, wrong, or info for work

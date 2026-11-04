@@ -29,7 +29,8 @@ const withTopics = (pack, code) => {
     const add = topics.packFor(code);
     const learn = { ...(pack.learn || {}) };
     for (const [key, from] of Object.entries(topics.tipsFrom)) if (learn[from] && !learn[key]) learn[key] = learn[from];
-    return { ...pack, words: { ...(pack.words || {}), ...add.words }, items: { ...(pack.items || {}), ...add.items }, learn };
+    // Section 1's translation lessons on their units' topics (2026-11-04, content/onTopic.js).
+    return { ...pack, words: { ...(pack.words || {}), ...add.words }, items: require('./content/onTopic').packItems(code, { ...(pack.items || {}), ...add.items }), learn };
 };
 /** A language's pack, read once; null for Kannada or a pack not there. */
 const packOf = (code) => {
