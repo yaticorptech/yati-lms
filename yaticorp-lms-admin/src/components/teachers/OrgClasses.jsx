@@ -82,7 +82,7 @@ const OrgClasses = ({ onNotice }) => {
             <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
                 <div className="min-w-0">
                     <h2 id="org-classes-title" className="font-bold text-slate-800">Courses &amp; sections</h2>
-                    <p className="mt-1 text-sm text-slate-500">Your courses and how many sections each has. Your teachers with <strong>360</strong> pick from this list the course, section and subject they teach.</p>
+                    <p className="mt-1 text-sm text-slate-500">Your courses and how many sections each has. Your courses and how many sections each has. Your teachers pick from this list the course, section and year they teach, and add their subject.</p>
                     <p className="mt-1 text-xs text-slate-400 tabular-nums">{plural(rows.length, 'course')} · {plural(sections, 'section')}</p>
                 </div>
             </div>

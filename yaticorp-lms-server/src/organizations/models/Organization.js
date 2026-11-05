@@ -207,9 +207,18 @@ const organizationSchema = new mongoose.Schema({
                 // Who teaches this section, and what — each teacher adds their own.
                 teachers: [new mongoose.Schema({
                     teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true },
-                    subject: { type: String, trim: true, maxlength: 80, default: '' }
+                    subject: { type: String, trim: true, maxlength: 80, default: '' },
+                    // Which years of the course they teach it to (1st, 2nd, 3rd), one or more.
+                    years: { type: [Number], default: [] }
                 })]
-            })]
+            })],
+            // The subjects of each semester of the course (Settings → Institution, 2026-11-04):
+            // { year: 1–3, semester: 1–6, name }. Teachers pick theirs from these.
+            subjects: [new mongoose.Schema({
+                year: { type: Number, required: true, min: 1, max: 3 },
+                semester: { type: Number, min: 1, max: 6 },
+                name: { type: String, required: true, trim: true, maxlength: 80 }
+            }, { _id: false })]
         }, { timestamps: true })],
         // The activities of 360 (the 360 Activities page, 2026-10-31): in
         // categories, each worth "up to N marks" (mode max) or "N points per

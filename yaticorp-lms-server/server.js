@@ -141,6 +141,8 @@ app.use('/api/integrations/google', require('./src/integrations/google/routes'))
 app.use('/api/interview', require('./src/interview'));
 // Linguistic Ability: English learning, its admin content and teacher reviews.
 app.use('/api/linguistic', require('./src/linguistic'));
+// Indic speech: AI4Bharat Indic Parler-TTS (yaticorp-lms-tts), cached on disk; off unless INDIC_TTS_URL is set.
+app.use('/api/tts', require('./src/tts'));
 // Games & Competitions: online Chess, Ludo, Carrom and UNO, friendly rooms and
 // inter-college competitions run by the platform admin (src/competitions).
 app.use('/api/competitions', require('./src/competitions'));

@@ -1,12 +1,14 @@
 /**
- * "Your sources": the papers and chapters the teacher has read for their
- * research, uploaded so every check compares with them too — the closest
- * this page can come to a journal database without sending anything out.
+ * "Your sources": papers the free search cannot reach (paywalled articles,
+ * books, a PDF someone shared), uploaded so every check compares with their
+ * full text too. Open-access papers are found and read by the check itself
+ * (server: openSources.js), so since 2026-11-04 this is one slim line, with
+ * the list behind "Manage".
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Library, Upload, Loader2, Trash2, FileText, Eye } from 'lucide-react';
+import { Library, Upload, Loader2, Trash2, FileText, Eye, ChevronDown } from 'lucide-react';
 import teacherApi, { messageOf } from './teacherSession';
-import { Card, CardTitle, ErrorNote, OkNote, Modal } from './ui';
+import { ErrorNote, OkNote, Modal } from './ui';
 import { btn, fmtDate, fmtNum } from './kit';
 import { readSourceFile, SOURCE_ACCEPT } from './readSourceFile';
 
@@ -21,6 +23,7 @@ export default function PlagiarismSources({ onCount }) {
     const [viewing, setViewing] = useState(null);
     const [viewText, setViewText] = useState(null);
     const [viewError, setViewError] = useState('');
+    const [showList, setShowList] = useState(false);
 
     const load = useCallback(() => teacherApi.get('/plagiarism/sources')
         .then((r) => { setList(r.data.sources); setMax(r.data.max || 50); onCount?.(r.data.sources.length); })
@@ -62,21 +65,29 @@ export default function PlagiarismSources({ onCount }) {
     const closeView = useCallback(() => setViewing(null), []);
 
     return (
-        <Card>
-            <CardTitle icon={Library} color="indigo" right={list && <span className="text-xs font-semibold text-slate-500">{list.length} of {max}</span>}>Your sources</CardTitle>
-            <p className="text-sm text-slate-600">Upload the papers and chapters you read for your research (PDF, Word or text). Every check compares your writing with them as well as with YATICORP, so text copied from a paper you read is found. They stay private to you.</p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+        <section aria-label="Your sources" className="rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <Library size={18} className="shrink-0 text-indigo-500" aria-hidden="true" />
+                <p className="min-w-0 flex-1 text-sm text-slate-600">
+                    Using a <strong className="font-semibold text-slate-800">paywalled paper or a book</strong>? Add it so every check compares with it too. <span className="text-slate-400">Open-access papers are found for you.</span>
+                </p>
                 <input ref={input} id="source-files" type="file" multiple accept={SOURCE_ACCEPT} className="sr-only" onChange={(e) => add(e.target.files)} disabled={Boolean(uploading)} />
-                <label htmlFor="source-files" className={`${btn.secondary} cursor-pointer ${uploading ? 'pointer-events-none opacity-60' : ''}`}>
-                    {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} {uploading ? `Reading ${uploading}…` : 'Upload papers'}
+                <label htmlFor="source-files" title="PDF, Word or text. A scanned PDF has no text to compare." className={`${btn.secondary} !py-1.5 !text-xs cursor-pointer ${uploading ? 'pointer-events-none opacity-60' : ''}`}>
+                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {uploading ? `Reading ${uploading}…` : 'Add a paper'}
                 </label>
-                <span className="text-xs text-slate-500">A scanned PDF (pictures of pages) has no text to compare.</span>
+                {list?.length > 0 && (
+                    <button type="button" onClick={() => setShowList((v) => !v)} aria-expanded={showList} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50">
+                        {list.length} added · Manage <ChevronDown size={14} aria-hidden="true" className={`transition-transform ${showList ? 'rotate-180' : ''}`} />
+                    </button>
+                )}
             </div>
-            <div className="mt-3 space-y-2">
-                <ErrorNote>{error}</ErrorNote>
-                <OkNote>{ok}</OkNote>
-            </div>
-            {list?.length > 0 && (
+            {(error || ok) && (
+                <div className="mt-2 space-y-2">
+                    <ErrorNote>{error}</ErrorNote>
+                    <OkNote>{ok}</OkNote>
+                </div>
+            )}
+            {showList && list?.length > 0 && (
                 // Five sources tall (2026-10-30); the rest scroll inside the list.
                 <ul className={`mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200 ${list.length > 5 ? 'max-h-[16.6rem] overflow-y-auto overscroll-contain' : ''}`}>
                     {list.map((s) => (
@@ -92,7 +103,7 @@ export default function PlagiarismSources({ onCount }) {
                     ))}
                 </ul>
             )}
-            {list?.length > 5 && <p className="mt-2 text-xs text-slate-400">Scroll for all {list.length} sources</p>}
+            {showList && list?.length > 5 && <p className="mt-2 text-xs text-slate-400">Scroll for all {list.length} sources (up to {max})</p>}
             {viewing && (
                 <Modal title={viewing.title} onClose={closeView} wide labelId="source-view-title"
                     footer={<button type="button" onClick={closeView} className={btn.secondary}>Close</button>}>
@@ -105,6 +116,6 @@ export default function PlagiarismSources({ onCount }) {
                             : <div className="mt-3 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-800">{viewText || 'No text was found in this file.'}</div>}
                 </Modal>
             )}
-        </Card>
+        </section>
     );
 }

@@ -2,7 +2,7 @@
  * @author Preethesh Kulal
  * @description Support ticket management with status filters, admin notes and reply
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import api from '../utils/api';
 import { MessageCircleQuestion, CheckCircle2, Clock, AlertCircle, ChevronDown, Save, Send } from 'lucide-react';
 import useAutoRefresh from '../hooks/useAutoRefresh';
@@ -38,6 +38,10 @@ const Tickets = () => {
     const [successMessage, setSuccessMessage] = useState(null);
     const [savedNotes, setSavedNotes] = useState({}); // me changed this line
 
+    // Tickets that came in while the page was open: marked "New" until opened, and announced.
+    const seenIds = useRef(null);
+    const [fresh, setFresh] = useState(() => new Set());
+    const [arrived, setArrived] = useState(0);
     const fetchTickets = async () => {
         try {
             // Every ticket, always: the counts need them all, and the tab filter
@@ -45,6 +49,16 @@ const Tickets = () => {
             // auto-refresh keeps the first copy of this function, so it only
             // ever asked with the filter the page opened with.
             const res = await api.get('/admin/tickets');
+            const ids = res.data.map((t) => String(t._id));
+            if (seenIds.current) {
+                const added = ids.filter((id) => !seenIds.current.has(id));
+                if (added.length) {
+                    setFresh((f) => new Set([...f, ...added]));
+                    setArrived((n) => n + added.length);
+                    window.dispatchEvent(new Event('admin-tickets-changed'));
+                }
+            }
+            seenIds.current = new Set(ids);
             setTickets(res.data);
         } catch (err) {
             console.error(err);
@@ -53,7 +67,8 @@ const Tickets = () => {
         }
     };
 
-    useAutoRefresh(fetchTickets, 30000);
+    // Near-live: asked every 10s while the page is on screen.
+    useAutoRefresh(fetchTickets, 10000);
 
     const updateTicket = async (id, status) => {
         setUpdatingId(id);
@@ -181,6 +196,14 @@ const Tickets = () => {
                 </div>
             </div>
 
+            {arrived > 0 && (
+                <div role="status" className="flex items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800">
+                    <span className="flex items-center gap-2"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-indigo-600" /></span>
+                        {arrived} new ticket{arrived === 1 ? '' : 's'} just came in.</span>
+                    <button type="button" onClick={() => { setArrived(0); setFilterStatus(''); window.scrollTo?.({ top: 0, behavior: 'smooth' }); }} className="rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100">Show</button>
+                </div>
+            )}
+
             {/* Ticket List */}
             <div className="space-y-3">
                 {loading ? (
@@ -193,11 +216,12 @@ const Tickets = () => {
                         <p className="text-slate-500 font-medium">No tickets found</p>
                     </div>
                 ) : shown.map(ticket => (
-                    <div key={ticket._id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div key={ticket._id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-colors ${fresh.has(String(ticket._id)) ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-200'}`}>
                         {/* Ticket Header. On a phone the status sits above the
                             subject and the date moves under it, so the subject
                             gets the card's full width. */}
-                        <button onClick={() => setExpandedId(expandedId === ticket._id ? null : ticket._id)}
+                        {fresh.has(String(ticket._id)) && <span className="float-right m-3 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">New</span>}
+                        <button onClick={() => { setExpandedId(expandedId === ticket._id ? null : ticket._id); setFresh((f) => { const n = new Set(f); n.delete(String(ticket._id)); return n; }); setArrived(0); }}
                             className="w-full flex items-start sm:items-center justify-between gap-3 p-4 sm:p-5 text-left hover:bg-slate-50 transition-colors">
                             <div className="flex flex-col sm:flex-row items-start gap-2 sm:gap-4 flex-1 min-w-0">
                                 <div className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold flex-shrink-0 ${statusColors[ticket.status]}`}>
@@ -205,12 +229,19 @@ const Tickets = () => {
                                     <span>{ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1).replace('-', ' ')}</span>
                                 </div>
                                 <div className="min-w-0 flex-1 w-full">
-                                    <p className="font-bold text-slate-800 truncate" title={ticket.subject}>{ticket.subject}</p>
+                                    <p className="font-bold text-slate-800 truncate" title={ticket.subject}>
+                                        <span className="mr-1.5 font-mono text-xs font-semibold text-slate-400">#{String(ticket._id).slice(-6).toUpperCase()}</span>
+                                        {ticket.reopened > 0 && <span className="mr-1.5 inline-flex rounded bg-amber-100 px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wider text-amber-700">Reopened{ticket.reopened > 1 ? ` ×${ticket.reopened}` : ''}</span>}
+                                        {ticket.subject}
+                                    </p>
                                     <p className="text-sm text-slate-500 mt-0.5 break-words [overflow-wrap:anywhere]">
+                                        {ticket.from === 'organization' && <span className="mr-1.5 inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-700 whitespace-nowrap">Organization</span>}
+                                        {ticket.from === 'teacher' && <span className="mr-1.5 inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 whitespace-nowrap">Teacher</span>}
                                         <span className="font-medium text-slate-600">{ticket.name}</span>
+                                        {ticket.orgCode && <> · ID: <span className="font-mono text-slate-600">{ticket.orgCode}</span></>}
                                         {' · '}{ticket.email}
-                                        {ticket.cardNumber && ` · Card: ${ticket.cardNumber}`}
-                                        {' · '}<span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">{pageLabels[ticket.page] || ticket.page}</span>
+                                        {ticket.cardNumber && (String(ticket.cardNumber).startsWith('Phone ') ? ` · ${ticket.cardNumber}` : ` · Card: ${ticket.cardNumber}`)}
+                                        {!['organization', 'teacher'].includes(ticket.from) && <>{' · '}<span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">{pageLabels[ticket.page] || ticket.page}</span></>}
                                     </p>
                                     <p className="sm:hidden mt-1 text-xs text-slate-400">{new Date(ticket.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                                 </div>
@@ -228,6 +259,20 @@ const Tickets = () => {
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Message</p>
                                     <p className="text-slate-700 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">{ticket.message}</p>
                                 </div>
+                                {/* The conversation since: replies sent, and "not resolved" from the sender (it reopened the ticket). */}
+                                {(ticket.thread || []).length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Conversation</p>
+                                        {ticket.thread.map((m, i) => (
+                                            <div key={i} className={`rounded-xl p-3 text-sm ${m.by === 'admin' ? 'ml-6 bg-indigo-50 text-indigo-900' : 'mr-6 border border-amber-200 bg-amber-50 text-amber-900'}`}>
+                                                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider opacity-70">
+                                                    {m.by === 'admin' ? 'Support team' : `${ticket.name || 'Sender'} · not resolved, sent again`} · {new Date(m.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
+                                                </p>
+                                                <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{m.text}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Admin Notes</label>
 

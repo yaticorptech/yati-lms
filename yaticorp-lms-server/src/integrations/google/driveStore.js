@@ -25,9 +25,23 @@ class DriveRequired extends Error {
 /** Is Drive the store on this server? (Google sign-in set up.) */
 const driveRequired = () => config.isConfigured();
 
+/**
+ * Developer cards (DEVICE_LIMIT_EXEMPT_CARDS in .env) keep their files on our
+ * storage, not in a Drive (asked 2026-11-04): no Drive link is asked for.
+ */
+const isDriveExempt = async (userId) => {
+  try {
+    const user = await require('../../models/User').findById(userId).select('cardNumber').lean();
+    return Boolean(user) && require('../../services/deviceGuard').isExemptCard(user.cardNumber);
+  } catch { return false; }
+};
+
+/** Does this student's upload go to their Drive? */
+const usesDrive = async (userId) => driveRequired() && !(await isDriveExempt(userId));
+
 /** The student must have Drive linked; throws DriveRequired when not. True when Drive is the store. */
 const assertDriveLinked = async (userId) => {
-  if (!driveRequired()) return false;
+  if (!(await usesDrive(userId))) return false;
   const token = await oauth.accessTokenFor(userId).catch(() => null);
   if (!token) throw new DriveRequired();
   return true;
@@ -76,4 +90,4 @@ const sendFromDrive = async (res, userId, fileId, fileName = 'file') => {
 /** Remove one stored file from their Drive (the student deleted it here). Never throws. */
 const removeFile = (userId, fileId) => drive.removeFile(userId, fileId).catch(() => ({ ok: false }));
 
-module.exports = { DriveRequired, driveRequired, assertDriveLinked, storeInDrive, previewUrlOf, sendDriveError, requireDriveFor, sendFromDrive, removeFile };
+module.exports = { DriveRequired, driveRequired, usesDrive, assertDriveLinked, storeInDrive, previewUrlOf, sendDriveError, requireDriveFor, sendFromDrive, removeFile };

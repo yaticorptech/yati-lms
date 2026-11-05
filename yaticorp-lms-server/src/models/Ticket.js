@@ -23,7 +23,16 @@ const ticketSchema = new mongoose.Schema({
         enum: ['open', 'in-progress', 'resolved'],
         default: 'open'
     },
-    adminNotes: { type: String }
+    adminNotes: { type: String },
+    // From an organization's panel or a teacher's dashboard (2026-11-04): who sent it, and its ID.
+    from: { type: String, enum: ['student', 'organization', 'teacher'], default: 'student' },
+    teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
+    orgCode: { type: String },
+    // The conversation after the first message (2026-11-04): the admin's replies, and the
+    // sender's "not resolved, again" on a resolved ticket, which opens the same ticket again.
+    thread: [{ by: { type: String, enum: ['user', 'admin'] }, text: { type: String, maxlength: 5000 }, at: { type: Date, default: Date.now } }],
+    reopened: { type: Number, default: 0 }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Ticket', ticketSchema);

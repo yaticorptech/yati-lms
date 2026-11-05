@@ -23,13 +23,12 @@ import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { CARD, LABEL, INPUT, BTN, BTN2, Empty, Banner, Rows, Pill, Segmented, Avatar, LoadFailed, SearchInput, Dialog, DialogTitle } from '../../components/orgUi';
 import AddTeacherModal from '../../components/teachers/AddTeacherModal';
-import OrgClasses from '../../components/teachers/OrgClasses';
 import BulkTeachersModal from '../../components/teachers/BulkTeachersModal';
 import TeacherDetailModal from '../../components/teachers/TeacherDetailModal';
 import { TeacherStatus, TeacherSummary } from '../../components/teachers/TeacherBits';
 import { formatDate, relativeDay } from '../../utils/dates';
 
-const TABS = [['teachers', 'Teachers'], ['requests', 'Requests'], ['classes', 'Courses & sections']];
+const TABS = [['teachers', 'Teachers'], ['requests', 'Requests']];
 const REQUEST_TABS = [['pending', 'Waiting'], ['approved', 'Approved'], ['rejected', 'Rejected']];
 
 /** The layout's badge beside "Teachers" listens for this. */
@@ -37,7 +36,7 @@ const changed = () => window.dispatchEvent(new Event('organization-teacher-reque
 
 const OrgTeachers = () => {
     const [params, setParams] = useSearchParams();
-    const tab = ['requests', 'classes'].includes(params.get('tab')) ? params.get('tab') : 'teachers';
+    const tab = ['requests'].includes(params.get('tab')) ? params.get('tab') : 'teachers';
     const [pending, setPending] = useState(0);
     const [notice, setNotice] = useState('');
 
@@ -45,6 +44,8 @@ const OrgTeachers = () => {
 
     // Activities was a tab here until it got its own sidebar item (2026-10-31): an old link lands there.
     if (params.get('tab') === 'activities') return <Navigate to="/organization/360-activities" replace />;
+    // Courses & sections moved to Settings → Institution (2026-11-04).
+    if (params.get('tab') === 'classes') return <Navigate to="/organization/settings#courses" replace />;
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
@@ -52,7 +53,6 @@ const OrgTeachers = () => {
             <Segmented options={TABS} value={tab} onChange={switchTab} counts={{ requests: pending }} />
             {tab === 'teachers' && <TeachersTab onNotice={setNotice} onPending={setPending} />}
             {tab === 'requests' && <RequestsTab onNotice={setNotice} onPending={setPending} />}
-            {tab === 'classes' && <OrgClasses onNotice={setNotice} />}
         </div>
     );
 };
