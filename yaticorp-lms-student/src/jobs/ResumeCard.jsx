@@ -19,6 +19,11 @@ import {
 import { jobsApi } from './api';
 import Portal from '../components/Portal';
 import { isWalletCancel } from '../utils/walletCharge';
+import { ensureDriveLinked, askToLinkDrive } from '../integrations/google/driveGate';
+
+// The resume is kept in the student's own Google Drive (2026-11-02): linked first, or no upload.
+const RESUME_DRIVE_REASON = 'The resume you upload is kept in your own Google Drive, in the YATICORP Learning folder.';
+const pickAfterDrive = async (input) => { if (await ensureDriveLinked(RESUME_DRIVE_REASON)) input?.click(); };
 
 const ACCEPT = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 // A Word .docx is taken from the demo cards only (`acceptWord`).
@@ -63,7 +68,8 @@ export default function ResumeCard({ profile, onProfile, onApply, acceptWord = f
             onProfile(res.profile);
             startReview(res.profile);
         } catch (err) {
-            if (!isWalletCancel(err)) setError(err.message);
+            if (err.code === 'DRIVE_REQUIRED') { setError(err.message); askToLinkDrive(RESUME_DRIVE_REASON); }
+            else if (!isWalletCancel(err)) setError(err.message);
         } finally {
             setUploading(false);
             if (inputRef.current) inputRef.current.value = '';
@@ -120,7 +126,7 @@ export default function ResumeCard({ profile, onProfile, onApply, acceptWord = f
                         className="relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] shrink-0 text-xs font-bold text-indigo-600 hover:text-indigo-700">
                         Apply
                     </button>
-                    <button type="button" onClick={() => inputRef.current?.click()}
+                    <button type="button" onClick={() => pickAfterDrive(inputRef.current)}
                         title="Replace with a new resume"
                         className="relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] shrink-0 text-xs font-semibold text-slate-500 hover:text-slate-700">
                         Replace
@@ -138,9 +144,9 @@ export default function ResumeCard({ profile, onProfile, onApply, acceptWord = f
                     tabIndex={0}
                     aria-label={`Upload your resume — PDF${acceptWord ? ', Word (DOCX)' : ''} or image, up to 5 MB`}
                     aria-busy={uploading}
-                    onClick={() => !uploading && inputRef.current?.click()}
+                    onClick={() => !uploading && pickAfterDrive(inputRef.current)}
                     onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); }
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickAfterDrive(inputRef.current); }
                     }}
                     onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                     onDragLeave={() => setDragging(false)}

@@ -100,8 +100,15 @@ test('the Jobs section takes a Word resume from a demo card, and keeps its skill
         const r = await fetch(`http://127.0.0.1:${app.server.address().port}/api/jobs/resume`, { method: 'POST', headers: { Authorization: `Bearer ${who.token}` }, body: fd });
         return { status: r.status, body: await r.json().catch(() => ({})) };
     };
+    // The file goes to the student's own Google Drive (2026-11-02): a pretend one, linked for these two.
+    const drive = require('./../helpers').fakeDrive();
+    drive.link(empty.user._id);
+    const unlinked = await upload(plain, docx(['Technical skills: SQL']));
+    assert.deepEqual([unlinked.status, unlinked.body.code], [409, 'DRIVE_REQUIRED'], 'not linked: no upload');
+    drive.link(plain.user._id);
     const ok = await upload(empty, docx(['Technical skills: SQL, Excel, Power BI']));
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.match(ok.body.profile.fileUrl || '', /^https:\/\/drive\.google\.com\/file\/d\//, 'the file is in their Drive, by link');
     assert.equal(ok.body.profile.parseStatus, 'parsed');
     for (const s of ['SQL', 'Excel', 'Power BI']) assert.ok(ok.body.profile.skills.includes(s), `${s} read`);
     const kept = await ResumeProfile.findOne({ userId: empty.user._id }).lean();
@@ -114,4 +121,5 @@ test('the Jobs section takes a Word resume from a demo card, and keeps its skill
     const ordinary = await upload(plain, docx(['Technical skills: SQL, Excel']));
     assert.equal(ordinary.status, 400, 'as before: PDF or image only');
     assert.match(ordinary.body.error, /must be a PDF or an image/);
+    drive.restore();
 });

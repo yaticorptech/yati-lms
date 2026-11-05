@@ -12,7 +12,7 @@
 import { markCopied } from './copiedCode';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Copy, Check, Trophy, X, Wallet, Loader2 } from 'lucide-react';
+import { Bell, Copy, Check, Trophy, X, CreditCard, Loader2 } from 'lucide-react';
 import { competitionsApi } from './api';
 import { arenaApi } from './arena/api';
 import { payOnline } from './razorpay';
@@ -30,7 +30,7 @@ export default function CompetitionAlerts() {
     const [copied, setCopied] = useState(false);
     const [paying, setPaying] = useState(false);
     const [payError, setPayError] = useState('');
-    const [now, setNow] = useState(Date.now());
+    const [now, setNow] = useState(() => Date.now());
 
     const check = useCallback(() => {
         if (document.visibilityState === 'hidden') return;
@@ -41,7 +41,7 @@ export default function CompetitionAlerts() {
                 for (const a of rows) {
                     if (notified.has(a.id)) continue;
                     notified.add(a.id);
-                    try { new Notification(a.kind === 'payment' ? `${a.title} — ${a.subtitle}` : `${a.title} — join now`, { body: a.kind === 'payment' ? 'Pay the entry fee from your wallet to enroll.' : `${a.subtitle}. Your joining code: ${a.code}`, tag: a.id }); } catch { /* not supported here */ }
+                    try { new Notification(a.kind === 'payment' ? `${a.title} — ${a.subtitle}` : `${a.title} — join now`, { body: a.kind === 'payment' ? 'Pay the entry fee online (UPI, card or net banking) to enroll.' : `${a.subtitle}. Your joining code: ${a.code}`, tag: a.id }); } catch { /* not supported here */ }
                 }
             }
         }).catch(() => {});
@@ -86,7 +86,7 @@ export default function CompetitionAlerts() {
                         <p className="text-4xl font-black text-slate-900">₹{alert.amount}</p>
                         {payError && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700" role="alert">{payError}</p>}
                         <button type="button" disabled={paying} onClick={pay} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 py-3 text-sm font-black text-white shadow-md hover:bg-amber-600 disabled:opacity-60">
-                            {paying ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Wallet size={16} aria-hidden="true" />} Pay ₹{alert.amount} to enroll
+                            {paying ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CreditCard size={16} aria-hidden="true" />} Pay ₹{alert.amount} to enroll
                         </button>
                         <button type="button" onClick={() => { close(); navigate(target); }} className="text-xs font-semibold text-indigo-700 hover:underline">See the competition</button>
                     </div>

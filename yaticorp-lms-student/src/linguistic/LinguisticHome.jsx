@@ -14,11 +14,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
-import { Check, Lock, Crown, Trophy, BookOpen, X, Download, Dumbbell, Star, Mic, Headphones, Gift, PackageOpen, Flag, LayoutList, Loader2, MessageSquareText, CalendarDays, PenLine } from 'lucide-react';
+import { Check, Lock, Crown, Trophy, BookOpen, X, Download, Dumbbell, Star, Mic, Headphones, Gift, PackageOpen, Flag, LayoutList, Loader2, MessageSquareText, CalendarDays, PenLine, LayoutGrid, BookImage, NotebookText } from 'lucide-react';
 import { saveBlob } from '../native/saveFile';
 import { linguisticApi, announceRewards } from './api';
 import { COLORS, MODULES, shortDirection, blurbOf, levelOf, hasAssessment } from './meta';
 import { Bar, Chunky, Loading, Mascot, Problem, Panel } from './ui';
+import JumpTest from './parts/JumpTest';
 
 /** How far each node sits from the middle, in turn: the path winds right, back, left, back. */
 const OFFSETS = [0, 44, 70, 44, 0, -44, -70, -44];
@@ -44,7 +45,11 @@ const TYPES = {
     // Speak on a topic, corrected (Advanced).
     talk: [MessageSquareText, 'Speak on a topic'],
     // An Advanced article's writing, in the Writing track (2026-10-29).
-    writing: [PenLine, 'Writing']
+    writing: [PenLine, 'Writing'],
+    // Every letter on one page, the Letters unit's first stop (2026-10-31).
+    chart: [LayoutGrid, 'Letters chart'],
+    // A story in comic panels, with questions on it (Advanced's Stories track, 2026-10-31).
+    comic: [BookImage, 'Picture story']
 };
 /** What kind of stop it is: Vocabulary, Grammar… (a lesson), Story, Listening… */
 const kindOf = (l) => TYPES[l.type]?.[1] || MODULES[l.module]?.short || 'Lesson';
@@ -86,7 +91,7 @@ function Guidebook({ unit, section, language, target, onClose }) {
 }
 
 /** The card under a tapped lesson: what it is, and START (or why it is shut). */
-function LessonCard({ lesson, unit, number, offset, color, language, target, onClose, mistakes = 0, onOpened }) {
+function LessonCard({ lesson, unit, number, offset, color, language, target, onClose, mistakes = 0, onOpened, shutSection = null, sectionNumber = 0 }) {
     const navigate = useNavigate();
     const [busy, setBusy] = useState(false);
     const [said, setSaid] = useState('');
@@ -111,12 +116,14 @@ function LessonCard({ lesson, unit, number, offset, color, language, target, onC
             return;
         }
         if (lesson.stop === 'practice') { navigate(mistakes ? '/linguistic/review' : '/linguistic/daily'); return; }
+        if (lesson.stop === 'chart') { navigate('/linguistic/letters'); return; }
         navigate(`/linguistic/${lesson.module}/${lesson.id}`);
     };
     const note = lesson.stop === 'chest' ? (done ? 'Opened. Keep going for the next one!' : 'Bonus XP for getting this far.')
         : lesson.stop === 'practice' ? (mistakes ? `${mistakes} answer${mistakes === 1 ? '' : 's'} to practise until you get them right.` : 'No mistakes to fix. Try the daily challenge instead.')
+        : lesson.stop === 'chart' ? lesson.summary
             : `${kindOf(lesson)} · lesson ${number} of ${unit.lessons.length}${lesson.direction ? ` · ${shortDirection(lesson.direction, language, target)}` : ''}${done && lesson.bestScore !== null ? ` · best ${lesson.bestScore}%` : ''}`;
-    const label = lesson.stop === 'chest' ? 'Open' : lesson.stop === 'practice' ? (mistakes ? 'Practise' : 'Daily challenge') : done ? 'Practise again' : 'Start';
+    const label = lesson.stop === 'chest' ? 'Open' : lesson.stop === 'practice' ? (mistakes ? 'Practise' : 'Daily challenge') : lesson.stop === 'chart' ? 'See all letters' : done ? 'Practise again' : 'Start';
     return (
         <div ref={ref} className="lingo-pop relative z-20 mx-auto mt-5 w-full max-w-[320px]" data-lesson-card={lesson.id}>
             <span className="absolute -top-2 h-4 w-4 rotate-45 rounded-sm" style={{ left: `calc(50% + ${offset}px - 8px)`, background: locked ? '#F7F7F7' : c.face, border: locked ? '2px solid #E5E5E5' : 'none', borderRight: 'none', borderBottom: 'none' }} />
@@ -128,7 +135,10 @@ function LessonCard({ lesson, unit, number, offset, color, language, target, onC
                 {!locked && !lesson.stop && lesson.summary && <p className="mt-1 text-sm font-semibold text-white/85">{lesson.summary}</p>}
                 {said && <p className="mt-1 text-base font-extrabold text-white" role="status" data-chest-said>{said}</p>}
                 {locked
-                    ? <button type="button" disabled className="lingo-btn mt-3 h-12 w-full" style={{ background: '#E5E5E5', borderColor: '#E5E5E5', color: '#AFAFAF' }}>Locked</button>
+                    // A lesson of a section not open yet (Advanced): its jump test, to go straight there (2026-10-31).
+                    ? (shutSection?.jump && shutSection.jump.status !== 'passed'
+                        ? <JumpTest section={shutSection} number={sectionNumber} />
+                        : <button type="button" disabled className="lingo-btn mt-3 h-12 w-full" style={{ background: '#E5E5E5', borderColor: '#E5E5E5', color: '#AFAFAF' }}>Locked</button>)
                     : !(lesson.stop === 'chest' && done) && <button type="button" onClick={go} disabled={busy} className="lingo-btn mt-3 inline-flex h-12 w-full items-center justify-center gap-2" style={{ background: '#fff', borderColor: '#E5E5E5', color: c.ink }} data-start-lesson>{busy && <Loader2 size={16} className="animate-spin" />}{label}</button>}
             </div>
         </div>
@@ -203,7 +213,7 @@ function SectionHead({ section, si, path, small = false }) {
                     <p className={`font-extrabold uppercase tracking-wider text-[#AFAFAF] ${small ? 'text-[10px]' : 'text-xs'}`}>Section {si + 1} · {levelOf(section.level).cefr} · {section.label}</p>
                     <h2 id={`sec-${section.level}`} className={`font-extrabold text-[#3c3c3c] ${small ? 'text-[15px] leading-tight' : 'text-xl'}`} data-section-name>{levelOf(section.level).section}{section.level === path.level && <span className={`ml-2 align-middle font-extrabold uppercase tracking-wider ${small ? 'text-[10px]' : 'text-xs'}`} style={{ color: COLORS.blue.ink }}>· You are here</span>}</h2>
                 </div>
-                {/* No "Jump here?" (2026-10-28): a section opens only when the one before is finished. */}
+                {/* No "Jump here?" button here (2026-10-28); the jump test (2026-10-31) is under the header. */}
                 {section.complete
                     ? <span className="inline-flex items-center gap-1 text-sm font-extrabold uppercase" style={{ color: COLORS.green.ink }}><Check size={18} strokeWidth={3.5} /> Completed</span>
                     : !section.open ? <span className="inline-flex items-center gap-1 text-sm font-extrabold uppercase text-[#AFAFAF]" data-section-lock><Lock size={18} strokeWidth={3} /> Locked</span> : null}
@@ -216,6 +226,8 @@ function SectionHead({ section, si, path, small = false }) {
                 </div>
             )}
             {!section.open && <p className="mt-2 text-sm font-semibold text-[#777]" data-section-locked>Finish every unit of {levelOf(path.levels[si - 1]?.level).section || levelOf(path.levels[si - 1]?.level).label}{hasAssessment(path.levels[si - 1]) ? ', then pass its assessment (50% or more),' : ''} to open these lessons.</p>}
+            {/* Or straight here by the jump test (2026-10-31). */}
+            {!small && <JumpTest section={section} number={si + 1} />}
         </Panel>
     );
 }
@@ -257,11 +269,12 @@ export default function LinguisticHome() {
     if (!path) return <Problem error={error} onRetry={load} />;
 
     const starts = unitStarts(path.levels);
+    const finished = path.levels.flatMap((x) => x.units.flatMap((u) => u.lessons)).filter((x) => !x.stop && x.status === 'completed').length;
     return (
         <div className="space-y-10" data-path>
-            {/* At the top, three small cards in a row (asked 2026-10-29): the roadmap, all sections, and the first
-                section's progress (its own header, moved up here). One under another on a phone. */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-path-top>
+            {/* At the top, small cards in a row (asked 2026-10-29): the roadmap, all sections, the notes (2026-11-02) and
+                the first section's progress (its own header, moved up here). One under another on a phone. */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" data-path-top>
                 <Link to="/linguistic/roadmap" className="lingo-tile flex min-h-[4.5rem] flex-col justify-center gap-1 px-4 py-2.5 text-[#4b4b4b]" data-roadmap-link>
                     <span className="flex items-center gap-2 text-[15px]"><CalendarDays size={18} style={{ color: COLORS.purple.face }} /> Your roadmap</span>
                     <span className="text-xs font-extrabold text-[#AFAFAF]">
@@ -271,6 +284,11 @@ export default function LinguisticHome() {
                 <Link to="/linguistic/sections" className="lingo-tile flex min-h-[4.5rem] flex-col justify-center gap-1 px-4 py-2.5 text-[#4b4b4b]" data-all-sections>
                     <span className="flex items-center gap-2 text-[15px]"><LayoutList size={18} style={{ color: COLORS.blue.face }} /> All sections</span>
                     <span className="text-xs font-extrabold text-[#AFAFAF]">{path.levels.length} sections</span>
+                </Link>
+                {/* What they have learnt, from the lessons finished (2026-11-02, "add the notes on this page's top"). */}
+                <Link to="/linguistic/notes" className="lingo-tile flex min-h-[4.5rem] flex-col justify-center gap-1 px-4 py-2.5 text-[#4b4b4b]" data-notes-link>
+                    <span className="flex items-center gap-2 text-[15px]"><NotebookText size={18} style={{ color: COLORS.gold.face }} /> Your notes</span>
+                    <span className="text-xs font-extrabold text-[#AFAFAF]">{finished ? `From ${finished} lesson${finished === 1 ? '' : 's'} you finished` : 'What you learn is written here'}</span>
                 </Link>
                 {path.levels[0] && <SectionHead section={path.levels[0]} si={0} path={path} small />}
             </div>
@@ -284,7 +302,10 @@ export default function LinguisticHome() {
                         const c = COLORS[color];
                         const first = starts[u.id];
                         const offsets = u.lessons.map((_, i) => OFFSETS[(first + i) % OFFSETS.length]);
-                        const lean = offsets.reduce((a, b) => a + b, 0);
+                        // The mascot stands beside the unit's middle, so it goes on the side its middle circles lean away from
+                        // (2026-11-03: by the whole unit's lean, on a phone it stood behind a circle in the middle).
+                        const mid = (offsets.length - 1) / 2;
+                        const lean = offsets[Math.floor(mid)] + offsets[Math.ceil(mid)];
                         const mascotLeft = lean > 0 || (lean === 0 && ui % 2 === 0);
                         return (
                             <div key={u.id} className="relative mb-10" data-unit={u.id} data-unit-kind={u.kind} data-open={u.open}>
@@ -296,9 +317,16 @@ export default function LinguisticHome() {
                                         <h3 className="text-lg font-extrabold leading-tight sm:text-xl" data-unit-title>{u.title}</h3>
                                         {!u.open && <p className="mt-0.5 text-sm font-bold text-white/90">{ui > 0 && section.open ? `Finish ${section.units[ui - 1].title} to open it.` : `Finish ${si > 0 ? levelOf(path.levels[si - 1]?.level).section : 'the section before'} to open it.`}</p>}
                                     </div>
-                                    <button type="button" onClick={() => setGuide({ unit: u, section })} className="lingo-btn inline-flex h-11 shrink-0 items-center gap-2 px-3 text-sm" style={{ background: 'transparent', borderColor: 'rgba(0,0,0,0.18)', color: '#fff' }} data-guidebook-open={u.id}>
-                                        <BookOpen size={18} /> <span className="hidden sm:inline">Guidebook</span>
-                                    </button>
+                                    {/* The Letters unit (2026-10-31): its chart, in place of a guidebook. */}
+                                    {u.id.endsWith('-0') ? (
+                                        <Link to="/linguistic/letters" className="lingo-btn inline-flex h-11 shrink-0 items-center gap-2 px-3 text-sm" style={{ background: 'transparent', borderColor: 'rgba(0,0,0,0.18)', color: '#fff' }} data-letters-chart-open>
+                                            <LayoutGrid size={18} /> <span className="hidden sm:inline">Letters chart</span>
+                                        </Link>
+                                    ) : (
+                                        <button type="button" onClick={() => setGuide({ unit: u, section })} className="lingo-btn inline-flex h-11 shrink-0 items-center gap-2 px-3 text-sm" style={{ background: 'transparent', borderColor: 'rgba(0,0,0,0.18)', color: '#fff' }} data-guidebook-open={u.id}>
+                                            <BookOpen size={18} /> <span className="hidden sm:inline">Guidebook</span>
+                                        </button>
+                                    )}
                                 </div>
                                 {/* The lessons stay in a path-wide strip in the middle, the mascot beside them, on a full-width page. */}
                                 <div className="relative mx-auto flex w-full max-w-[640px] flex-col items-center gap-7 pt-6">
@@ -306,7 +334,7 @@ export default function LinguisticHome() {
                                     {u.lessons.map((l, i) => (
                                         <div key={l.id} className="w-full">
                                             <Node lesson={l} color={color} offset={offsets[i]} current={l.id === path.current} open={tapped === l.id} onTap={() => setTapped((t) => (t === l.id ? null : l.id))} />
-                                            {tapped === l.id && <LessonCard lesson={l} unit={u} number={i + 1} offset={offsets[i]} color={color} language={path.language?.code} target={path.course?.code || 'en'} onClose={() => setTapped(null)} mistakes={dash.mistakes || 0} onOpened={load} />}
+                                            {tapped === l.id && <LessonCard lesson={l} unit={u} number={i + 1} offset={offsets[i]} color={color} language={path.language?.code} target={path.course?.code || 'en'} onClose={() => setTapped(null)} mistakes={dash.mistakes || 0} onOpened={load} shutSection={section.open ? null : section} sectionNumber={si + 1} />}
                                         </div>
                                     ))}
                                 </div>

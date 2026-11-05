@@ -5,6 +5,11 @@
  * with party poppers and my certificate shown right there (full screen if I
  * like). Once per competition (remembered in this browser). It asks every
  * 30 seconds while the app is open.
+ *
+ * 2026-10-31 ("when I log in it immediately shows the certificates… show it only once after the user wins"): never
+ * at sign-in — the dashboard comes first, the first look is a little later — and remembered the moment it is shown,
+ * not only when closed, so leaving or reloading the page doesn't bring it back. Kept on the student's account
+ * (GET/POST /competitions/celebrated), so another browser or another student on this one changes nothing.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,23 +19,34 @@ import { arenaApi } from './arena/api';
 import CertificateInline from './CertificateInline';
 import Confetti from './Confetti';
 
+// What I have been shown: kept on my account and in this browser too — seen in either, never shown again.
 const SEEN = 'results-celebrated';
-const read = () => { try { return JSON.parse(localStorage.getItem(SEEN) || '[]'); } catch { return []; } };
-const remember = (id) => { try { localStorage.setItem(SEEN, JSON.stringify([...new Set([...read(), id])].slice(-200))); } catch { /* private mode */ } };
+const local = () => { try { const v = JSON.parse(localStorage.getItem(SEEN) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+const remember = (id) => {
+    try { localStorage.setItem(SEEN, JSON.stringify([...new Set([...local(), id])].slice(-500))); } catch { /* private mode */ }
+    competitionsApi.markCelebrated([id]).catch(() => { /* the browser still remembers */ });
+};
 const RECENT_MS = 7 * 24 * 3600 * 1000;    // results older than a week are not news
+const FIRST_LOOK_MS = 20000;                // after sign-in, the dashboard on its own for a while
 
 export default function ResultsCelebration() {
     const navigate = useNavigate();
     const [items, setItems] = useState([]);
-    const [seen, setSeen] = useState(read);
+    const [seen, setSeen] = useState(null);
 
     const check = useCallback(() => {
         if (document.visibilityState === 'hidden') return;
         const now = Date.now();
         Promise.all([
+            competitionsApi.celebrated().then((ids) => (Array.isArray(ids) ? ids : [])).catch(() => []),
             arenaApi.list().catch(() => []),
             competitionsApi.me().then((d) => d.results || []).catch(() => [])
-        ]).then(([arenas, results]) => {
+        ]).then(([shown, arenas, results]) => {
+            const mine = local();
+            // Seen here but not yet on my account (before 2026-10-31, or offline then): tell the account.
+            const missing = mine.filter((id) => !shown.includes(id) && /^(comp|arena)-/.test(id));
+            if (missing.length) competitionsApi.markCelebrated(missing.slice(-50)).catch(() => {});
+            setSeen((s) => [...new Set([...(s || []), ...shown, ...mine])]);
             setItems([
                 ...arenas.filter((c) => c.state === 'results' && c.myResult?.rank != null && now - new Date(c.resultsPublishedAt).getTime() < RECENT_MS)
                     .map((c) => ({ id: `arena-${c.id}`, name: c.title, heldOn: c.startsAt, place: c.myResult.rank, score: `${c.myResult.score} points`, certificate: c.myResult.certificate, arenaId: c.id, to: `/competitions/arena/${c.id}` })),
@@ -40,15 +56,17 @@ export default function ResultsCelebration() {
         });
     }, []);
     useEffect(() => {
-        check();
+        const first = setTimeout(check, FIRST_LOOK_MS);
         const t = setInterval(check, 30000);
         document.addEventListener('visibilitychange', check);
-        return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); };
+        return () => { clearTimeout(first); clearInterval(t); document.removeEventListener('visibilitychange', check); };
     }, [check]);
 
-    const item = items.find((x) => !seen.includes(x.id));
+    const item = seen && items.find((x) => !seen.includes(x.id));
+    // Shown once: counted as seen as soon as it is on the screen.
+    useEffect(() => { if (item) remember(item.id); }, [item?.id]); // eslint-disable-line react-hooks/exhaustive-deps
     if (!item) return null;
-    const close = () => { remember(item.id); setSeen(read()); };
+    const close = () => { remember(item.id); setSeen((s) => [...s, item.id]); };
     const won = item.place && item.place <= 3;
     const file = `Certificate_${item.name.replace(/\s+/g, '_')}.pdf`;
     return (

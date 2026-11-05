@@ -20,6 +20,7 @@ const { localParse, DOCX_MIME } = require('../services/localResumeParse');
 const { hasFullAccess } = require('../../services/fullAccess');
 const { normalizeSkillList } = require('../services/matchService');
 const { isConnected } = require('../config/db');
+const { requireDriveFor, driveRequired, storeInDrive, removeFile } = require('../../integrations/google/driveStore');
 
 // A student re-parsing in a loop is either fighting the parser or spending
 // the shared allowance for sport; five a day is generous for both.
@@ -79,7 +80,8 @@ router.get('/', async (req, res, next) => {
 // upload; refunded if the upload or the parse fails.
 // XP rule "Upload a resume": the same once-ever ref as the profile's upload (/api/user/resume), so the
 // first resume pays once, from either page.
-router.post('/', chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () => 'resume'), (req, res, next) => {
+// Kept in the student's own Google Drive (2026-11-02): linked first, before anything is charged.
+router.post('/', requireDriveFor, chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () => 'resume'), (req, res, next) => {
     upload.single('resume')(req, res, async (uploadErr) => {
         try {
             if (uploadErr) {
@@ -114,6 +116,14 @@ router.post('/', chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () 
             const parsedAt = new Date();
             const local = localParse(req.file.buffer, mime);
             const filename = String(req.file.originalname || 'resume.pdf').slice(0, 120);
+            // The file itself into their Drive, shared by link, once it has been read; the one it replaces goes.
+            const keepFile = async () => {
+                if (!driveRequired()) return {};
+                const before = await ResumeProfile.findOne({ userId }).select('driveFileId').lean();
+                const d = await storeInDrive(userId, req.file.buffer, { name: filename, mimeType: mime, description: 'The resume you uploaded to YATICORP.' });
+                if (before?.driveFileId && before.driveFileId !== d.driveFileId) removeFile(userId, before.driveFileId);
+                return { fileUrl: d.viewUrl, driveFileId: d.driveFileId, objectPath: '' };
+            };
 
             // A Word file (demo cards only): the local reading is the whole reading.
             if (mime === DOCX_MIME) {
@@ -122,7 +132,7 @@ router.post('/', chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () 
                 }
                 const profile = await ResumeProfile.findOneAndUpdate(
                     { userId },
-                    { $set: { userId, parsedAt, filename, skills: local.skills, skillsRaw: local.skillsRaw, experienceYears: local.experienceYears || 0, parseStatus: 'parsed' } },
+                    { $set: { userId, parsedAt, filename, skills: local.skills, skillsRaw: local.skillsRaw, experienceYears: local.experienceYears || 0, parseStatus: 'parsed', ...(await keepFile()) } },
                     { upsert: true, returnDocument: 'after' }
                 ).lean();
                 return res.json({ profile, aiRead: false, parsing: false });
@@ -148,7 +158,7 @@ router.post('/', chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () 
 
             const profile = await ResumeProfile.findOneAndUpdate(
                 { userId },
-                { $set: { ...merged, userId, parsedAt } },
+                { $set: { ...merged, userId, parsedAt, ...(await keepFile()) } },
                 { upsert: true, returnDocument: 'after' }
             ).lean();
 
@@ -164,6 +174,7 @@ router.post('/', chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () 
 
             res.json({ profile, aiRead: !!extracted, parsing: settled === 'timeout' });
         } catch (err) {
+            if (require('../../integrations/google/driveStore').sendDriveError(res, err)) return;
             if (err.status) return res.status(err.status).json({ error: err.message });
             next(err);
         }

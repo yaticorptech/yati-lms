@@ -79,6 +79,28 @@ export const keyOf = (question) => {
 
 const bucketFor = (gameId, band) => `${gameId}:${band}`;
 
+/*
+ * Met in a group game, or on another device (2026-10-31, "in every game, solo and group, don't repeat questions"):
+ * the account keeps every question a student has met (the server's competitions/services/seenQuestions.js), by a
+ * key both sides work out the same way — the question's options, in any order. Kept here as `elsewhere`; what the
+ * solo games ask goes into `outbox` until levels.js sends it.
+ */
+const ELSEWHERE = 'yati:gameSeenElsewhere';
+const OUTBOX = 'yati:gameSeenOutbox';
+const readList = (key) => { try { const v = JSON.parse(localStorage.getItem(gameKey(key)) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+const writeList = (key, list) => { try { localStorage.setItem(gameKey(key), JSON.stringify(list)); } catch { /* private mode */ } };
+const djb2 = (text) => { let h = 5381; for (let i = 0; i < text.length; i += 1) h = ((h << 5) + h + text.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+const norm = (x) => String(x ?? '').trim().toLowerCase();
+/** The account's key for a question: its options, in any order. */
+export const optKey = (q) => (Array.isArray(q?.options) && q.options.length ? `o${djb2(q.options.map(norm).sort().join('\u0001'))}` : '');
+let elsewhere = null;
+const elsewhereSet = () => (elsewhere ||= new Set(readList(ELSEWHERE)));
+/** The account's list, as the server last sent it. */
+export const setSeenElsewhere = (keys) => { elsewhere = new Set(keys); writeList(ELSEWHERE, keys.slice(-8000)); };
+/** What the solo games asked since the last send — and, once sent, clear it. */
+export const takeOutbox = () => { const out = readList(OUTBOX); writeList(OUTBOX, []); return out; };
+export const putBackOutbox = (keys) => writeList(OUTBOX, [...new Set([...keys, ...readList(OUTBOX)])].slice(-500));
+
 /**
  * The band a question belongs to, for its record: the band it was borrowed
  * from when it carries one (QuizGame tags borrowed questions `fromBand`),
@@ -105,6 +127,8 @@ export const recordFor = (gameId, band) => read()[bucketFor(gameId, band)] || {}
 export const remember = (gameId, band, question, wasCorrect) => {
   const key = keyOf(question);
   if (!key) return;
+  const shared = optKey(question);
+  if (shared) { elsewhereSet().add(shared); putBackOutbox([shared]); }
   const all = read();
   const bucket = bucketFor(gameId, bandFor(question, band));
   const entry = all[bucket]?.[key] || { asked: 0, correct: 0 };
@@ -156,7 +180,8 @@ export const pickQuestions = (pool, size, gameId, band, focus = null) => {
 
   const ranked = pool
     .map((question, i) => {
-      const seen = recordOf(question)[keyOf(question)] || { asked: 0, correct: 0, at: 0 };
+      // Never asked here but met in a group game or on another device: counts as asked, before anything asked here.
+      const seen = recordOf(question)[keyOf(question)] || (elsewhereSet().has(optKey(question)) ? { asked: 1, correct: 1, at: -1 } : { asked: 0, correct: 0, at: 0 });
       const tier = (typeof question.tier === 'number' ? question.tier : i / last) + (question.tierShift || 0);
       const distance = focus === null ? 0 : Math.abs(tier - focus);
       return { question, seen, i, distance };

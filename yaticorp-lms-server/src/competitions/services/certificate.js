@@ -55,7 +55,7 @@ const fit = (doc, text, font, size, width, min) => {
     return s;
 };
 
-const drawWinner = (doc, { competition, team, playerName, place, paragraph }) => {
+const drawWinner = (doc, { competition, team, playerName, place, paragraph, number }) => {
     const W = doc.page.width;
     const H = doc.page.height;
     const X = (px) => (px / TPL_W) * W;
@@ -63,6 +63,8 @@ const drawWinner = (doc, { competition, team, playerName, place, paragraph }) =>
     const words = winnerWords({ competition, team, place, paragraph });
 
     doc.image(WINNER_TEMPLATE, 0, 0, { width: W, height: H });
+    // The certificate's number (YATI<card>-001, services/certificateNumbers), above the heading.
+    if (number) doc.fillColor(RED).font('Helvetica-Bold').fontSize(X(17)).text(`Certificate No. ${number}`, X(157), Y(178), { lineBreak: false });
     doc.fillColor('#1f1f1f').font('Helvetica').fontSize(X(30)).text(words.subtitle, X(155), Y(314), { lineBreak: false });
     doc.fillColor(RED).font('Times-Bold').fontSize(fit(doc, playerName, 'Times-Bold', X(84), X(560), 22)).text(playerName, X(152), Y(392), { lineBreak: false });
     doc.fillColor('#1f1f1f').font('Helvetica').fontSize(X(26)).text(words.lead, X(157), Y(519), { lineBreak: false });
@@ -77,7 +79,7 @@ const drawWinner = (doc, { competition, team, playerName, place, paragraph }) =>
  * Send the certificate PDF. For a contest played alone, `paragraph` (winners)
  * and `line` (everyone else) replace the wording about the team.
  */
-const draw = (res, { competition, team, playerName, place, paragraph, line: ownLine }) => {
+const draw = (res, { competition, team, playerName, place, paragraph, line: ownLine, number }) => {
     const doc = new PDFDocument({ layout: 'landscape', size: 'A4', margin: 0 });
     const name = `${competition.name}`.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'Competition';
     res.setHeader('Content-Type', 'application/pdf');
@@ -87,7 +89,7 @@ const draw = (res, { competition, team, playerName, place, paragraph, line: ownL
     // 1st, 2nd and 3rd: the designed certificate. Without its picture (a
     // deploy that left it out), they get the plain one below rather than none.
     if (place && fs.existsSync(WINNER_TEMPLATE)) {
-        drawWinner(doc, { competition, team, playerName, place, paragraph });
+        drawWinner(doc, { competition, team, playerName, place, paragraph, number });
         doc.end();
         return;
     }
@@ -102,6 +104,8 @@ const draw = (res, { competition, team, playerName, place, paragraph, line: ownL
     doc.rect(0, 0, W, H).fill('#fffdf7');
     doc.lineWidth(10).strokeColor(winner ? gold : '#4f46e5').rect(22, 22, W - 44, H - 44).stroke();
     doc.lineWidth(1.5).strokeColor(winner ? '#d69e2e' : '#a5b4fc').rect(38, 38, W - 76, H - 76).stroke();
+    // The certificate's number (YATI<card>-001), top left inside the border.
+    if (number) doc.fillColor('#64748b').font('Helvetica-Bold').fontSize(10).text(`Certificate No. ${number}`, 52, 50, { lineBreak: false });
 
     // A rosette for the placed, a ribbon line for everyone.
     if (winner) {

@@ -103,6 +103,7 @@ import Publications from '${srcFile('teacher/pages/Publications.jsx')}';
 import Methodologies from '${srcFile('teacher/pages/Methodologies.jsx')}';
 import ResearchPath from '${srcFile('teacher/pages/ResearchPath.jsx')}';
 import Plagiarism from '${srcFile('teacher/pages/Plagiarism.jsx')}';
+import Mentor360 from '${srcFile('teacher/pages/Mentor360.jsx')}';
 ${extra}
 createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['${route}']}>
@@ -117,6 +118,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="methods" element={<Methodologies />} />
         <Route path="research-path" element={<ResearchPath />} />
         <Route path="plagiarism" element={<Plagiarism />} />
+        <Route path="360" element={<Mentor360 />} />
       </Route>
     </Routes>
   </MemoryRouter>);`;
@@ -173,6 +175,203 @@ window.__treply = (m, u, b) => {
         assert.ok(!result.menu.some((h) => /organization/.test(h)), result.menu.join(' '));
         assert.equal(result.dialog, 'Add your organization');
         assert.equal(result.field, true);
+    });
+});
+
+describe('a teacher without a card: the profile shows only what is theirs', { skip: skipWithoutStyles }, () => {
+    test('mobile number as their sign-in; no card number, research area, institution or research figures', async () => {
+        const extra = `
+window.__treply = (m, u) => {
+  if (m === 'GET' && u === '/me') return { _id: 't9', name: 'Geeta', email: 'geeta@gmail.com', phone: '8987654331', role: 'teacher', research: false, mentor360: true, institution: 'sssss' };
+  if (m === 'GET' && u === '/organization') return { member: true, organization: { name: 'sssss' }, request: null };
+  if (m === 'GET' && u === '/360') return { organization: { name: 'sssss' }, courses: [], classes: [], students: [] };
+  return null;
+};`;
+        const { result, errors } = await screen({ entry: page('/teacher/profile', extra), api: apiModule({}), modules, styles: true, width: 1280, script: `
+            ${SET}
+            await sleep(700);
+            const labels = $$('form label').map((l) => l.innerText.replace(/\\s+/g, ' ').trim());
+            return { labels, body: document.body.innerText, card: !!$('#me-card'), research: !!$('#me-research'), institution: !!$('#me-institution') };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.card, false, 'no card number field');
+        assert.equal(result.research, false, 'no research area');
+        assert.equal(result.institution, false, 'no institution: the organization says it');
+        assert.match(result.body, /Mobile \(your sign-in\)\s*8987654331/);
+        assert.match(result.body, /You sign in with this number and your password/);
+        assert.doesNotMatch(result.body, /Card number/);
+        assert.doesNotMatch(result.body, /Research path|Thesis words/, 'no research figures');
+        assert.match(result.body, /What I teach/);
+    });
+});
+
+describe('360: the teacher marks what they teach, and keeps their own students', { skip: skipWithoutStyles }, () => {
+    test('What I teach is in the profile (course, section, subject), not on the 360 Dashboard; students added there', async () => {
+        const extra = `
+const COURSES = [{ _id: 'p1', name: 'BCA', sections: [{ _id: 's1', name: 'Section A' }, { _id: 's2', name: 'Section B' }] }, { _id: 'p2', name: 'BBA', sections: [{ _id: 's3', name: 'Section A' }] }];
+const ORG = { name: 'St Agnes College' };
+let classes = [];
+let students = [];
+window.__treply = (m, u, b) => {
+  if (m === 'GET' && u === '/me') return { _id: 't1', name: 'Dr. Meera Iyer', email: 'meera@college.edu', cardNumber: '980000000001', role: 'teacher', mentor360: true };
+  if (m === 'POST' && u === '/360/classes') { classes = [{ _id: 'c1', programId: 'p1', sectionId: 's2', course: 'BCA', section: 'Section B', subject: b.subject }]; return { organization: ORG, courses: COURSES, classes, students }; }
+  if (m === 'GET' && u === '/360/students') return { students: [{ _id: 'u1', name: 'Asha K', cardNumber: '240100000001', mine: false }, { _id: 'u2', name: 'Bala M', cardNumber: '240100000002', mine: false }] };
+  if (m === 'POST' && u === '/360/students') { students = [{ _id: 'u1', name: 'Asha K', cardNumber: '240100000001' }]; return { organization: ORG, courses: COURSES, classes, students }; }
+  if (m === 'GET' && u === '/360') return { organization: ORG, courses: COURSES, classes, students };
+  return null;
+};`;
+        const { result, errors } = await screen({ entry: page('/teacher/360', extra), api: apiModule({}), modules, styles: true, width: 390, height: 800, script: `
+            ${SET}
+            await sleep(500);
+            const dashboard = document.body.innerText;
+            button(/Add students/).click(); await sleep(500);
+            $$('[role=dialog] label').find((l) => /Asha K/.test(l.innerText)).querySelector('input').click(); await sleep(100);
+            button(/^Add 1$/).click(); await sleep(400);
+            const afterStudents = document.body.innerText;
+            return { dashboard, afterStudents, studentsPost: calls('POST', /^\\/360\\/students$/)[0], overflow: OVERFLOW() };` });
+        assert.deepEqual(errors, []);
+        assert.doesNotMatch(result.dashboard, /What I teach/, 'not on the 360 Dashboard');
+        assert.doesNotMatch(result.dashboard, /My classes/);
+        assert.match(result.dashboard, /My students/);
+        assert.deepEqual(result.studentsPost[2], { studentIds: ['u1'] });
+        assert.match(result.afterStudents, /Asha K/);
+        assert.equal(result.overflow, 0);
+
+        const profile = await screen({ entry: page('/teacher/profile', extra), api: apiModule({}), modules, styles: true, width: 390, height: 800, script: `
+            ${SET}
+            await sleep(700);
+            const first = document.body.innerText;
+            // The app's own dropdown (white, components/Select), not the system menu.
+            const native = $$('select').length;
+            const pick = async (label, text) => { $('[role=combobox][aria-label="' + label + '"]').click(); await sleep(200); const opts = $$('[role=option]'); const names = opts.map((o) => o.innerText.trim()); opts.find((o) => o.innerText.trim() === text).click(); await sleep(150); return names; };
+            await pick('Course', 'BCA');
+            const sections = await pick('Section', 'Section B');
+            setVal($('input[aria-label=Subject]'), 'Java Programming'); await sleep(100);
+            button(/^Add$/).click(); await sleep(400);
+            return { native, first, sections, classPost: calls('POST', /^\\/360\\/classes$/)[0], afterClass: document.body.innerText, overflow: OVERFLOW() };` });
+        assert.deepEqual(profile.errors, []);
+        assert.match(profile.result.first, /What I teach/);
+        assert.match(profile.result.first, /St Agnes College sees this list/);
+        assert.equal(profile.result.native, 0, 'no system dropdowns');
+        assert.deepEqual(profile.result.sections, ['Section A', 'Section B'], 'only that course’s sections');
+        assert.deepEqual(profile.result.classPost[2], { programId: 'p1', sectionId: 's2', subject: 'Java Programming' });
+        assert.match(profile.result.afterClass, /Java Programming/);
+        assert.match(profile.result.afterClass, /BCA · Section B/);
+        assert.equal(profile.result.overflow, 0);
+    });
+
+    test('the dashboard has no proof queue or activity list cards; proof is sent back from the student, with a reason', async () => {
+        const extra = `
+const ORG = { name: 'St Agnes College' };
+const GROUPS = [{ _id: 'g1', name: 'Academic Excellence', activities: [{ _id: 'a1', name: 'Presentations', mode: 'max', marks: 10 }] }];
+let status = 'pending';
+const sheet = () => ({ student: { _id: 'u1', name: 'Asha K' }, total: 0, waiting: status === 'pending' ? 1 : 0, groups: [
+  { _id: 'g1', name: 'Academic Excellence', activities: [{ _id: 'a1', name: 'Presentations', mode: 'max', marks: 10, got: 0, mark: null,
+    proofs: [{ _id: 'p1', activityId: 'a1', fileUrl: 'https://cdn.example.com/p1.jpg', fileType: 'image', fileName: 'sheet.jpg', note: 'Corrected sheet: 18 / 20', status, reviewNote: status === 'rejected' ? 'Not readable' : '', marks: 0, createdAt: new Date().toISOString() }] }] }] });
+window.__treply = (m, u, b) => {
+  if (m === 'GET' && u === '/360') return { organization: ORG, courses: [], classes: [], students: [{ _id: 'u1', name: 'Asha K', cardNumber: '240100000001', marks: 0, waiting: status === 'pending' ? 1 : 0 }], activityGroups: GROUPS };
+  if (m === 'GET' && u === '/360/students/u1/activities') return sheet();
+  if (m === 'PUT' && u === '/360/proofs/u1/p1') { status = 'rejected'; return { message: 'Sent back to the student.' }; }
+  return null;
+};`;
+        const { result, errors } = await screen({ entry: page('/teacher/360', extra), api: apiModule({}), modules, styles: true, width: 390, height: 800, script: `
+            ${SET}
+            await sleep(600);
+            const first = document.body.innerText;
+            const headings = $$('h2, h3').map((h) => h.innerText.trim());
+            $$('button').find((b) => b.getAttribute('aria-label') === "Open Asha K's activities and proof").click(); await sleep(400);
+            const dialog = () => $('[role=dialog]').innerText;
+            $$('[role=dialog] button').find((b) => b.innerText.trim() === 'Send back').click(); await sleep(200);
+            $$('[role=dialog] button').filter((b) => b.innerText.trim() === 'Send back').pop().click(); await sleep(200);
+            const needsReason = dialog();
+            setVal($('input[aria-label*="sent back"]'), 'Not readable'); await sleep(100);
+            $$('[role=dialog] button').filter((b) => b.innerText.trim() === 'Send back').pop().click(); await sleep(500);
+            return { first, headings, needsReason, puts: __tcalls.filter((c) => c[0] === 'PUT'), proofCalls: __tcalls.filter((c) => c[1] === '/360/proofs').length, after: dialog(), overflow: OVERFLOW() };` });
+        assert.deepEqual(errors, []);
+        assert.ok(!result.headings.includes('Proofs to check'), 'no "Proofs to check" card');
+        assert.ok(!result.headings.includes('Activities & marks'), 'no activity list card');
+        assert.equal(result.proofCalls, 0, 'the queue is not loaded');
+        assert.match(result.first, /Proofs to check\s*1/, 'the tile still counts what is waiting');
+        assert.match(result.first, /Tap a student below/);
+        assert.match(result.first, /1 to check/);
+        assert.match(result.needsReason, /Say why/);
+        assert.deepEqual(result.puts, [['PUT', '/360/proofs/u1/p1', { decision: 'reject', note: 'Not readable' }]]);
+        assert.match(result.after, /Presentations: Sent back to the student/);
+        assert.match(result.after, /Sent back[\s\S]*Not readable/);
+        assert.equal(result.overflow, 0);
+    });
+
+    test('before the platform unlocks 360 the dashboard is blurred behind a note, with no Add students (2026-11-04)', async () => {
+        const extra = `
+window.__treply = (m, u) => {
+  if (m === 'GET' && u === '/360') return { organization: { name: 'St Agnes College' }, locked: true, courses: [], classes: [], students: [], activityGroups: [] };
+  return null;
+};`;
+        const { result, errors } = await screen({ entry: page('/teacher/360', extra), api: apiModule({}), modules, styles: true, width: 390, height: 800, script: `
+            ${SET}
+            await sleep(600);
+            const note = $('[role=status]');
+            return { note: note && note.innerText, inert: !!$('[inert] h2, [inert] h3'), add: $$('button').some((b) => /Add students/.test(b.innerText) && !b.closest('[inert]')), overflow: OVERFLOW() };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.note, /360 is locked/);
+        assert.match(result.note, /360 is not unlocked for St Agnes College yet/);
+        assert.ok(result.inert, 'the dashboard behind cannot be used');
+        assert.equal(result.add, false, 'no Add students');
+        assert.equal(result.overflow, 0);
+    });
+
+    test('a student opened from My students: all their proof, one mark per activity', async () => {
+        const extra = `
+const ORG = { name: 'St Agnes College' };
+const GROUPS = [{ _id: 'g1', name: 'Academic Excellence', activities: [{ _id: 'a1', name: 'Presentations', mode: 'max', marks: 10 }, { _id: 'a3', name: 'Handwritten Assignments', mode: 'max', marks: 10 }] }, { _id: 'g2', name: 'Earn While Learn', activities: [{ _id: 'a2', name: 'Individual activities', mode: 'each', marks: 1 }] }];
+const proof = (id, activityId, status, note) => ({ _id: id, activityId, fileUrl: 'https://cdn.example.com/' + id + '.jpg', fileType: 'image', fileName: id + '.jpg', note, status, marks: 0, createdAt: new Date().toISOString() });
+let presMark = 6;
+let presStatus = 'pending';
+const sheet = () => ({ student: { _id: 'u1', name: 'Asha K' }, total: presMark, waiting: presStatus === 'pending' ? 2 : 1, groups: [
+  { _id: 'g1', name: 'Academic Excellence', activities: [
+    { _id: 'a1', name: 'Presentations', mode: 'max', marks: 10, got: presMark, mark: { activityId: 'a1', marks: presMark, byName: 'Geeta Rao' }, proofs: [proof('p1', 'a1', 'approved', 'First sheet'), proof('p3', 'a1', presStatus, 'Second sheet')] },
+    { _id: 'a3', name: 'Handwritten Assignments', mode: 'max', marks: 10, got: 0, mark: null, proofs: [] }] },
+  { _id: 'g2', name: 'Earn While Learn', activities: [{ _id: 'a2', name: 'Individual activities', mode: 'each', marks: 1, got: 0, mark: null, proofs: [proof('p2', 'a2', 'pending', '')] }] }] });
+window.__treply = (m, u, b) => {
+  if (m === 'GET' && u === '/360') return { organization: ORG, courses: [], classes: [], students: [{ _id: 'u1', name: 'Asha K', cardNumber: '240100000001', marks: presMark, waiting: 2 }], activityGroups: GROUPS };
+  if (m === 'GET' && u === '/360/proofs') return { proofs: [], pending: 0 };
+  if (m === 'GET' && u === '/360/students/u1/activities') return sheet();
+  if (m === 'PUT' && u === '/360/students/u1/activities/a1') { presMark = b.marks; presStatus = 'approved'; return sheet(); }
+  if (m === 'PUT' && u === '/360/proofs/u1/p2') return { message: 'Accepted: +1 mark.' };
+  return null;
+};`;
+        const { result, errors } = await screen({ entry: page('/teacher/360', extra), api: apiModule({}), modules, styles: true, width: 390, height: 800, script: `
+            ${SET}
+            await sleep(600);
+            $$('button').find((b) => b.getAttribute('aria-label') === "Open Asha K's activities and proof").click(); await sleep(400);
+            const dialog = () => $('[role=dialog]').innerText;
+            const opened = dialog();
+            const pick = async (text) => { $('[role=combobox][aria-label="Show"]').click(); await sleep(200); const opts = $$('[role=option]'); const names = opts.map((o) => o.innerText.trim()); opts.find((o) => o.innerText.trim() === text).click(); await sleep(200); return names; };
+            const choices = await pick('To check (2)');
+            const toCheck = dialog();
+            await pick('Every activity (3)');
+            const everything = dialog();
+            setVal($('[aria-label="Marks for Presentations, out of 10"]'), '9'); await sleep(100);
+            $$('[role=dialog] button').find((b) => b.innerText.trim() === 'Update marks').click(); await sleep(400);
+            const marked = dialog();
+            $$('[role=dialog] button').find((b) => /Accept \\+1/.test(b.innerText)).click(); await sleep(400);
+            return { opened, choices, toCheck, everything, marked, puts: __tcalls.filter((c) => c[0] === 'PUT'), after: dialog(), overflow: OVERFLOW() };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.opened, /Asha K · 360 activities/);
+        assert.match(result.opened, /Presentations/);
+        assert.match(result.opened, /6 \/ 10/);
+        assert.match(result.opened, /First sheet[\s\S]*Second sheet/, 'all the proof for the activity');
+        assert.match(result.opened, /Accepts the proof waiting here/);
+        assert.doesNotMatch(result.opened, /Handwritten Assignments/, 'only what they have proof for, at first');
+        assert.deepEqual(result.choices, ['With proof (2)', 'To check (2)', 'Accepted (1)', 'Sent back (0)', 'Not marked yet (2)', 'Every activity (3)'], 'a Show dropdown, with how many of each');
+        assert.match(result.toCheck, /Presentations[\s\S]*Individual activities/);
+        assert.doesNotMatch(result.toCheck, /Handwritten Assignments/);
+        assert.match(result.everything, /Handwritten Assignments[\s\S]*No proof to mark yet/);
+        assert.deepEqual(result.puts[0], ['PUT', '/360/students/u1/activities/a1', { marks: 9 }]);
+        assert.match(result.marked, /Presentations: 9 \/ 10 saved/);
+        assert.match(result.marked, /9 \/ 10/);
+        assert.deepEqual(result.puts[1], ['PUT', '/360/proofs/u1/p2', { decision: 'approve', note: '' }]);
+        assert.match(result.after, /Individual activities: Accepted: \+1 mark/);
+        assert.equal(result.overflow, 0);
     });
 });
 

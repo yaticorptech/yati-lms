@@ -173,14 +173,15 @@ describe("the super admin's Course access card", { skip: skipWithoutChrome }, ()
         const { result, errors } = await screen({ entry: superEntry, api: superApi, script: `
             await sleep(700);
             const cell = $('button[aria-label="Course access for ABC College"]');
-            const label = text(cell);
+            const label = text(cell.lastElementChild);   // the row's state, beside "Courses"
             const oneLine = cell.getBoundingClientRect().height < 40;
             cell.click(); await sleep(400);
             const pop = $('[role=dialog][aria-label="Course access: ABC College"]');
             const card = pop && pop.querySelector('section[aria-label="Course access"]');
             card.querySelector('[role=switch]').click(); await sleep(100);
             click(/Save course access/); await sleep(400);
-            return { header: $$('th').map(text).includes('Courses'), label, oneLine, open: !!card, put: window.__calls.find((c) => c[0] === 'PUT') };` });
+            // Courses, Competitions and 360 share one Features column (2026-11-04).
+            return { header: $$('th').map(text).includes('Features') && /Courses/.test(cell.closest('td').textContent), label, oneLine, open: !!card, put: window.__calls.find((c) => c[0] === 'PUT') };` });
         assert.deepEqual(errors, []);
         assert.ok(result.header);
         assert.equal(result.label, 'Enable');

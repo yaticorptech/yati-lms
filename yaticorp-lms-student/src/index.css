@@ -132,6 +132,45 @@ body.teacher-ui { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sa
   .profile-ring, .profile-ring > * { animation: none; }
 }
 
+/* ---------------------------------------------------------------------------
+   My Profile header (2026-10-31): a ring that turns slowly round the photo, a
+   waving hand, the name's colours drifting, two soft glows floating behind.
+   Gentle and looping; all still for reduced motion.
+   --------------------------------------------------------------------------- */
+@keyframes ph-spin { to { transform: rotate(360deg); } }
+@keyframes ph-wave {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  10%, 30%      { transform: rotate(14deg); }
+  20%           { transform: rotate(-8deg); }
+  40%           { transform: rotate(-4deg); }
+  50%           { transform: rotate(10deg); }
+}
+@keyframes ph-hue { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes ph-blob {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(28px, -12px, 0) scale(1.12); }
+}
+.ph-ring { animation: ph-spin 9s linear infinite; }
+.ph-wave { display: inline-block; transform-origin: 70% 75%; animation: ph-wave 2.8s ease-in-out 0.5s infinite; }
+.ph-name { background-size: 220% auto; animation: ph-hue 7s ease-in-out infinite; }
+.ph-blob { animation: ph-blob 13s ease-in-out infinite; }
+.ph-blob-slow { animation-duration: 17s; animation-direction: reverse; }
+/* The whole card in a thin border whose colours slowly drift round it. */
+@keyframes ph-frame { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+.ph-frame {
+  background: linear-gradient(110deg, #c7d2fe, #f5d0fe, #fde68a, #bae6fd, #c7d2fe, #f5d0fe);
+  background-size: 300% 100%;
+  animation: ph-frame 14s linear infinite;
+}
+/* The cover band: its colours shimmer slowly; small shapes float on it. */
+@keyframes ph-float { 0%, 100% { transform: translateY(0) rotate(45deg); opacity: 0.6; } 50% { transform: translateY(-6px) rotate(90deg); opacity: 1; } }
+.ph-cover { background-size: 200% 100%; animation: ph-hue 10s ease-in-out infinite; }
+.ph-float { animation: ph-float 5s ease-in-out infinite; }
+.ph-float-slow { animation-duration: 7s; }
+@media (prefers-reduced-motion: reduce) {
+  .ph-ring, .ph-wave, .ph-name, .ph-blob, .ph-frame, .ph-cover, .ph-float { animation: none !important; }
+}
+
 /* Profile hero illustration — leaves sway, sparkles twinkle, slowly. */
 @keyframes pha-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2.5deg); } }
 @keyframes pha-twinkle { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }

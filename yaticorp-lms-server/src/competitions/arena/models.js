@@ -128,7 +128,9 @@ const competitionSchema = new mongoose.Schema({
         winners: { type: Boolean, default: true },
         participants: { type: Boolean, default: true },
         // Participation certificates only from this score up (0: anyone who took part).
-        minScore: { type: Number, default: 0, min: 0 }
+        minScore: { type: Number, default: 0, min: 0 },
+        // The saved certificate (Certificate 1, 2, …) picked when it was made (2026-11-03); null: the standard one.
+        designId: { type: mongoose.Schema.Types.ObjectId, default: null }
     },
     status: { type: String, enum: ['draft', 'published', 'cancelled'], default: 'draft', index: true },
     paper: { type: [paperSchema], default: [] },

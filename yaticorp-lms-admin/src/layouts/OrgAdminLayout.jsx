@@ -16,7 +16,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical, UserCog, ScrollText, Megaphone
+    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical, UserCog, Megaphone, Orbit
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
@@ -29,7 +29,8 @@ import useCenterTabs from '../hooks/useCenterTabs';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { Dialog, DialogTitle } from '../components/orgUi';
 
-// `short` is the bottom bar's label on a phone, where four full labels do not fit.
+// `short` is the bottom bar's label on a phone. The bar scrolls (2026-11-02), so
+// every section is in it, the sidebar-only ones too.
 const NAV = [
     { to: '/organization', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
     // Students asking to join are a tab here (Students → Requests); the badge is their count.
@@ -37,21 +38,22 @@ const NAV = [
     // Its teachers, and teachers asking to join (src/pages/org/OrgTeachers.jsx).
     { to: '/organization/teachers', label: 'Teachers', short: 'Teachers', icon: Presentation, badge: 'pendingTeacherRequests' },
     { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },
+    // The 360 activities, their marks and "Open 360 to students" (src/pages/org/Org360Activities.jsx).
+    { to: '/organization/360-activities', label: '360 Activities', short: '360 Activities', icon: Orbit },
+    // Extra-curricular: NCC, NSS, Scouts & Guides and clubs (src/pages/org/OrgNccNss.jsx).
+    { to: '/organization/ncc-nss', label: 'Extra-curricular', short: 'Extra-curricular', icon: Shield },
     // Inter-college competitions: register the college's team, pick players.
-    { to: '/organization/competitions', label: 'Competitions', short: 'Compete', icon: Trophy },
-    // Extra-curricular: NCC, NSS, Scouts & Guides and clubs (src/pages/org/OrgNccNss.jsx). Sidebar only, like English.
-    { to: '/organization/ncc-nss', label: 'Extra-curricular', short: 'Activities', icon: Shield, sidebarOnly: true },
-    // Who signs in to this dashboard with full access, and what each of them did
-    // (src/pages/org/OrgUsers.jsx, OrgAuditLog.jsx). Sidebar only.
-    { to: '/organization/users', label: 'Users', short: 'Users', icon: UserCog, sidebarOnly: true },
-    { to: '/organization/audit', label: 'Audit log', short: 'Audit', icon: ScrollText, sidebarOnly: true },
+    { to: '/organization/competitions', label: 'Competitions', short: 'Competitions', icon: Trophy },
+    // Who signs in to this dashboard with full access (src/pages/org/OrgUsers.jsx).
+    // No Audit log here since 2026-10-30: changes are still recorded, for the platform's admins.
+    { to: '/organization/users', label: 'Users', short: 'Users', icon: UserCog },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
 // A teacher signed in to this panel (Teachers → Organisation dashboard) sees
 // only what they may use — the server refuses the rest (staffMay in
 // organizations/middleware/authMiddleware.js) — and Research, their teacher
 // dashboard, when they have that too.
-const STAFF_HIDDEN = ['/organization/teachers', '/organization/users', '/organization/audit', '/organization/settings'];
+const STAFF_HIDDEN = ['/organization/teachers', '/organization/360-activities', '/organization/users', '/organization/settings'];
 const RESEARCH = { to: '/organization/research', label: 'Research', short: 'Research', icon: FlaskConical };
 // No requests badge for them either: they have no Requests tab to act on it.
 // A Bharat Scouts & Guides office has one user and its own menu: its notices
@@ -59,8 +61,8 @@ const RESEARCH = { to: '/organization/research', label: 'Research', short: 'Rese
 // Guides with no institution, who join it as students: Students and Extra-curricular.
 const NOTICES = { to: '/organization/bsg-notices', label: 'BSG notices', short: 'Notices', icon: Megaphone };
 const OFFICE_NAV = {
-    national: ['/organization', '/organization/students', '/organization/ncc-nss', '/organization/audit', '/organization/settings'],
-    state: ['/organization', '/organization/audit', '/organization/settings']
+    national: ['/organization', '/organization/students', '/organization/ncc-nss', '/organization/settings'],
+    state: ['/organization', '/organization/settings']
 };
 const officeNav = (level) => {
     // An office handles Scouts & Guides only: its Extra-curricular is just that.
@@ -517,7 +519,7 @@ const OrgAdminLayout = () => {
             </main>
 
             {/* ── Phones and tablets: the floating bar along the bottom ────── */}
-            <OrgBottomNav items={nav.filter((n) => !n.sidebarOnly)} counts={counts} />
+            <OrgBottomNav items={nav} counts={counts} />
         </div>
     );
 };

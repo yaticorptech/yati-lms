@@ -77,19 +77,20 @@ describe('how course words sound', () => {
     });
 
     describe('in the lessons', () => {
-        let app, fr, ja;
+        let app, fr, ja, hi, kn;
         before(async () => {
             await connect();
             app = startApp({ mount: '/api/linguistic', router: require('../../src/linguistic') });
             await require('../../src/linguistic/seed').ensureSeeded();
             fr = await makeUser('Ling Sounds French'); ja = await makeUser('Ling Sounds Japanese');
-            for (const [u, course] of [[fr, 'fr'], [ja, 'ja']]) {
+            hi = await makeUser('Ling Sounds Hindi'); kn = await makeUser('Ling Sounds Kannada');
+            for (const [u, course] of [[fr, 'fr'], [ja, 'ja'], [hi, 'hi'], [kn, 'kn']]) {
                 const api = app.call(u.token);
-                assert.equal((await api('POST', '/language', { language: 'hi' })).status, 200);
+                assert.equal((await api('POST', '/language', { language: course === 'hi' ? 'kn' : 'hi' })).status, 200);
                 assert.equal((await api('POST', '/course', { course, start: 'beginner' })).status, 200);
             }
         });
-        after(async () => { await cleanup([fr.user, ja.user], app.server); });
+        after(async () => { await cleanup([fr.user, ja.user, hi.user, kn.user], app.server); });
         const lessonOf = async (u, seedKey) => {
             const doc = await LinguisticLesson.findOne({ seedKey }).select('_id').lean();
             await unlockIds(u.user, [doc._id]);
@@ -112,10 +113,20 @@ describe('how course words sound', () => {
 
         test('French, to read: the sentence\'s sound under it', async () => {
             const l = await lessonOf(fr, 'fr:translation-beginner-kn-en');
-            assert.deepEqual(['sourceSay', 'sourceEn'].map((k) => l.items.find((it) => it.id === 'i3')[k]), ['zhuh ma-pel ra-nee', 'My name is Rani.'], 'and its English, for a tap');
+            assert.deepEqual(['sourceSay', 'sourceEn'].map((k) => l.items.find((it) => it.id === 'i3')[k]), ['ma fa-mee ay grahnd', 'My family is big.'], 'and its English, for a tap');
             assert.ok(l.items.every((it) => it.sourceSay), 'every sentence');
-            assert.deepEqual(l.items.find((it) => it.id === 'i3').sourceWords, [['zhuh', 'I'], ['ma-pel', 'myself call'], ['ra-nee', 'Rani']], 'each word with its English');
+            assert.deepEqual(l.items.find((it) => it.id === 'i3').sourceWords, [['ma', 'my'], ['fa-mee', 'family'], ['ay', 'is'], ['grahnd', 'big']], 'each word with its English');
             assert.ok(l.items.every((it) => it.sourceWords?.length === it.sourceSay.split(' ').length), 'every sentence, word by word');
+        });
+
+        test('Hindi and Kannada, to read (2026-11-02): no sound, but every sentence\'s English for a tap; none on a sentence to write', async () => {
+            for (const [u, code] of [[hi, 'hi'], [kn, 'kn']]) {
+                const l = await lessonOf(u, `${code}:translation-beginner-kn-en`);
+                assert.ok(l.items.length && l.items.every((it) => it.sourceEn && !it.sourceSay && !it.sourceWords), `${code}: ${JSON.stringify(l.items[0])}`);
+                assert.equal(l.items.find((it) => it.id === 'i3').sourceEn, 'My family is big.');
+                const back = await lessonOf(u, `${code}:translation-beginner-en-kn`);
+                assert.ok(back.items.every((it) => !it.sourceEn), `${code}: the English is the answer there`);
+            }
         });
 
         test('Japanese quiz choices in Japanese carry their sound; those in Hindi do not', async () => {

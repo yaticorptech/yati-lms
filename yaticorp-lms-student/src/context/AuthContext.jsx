@@ -129,15 +129,16 @@ export const AuthProvider = ({ children }) => {
         window.location.assign(safeNextPath(next));
     };
 
-    const login = async (cardNumber, password, next) => {
+    // `typed` is the card number or the mobile number from the one sign-in box (2026-10-30).
+    const login = async (typed, password, next) => {
         try {
-            const data = await authService.login({ cardNumber, password });
+            const data = await authService.login({ login: typed, password });
             enterApp(data, next);
             return { success: true };
         } catch (err) {
             return {
                 success: false,
-                // TEACHER_CARD: the sign-in page offers the teacher sign-in instead.
+                // TEACHER_CARD / TEACHER_ACCOUNT: a teacher's card or number; the sign-in page finishes it on the teacher side.
                 // DEVICE_LIMIT: a 3rd device; `device` is what the popup shows (components/DeviceLimitDialog).
                 code: err.response?.data?.code,
                 device: err.response?.data?.code === 'DEVICE_LIMIT' ? err.response.data : null,

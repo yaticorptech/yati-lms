@@ -229,6 +229,9 @@ const getCourseContent = async (req, res) => {
         // (dripStart / moduleUnlockAt) guards the lesson's quiz and its progress.
         const startedAt = await dripStart(req.user, courseId);
         const now = new Date();
+        // The demo cards also open lessons in any order (owner, 2026-11-04):
+        // `anyOrder` on each module tells the player (shared/playback/resume.js).
+        const anyOrder = require('../services/fullAccess').hasFullAccess(req.user);
 
         const modules = await Module.find({ courseId }).sort(CONTENT_ORDER);
         const modulesWithLessons = await Promise.all(
@@ -244,7 +247,7 @@ const getCourseContent = async (req, res) => {
                     ? lessons.map(l => ({ _id: l._id, title: l.title, type: l.type, order: l.order, locked: true }))
                     : lessons;
 
-                return { ...modObj, dripDays, locked, unlockAt, lessons: safeLessons };
+                return { ...modObj, dripDays, locked, unlockAt, anyOrder, lessons: safeLessons };
             })
         );
 

@@ -6,11 +6,19 @@
  * organization approves. Creating units, choosing leaders and moving members stay with the
  * organization. Server: src/nccnss/leader.js.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Compass, Plus, CalendarDays, Trash2, ArrowLeft, Users, MapPin, Award, UserPlus, Search, Mail, Phone, CreditCard, CheckCircle2, XCircle, Image as ImageIcon, ChevronRight, UserMinus } from 'lucide-react';
 import teacherApi, { messageOf } from '../teacherSession';
 import { PageHeader, Card, CardTitle, EmptyState, Loading, ErrorNote, OkNote, Field, Modal, Badge } from '../ui';
-import { btn, inputClass, fmtDate } from '../kit';
+import { btn, inputClass, selectClass, fmtDate } from '../kit';
+import Select from '../../components/Select';
+import useConfirmDialog from '../../components/useConfirmDialog';
+
+// A certificate in the student's Google Drive (2026-11-02) is a view link, not a picture: show Drive's picture of it.
+const drivePreview = (url) => {
+    const id = /drive\.google\.com\/file\/d\/([^/?#]+)/.exec(url || '')?.[1];
+    return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w400` : url;
+};
 
 const KINDS = [['meeting', 'Meeting'], ['camp', 'Camp'], ['hike', 'Hike'], ['service', 'Service / drive'], ['test', 'Badge test'], ['parade', 'Parade']];
 const KIND_LABEL = Object.fromEntries(KINDS);
@@ -100,6 +108,22 @@ const AddMembersModal = ({ unit, onClose, onDone }) => {
     );
 };
 
+/** Why a rank or badge request is turned down. The student sees the reason. */
+const RejectModal = ({ award, onClose, onReject }) => {
+    const [reason, setReason] = useState('Certificate could not be verified');
+    return (
+        <Modal title="Reject this request?" labelId="reject-title" onClose={onClose}
+            footer={<><button type="button" onClick={onClose} className={btn.secondary}>Cancel</button><button type="submit" form="reject-form" className={btn.danger}>Reject</button></>}>
+            <form id="reject-form" onSubmit={(e) => { e.preventDefault(); onReject(reason.trim()); }} className="space-y-3">
+                <p className="text-sm text-slate-600">{award.student.name} asked for {award.type === 'rank' ? `rank ${award.name}` : award.name}.</p>
+                <Field id="reject-reason" label="Why? The student sees this.">
+                    <textarea id="reject-reason" rows={3} maxLength={300} className={inputClass} value={reason} onChange={(e) => setReason(e.target.value)} />
+                </Field>
+            </form>
+        </Modal>
+    );
+};
+
 const AWARD_LABEL = { rank: 'Rank', badge: 'Badge', training: 'Training' };
 const ACT_TONE = { approved: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-100 text-amber-800', rejected: 'bg-red-100 text-red-700' };
 
@@ -108,11 +132,12 @@ const MemberModal = ({ unitId, memberId, onClose, onPromote, onDone }) => {
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
+    const [confirm, confirmDialog] = useConfirmDialog();
     useEffect(() => {
         teacherApi.get(`/scout-units/${unitId}/members/${memberId}`).then((r) => setData(r.data)).catch((err) => setError(messageOf(err, 'Could not load the student.')));
     }, [unitId, memberId]);
     const remove = async () => {
-        if (!window.confirm(`Take ${data.member.student.name} out of this unit? Their ranks and record are kept.`)) return;
+        if (!(await confirm({ title: `Take ${data.member.student.name} out of this unit?`, message: 'Their ranks and record are kept.', confirmLabel: 'Remove', destructive: true }))) return;
         setBusy(true);
         try { onDone((await teacherApi.delete(`/scout-units/${unitId}/members/${memberId}`)).data.message); }
         catch (err) { setError(messageOf(err, 'Could not remove them.')); setBusy(false); }
@@ -227,6 +252,7 @@ const MemberModal = ({ unitId, memberId, onClose, onPromote, onDone }) => {
                     </div>
                 </div>
             )}
+            {confirmDialog}
         </Modal>
     );
 };
@@ -271,8 +297,10 @@ const AwardModal = ({ unitId, member, ranks, onClose, onDone }) => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'type' ? { name: '' } : {}) }));
+    const pick = useRef(null);
     const submit = async (e) => {
         e.preventDefault();
+        if (!form.name.trim()) { setError(form.type === 'rank' ? 'Choose the rank passed.' : `Enter the ${form.type === 'badge' ? 'badge' : 'training'}.`); return; }
         setBusy(true); setError('');
         const body = new FormData();
         Object.entries(form).forEach(([k, v]) => body.append(k, v));
@@ -281,33 +309,46 @@ const AwardModal = ({ unitId, member, ranks, onClose, onDone }) => {
         catch (err) { setError(messageOf(err, 'Could not record it.')); setBusy(false); }
     };
     return (
-        <Modal title={`Promote / record for ${member.student.name}`} onClose={onClose}>
-            <form onSubmit={submit} className="space-y-3">
+        <Modal title={`Promote / record for ${member.student.name}`} onClose={onClose}
+            footer={(
+                <>
+                    <button type="button" onClick={onClose} className={btn.secondary}>Cancel</button>
+                    <button type="submit" form="award-form" disabled={busy} className={btn.primary}>{busy ? 'Saving…' : form.type === 'rank' ? 'Promote' : 'Save'}</button>
+                </>
+            )}>
+            <form id="award-form" onSubmit={submit} className="space-y-3.5" noValidate>
                 <Field id="aw-type" label="What">
-                    <select id="aw-type" className={inputClass} value={form.type} onChange={(e) => set('type', e.target.value)}>
+                    <Select id="aw-type" tone="emerald" aria-label="What" className={selectClass} value={form.type} onChange={(e) => set('type', e.target.value)}>
                         {AWARD_TYPES.filter(([v]) => v !== 'rank' || ranks.length).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                    </select>
+                    </Select>
                 </Field>
                 <Field id="aw-name" label={form.type === 'rank' ? 'Rank passed' : form.type === 'badge' ? 'Badge' : 'Training'}>
                     {form.type === 'rank' ? (
-                        <select id="aw-name" className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} required>
-                            <option value="">Choose…</option>
-                            {ranks.map((r) => <option key={r} value={r}>{r}{member.rank === r ? ' (current)' : r === next ? ' (next)' : ''}</option>)}
-                        </select>
-                    ) : <input id="aw-name" className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={form.type === 'badge' ? 'e.g. First Aid, Camper' : 'e.g. District camp'} required />}
+                        <Select id="aw-name" tone="emerald" aria-label="Rank passed" placeholder="Choose the rank" className={selectClass} value={form.name} onChange={(e) => set('name', e.target.value)}>
+                            {ranks.map((r) => <option key={r} value={r}>{`${r}${member.rank === r ? ' (current)' : r === next ? ' (next)' : ''}`}</option>)}
+                        </Select>
+                    ) : <input id="aw-name" className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={form.type === 'badge' ? 'e.g. First Aid, Camper' : 'e.g. District camp'} />}
                 </Field>
-                <div className="grid grid-cols-2 gap-3">
-                    <Field id="aw-date" label="Date"><input id="aw-date" type="date" className={inputClass} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} required /></Field>
+                {/* The inputs on one line, whichever label wraps. */}
+                <div className="grid grid-cols-2 items-end gap-3">
+                    <Field id="aw-date" label="Date"><input id="aw-date" type="date" className={inputClass} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} /></Field>
                     <Field id="aw-cert" label="Certificate no." optional><input id="aw-cert" className={inputClass} value={form.certificateNo} onChange={(e) => set('certificateNo', e.target.value)} /></Field>
                 </div>
-                <Field id="aw-exam" label="Tested / awarded by" optional><input id="aw-exam" className={inputClass} value={form.examiner} onChange={(e) => set('examiner', e.target.value)} /></Field>
-                <Field id="aw-file" label="Certificate image" optional><input id="aw-file" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] || null)} className="w-full text-sm" /></Field>
+                <Field id="aw-exam" label="Tested / awarded by" optional><input id="aw-exam" className={inputClass} value={form.examiner} onChange={(e) => set('examiner', e.target.value)} placeholder="e.g. District Commissioner" /></Field>
+                <Field id="aw-file" label="Certificate image" optional>
+                    <input ref={pick} id="aw-file" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => { setFile(e.target.files?.[0] || null); e.target.value = ''; }} className="hidden" />
+                    <div className={`flex items-center gap-3 rounded-xl border-2 border-dashed px-3 py-2.5 ${file ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-300'}`}>
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${file ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><ImageIcon size={17} aria-hidden="true" /></span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-slate-800">{file ? file.name : 'A photo of the certificate'}</span>
+                            <span className="block text-xs text-slate-500">{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : 'PNG, JPG or WebP'}</span>
+                        </span>
+                        {file && <button type="button" onClick={() => setFile(null)} className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-white hover:text-red-600">Remove</button>}
+                        <button type="button" onClick={() => pick.current?.click()} className={`${btn.secondary} shrink-0 !px-3 !py-1.5 !text-xs`}>{file ? 'Change' : 'Choose'}</button>
+                    </div>
+                </Field>
                 <p className="text-xs text-slate-500">It goes on their record at once{form.type === 'rank' ? ' and becomes their rank' : ''}, and they get a notification.</p>
                 <ErrorNote>{error}</ErrorNote>
-                <div className="flex justify-end gap-2 pt-1">
-                    <button type="button" onClick={onClose} className={btn.secondary}>Cancel</button>
-                    <button type="submit" disabled={busy} className={btn.primary}>{busy ? 'Saving…' : form.type === 'rank' ? 'Promote' : 'Save'}</button>
-                </div>
             </form>
         </Modal>
     );
@@ -323,21 +364,19 @@ const UnitDetail = ({ id, onBack }) => {
     const [recording, setRecording] = useState(null);
     const [enrolling, setEnrolling] = useState(false);
     const [viewing, setViewing] = useState(null);
+    const [rejecting, setRejecting] = useState(null);
     const [now] = useState(() => Date.now());
+    const [confirm, confirmDialog] = useConfirmDialog();
 
     const load = useCallback(() => teacherApi.get(`/scout-units/${id}`).then((r) => { setData(r.data); setError(''); }).catch((err) => setError(messageOf(err, 'Could not load the unit.'))), [id]);
     useEffect(() => { load(); }, [load]);
     const done = (msg) => { setAdding(false); setMarking(null); setRecording(null); setEnrolling(false); setViewing(null); setOk(msg); load(); };
-    const withdraw = async (a) => {
-        try { done((await teacherApi.delete(`/scout-units/${id}/awards/${a._id}`)).data.message); } catch (err) { setError(messageOf(err, 'Could not withdraw.')); }
-    };
     const remove = async (e) => {
-        if (!window.confirm(`Delete "${e.title}"?`)) return;
+        if (!(await confirm({ title: `Delete "${e.title}"?`, message: "It comes off the members’ calendar, and its attendance goes with it.", confirmLabel: 'Delete', destructive: true }))) return;
         try { done((await teacherApi.delete(`/scout-units/${id}/events/${e._id}`)).data.message); } catch (err) { setError(messageOf(err, 'Could not delete.')); }
     };
-    const verdict = async (a, decision) => {
-        const reason = decision === 'reject' ? window.prompt('Why? (the student sees this)', 'Certificate could not be verified') : '';
-        if (reason === null) return;
+    const verdict = async (a, decision, reason = '') => {
+        setRejecting(null);
         setBusyId(a._id);
         try { done((await teacherApi.put(`/scout-units/${id}/awards/${a._id}`, { decision, reason })).data.message); }
         catch (err) { setError(messageOf(err, 'That did not go through.')); }
@@ -371,7 +410,7 @@ const UnitDetail = ({ id, onBack }) => {
                                 <div className="flex min-w-0 items-center gap-3">
                                     {a.certificateUrl && (
                                         <a href={a.certificateUrl} target="_blank" rel="noreferrer" className="flex h-12 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50" title="Open the certificate">
-                                            <img src={a.certificateUrl} alt="" className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                            <img src={drivePreview(a.certificateUrl)} alt="" className="h-full w-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                         </a>
                                     )}
                                     <span className="min-w-0">
@@ -381,7 +420,7 @@ const UnitDetail = ({ id, onBack }) => {
                                     </span>
                                 </div>
                                 <span className="flex gap-2">
-                                    <button type="button" disabled={busyId === a._id} onClick={() => verdict(a, 'reject')} className={btn.secondary}>Reject</button>
+                                    <button type="button" disabled={busyId === a._id} onClick={() => setRejecting(a)} className={btn.secondary}>Reject</button>
                                     <button type="button" disabled={busyId === a._id} onClick={() => verdict(a, 'approve')} className={btn.primary}>{a.type === 'rank' ? 'Verify & promote' : 'Verify & add'}</button>
                                 </span>
                             </li>
@@ -440,10 +479,11 @@ const UnitDetail = ({ id, onBack }) => {
                             <button type="button" onClick={() => setEnrolling(true)} className="mt-2 inline-flex items-center gap-1 font-bold text-emerald-700"><UserPlus size={14} /> Add students</button>
                         </div>
                     ) : (
-                        <ul className="space-y-2">
+                        <ul className="@container space-y-2">
                             {members.map((m) => (
-                                <li key={m._id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-2.5 text-sm transition-colors hover:border-emerald-200 hover:bg-emerald-50/40">
-                                    <button type="button" onClick={() => setViewing(m._id)} className="flex min-w-0 flex-1 items-center gap-3 text-left" title="View profile">
+                                <li key={m._id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-100 p-2.5 text-sm transition-colors hover:border-emerald-200 hover:bg-emerald-50/40 @lg:flex-nowrap">
+                                    {/* A narrow list (a phone, or the side column on a laptop): the name on its own line, the two buttons under it. */}
+                                    <button type="button" onClick={() => setViewing(m._id)} className="flex min-w-0 flex-1 basis-full items-center gap-3 text-left @lg:basis-auto" title="View profile">
                                         {m.student.profilePicture
                                             ? <img src={m.student.profilePicture} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
                                             : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-black text-emerald-700">{(m.student.name || '?')[0].toUpperCase()}</span>}
@@ -461,9 +501,9 @@ const UnitDetail = ({ id, onBack }) => {
                                             ))}
                                         </span>
                                     </button>
-                                    <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                                        <button type="button" onClick={() => setViewing(m._id)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:border-emerald-300 hover:text-emerald-700"><Users size={13} /> View profile</button>
-                                        <button type="button" onClick={() => setRecording(m)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"><Award size={13} /> Promote</button>
+                                    <span className="grid w-full grid-cols-2 gap-1.5 @lg:flex @lg:w-auto @lg:shrink-0 @lg:items-center @lg:justify-end">
+                                        <button type="button" onClick={() => setViewing(m._id)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:border-emerald-300 hover:text-emerald-700"><Users size={13} /> View profile</button>
+                                        <button type="button" onClick={() => setRecording(m)} className="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"><Award size={13} /> Promote</button>
                                     </span>
                                 </li>
                             ))}
@@ -476,6 +516,8 @@ const UnitDetail = ({ id, onBack }) => {
             {adding && <EventModal unitId={id} onClose={() => setAdding(false)} onDone={done} />}
             {recording && <AwardModal unitId={id} member={recording} ranks={data.ranks || []} onClose={() => setRecording(null)} onDone={done} />}
             {marking && <AttendanceModal unitId={id} event={marking} members={members} onClose={() => setMarking(null)} onDone={done} />}
+            {rejecting && <RejectModal award={rejecting} onClose={() => setRejecting(null)} onReject={(reason) => verdict(rejecting, 'reject', reason)} />}
+            {confirmDialog}
         </div>
     );
 };

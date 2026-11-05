@@ -79,7 +79,8 @@ describe('a student whose password is still stored as typed', () => {
     test('a wrong password is refused and nothing is changed', async () => {
         const { _id, cardNumber } = await insertLegacy('Legacy-Pass2!');
         assert.equal((await login(cardNumber, 'legacy-pass2!')).status, 401);
-        assert.equal((await login(cardNumber, '')).status, 401);
+        // No password at all is a form mistake (400, "Enter … your password") since the one sign-in box (2026-10-30).
+        assert.equal((await login(cardNumber, '')).status, 400);
         assert.equal(await storedPassword(_id), 'Legacy-Pass2!', 'a failed attempt does not touch it');
     });
 

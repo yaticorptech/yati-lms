@@ -37,8 +37,8 @@ export default function Placement() {
     ].map((st) => ({ language: data.language, ...st })) : []), [data]);
 
     const toPath = backOr(navigate, '/linguistic');
-    // The ✕ opens the section's dashboard, wherever it is pressed (2026-10-29, "directly show the dashboard only").
-    const toDashboard = () => navigate('/linguistic/dashboard');
+    // The ✕ and its End session open the learning path (2026-10-31, "not the dashboard"; it was the dashboard from 2026-10-29).
+    const endSession = () => navigate('/linguistic');
     if (data === undefined) return <SessionFrame label="Placement test"><Loading label="Getting the questions ready…" /></SessionFrame>;
     if (!data) return <SessionFrame label="Placement test"><div className="flex flex-1 flex-col justify-center"><Problem error={error} onRetry={load} /><div className="text-center"><Chunky variant="ghost" color="blue" onClick={toPath}>Back</Chunky></div></div></SessionFrame>;
 
@@ -57,7 +57,7 @@ export default function Placement() {
     }
     return (
         <SessionFrame label="Placement test">
-            <Session steps={steps} mode="end" label="Placement test" onQuit={toDashboard}
+            <Session steps={steps} mode="end" label="Placement test" onQuit={endSession}
                 onComplete={(s) => linguisticApi.submitPlacement(s.answers).then((r) => { announceRewards(r.events); setResult(r); })} />
         </SessionFrame>
     );

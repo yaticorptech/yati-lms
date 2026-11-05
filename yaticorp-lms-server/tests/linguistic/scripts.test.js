@@ -23,7 +23,7 @@ describe('typed in its own letters or in English letters', () => {
 
     test('a Japanese sentence: kanji, kana, katakana and English letters right; something else wrong', () => {
         const l = lessonOf('ja:translation-beginner-en-kn', 'en');
-        const it = l.items.find((x) => x.id === 'i4');
+        const it = l.items.find((x) => x.id === 'i3');
         assert.equal(it.model, '私は学生です。');
         for (const given of ['私は学生です。', 'わたしはがくせいです', 'ワタシハガクセイデス', 'watashi wa gakusei desu', 'Watashi wa gakusei desu.', 'watashiwa gakusei desu']) {
             assert.equal(svc.judge(l, it, given, 'items').correct, true, given);

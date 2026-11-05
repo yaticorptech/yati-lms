@@ -32,6 +32,8 @@ const parts = require('./parts');
 const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'translation'];
 const LEVEL_REVIEWS = ['words', 'listen', 'sentences', 'checkpoint', 'assessment'];
 const WARMUP_WORDS = 4;
+// The warm-up of 2026-10-24, off since 2026-10-29 (pairs once a unit, in its Words lesson): true brings it back.
+const WARMUP_ON = false;
 
 const topicOf = (title) => String(title || '').split(':')[0].trim();
 
@@ -43,7 +45,8 @@ const topicOf = (title) => String(title || '').split(':')[0].trim();
  */
 const TRACK_LEVELS = ['advanced'];
 const TRACKS = [
-    { id: 'stories', title: 'Stories', note: 'Articles to read, with questions on them.', has: (l) => l.module === 'reading' && !l.review },
+    // With its picture stories (comics.js, 2026-10-31), each after its topic's article.
+    { id: 'stories', title: 'Stories', note: 'Picture stories and articles to read, with questions on them.', has: (l) => l.module === 'reading' && (!l.review || l.review === 'comic') },
     { id: 'listening', title: 'Listening', note: 'Conversations to listen to, with questions and a role-play.', has: (l) => l.module === 'speaking' && !l.review },
     { id: 'speaking', title: 'Speaking', note: 'Speak on a topic: every sentence corrected, with the reason.', has: (l) => l.review === 'talk' },
     { id: 'writing', title: 'Writing', note: 'Letters, emails and paragraphs, checked here.', has: (l) => l.review === 'write' },
@@ -72,17 +75,19 @@ const topicUnitsOf = (levelLessons) => {
     const levelReviews = [];
     for (const l of levelLessons) {
         if (l.review && LEVEL_REVIEWS.includes(l.review)) { levelReviews.push(l); continue; }
-        const order = Number(l.order) || 1, part = parts.partOf(l), key = `${order}:${part}`;
+        // The Letters unit (alphabet.js) is unit 0, before the topics'.
+        const order = l.review === 'letters' ? 0 : Number(l.order) || 1, part = parts.partOf(l), key = `${order}:${part}`;
         if (!byUnit.has(key)) byUnit.set(key, { order, part, lessons: [] });
         byUnit.get(key).lessons.push(l);
     }
     // A talk (talks.js) comes after the unit's Speaking lesson.
     // A section's assessment (2026-10-29) is its very last stop.
-    const rank = (l) => (l.review === 'assessment' ? 100 : l.review === 'unit' ? 99 : l.review === 'hear' ? 50 : l.review === 'talk' ? 3.5 : MODULE_ORDER.indexOf(l.module));
+    // The Letters lessons (alphabet.js, 2026-10-31) in their groups' order.
+    const rank = (l) => (l.review === 'letters' ? (Number(String(l.seedKey || '').split('-').pop()) || 0) / 100 : l.review === 'assessment' ? 100 : l.review === 'unit' ? 99 : l.review === 'hear' ? 50 : l.review === 'talk' ? 3.5 : l.review === 'comic' ? MODULE_ORDER.indexOf('reading') + 0.5 : MODULE_ORDER.indexOf(l.module));
     const units = [...byUnit.values()].sort((a, b) => a.order - b.order || a.part - b.part).map(({ order, part, lessons: ls }, i) => {
         const sorted = ls.sort((a, b) => rank(a) - rank(b) || String(a.direction || '').localeCompare(String(b.direction || '')));
         const words = sorted.find((l) => l.module === 'vocabulary' && !l.review);
-        const title = parts.unitName(sorted[0].level, order, part) || (words ? topicOf(words.title) : topicOf(sorted.find((l) => !l.review)?.title)) || `Unit ${i + 1}`;
+        const title = sorted.every((l) => l.review === 'letters') ? 'Letters' : parts.unitName(sorted[0].level, order, part) || (words ? topicOf(words.title) : topicOf(sorted.find((l) => !l.review)?.title)) || `Unit ${i + 1}`;
         return { index: i + 1, order, part, kind: 'topic', title, lessons: sorted };
     });
     if (levelReviews.length) {
@@ -95,9 +100,12 @@ const topicUnitsOf = (levelLessons) => {
 const typeOf = (l) => {
     // Speak on a topic, corrected (talks.js): an Advanced unit's own speaking task.
     if (l.review === 'talk') return 'talk';
+    // A Letters lesson (alphabet.js) is a review's cup: the "Aa" stop of 2026-10-31 was undone on 2026-11-02 (user: "make it like before").
     if (l.review === 'hear' || l.review === 'listen') return 'listening';
     if (l.review === 'checkpoint' || l.review === 'assessment') return 'checkpoint';
     if (l.review === 'write') return 'writing';
+    // A picture story (comics.js, 2026-10-31).
+    if (l.review === 'comic') return 'comic';
     if (l.review) return 'review';
     return { reading: 'story', speaking: 'speaking' }[l.module] || 'lesson';
 };
@@ -113,6 +121,9 @@ const pathOrder = (levelLessons) => unitsOf(levelLessons).flatMap((u) => u.lesso
  */
 const warmupFor = (doc, helper) => {
     if (!doc || doc.module === 'vocabulary' || doc.review) return null;
+    // Matching pairs once a unit (2026-10-29, the user: "why ask this question for every step?" — chose "once per
+    // unit"): the unit's Words lesson has them; no other lesson starts with them any more.
+    if (!WARMUP_ON) return null;
     const { localize } = require('./languages');
     const courses = require('./courses');
     const base = CONTENT.find((l) => l.module === 'vocabulary' && l.level === doc.level && (Number(l.order) || 1) === (Number(doc.order) || 1));

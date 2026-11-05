@@ -74,12 +74,21 @@ const MEASURE = `
     scroller.scrollTop = scroller.scrollHeight;
     await sleep(100);
     const last = scroller.firstElementChild.getBoundingClientRect();
+    // Scrolled along, the strip's left edge fades, so a cut tab is no stray sliver beside Home.
+    const strip = bottom?.querySelector('.overflow-x-auto');
+    const fadeAtStart = !!bottom?.querySelector('.bg-gradient-to-r');
+    if (strip) { strip.scrollTo({ left: 120, behavior: 'instant' }); strip.dispatchEvent(new Event('scroll')); await sleep(150); }
+    const fadeWhenScrolled = !!bottom?.querySelector('.bg-gradient-to-r');
     return {
+        fadeAtStart, fadeWhenScrolled,
         bottomShown: shown(bottom),
         sidebarShown: shown(aside),
         tabs: bottom ? Array.from(bottom.querySelectorAll('a')).map((a) => a.innerText.replace(/\\s+/g, ' ').trim()) : [],
-        // Every label fits its cell: seven sections share the bar since Teachers.
-        tabsFit: bottom ? Array.from(bottom.querySelectorAll('a > span.truncate')).every((s) => s.scrollWidth <= s.clientWidth + 1) : null,
+        // Every label whole: the bar scrolls (2026-11-02), so no label is cut short.
+        tabsFit: bottom ? Array.from(bottom.querySelectorAll('a span.whitespace-nowrap')).every((s) => s.scrollWidth <= s.clientWidth + 1) : null,
+        labels: bottom ? Array.from(bottom.querySelectorAll('a')).map((a) => (a.querySelector('span.whitespace-nowrap') || a).innerText.trim()) : [],
+        scrolls: bottom ? (() => { const strip = bottom.querySelector('.overflow-x-auto'); return !!strip && strip.scrollWidth > strip.clientWidth; })() : null,
+        moreButton: !!bottom?.querySelector('[aria-label="More sections"]'),
         current: bottom ? text(bottom.querySelector('[aria-current="page"]')) : null,
         navTop: bottom ? Math.round(bottom.getBoundingClientRect().top) : null,
         contentBottom: Math.round(last.bottom),
@@ -95,15 +104,15 @@ describe('the organization shell', { skip: skipWithoutStyles }, () => {
         assert.deepEqual(errors, []);
         assert.ok(result.bottomShown, 'the bottom bar is on screen');
         assert.ok(!result.sidebarShown, 'the sidebar is not');
-        assert.equal(result.tabs.length, 7);
-        assert.match(result.tabs[3], /Teachers/, 'the organization\'s teachers');
-        assert.match(result.tabs[3], /2/, 'with the teachers waiting to join');
-        assert.match(result.tabs[4], /Courses/, 'the organization\'s own courses');
-        assert.match(result.tabs[5], /Compete/, 'inter-college competitions');
-        assert.ok(result.tabsFit, 'every label fits its cell');
-        assert.match(result.tabs[0], /Home/);
-        assert.match(result.tabs[2], /Requests/);
-        assert.match(result.tabs[2], /3/, 'the waiting count rides on the Requests tab');
+        // Like the student bar (2026-11-02): Home pinned, every other section in a strip that scrolls, a › for more.
+        assert.deepEqual(result.labels,
+            ['Home', 'Students', 'Teachers', 'Courses', '360 Activities', 'Extra-curricular', 'Competitions', 'Users', 'Settings']);
+        assert.match(result.tabs[1], /3/, 'the students waiting to join ride on Students');
+        assert.match(result.tabs[2], /2/, 'the teachers waiting to join ride on Teachers');
+        assert.ok(result.tabsFit, 'every label whole');
+        assert.ok(result.scrolls, 'the strip scrolls on a phone');
+        assert.ok(result.moreButton, 'a › says there is more');
+        assert.ok(!result.fadeAtStart && result.fadeWhenScrolled, 'the left edge fades only once the strip is scrolled');
         assert.match(result.current, /Home/, 'the open section is marked');
         // The page opens with its own title ("Welcome back, …"); the header
         // carries whose panel this is instead of saying the title twice.

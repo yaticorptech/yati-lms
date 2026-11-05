@@ -64,6 +64,23 @@ const CSS = `
 .lk-stage { position: relative; container-type: inline-size; }
 .lk-scene { position: relative; width: 100%; aspect-ratio: 2000 / 1140; overflow: hidden; border-radius: 1rem; background: #000; box-shadow: 0 25px 50px -12px rgba(0,0,0,.4); }
 .lk-panel { position: relative; z-index: 20; margin-top: .75rem; }
+/* A phone (2026-11-03): the picture edge to edge, as big as the screen allows. */
+@media (max-width: 767px) {
+  .lk-scene { width: 100vw; margin-left: calc(50% - 50vw); border-radius: 0; }
+  /* The question and its answers, big and clear on a phone. */
+  .lk-panel [data-trial-panel] { padding: 1rem; gap: .75rem; }
+  .lk-panel [data-prompt], .lk-panel [data-trial-panel] p { font-size: 16px !important; line-height: 1.4; }
+  .lk-panel [data-trial-panel] > div:first-child > div { font-size: 16px !important; }
+  .lk-panel [data-options] { display: grid; gap: .6rem; }
+  .lk-panel [data-option] { min-height: 3.25rem; padding: .7rem .85rem !important; gap: .75rem; border-width: 1.5px; border-radius: .9rem;
+    border-color: rgba(231,196,119,.65); background: linear-gradient(180deg, rgba(74,56,30,.95), rgba(38,28,14,.95)) !important; box-shadow: 0 6px 14px -6px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.12); }
+  .lk-panel [data-option][aria-checked="true"], .lk-panel [data-option]:active { background: linear-gradient(90deg, rgba(180,130,40,.98), rgba(120,84,22,.98)) !important; border-color: #fcd34d; }
+  .lk-panel [data-option]:disabled { opacity: .55; }
+  .lk-panel [data-option] > span:first-child { width: 34px !important; height: 34px !important; font-size: 16px !important; background: #efe2c2; color: #2a1d0c; border-color: #c9a45a; }
+  .lk-panel [data-option] > span:last-child { font-size: 16px !important; font-weight: 700; line-height: 1.3; color: #fff7e6; }
+  .lk-panel [data-submit] { width: 100%; justify-content: center; padding: .75rem 1rem; font-size: 14px !important; }
+  .lk-panel [data-clue-lines] li, .lk-panel [data-gate-clues] li { font-size: 14px !important; }
+}
 @media (min-width: 768px) {
   .lk-stage { aspect-ratio: 2000 / 1140; }
   .lk-scene { position: absolute; inset: 0; aspect-ratio: auto; }
@@ -272,7 +289,7 @@ export default function KingdomTable({ view, onAction, busy }) {
                 <ol className="space-y-1.5" role="radiogroup" aria-label="Answers" data-options>
                     {cur.options.map((o, i) => (
                         <li key={o}>
-                            <button type="button" onClick={() => { setPick(i); submit(i); }} onMouseEnter={() => !tried.includes(i) && setPick(i)} disabled={!canAct || tried.includes(i)} data-option={i} aria-label={`Answer ${LETTERS[i]}: ${o}`}
+                            <button type="button" onClick={() => { setPick(i); submit(i); }} onMouseEnter={() => !tried.includes(i) && setPick(i)} disabled={!canAct || tried.includes(i)} data-option={i} role="radio" aria-checked={pick === i} aria-label={`Answer ${LETTERS[i]}: ${o}`}
                                 className={`flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-left transition disabled:cursor-not-allowed ${tried.includes(i) ? 'border-rose-500/50 opacity-50 line-through' : pick === i ? 'border-amber-300 shadow-[0_0_14px_rgba(251,191,36,.45)]' : 'border-[#c9a45a]/35 hover:border-[#c9a45a]/70'}`}
                                 style={{ background: tried.includes(i) ? 'rgba(127,29,29,.5)' : pick === i ? 'linear-gradient(90deg, rgba(138,100,32,.92), rgba(90,63,18,.92))' : 'rgba(0,0,0,.45)', color: '#f3e6c8' }}>
                                 <span className="flex shrink-0 items-center justify-center rounded-full border border-[#e9d3a0]/70 font-bold" style={{ ...serif, width: fs(24, 2.3, 40), height: fs(24, 2.3, 40), fontSize: fs(11, 1.15, 19) }}>{LETTERS[i]}</span>
@@ -308,10 +325,10 @@ export default function KingdomTable({ view, onAction, busy }) {
                     {/* ── The HUD, where the pictures have it ── */}
                     {phase === 'treasure'
                         ? <TitlePlaque line="Treasure of Aurelia" style={{ left: '2%', top: '3%', width: '25%' }} />
-                        : <TitlePlaque line={`Trial ${shown + 1} : ${view.titles[shown]}`} style={box(L.plaque)} />}
+                        : <TitlePlaque line={`Trial ${shown + 1} : ${view.titles[shown]}`} style={{ ...box(L.plaque), minWidth: 'min(50%, 180px)' }} />}
                     {phase !== 'treasure' && <TopIcons style={{ right: `${L.icons.r}%`, top: `${L.icons.t}%` }} {...menus} />}
                     {/* The clock and the race, under the buttons. */}
-                    <div className="absolute z-30 flex flex-col items-end gap-1.5" style={{ right: `${L.icons.r}%`, top: phase === 'treasure' ? '3%' : `${L.icons.t + 13}%` }}>
+                    <div className="absolute z-30 flex flex-col items-end gap-1.5" style={{ right: `${L.icons.r}%`, top: phase === 'treasure' ? '3%' : `calc(${L.icons.t}% + clamp(40px, 7.4cqw, 160px))` }}>
                         {(playing || view.phase === 'ready') && (
                             <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-black tabular-nums ${playing && share < 0.25 ? 'animate-pulse bg-rose-700/90 text-white' : darkPanel}`} style={{ fontSize: fs(12, 1.6, 30) }} data-timer>
                                 <Hourglass style={{ width: '1em', height: '1em' }} className="text-[#e7c477]" /> {view.phase === 'ready' ? `0:0${Math.max(1, secondsLeft)}` : fmt(left)}

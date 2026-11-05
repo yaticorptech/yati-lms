@@ -49,7 +49,7 @@ const playState = async (userId, config) => {
   };
 };
 
-const MAX_LEVEL = 90;
+const MAX_LEVEL = 500;     // 500 levels a game since 2026-10-31
 const MAX_STARS = 3;
 const PERIODS = ['daily', 'weekly', 'monthly', 'all'];
 const SCOPES = ['global', 'institution', 'class'];
@@ -60,7 +60,7 @@ const fail = (res, error, what) => {
   res.status(500).json({ message: `Could not ${what}` });
 };
 
-/** Tidy an incoming stars object: level keys 1…90, values 0…3, whole numbers. */
+/** Tidy an incoming stars object: level keys 1…500, values 0…3, whole numbers. */
 const cleanStars = (input) => {
   const out = {};
   if (!input || typeof input !== 'object') return out;
@@ -375,23 +375,35 @@ const recordPlayTime = async (req, res) => {
 
 const GroupPlayTime = require('../models/GroupPlayTime');
 const GROUP_LIMIT_SECONDS = 30 * 60;
+/* Accounts with 2 hours a day instead (2026-11-02: Hari Kiran's card, 240100018860). More with GROUP_GAMES_LONG_TIME
+   (card numbers, comma-separated). */
+const LONG_LIMIT_SECONDS = 2 * 60 * 60;
+const LONG_TIME = new Set(['240100018860', ...String(process.env.GROUP_GAMES_LONG_TIME || '').split(',').map((x) => x.trim()).filter(Boolean)]);
+const groupLimitFor = async (userId) => {
+  const u = await require('../../models/User').findById(userId).select('cardNumber').lean();
+  return u?.cardNumber && LONG_TIME.has(String(u.cardNumber)) ? LONG_LIMIT_SECONDS : GROUP_LIMIT_SECONDS;
+};
+/** "30 minutes", "2 hours": a day's allowance in words. */
+const limitWords = (sec) => (sec % 3600 === 0 ? `${sec / 3600} hour${sec === 3600 ? '' : 's'}` : `${Math.round(sec / 60)} minutes`);
 
 /** Today's Group games time: used, left, and when it comes back. */
 const groupPlayState = async (userId) => {
   const day = dayKey();
-  const doc = await GroupPlayTime.findOne({ userId, day }).lean();
+  const [doc, limit] = await Promise.all([GroupPlayTime.findOne({ userId, day }).lean(), groupLimitFor(userId)]);
   const used = Math.round(doc?.seconds || 0);
   return {
     day,
     usedSeconds: used,
-    limitSeconds: GROUP_LIMIT_SECONDS,
-    remainingSeconds: Math.max(0, GROUP_LIMIT_SECONDS - used),
+    limitSeconds: limit,
+    remainingSeconds: Math.max(0, limit - used),
     resetsAt: startOfDay(addDays(day, 1))
   };
 };
 
 /** True when today's Group games time is used up (rooms and online tables then refuse). */
 const groupTimeUp = async (userId) => (await groupPlayState(userId)).remainingSeconds <= 0;
+/** The refusal when it is: "Today's 2 hours of Group games are used up…". */
+const groupTimeUpMessage = async (userId) => `Today's ${limitWords(await groupLimitFor(userId))} of Group games are used up. Come back after midnight.`;
 
 // @route GET /api/career/games/group-time
 const getGroupPlayTime = async (req, res) => {
@@ -423,4 +435,4 @@ const recordGroupPlayTime = async (req, res) => {
   }
 };
 
-module.exports = { getProgress, saveProgress, getLeaderboard, getPlayTime, recordPlayTime, getGroupPlayTime, recordGroupPlayTime, groupTimeUp, PERIODS, SCOPES };
+module.exports = { getProgress, saveProgress, getLeaderboard, getPlayTime, recordPlayTime, getGroupPlayTime, recordGroupPlayTime, groupTimeUp, groupTimeUpMessage, PERIODS, SCOPES };

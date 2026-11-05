@@ -112,7 +112,8 @@ const listOrganizations = async (req, res) => {
                 // Whether it may publish its own courses, and how many it has.
                 courseAccess: { enabled: Boolean(o.courseAccess?.enabled), limit: o.courseAccess?.limit || 5 },
                 courseCount: courses.get(String(o._id)) || 0,
-                canHostCompetitions: Boolean(o.canHostCompetitions)
+                canHostCompetitions: Boolean(o.canHostCompetitions),
+                three60Allowed: Boolean(o.three60?.allowed)
             })),
             totals: Organization.STATUSES.reduce((acc, s) => {
                 acc[s] = totals.find((t) => t._id === s)?.count || 0;
@@ -149,7 +150,8 @@ const getOrganization = async (req, res) => {
                 ...organization,
                 typeLabel: Organization.TYPE_LABELS[organization.organizationType] || 'Other',
                 courseAccess: { enabled: Boolean(organization.courseAccess?.enabled), limit: organization.courseAccess?.limit || 5 },
-                canHostCompetitions: Boolean(organization.canHostCompetitions)
+                canHostCompetitions: Boolean(organization.canHostCompetitions),
+                three60Allowed: Boolean(organization.three60?.allowed)
             },
             admins,
             studentCount,
@@ -878,7 +880,30 @@ const getAuditLog = async (req, res) => {
     }
 };
 
+// @desc    Unlock 360 for an organization, or lock it again (2026-11-04)
+// @route   PUT /api/organizations/admin/:id/three60 { enabled }
+// @access  Private/SuperAdmin
+// Locking it keeps the activities, proof and marks; nobody there uses 360
+// until it is unlocked again.
+const setThree60Access = async (req, res) => {
+    try {
+        const { enabled } = req.body || {};
+        if (typeof enabled !== 'boolean') return res.status(400).json({ message: 'Say whether 360 is on or off.' });
+        const organization = await Organization.findByIdAndUpdate(req.params.id, { $set: { 'three60.allowed': enabled } }, { returnDocument: 'after' });
+        if (!organization) return res.status(404).json({ message: 'Organization not found' });
+        await OrgAuditLog.record({ orgId: organization._id, admin: req.admin, action: 'three60-access', req, details: { allowed: enabled } });
+        res.json({
+            message: enabled ? `360 is unlocked for ${organization.name}.` : `360 is locked for ${organization.name}.`,
+            three60Allowed: Boolean(organization.three60?.allowed)
+        });
+    } catch (error) {
+        if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
+    setThree60Access,
     deleteOrganization,
     getAuditLog,
     listOrganizations,
