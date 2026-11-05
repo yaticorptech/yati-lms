@@ -388,8 +388,10 @@ const orgCheck = async (req, res) => {
             return res.status(404).json({ code: 'NOT_ADDED', message: 'No organization has added a teacher with this mobile number yet. Ask your organization to add you, then try again.' });
         }
         const Organization = require('../organizations/models/Organization');
-        const orgs = await Organization.find({ _id: { $in: found.map((t) => t.organizationId) } }).select('name').lean();
+        const orgs = await Organization.find({ _id: { $in: found.map((t) => t.organizationId) } }).select('name three60.programs.name').lean();
         const names = Object.fromEntries(orgs.map((o) => [String(o._id), o.name]));
+        // The courses the organization lists (Teachers → Courses & sections), offered as the department.
+        const courses = Object.fromEntries(orgs.map((o) => [String(o._id), (o.three60?.programs || []).map((p) => p.name).filter(Boolean)]));
         res.json({
             verified: true,
             teachers: found.map((t) => ({
@@ -398,7 +400,7 @@ const orgCheck = async (req, res) => {
                 active: t.status === 'active',
                 needsPassword: Boolean(t.passwordPending),
                 // For "Is this you?": only while the account is still to be set up.
-                ...(t.passwordPending ? { id: t._id, name: t.name, phone: t.phone } : {})
+                ...(t.passwordPending ? { id: t._id, name: t.name, phone: t.phone, courses: courses[String(t.organizationId)] || [] } : {})
             }))
         });
     } catch (error) {
@@ -440,6 +442,8 @@ const orgSetup = async (req, res) => {
         if (await Teacher.exists({ email: new RegExp(`^\\s*${escapeRegExp(email)}\\s*$`, 'i'), _id: { $ne: teacher._id } })) {
             return res.status(400).json({ field: 'email', code: 'EMAIL_TAKEN', message: 'Another teacher account already uses this email address.' });
         }
+        if (!String(body.designation || '').trim()) return res.status(400).json({ field: 'designation', message: 'Enter your designation.' });
+        if (!String(body.department || '').trim()) return res.status(400).json({ field: 'department', message: 'Choose or enter your department.' });
         teacher.password = password;
         teacher.passwordPending = false;
         teacher.email = email;

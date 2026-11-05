@@ -9,8 +9,9 @@
  * (`zoom`), evenings, nights and rain vary the panels inside a story.
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { Headphones, Square } from 'lucide-react';
-import { COLORS } from '../meta';
+import { Headphones, Loader2, Square } from 'lucide-react';
+import { COLORS, readAloud, readingSpeech, usePrefetch } from '../meta';
+import { comicWords } from '../speechText';
 
 const INK = '#1b1b1b';
 const H = 240;
@@ -511,9 +512,8 @@ function Panel({ panel, comic, theme, wide, index }) {
     );
 }
 
-/** The story's words in reading order, to be read aloud: its panels, then its moral (in its own language, 2026-11-02). */
-const wordsOf = (comic) => [comic.title, ...comic.panels.flatMap((p) => [p.caption, ...(p.say || []).map((b) => (b.name ? `${b.name.replace(/^the /, 'The ')} says: ${b.text}` : b.text)), p.narration]),
-    comic.moral && (comic.moralLabel ? `${comic.moralLabel} ${comic.moral}` : `The moral of the story: ${comic.moral}`)].filter(Boolean);
+// The story's words in reading order: speechText.js (comicWords), so its audio can be made ahead.
+const wordsOf = comicWords;
 
 /** How many columns each panel spans: a wide one the whole row; one that would be alone at a row's end, the rest of it. */
 const spansOf = (panels, columns) => {
@@ -540,25 +540,28 @@ export default function Comic({ comic }) {
         ro.observe(el);
         return () => ro.disconnect();
     }, []);
-    useEffect(() => () => { if (window.speechSynthesis) window.speechSynthesis.cancel(); }, []);
+    const [loading, setLoading] = useState(false);
+    const stopper = useRef(null);
+    useEffect(() => () => stopper.current?.(), []);
+    // The whole story's audio fetched as the page opens, so Read aloud plays at once (2026-11-05).
+    usePrefetch(readingSpeech(comic?.panels ? wordsOf(comic) : [], comic?.locale || 'en-IN'), [comic]);
     if (!comic?.panels?.length) return null;
     const theme = themeOf(comic.theme);
     // Its own layout: three to a row for a story drawn so, on a page wide enough; two; one on a phone.
     const columns = width >= 900 && theme.columns === 3 ? 3 : width >= 640 ? 2 : 1;
     const spans = spansOf(comic.panels, columns);
-    const canRead = typeof window !== 'undefined' && !!window.speechSynthesis;
+    const canRead = true;
     const toggle = () => {
-        if (reading) { window.speechSynthesis.cancel(); setReading(false); return; }
-        const u = new SpeechSynthesisUtterance(wordsOf(comic).join('\n'));
-        u.lang = comic.locale || 'en-IN'; u.rate = 0.92; u.onend = () => setReading(false); u.onerror = () => setReading(false);
-        window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); setReading(true);
+        if (reading) { stopper.current?.(); stopper.current = null; setReading(false); return; }
+        setReading(true);
+        stopper.current = readAloud(wordsOf(comic), comic.locale || 'en-IN', { onLoading: setLoading, onEnd: () => { stopper.current = null; setReading(false); } });
     };
     return (
         <div ref={page} className="space-y-3" data-comic data-comic-theme={comic.theme || 'summer'} lang={(comic.locale || 'en-IN').split('-')[0]}>
             {canRead && (
                 <div className="flex justify-end">
                     <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.blue.ink }} data-comic-read>
-                        {reading ? <><Square size={15} /> Stop</> : <><Headphones size={17} /> Read aloud</>}
+                        {reading ? <>{loading ? <Loader2 size={15} className="animate-spin" /> : <Square size={15} />} Stop</> : <><Headphones size={17} /> Read aloud</>}
                     </button>
                 </div>
             )}

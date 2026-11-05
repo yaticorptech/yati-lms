@@ -22,6 +22,7 @@ import { formatDate } from '../../utils/dates';
 import { useAuth } from '../../context/AuthContext';
 import { getViewedOrganization } from '../../utils/viewOrganization';
 import { INDIA_STATES } from '../../utils/bsg';
+import OrgClasses from '../../components/teachers/OrgClasses';
 
 /** The fields this page owns. Anything else the server sends is left alone. */
 // The logo is not among them: it has its own card, uploaded as an image.
@@ -29,9 +30,10 @@ const FIELDS = ['name', 'contactPerson', 'email', 'phone', 'address', 'website',
 const EMPTY = Object.fromEntries(FIELDS.map((f) => [f, '']));
 const pick = (organization) => Object.fromEntries(FIELDS.map((f) => [f, organization?.[f] ?? '']));
 
+// Every field is needed for a complete profile (2026-11-04): marked with a red star.
 const Field = ({ label, id, hint, error, children }) => (
     <div>
-        <label className={LABEL} htmlFor={id}>{label}</label>
+        <label className={LABEL} htmlFor={id}>{label} <span className="text-red-500" aria-hidden="true">*</span><span className="sr-only">(required)</span></label>
         {children}
         {error ? <p className="mt-1 text-xs text-red-500">{error}</p>
             : hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
@@ -75,9 +77,9 @@ const LogoCard = ({ organization, onSaved, onError }) => {
                 </span>
             </label>
             <div className="min-w-0 flex-1">
-                <p className="font-semibold text-slate-900">Logo</p>
+                <p className="font-semibold text-slate-900">Logo <span className="text-red-500" aria-hidden="true">*</span><span className="sr-only">(required)</span></p>
                 <p className={`text-xs leading-snug sm:text-sm ${has ? 'text-slate-500' : 'font-medium text-amber-700'}`}>
-                    {has ? 'Shown to your students on your courses, and across this panel.' : 'Needed before you can add or publish courses.'}
+                    {has ? 'Shown to your students on your courses, and across this panel.' : 'Required: upload your logo to complete your profile.'}
                 </p>
                 <label htmlFor={inputId} className={`mt-1.5 inline-flex min-h-8 cursor-pointer items-center gap-1.5 text-sm font-semibold text-indigo-600 sm:hidden ${busy ? 'pointer-events-none opacity-60' : ''}`}>
                     {busy ? 'Uploading…' : has ? 'Change logo' : 'Upload logo'}
@@ -118,18 +120,27 @@ const OrgSettings = () => {
                 setOrganization(res.data.organization);
                 setForm(pick(res.data.organization));
                 setSaved(pick(res.data.organization));
+                // Something still to fill in: the form opens ready for it.
+                if (FIELDS.some((f) => !String(res.data.organization?.[f] ?? '').trim())) setEditing(true);
             })
             .catch((err) => setError(err.response?.data?.message || 'Could not load your organization.'))
             .finally(() => setLoading(false));
     };
 
     useEffect(() => { load(); }, []);
+    // From the dashboard's "Add courses": once the page is drawn, to Institution.
+    useEffect(() => {
+        if (!loading && window.location.hash === '#courses') setTimeout(() => document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    }, [loading]);
 
     const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
     const changed = FIELDS.filter((f) => String(form[f] ?? '') !== String(saved[f] ?? ''));
     const nameMissing = !form.name.trim();
     const emailBad = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+    // All of them are required: what is empty, field by field.
+    const empty = FIELDS.filter((f) => !String(form[f] ?? '').trim());
+    const need = (f, message = 'This is required.') => (editing && empty.includes(f) ? message : '');
 
     const copyCode = async () => {
         try {
@@ -259,8 +270,8 @@ const OrgSettings = () => {
                     </Field>
 
                     <div className="grid gap-5 sm:grid-cols-2">
-                        <Field label="Contact person" id="set-contact">
-                            <input id="set-contact" value={form.contactPerson} onChange={set('contactPerson')} disabled={!editing} className={INPUT} />
+                        <Field label="Contact person" id="set-contact" error={need('contactPerson')}>
+                            <input id="set-contact" required aria-invalid={need('contactPerson') ? 'true' : undefined} value={form.contactPerson} onChange={set('contactPerson')} disabled={!editing} className={INPUT} />
                         </Field>
                         <Field label="Email" id="set-email"
                             hint="This is also your sign-in."
@@ -270,20 +281,20 @@ const OrgSettings = () => {
                     </div>
 
                     <div className="grid gap-5 sm:grid-cols-2">
-                        <Field label="Phone" id="set-phone">
-                            <input id="set-phone" value={form.phone} onChange={set('phone')} disabled={!editing} className={INPUT} />
+                        <Field label="Phone" id="set-phone" error={need('phone')}>
+                            <input id="set-phone" required aria-invalid={need('phone') ? 'true' : undefined} value={form.phone} onChange={set('phone')} disabled={!editing} className={INPUT} />
                         </Field>
-                        <Field label="Website" id="set-website">
-                            <input id="set-website" value={form.website} onChange={set('website')} disabled={!editing} placeholder="example.edu" className={INPUT} />
+                        <Field label="Website" id="set-website" error={need('website')}>
+                            <input id="set-website" required aria-invalid={need('website') ? 'true' : undefined} value={form.website} onChange={set('website')} disabled={!editing} placeholder="example.edu" className={INPUT} />
                         </Field>
                     </div>
 
-                    <Field label="Address" id="set-address">
+                    <Field label="Address" id="set-address" error={need('address')}>
                         <textarea id="set-address" rows={2} value={form.address} onChange={set('address')} disabled={!editing} className={INPUT} />
                     </Field>
 
                     {/* The state decides which BSG state office's exams, camps and events reach its Scouts & Guides. */}
-                    <Field label="State" id="set-state" hint={organization?.bsgOffice ? 'A BSG office\'s state is set when it is made.' : 'Your Scouts & Guides see this state\'s BSG notices, and the national ones.'}>
+                    <Field label="State" id="set-state" error={need('state', 'Choose your state.')} hint={organization?.bsgOffice ? 'A BSG office\'s state is set when it is made.' : 'Your Scouts & Guides see this state\'s BSG notices, and the national ones.'}>
                         <Select id="set-state" aria-label="State" value={form.state} onChange={set('state')} disabled={!editing || !!organization?.bsgOffice} className={INPUT}>
                             <option value="">Not set</option>
                             {INDIA_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -294,19 +305,27 @@ const OrgSettings = () => {
 
                 {editing && (
                     <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-5">
-                        {changed.length > 0 && (
+                        {empty.length > 0 ? (
+                            <span className="mr-auto text-xs font-semibold text-red-600">Fill in every field to save ({empty.length} empty).</span>
+                        ) : changed.length > 0 && (
                             <span className="mr-auto text-xs font-semibold text-amber-600">
                                 {changed.length} unsaved change{changed.length === 1 ? '' : 's'}
                             </span>
                         )}
                         <button type="button" onClick={cancel} className={BTN2} disabled={busy}>Cancel</button>
-                        <button type="submit" className={BTN} disabled={busy || !changed.length || nameMissing || emailBad}>
+                        <button type="submit" className={BTN} disabled={busy || !changed.length || nameMissing || emailBad || empty.length > 0}>
                             {busy && <Loader2 size={16} className="animate-spin" />}
                             Save changes
                         </button>
                     </div>
                 )}
             </form>
+
+            {/* ── Institution: the courses and their sections (from Teachers, 2026-11-04) ── */}
+            <div id="courses" className="scroll-mt-24">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Institution</h2>
+                <OrgClasses onNotice={(m) => { setNotice(m); setTimeout(() => setNotice(''), 5000); }} />
+            </div>
 
             {/* A superadmin managing this organization signs in with their own
                 account, so the organization's password is not theirs to change

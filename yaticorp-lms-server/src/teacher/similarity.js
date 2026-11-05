@@ -71,7 +71,7 @@ const compare = (text, sources, { k = SHINGLE } = {}) => {
         while (j + 1 < owner.length && owner[j + 1] === si) j += 1;
         const n = j - i + 1;
         const src = ordered[si];
-        matches.push({ start: tokens[i].start, end: tokens[j].end, words: n, source: src.label, own: !!src.own });
+        matches.push({ start: tokens[i].start, end: tokens[j].end, words: n, source: src.label, own: !!src.own, ...(src.outside ? { outside: true, url: src.url || '' } : {}) });
         perSource.set(si, (perSource.get(si) || 0) + n);
         matched += n;
         if (src.own) ownMatched += n;
@@ -85,7 +85,7 @@ const compare = (text, sources, { k = SHINGLE } = {}) => {
         matches,
         sources: [...perSource.entries()]
             .sort((a, b) => b[1] - a[1])
-            .map(([si, n]) => ({ label: ordered[si].label, own: !!ordered[si].own, words: n }))
+            .map(([si, n]) => ({ label: ordered[si].label, own: !!ordered[si].own, words: n, ...(ordered[si].outside ? { outside: true, url: ordered[si].url || '' } : {}) }))
     };
 };
 

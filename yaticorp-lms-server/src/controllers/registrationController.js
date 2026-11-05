@@ -197,9 +197,10 @@ const scanCard = async (req, res) => {
             return res.status(403).json({ message: 'This account is not active. Contact your administrator.' });
         }
 
-        // A demo (presentation) card: its scan is the sign-in — no password (services/demoCards.js).
+        // A demo (presentation) card, or a developer card in DEVICE_LIMIT_EXEMPT_CARDS: its scan
+        // is the sign-in — no password (services/demoCards.js, services/deviceGuard.js).
         // Only a scan: typing the number still asks for the password.
-        if (!typed && require('../services/fullAccess').hasFullAccess(user)) {
+        if (!typed && (require('../services/fullAccess').hasFullAccess(user) || require('../services/deviceGuard').isExemptCard(user.cardNumber))) {
             const full = await User.findById(user._id);
             return require('./userAuthController').finishLogin(req, res, full);
         }
