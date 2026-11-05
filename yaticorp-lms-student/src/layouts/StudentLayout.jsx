@@ -131,11 +131,12 @@ const readAdminView = () => {
 };
 
 // Whether the student's organization has opened 360 to them (src/pages/Student360.jsx):
-// asked when the app opens and when it comes back to the screen, and
+// asked when the app opens, when it comes back to the screen and every 20s, and
 // remembered for the session so the menu item does not blink in on each page.
 const THREE60_KEY = 'three60-open';
 const useThree60 = (userId) => {
     const [open, setOpen] = useState(() => { try { return !!userId && sessionStorage.getItem(THREE60_KEY) === String(userId); } catch { return false; } });
+    const [points, setPoints] = useState(null);   // their 360 marks so far, for the top bar
     useEffect(() => {
         if (!userId) return undefined;
         let live = true;
@@ -143,6 +144,7 @@ const useThree60 = (userId) => {
             if (!live) return;
             const yes = Boolean(r.data?.enabled);
             setOpen(yes);
+            setPoints(yes ? Number(r.data?.totals?.total || 0) : null);
             try {
                 if (yes) sessionStorage.setItem(THREE60_KEY, String(userId));
                 else sessionStorage.removeItem(THREE60_KEY);
@@ -151,16 +153,18 @@ const useThree60 = (userId) => {
         check();
         const onShow = () => { if (document.visibilityState === 'visible') check(); };
         document.addEventListener('visibilitychange', onShow);
-        return () => { live = false; document.removeEventListener('visibilitychange', onShow); };
+        // A teacher adding (or removing) them shows without a refresh: asked again every 20s while on screen.
+        const timer = setInterval(onShow, 20000);
+        return () => { live = false; clearInterval(timer); document.removeEventListener('visibilitychange', onShow); };
     }, [userId]);
-    return open;
+    return [open, points];
 };
 
 const StudentLayout = () => {
     const { user, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
     // The organization's access hours: outside them, the closed screen (components/PlatformClosed).
     const accessHours = useAccessHours(Boolean(user));
-    const three60 = useThree60(user?._id);
+    const [three60, three60Points] = useThree60(user?._id);
     // Whether Google Drive is linked, known from the start: every upload checks it first (uploads are
     // kept in the student's own Drive, 2026-11-02), and a phone opens the file picker only straight after a tap.
     useEffect(() => { if (user?._id) refreshGoogle(); }, [user?._id]);
@@ -619,7 +623,7 @@ const StudentLayout = () => {
 
     // Render helpers, not components: inlining them keeps the subtree from
     // remounting on every parent render.
-    const renderNavLinks = (onClick) => groups.map((g, i) => (
+    const renderNavLinks = (onClick) => groups.filter((g) => g.items.length).map((g, i) => (
         <div key={g.title || 'top'} className={i ? 'pt-1' : ''}>
             {g.title && <p className="mb-0.5 px-2.5 pt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{g.title}</p>}
             <div className="space-y-1">
@@ -804,6 +808,7 @@ const StudentLayout = () => {
                 isCareerPathEnabled={isCareerPathEnabled}
                 isLinguisticEnabled={isLinguisticEnabled}
                 isThree60Enabled={three60}
+                three60Points={three60 ? three60Points : null}
                 user={user}
                 rewards={rw}
                 onOpenWallet={() => setWalletOpen(true)}
@@ -926,48 +931,6 @@ const StudentLayout = () => {
                             {renderNavLinks(() => setMenuOpenOn(null))}
                         </nav>
                         <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-3">
-                            {/* Profile card in mobile drawer — opens My Profile,
-                                which is no longer in the nav list above. */}
-                            <Link
-                                to="/profile"
-                                onClick={() => setMenuOpenOn(null)}
-                                aria-label="My Profile"
-                                className={`group relative block overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-4 text-white shadow-lg shadow-indigo-500/25 transition-transform active:scale-[0.98] ${isActive('/profile') ? 'ring-2 ring-indigo-300 ring-offset-2' : ''}`}
-                            >
-                                {/* Soft light and a ring of glass behind, like a member card. */}
-                                <span aria-hidden="true" className="pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
-                                <span aria-hidden="true" className="pointer-events-none absolute -bottom-12 -left-6 h-28 w-28 rounded-full border-[14px] border-white/10" />
-
-                                <div className="relative flex items-center gap-3">
-                                    <span className="relative shrink-0">
-                                        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white/20 text-sm font-bold ring-2 ring-white/70">
-                                            <ProfileImage src={user?.profilePicture} alt={user?.name} className="h-full w-full object-cover" fallback={getInitials(user?.name)} />
-                                        </span>
-                                        {rw?.level && (
-                                            <span className="absolute -right-1.5 -bottom-1 rounded-full bg-amber-300 px-1.5 text-[10px] leading-4 font-black text-amber-950 ring-2 ring-violet-600">Lv {rw.level.level}</span>
-                                        )}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block text-[10px] font-bold tracking-[0.18em] text-white/70 uppercase">Student</span>
-                                        <span className="block truncate text-base leading-tight font-bold">{user?.name}</span>
-                                        {user?.cardNumber && <span className="mt-0.5 block truncate font-mono text-[11px] tracking-wider text-white/75" translate="no">{user.cardNumber}</span>}
-                                    </span>
-                                    <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/25 transition-transform group-hover:translate-x-0.5">
-                                        <ChevronRight size={16} />
-                                    </span>
-                                </div>
-
-                                <div className="relative mt-3.5 flex items-center justify-between gap-2 rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/15 backdrop-blur-sm">
-                                    <span className="flex items-center gap-1.5 text-xs font-semibold text-white/85"><User size={13} aria-hidden="true" /> My Profile</span>
-                                    {/* The wallet balance, where credits used to be shown. */}
-                                    {rw?.wallet && (
-                                        <span className="flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-black text-emerald-700 tabular-nums shadow-sm">
-                                            <Wallet size={12} aria-hidden="true" />
-                                            {money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}
-                                        </span>
-                                    )}
-                                </div>
-                            </Link>
                             {/* Renders nothing inside the native app or once installed. */}
                             <InstallAppButton
                                 iconSize={20}
@@ -1052,6 +1015,15 @@ const StudentLayout = () => {
                         )}
 
                         <Marks360Chip user={user?.marks360 ? user : progressUser} />
+                        {three60 && three60Points !== null && (
+                            <Link to="/360" aria-label={`360 points: ${three60Points}`} title="Your 360 points"
+                                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-bold text-indigo-700 tabular-nums transition-colors hover:bg-indigo-100">
+                                <Orbit size={16} aria-hidden="true" className="motion-safe:animate-[spin_6s_linear_infinite]" />
+                                <span className="text-xs font-black tracking-wide text-indigo-500">360</span>
+                                <span className="h-3.5 w-px bg-indigo-200" aria-hidden="true" />
+                                {three60Points.toLocaleString('en-IN')}
+                            </Link>
+                        )}
                         {renderWalletButton('desktop')}
                         <LanguageToggle />
                         {renderNotificationBell('desktop')}

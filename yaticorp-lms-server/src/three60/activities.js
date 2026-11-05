@@ -64,9 +64,17 @@ const findActivity = (org, activityId) => {
     return {};
 };
 const markOf = (marks, activityId) => (marks || []).find((m) => same(m.activityId, activityId)) || null;
-/** What one activity gives a student: "up to N" is the teacher's mark, never above N; "per proof" is N for each accepted proof. */
+/**
+ * What one activity gives a student: "per proof" is N for each accepted proof;
+ * "up to N" is the marks given to each accepted proof, added up and never above
+ * N (2026-11-04). A mark given the old way, on the whole activity, counts until
+ * its proofs have marks of their own.
+ */
 const gotFor = (activity, proofs, marks) => {
-    if (activity.mode === 'each') return round((proofs || []).filter((p) => same(p.activityId, activity._id) && p.status === 'approved').length * (activity.marks || 0));
+    const accepted = (proofs || []).filter((p) => same(p.activityId, activity._id) && p.status === 'approved');
+    if (activity.mode === 'each') return round(accepted.length * (activity.marks || 0));
+    const perProof = accepted.reduce((n, p) => n + (Number(p.marks) || 0), 0);
+    if (perProof > 0) return round(Math.min(activity.marks || 0, perProof));
     const m = markOf(marks, activity._id);
     return m ? Math.min(activity.marks || 0, m.marks || 0) : 0;
 };
@@ -270,7 +278,8 @@ const install = ({ orgAdmin, mentor, student }) => {
 
     /*
      * One proof: { decision: 'approve' | 'reject', marks?, note? }.
-     *   approve, "up to N"   marks 0–N is the activity's mark from now on;
+     *   approve, "up to N"   marks for this proof: 0 to what is left of N after the other accepted proofs
+     *                        (again on an accepted proof changes its marks);
      *   approve, "per proof" adds N;
      *   reject               a reason is needed; the proof stops counting.
      */
@@ -298,11 +307,20 @@ const install = ({ orgAdmin, mentor, student }) => {
                 await User.updateOne({ _id: studentId }, { $set: reviewed(req.teacher, { 'activityProofs.$[p].status': 'approved', 'activityProofs.$[p].marks': activity.marks || 0, 'activityProofs.$[p].reviewNote': note }) }, at);
                 return res.json({ message: `Accepted: +${activity.marks} mark${activity.marks === 1 ? '' : 's'}.` });
             }
+            // This proof's own marks: what is left of the top once the other accepted proofs are counted.
+            const others = (user.activityProofs || []).filter((p) => same(p.activityId, activity._id) && p.status === 'approved' && !same(p._id, proof._id))
+                .reduce((n, p) => n + (Number(p.marks) || 0), 0);
+            const room = round(Math.max(0, (activity.marks || 0) - others));
             const marks = Number(req.body?.marks);
-            if (req.body?.marks === '' || req.body?.marks == null || !Number.isFinite(marks) || marks < 0 || marks > (activity.marks || 0)) return bad(res, `Give 0 to ${activity.marks} marks.`, { field: 'marks' });
-            await User.updateOne({ _id: studentId }, { $set: reviewed(req.teacher, { 'activityProofs.$[p].status': 'approved', 'activityProofs.$[p].marks': 0, 'activityProofs.$[p].reviewNote': note }) }, at);
-            await setMark(user._id, activity._id, round(marks), req.teacher);
-            res.json({ message: `Accepted: ${activity.name} ${round(marks)} / ${activity.marks}.` });
+            if (req.body?.marks === '' || req.body?.marks == null || !Number.isFinite(marks) || marks < 0 || marks > room) {
+                return bad(res, room < (activity.marks || 0) ? `Give 0 to ${room} marks: the other proofs here already have ${round(others)} of ${activity.marks}.` : `Give 0 to ${activity.marks} marks.`, { field: 'marks' });
+            }
+            await User.updateOne({ _id: studentId }, {
+                $set: reviewed(req.teacher, { 'activityProofs.$[p].status': 'approved', 'activityProofs.$[p].marks': round(marks), 'activityProofs.$[p].reviewNote': note }),
+                // Marked by proof from now on: the old whole-activity mark goes.
+                $pull: { activityMarks: { activityId: activity._id } }
+            }, at);
+            res.json({ message: `Accepted: ${round(marks)} marks (${round(others + marks)} / ${activity.marks} for ${activity.name}).` });
         } catch (error) { fail(res, 'check proof', error); }
     });
 

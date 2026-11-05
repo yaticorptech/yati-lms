@@ -7,13 +7,12 @@
  * student to link Drive) rather than kept in our storage. Only a server without
  * Google sign-in at all still keeps it here.
  */
-const { driveRequired, assertDriveLinked, storeInDrive } = require('../integrations/google/driveStore');
+const { assertDriveLinked, storeInDrive } = require('../integrations/google/driveStore');
 const { rasterExtension } = require('../organizations/controllers/orgAdminController');
 
 const storeProof = async (userId, buffer, { name, description = '', folder = 'nccnss-proofs' }) => {
     const ext = rasterExtension(buffer);
-    if (driveRequired()) {
-        await assertDriveLinked(userId);
+    if (await assertDriveLinked(userId)) {
         const d = await storeInDrive(userId, buffer, {
             name: `${name}${ext}`,
             mimeType: { '.png': 'image/png', '.webp': 'image/webp' }[ext] || 'image/jpeg',

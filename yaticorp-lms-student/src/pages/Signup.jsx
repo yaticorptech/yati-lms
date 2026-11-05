@@ -146,7 +146,7 @@ const Signup = () => {
     const [orgPick, setOrgPick] = useState(null);         // the account they said is them
     const [orgPassword, setOrgPassword] = useState('');
     const [orgConfirm, setOrgConfirm] = useState('');
-    const [orgDetails, setOrgDetails] = useState({ email: '', designation: '', department: '', researchArea: '' });
+    const [orgDetails, setOrgDetails] = useState({ email: '', designation: '', department: '' });
     const orgWaiting = (orgResult?.teachers || []).filter((t) => t.needsPassword && t.active);
     const scannerRef = useRef(null);
     const SCANNER_ID = 'signup-card-scanner';
@@ -259,7 +259,6 @@ const Signup = () => {
     };
     const orgFail = (err, fallback) => setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : fallback));
     const orgGo = (stage) => { setError(null); setOrgStage(stage); };
-    const leaveOrgMode = () => { setError(null); setOrgResult(null); setOrgPick(null); setOrgStage('phone'); setOrgMode(false); };
     const verifyOrgTeacher = async () => {
         setError(null); setOrgResult(null); setOrgPick(null);
         if (orgPhone.replace(/\D/g, '').length < 7) return setError('Enter the mobile number your organization added you with.');
@@ -277,11 +276,13 @@ const Signup = () => {
         setError(null);
         const email = orgDetails.email.trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError('Enter a valid email address.');
+        if (!orgDetails.designation.trim()) { document.getElementById('signup-org-designation')?.focus(); return setError('Enter your designation.'); }
+        if (!orgDetails.department.trim()) { document.getElementById('signup-org-department')?.focus(); return setError('Choose or enter your department.'); }
         setOrgChecking(true);
         try {
             enterTeacher((await teacherApi.post('/auth/org-check/setup', {
                 phone: orgPhone.trim(), teacherId: orgPick?.id, password: orgPassword,
-                email, designation: orgDetails.designation.trim(), department: orgDetails.department.trim(), researchArea: orgDetails.researchArea.trim()
+                email, designation: orgDetails.designation.trim(), department: orgDetails.department.trim()
             })).data);
         } catch (err) {
             // A password the server refuses is fixed on its own page.
@@ -524,6 +525,23 @@ const Signup = () => {
                         {/* Step 1: card QR */}
                         {step === 1 && (
                             <form className="lg-rise mt-6 space-y-5" onSubmit={orgMode && asTeacher ? orgSubmit : handleValidateQR} style={{ animationDelay: '0.2s' }}>
+                                {/* A teacher signs up with an AI card, or with the mobile number
+                                    their organization added them with (only those numbers can). */}
+                                {asTeacher && (!orgMode || orgStage === 'phone') && (
+                                    <div role="radiogroup" aria-label="Sign up with" className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-black/15 p-1">
+                                        {[[false, 'AI card', CreditCard], [true, 'Mobile number', Phone]].map(([org, label, Icon]) => {
+                                            const on = orgMode === org;
+                                            return (
+                                                <button key={label} type="button" role="radio" aria-checked={on}
+                                                    onClick={() => { if (on) return; setError(null); setScanning(false); setOrgResult(null); setOrgPick(null); setOrgStage('phone'); setOrgMode(org); }}
+                                                    className={`inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-md text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${on ? 'bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/40' : 'text-slate-400 hover:text-white'}`}>
+                                                    <Icon size={14} aria-hidden="true" /> {label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
                                 {errorBox}
 
                                 {asTeacher && orgMode ? (
@@ -536,7 +554,7 @@ const Signup = () => {
                                             <input id="signup-org-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} value={orgPhone}
                                                 onChange={(e) => { setOrgPhone(e.target.value.replace(/[^0-9+()\s-]/g, '')); setOrgResult(null); setError(null); }}
                                                 className={inputClass} placeholder="The number your organization added you with" aria-describedby="signup-org-phone-hint" />
-                                            <p id="signup-org-phone-hint" className="mt-1.5 text-xs text-slate-400">Teachers without an AI card are added by their organization with their name and mobile number.</p>
+                                            <p id="signup-org-phone-hint" className="mt-1.5 text-xs text-slate-400">Only numbers your organization has added can create an account here.</p>
                                         </div>
                                         {orgResult && !orgWaiting.length ? (
                                             <>
@@ -629,20 +647,37 @@ const Signup = () => {
                                                 <p className="mt-1.5 text-xs text-slate-400">For a password reset if you ever forget it.</p>
                                             </div>
                                             <div>
-                                                <label htmlFor="signup-org-designation" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><GraduationCap size={15} className="text-slate-400" /> Designation <span className="font-normal text-slate-500">(optional)</span></label>
-                                                <input id="signup-org-designation" list="signup-org-designations" maxLength={100} value={orgDetails.designation}
+                                                <label htmlFor="signup-org-designation" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><GraduationCap size={15} className="text-slate-400" /> Designation</label>
+                                                <input id="signup-org-designation" required aria-required="true" list="signup-org-designations" maxLength={100} value={orgDetails.designation}
                                                     onChange={(e) => setOrgDetails((d) => ({ ...d, designation: e.target.value }))} className={inputClass} placeholder="e.g. Assistant Professor" />
                                                 <datalist id="signup-org-designations">{DESIGNATIONS.map((d) => <option key={d} value={d} />)}</datalist>
                                             </div>
                                             <div>
-                                                <label htmlFor="signup-org-department" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Landmark size={15} className="text-slate-400" /> Department <span className="font-normal text-slate-500">(optional)</span></label>
-                                                <input id="signup-org-department" maxLength={200} value={orgDetails.department}
-                                                    onChange={(e) => setOrgDetails((d) => ({ ...d, department: e.target.value }))} className={inputClass} placeholder="e.g. Commerce" />
-                                            </div>
-                                            <div>
-                                                <label htmlFor="signup-org-subject" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><BookOpenCheck size={15} className="text-slate-400" /> Subjects you teach <span className="font-normal text-slate-500">(optional)</span></label>
-                                                <input id="signup-org-subject" maxLength={300} value={orgDetails.researchArea}
-                                                    onChange={(e) => setOrgDetails((d) => ({ ...d, researchArea: e.target.value }))} className={inputClass} placeholder="e.g. Accounting, Business Law" />
+                                                <label htmlFor="signup-org-department" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><Landmark size={15} className="text-slate-400" /> Department</label>
+                                                {/* The courses the organization lists, one tap to pick; anything else can still be typed. */}
+                                                {(orgPick?.courses || []).length > 0 && (
+                                                    <div className="mb-2.5 flex flex-wrap gap-2" role="group" aria-label="Your organization's courses (choose one or more)">
+                                                        {orgPick.courses.map((c) => {
+                                                            // More than one can be picked: kept as "B.Com, BBA".
+                                                            const picked = orgDetails.department.split(',').map((x) => x.trim()).filter(Boolean);
+                                                            const on = picked.some((x) => x.toLowerCase() === c.toLowerCase());
+                                                            return (
+                                                                <button key={c} type="button" aria-pressed={on}
+                                                                    onClick={() => setOrgDetails((d) => {
+                                                                        const list = d.department.split(',').map((x) => x.trim()).filter(Boolean);
+                                                                        const next = on ? list.filter((x) => x.toLowerCase() !== c.toLowerCase()) : [...list, c];
+                                                                        return { ...d, department: next.join(', ') };
+                                                                    })}
+                                                                    className={`min-h-[36px] rounded-full border px-3.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${on ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100' : 'border-slate-600 bg-slate-800/60 text-slate-300 hover:border-slate-400 hover:text-white'}`}>
+                                                                    {c}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                                <input id="signup-org-department" required aria-required="true" maxLength={200} value={orgDetails.department}
+                                                    onChange={(e) => setOrgDetails((d) => ({ ...d, department: e.target.value }))} className={inputClass}
+                                                    placeholder={(orgPick?.courses || []).length ? 'Pick one or more courses above, or type them' : 'e.g. Commerce'} />
                                             </div>
                                             <button type="submit" disabled={orgChecking} className={primaryBtn}>
                                                 {orgChecking ? 'Setting up…' : 'Finish & open my dashboard'}
@@ -651,12 +686,6 @@ const Signup = () => {
                                             <button type="button" onClick={() => orgGo('password')} disabled={orgChecking} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-300 hover:text-indigo-100 hover:underline disabled:opacity-50"><ArrowLeft size={13} /> Back</button>
                                         </>)}
 
-                                        {orgStage === 'phone' && (
-                                        <button type="button" onClick={leaveOrgMode}
-                                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-300 hover:text-indigo-100 hover:underline">
-                                            <CreditCard size={13} /> Have an AI card? Use your card number
-                                        </button>
-                                        )}
                                     </>
                                 ) : (
                                     <>
@@ -677,12 +706,6 @@ const Signup = () => {
                                         </button>
                                     </div>
                                     <p id="signup-card-hint" className="mt-1.5 text-xs text-slate-400">The 12-digit number printed on your physical or digital card.</p>
-                                    {asTeacher && (
-                                        <button type="button" onClick={() => { setError(null); setScanning(false); setOrgStage('phone'); setOrgMode(true); }}
-                                            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200 hover:underline">
-                                            <Building2 size={13} /> No card? Verify as your organization&apos;s teacher
-                                        </button>
-                                    )}
                                     {/* html5-qrcode needs this element present before it starts. */}
                                     <div className={scanning ? 'mt-3' : 'hidden'}>
                                         <div id={SCANNER_ID} className="overflow-hidden rounded-xl bg-black ring-1 ring-white/10" />

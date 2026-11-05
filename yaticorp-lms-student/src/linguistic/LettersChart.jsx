@@ -9,7 +9,8 @@
 import { useEffect, useState } from 'react';
 import { Volume2 } from 'lucide-react';
 import { linguisticApi } from './api';
-import { COLORS, play, canSpeakIn } from './meta';
+import { COLORS, play, canSpeakIn, prefetch } from './meta';
+import { chartSpeech } from './speechText';
 import { Loading, Problem, Panel } from './ui';
 
 const TONE = ['blue', 'green', 'purple', 'orange', 'red'];
@@ -37,6 +38,11 @@ export default function LettersChart() {
     const [heard, setHeard] = useState('');
     const load = () => linguisticApi.letters().then((c) => { setChart(c); setError(null); }).catch((e) => { setError(e); setChart(null); });
     useEffect(() => { load(); }, []);
+    // Every letter's sound made ahead, so a tap plays at once (2026-11-05).
+    useEffect(() => {
+        if (!chart) return undefined;
+        return prefetch(chartSpeech(chart));
+    }, [chart]);
     if (chart === undefined) return <Loading label="Opening the letters…" />;
     if (!chart) return <Problem error={error} onRetry={load} />;
     const hear = (char, speak) => { setHeard(char); play(null, speak || char, chart.locale); };

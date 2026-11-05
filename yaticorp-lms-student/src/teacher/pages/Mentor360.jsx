@@ -20,17 +20,22 @@
  * Server: src/three60 (/api/teacher/360, ./activities.js for the proofs).
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Orbit, Users, UserPlus, X, Search, Loader2, ClipboardCheck, FileText, CheckCircle2, XCircle, ChevronRight, Lock } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Orbit, Users, UserPlus, X, Search, Loader2, ClipboardCheck, FileText, CheckCircle2, XCircle, ChevronRight, Lock, BookOpen, Phone, Mail, GraduationCap, Landmark, Building2, PencilLine } from 'lucide-react';
 import teacherApi, { messageOf } from '../teacherSession';
-import { useTeacher } from '../useTeacher';
+import { useTeacher, hasResearch } from '../useTeacher';
 import { PageHeader, Card, CardTitle, StatTile, EmptyState, Loading, ErrorNote, OkNote, Modal, Badge, TeacherAvatar } from '../ui';
 import { btn, inputClass, selectClass, fmtAgo } from '../kit';
 import useConfirmDialog from '../../components/useConfirmDialog';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
+import { missingOf } from '../profileGate';
+import CompleteProfileFirst from '../CompleteProfileFirst';
 import Select from '../../components/Select';
 
 const plural = (n, word, words = `${word}s`) => `${n} ${n === 1 ? word : words}`;
 const fmt = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-IN');
-const markText = (a, mark) => (a.mode === 'each' ? `${fmt(a.got)} mark${a.got === 1 ? '' : 's'}` : mark ? `${fmt(mark.marks)} / ${fmt(a.marks)}` : 'Not marked yet');
+const markText = (a, mark) => (a.mode === 'each' ? `${fmt(a.got)} mark${a.got === 1 ? '' : 's'}`
+    : a.got > 0 || mark || (a.proofs || []).some((p) => p.status === 'approved') ? `${fmt(a.got ?? mark?.marks ?? 0)} / ${fmt(a.marks)}` : 'Not marked yet');
 
 /** Pick the organization's students to track; those already on the list are ticked and fixed. */
 const AddStudentsModal = ({ onClose, onDone }) => {
@@ -155,7 +160,7 @@ const StudentSheet = ({ student, onClose, onChanged }) => {
     const load = useCallback(() => teacherApi.get(url)
         .then((r) => { setSheet(r.data); setError(''); })
         .catch((err) => setError(messageOf(err, 'This student\'s activities could not be loaded.'))), [url]);
-    useEffect(() => { load(); }, [load]);
+    useAutoRefresh(load, 15000);
     const changed = (next, message) => { if (next) setSheet(next); else load(); setNote(message); onChanged(); };
 
     const every = (sheet?.groups || []).flatMap((g) => g.activities);
@@ -196,24 +201,27 @@ const StudentSheet = ({ student, onClose, onChanged }) => {
 
 const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
     const each = a.mode === 'each';
-    const [marks, setMarks] = useState(a.mark ? String(a.mark.marks) : '');
+    // "Up to N": marks for each proof, typed in its own box (2026-11-04).
+    const [marks, setMarks] = useState(() => Object.fromEntries(a.proofs.map((p) => [p._id, p.status === 'approved' && p.marks ? String(p.marks) : ''])));
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
     const [sendingBack, setSendingBack] = useState(null);   // proof id
-    const counted = a.proofs.filter((p) => p.status !== 'rejected').length;
-    const saveMarks = async () => {
-        const n = Number(marks);
-        if (marks === '' || !Number.isFinite(n) || n < 0 || n > a.marks) { setError(`Give 0 to ${fmt(a.marks)} marks.`); return; }
-        setBusy('marks'); setError('');
-        try { onChanged((await teacherApi.put(`/360/students/${studentId}/activities/${a._id}`, { marks: n })).data, `${a.name}: ${fmt(n)} / ${fmt(a.marks)} saved.`); }
-        catch (err) { setError(messageOf(err, 'The marks could not be saved.')); }
-        finally { setBusy(''); }
-    };
+    const given = a.proofs.filter((p) => p.status === 'approved').reduce((n, p) => n + (Number(p.marks) || 0), 0);
+    // What is left of the top for this proof: the top less the other accepted proofs' marks.
+    const roomFor = (p) => Math.max(0, a.marks - (given - (p.status === 'approved' ? Number(p.marks) || 0 : 0)));
     const decide = async (p, decision, note = '') => {
         if (decision === 'reject' && !note) { setError('Say why, so the student can upload the right proof.'); return; }
+        let body = { decision, note };
+        if (decision === 'approve' && !each) {
+            const raw = marks[p._id] ?? '';
+            const n = Number(raw);
+            const room = roomFor(p);
+            if (raw === '' || !Number.isFinite(n) || n < 0 || n > room) { setError(`Give this proof 0 to ${fmt(room)} marks.`); return; }
+            body = { decision, marks: n, note: p.reviewNote || '' };
+        }
         setBusy(p._id); setError('');
         try {
-            const r = await teacherApi.put(`/360/proofs/${studentId}/${p._id}`, { decision, note });
+            const r = await teacherApi.put(`/360/proofs/${studentId}/${p._id}`, body);
             setSendingBack(null);
             onChanged(null, `${a.name}: ${r.data.message}`);
         } catch (err) { setError(messageOf(err, 'That did not go through.')); }
@@ -224,7 +232,7 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-900">{a.name}</p>
-                    <p className="text-xs text-slate-500">{each ? `${fmt(a.marks)} for each accepted proof` : `Up to ${fmt(a.marks)} marks`}{a.mark?.byName ? ` · marked by ${a.mark.byName}` : ''}</p>
+                    <p className="text-xs text-slate-500">{each ? `${fmt(a.marks)} for each accepted proof` : `Up to ${fmt(a.marks)} marks · each proof gets its own`}{a.mark?.byName ? ` · marked by ${a.mark.byName}` : ''}</p>
                 </div>
                 <Badge tone={a.got ? 'bg-emerald-50 text-emerald-700 !text-xs' : 'bg-slate-100 text-slate-600 !text-xs'}>{markText(a, a.mark)}</Badge>
             </div>
@@ -240,7 +248,7 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
                                     {p.note && <p className="text-xs text-slate-600">“{p.note}”</p>}
                                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                         {p.status === 'pending' && <Badge tone="bg-amber-50 text-amber-700">Waiting</Badge>}
-                                        {p.status === 'approved' && <Badge tone="bg-emerald-50 text-emerald-700">Accepted{each ? ` · +${fmt(p.marks)}` : ''}</Badge>}
+                                        {p.status === 'approved' && <Badge tone="bg-emerald-50 text-emerald-700">Accepted{p.marks ? ` · +${fmt(p.marks)}` : ''}</Badge>}
                                         {p.status === 'rejected' && <Badge tone="bg-red-50 text-red-700">Sent back</Badge>}
                                         {p.status === 'rejected' && p.reviewNote && <span className="text-[11px] text-slate-500">“{p.reviewNote}”</span>}
                                     </div>
@@ -256,6 +264,21 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
                                     </div>
                                 )}
                             </div>
+                            {!each && p.status !== 'rejected' && sendingBack !== p._id && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-2">
+                                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                                        Marks
+                                        <input type="number" inputMode="decimal" min={0} max={roomFor(p)} step="any" value={marks[p._id] ?? ''}
+                                            onChange={(e) => { setMarks((m) => ({ ...m, [p._id]: e.target.value })); setError(''); }}
+                                            placeholder={`0–${fmt(roomFor(p))}`} aria-label={`Marks for ${p.fileName || 'this proof'}, up to ${fmt(roomFor(p))}`}
+                                            className={`${inputClass} !w-20 !py-1.5 tabular-nums`} />
+                                        <span className="font-normal text-slate-400">of {fmt(roomFor(p))} left</span>
+                                    </label>
+                                    <button type="button" onClick={() => decide(p, 'approve')} disabled={!!busy} className={`${btn.primary} !px-2.5 !py-1.5 !text-xs`}>
+                                        {busy === p._id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}{p.status === 'pending' ? 'Accept with marks' : 'Update marks'}
+                                    </button>
+                                </div>
+                            )}
                             {sendingBack === p._id && (
                                 <div className="mt-2"><SendBack who={who} busy={busy === p._id} onSend={(note) => decide(p, 'reject', note)} onCancel={() => setSendingBack(null)} /></div>
                             )}
@@ -263,26 +286,64 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
                     ))}
                 </ul>
             )}
-            {!each && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
-                    {counted ? (
-                        <>
-                            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                                Marks
-                                <input type="number" inputMode="decimal" min={0} max={a.marks} step="any" value={marks} onChange={(e) => { setMarks(e.target.value); setError(''); }}
-                                    placeholder={`0–${fmt(a.marks)}`} aria-label={`Marks for ${a.name}, out of ${fmt(a.marks)}`} className={`${inputClass} !w-24 tabular-nums`} />
-                                <span className="text-slate-500">/ {fmt(a.marks)}</span>
-                            </label>
-                            <button type="button" onClick={saveMarks} disabled={!!busy} className={btn.primary}>
-                                {busy === 'marks' ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}{a.mark ? 'Update marks' : 'Give marks'}
-                            </button>
-                            {a.proofs.some((p) => p.status === 'pending') && <span className="text-[11px] text-slate-500">Accepts the proof waiting here.</span>}
-                        </>
-                    ) : <p className="text-xs text-slate-500">No proof to mark yet.</p>}
-                </div>
+            {!each && a.proofs.length > 0 && (
+                <p className="mt-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
+                    In all: <strong className="text-slate-800 tabular-nums">{fmt(a.got)} / {fmt(a.marks)}</strong>{given === 0 && a.got > 0 ? ' (given on the whole activity before; marks on each proof replace it)' : ''}
+                </p>
             )}
+            {!each && !a.proofs.length && <p className="mt-2 text-xs text-slate-500">No proof to mark yet.</p>}
             <ErrorNote>{error}</ErrorNote>
         </li>
+    );
+};
+
+/** The teacher's whole profile at a glance, with what is still missing and a way to fill it in. */
+const ProfileCard = ({ teacher, organization, classes, missing }) => {
+    const rows = [
+        [GraduationCap, 'Designation', teacher?.designation],
+        [Landmark, 'Department', teacher?.department],
+        [Phone, 'Mobile', teacher?.phone],
+        [Mail, 'Email', teacher?.email],
+        [Building2, 'Organization', organization?.name]
+    ];
+    return (
+        <Card className="!p-0">
+            <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
+                <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                    <TeacherAvatar teacher={teacher} className="h-14 w-14 text-base" />
+                    <div className="min-w-0">
+                        <p className="truncate text-lg font-semibold text-slate-900">{teacher?.name || 'Teacher'}</p>
+                        <p className="truncate text-sm text-slate-500">{[teacher?.designation, organization?.name].filter(Boolean).join(' · ') || 'Your profile'}</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    {missing.length > 0 && <Badge tone="bg-amber-50 text-amber-700">{missing.length} to add</Badge>}
+                    <Link to="/teacher/profile" className={missing.length ? btn.primary : btn.secondary}><PencilLine size={15} aria-hidden="true" /> {missing.length ? 'Complete profile' : 'Edit profile'}</Link>
+                </div>
+            </div>
+            <dl className="grid grid-cols-1 border-t border-slate-100 sm:grid-cols-2 lg:grid-cols-5">
+                {rows.map(([Icon, label, value]) => (
+                    <div key={label} className="min-w-0 border-b border-slate-100 px-4 py-3 last:border-b-0 sm:px-5 lg:border-b-0 lg:border-r lg:last:border-r-0">
+                        <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400"><Icon size={13} aria-hidden="true" /> {label}</dt>
+                        <dd className={`mt-1 truncate text-sm ${value ? 'font-medium text-slate-800' : 'text-slate-400'}`} title={value || undefined}>{value || 'Not added'}</dd>
+                    </div>
+                ))}
+            </dl>
+            {teacher?.mentor360 && (
+                <div className="border-t border-slate-100 px-4 py-3 sm:px-5">
+                    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400"><BookOpen size={13} aria-hidden="true" /> What I teach</p>
+                    {classes?.length ? (
+                        <ul className="mt-2 flex flex-wrap gap-2">
+                            {classes.map((c) => (
+                                <li key={c._id} className="rounded-lg border border-teal-100 bg-teal-50/60 px-2.5 py-1 text-sm text-slate-700">
+                                    <span className="font-semibold text-slate-900">{c.course}</span> · {c.section}{c.years?.length ? ` · ${c.years.map((y) => ({ 1: '1st', 2: '2nd', 3: '3rd' })[y] || y).join(' & ')} year` : ''}{c.subject ? <> · <span className="text-teal-800">{c.subject}</span></> : null}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : <p className="mt-1 text-sm text-slate-400">No classes added. Add the course, section and subject you teach in your profile.</p>}
+                </div>
+            )}
+        </Card>
     );
 };
 
@@ -300,7 +361,8 @@ export default function Mentor360() {
     const load = useCallback(() => teacherApi.get('/360')
         .then((r) => { setData(r.data); setError(''); })
         .catch((err) => setError(messageOf(err, 'Could not load your 360 dashboard.'))), []);
-    useEffect(() => { load(); }, [load]);
+    // New proof from students shows without a refresh: asked again every 15s while on screen.
+    useAutoRefresh(load, 15000);
     const done = (next, message) => { setData(next); setAdding(false); setNote(message || ''); };
 
     const removeStudent = async (st) => {
@@ -313,8 +375,9 @@ export default function Mentor360() {
 
     if (!data && !error) return <Loading label="Loading your 360 dashboard…" />;
     const students = data?.students || [];
+    const research = hasResearch(teacher);
+    const missing = data ? missingOf(teacher, data.classes || [], data.courses) : [];
     const waiting = students.reduce((n, st) => n + (st.waiting || 0), 0);
-    const xBtn = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50';
 
     return (
         <div className="space-y-6">
@@ -322,8 +385,12 @@ export default function Mentor360() {
                 subtitle={data?.organization ? `${data.organization.name} · your students and their activities` : `Welcome, ${teacher?.name || 'teacher'}`} />
             <ErrorNote onRetry={!data ? load : undefined}>{error}</ErrorNote>
             <OkNote>{note}</OkNote>
+            {/* Only while something is missing: once complete, the dashboard is theirs. */}
+            {missing.length > 0 && <ProfileCard teacher={teacher} organization={data?.organization} classes={data?.classes} missing={missing} />}
 
-            {data && !data.organization ? (
+            {missing.length > 0 && !research ? (
+                <CompleteProfileFirst missing={missing} />
+            ) : data && !data.organization ? (
                 <EmptyState icon={Orbit} title="No organization yet" color="teal">Once your college or school adds you, you track your students’ activities here.</EmptyState>
             ) : data?.locked ? (
                 /* Not unlocked by the platform: the dashboard, blurred and out of reach, behind the note. */
@@ -353,18 +420,18 @@ export default function Mentor360() {
                         <StatTile icon={ClipboardCheck} label="Proofs to check" value={waiting} sub={waiting ? 'Tap a student below.' : 'All checked.'} color="amber" />
                     </div>
                     <Card>
-                        <CardTitle icon={Users} color="emerald" right={<button type="button" onClick={() => setAdding(true)} className={btn.secondary}><UserPlus size={15} /> Add students</button>}>
+                        <CardTitle icon={Users} color="emerald" right={<button type="button" onClick={() => setAdding(true)} className={btn.primary}><UserPlus size={15} /> Add students</button>}>
                             My students
                         </CardTitle>
                         <p className="-mt-1 mb-2 text-xs text-slate-500">The students whose activities you track. Only they see 360; tap one to see all their proof and give marks.</p>
                         {students.length === 0
                             ? <p className="py-2 text-sm text-slate-500">No students yet. Add the ones you will track.</p>
                             : (
-                                <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+                                <ul className="max-h-[28rem] space-y-2 overflow-y-auto pr-0.5">
                                     {students.map((st) => (
-                                        <li key={st._id} className="flex items-center gap-1 py-1">
+                                        <li key={st._id} className={`flex items-center gap-2 rounded-xl border p-1.5 transition-colors ${st.waiting > 0 ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300' : 'border-emerald-100 bg-emerald-50/40 hover:border-emerald-300'}`}>
                                             <button type="button" onClick={() => setOpening(st)} aria-label={`Open ${st.name}'s activities and proof`}
-                                                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1.5 text-left hover:bg-slate-50">
+                                                className="group flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
                                                 <TeacherAvatar teacher={st} className="h-8 w-8 text-[11px]" />
                                                 <span className="min-w-0 flex-1">
                                                     <span className="block truncate text-sm font-semibold text-slate-900">{st.name}</span>
@@ -374,9 +441,13 @@ export default function Mentor360() {
                                                         {st.waiting > 0 && <Badge tone="bg-amber-50 text-amber-700">{st.waiting} to check</Badge>}
                                                     </span>
                                                 </span>
-                                                <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-slate-300" />
+                                                <span className="hidden shrink-0 items-center gap-1 rounded-lg border border-emerald-600/30 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm group-hover:border-emerald-600 group-hover:bg-emerald-600 group-hover:text-white sm:inline-flex">
+                                                    {st.waiting > 0 ? 'Check proof' : 'Open'} <ChevronRight size={14} aria-hidden="true" />
+                                                </span>
+                                                <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-slate-400 sm:hidden" />
                                             </button>
-                                            <button type="button" onClick={() => removeStudent(st)} disabled={busy === `student:${st._id}`} aria-label={`Stop tracking ${st.name}`} className={xBtn}>
+                                            <button type="button" onClick={() => removeStudent(st)} disabled={busy === `student:${st._id}`} aria-label={`Stop tracking ${st.name}`} title="Remove from my list"
+                                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
                                                 {busy === `student:${st._id}` ? <Loader2 size={14} className="animate-spin" /> : <X size={15} />}
                                             </button>
                                         </li>

@@ -249,8 +249,10 @@ const plagiarismReportSchema = new Schema({
     score: Number,                // % of words found elsewhere
     ownScore: Number,             // … of which in the teacher's own documents
     documentsCompared: Number,
-    matches: [{ _id: false, start: Number, end: Number, words: Number, source: String, own: Boolean }],
-    sources: [{ _id: false, label: String, own: Boolean, words: Number }],
+    matches: [{ _id: false, start: Number, end: Number, words: Number, source: String, own: Boolean, outside: Boolean, url: String }],
+    sources: [{ _id: false, label: String, own: Boolean, words: Number, outside: Boolean, url: String }],
+    // The free outside check (2026-11-04, ./openSources.js): open research and Wikipedia.
+    outside: { checked: Boolean, searched: Number, found: Number, fullText: Number, openalex: Boolean, wikipedia: Boolean },
     citations: { found: Number },
     flags: [{ _id: false, start: Number, end: Number, kind: String, message: String }]
 }, { timestamps: true });

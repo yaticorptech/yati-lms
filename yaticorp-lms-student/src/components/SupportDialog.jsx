@@ -6,6 +6,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Phone, Ticket, X, ChevronLeft, ChevronRight, Send, CheckCircle2, Loader2, LifeBuoy, Lock, ScanLine } from 'lucide-react';
+import SupportHistory from './SupportHistory';
 import api from '../utils/api';
 import useBackClose from '../native/useBackClose';
 
@@ -27,6 +28,7 @@ const TONES = {
         ghost: 'text-slate-300 hover:bg-white/10',
         close: 'text-slate-400 hover:text-slate-100 hover:bg-white/10',
         error: 'bg-red-500/10 border-red-400/30 text-red-300',
+        tabs: 'bg-white/[0.06]', tabOn: 'bg-white/15 text-white shadow-sm', tabOff: 'text-slate-400 hover:text-slate-100',
         fieldErr: 'text-red-300',
     },
     light: {
@@ -42,6 +44,7 @@ const TONES = {
         ghost: 'text-slate-600 hover:bg-slate-100',
         close: 'text-slate-400 hover:text-slate-700 hover:bg-slate-100',
         error: 'bg-red-50 border-red-200 text-red-600',
+        tabs: 'bg-slate-100', tabOn: 'bg-white text-indigo-700 shadow-sm', tabOff: 'text-slate-500 hover:text-slate-800',
         fieldErr: 'text-red-600',
     },
 };
@@ -201,16 +204,16 @@ export default function SupportDialog({ onClose, page = 'other', path, user, ton
         </div>
     );
 
-    const title = view === 'ticket' ? 'Create a ticket' : view === 'done' ? 'Ticket raised' : (signedIn ? 'Contact Support' : 'Contact Admin');
+    const title = view === 'ticket' || view === 'history' ? 'Create a ticket' : view === 'done' ? 'Ticket raised' : (signedIn ? 'Contact Support' : 'Contact Admin');
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
             onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
             <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="support-title"
-                className={`flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl shadow-2xl focus:outline-none sm:max-w-md sm:rounded-3xl ${t.card}`}>
+                className={`flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-3xl shadow-2xl focus:outline-none ${t.card}`}>
                 {/* Header */}
                 <div className={`flex items-center gap-3 border-b px-5 py-4 ${t.head}`}>
-                    {view === 'ticket' ? (
+                    {view === 'ticket' || view === 'history' ? (
                         <button type="button" onClick={() => setView('choose')} aria-label="Back"
                             className={`-ml-1 flex h-9 w-9 items-center justify-center rounded-xl transition ${t.close}`}><ChevronLeft size={20} /></button>
                     ) : (
@@ -224,6 +227,19 @@ export default function SupportDialog({ onClose, page = 'other', path, user, ton
                     <button type="button" onClick={onClose} aria-label="Close"
                         className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${t.close}`}><X size={18} /></button>
                 </div>
+
+                {/* Inside Create a ticket, signed in: a new one, or the ones already sent (with "send again" on a resolved one). */}
+                {signedIn && (view === 'ticket' || view === 'history') && (
+                    <div role="tablist" aria-label="Support" className={`mx-5 mt-4 grid shrink-0 grid-cols-2 gap-1 rounded-xl p-1 ${t.tabs}`}>
+                        {[['new', 'New request'], ['history', 'My requests']].map(([key, label]) => {
+                            const on = key === 'history' ? view === 'history' : view !== 'history';
+                            return (
+                                <button key={key} type="button" role="tab" aria-selected={on} onClick={() => setView(key === 'history' ? 'history' : 'ticket')}
+                                    className={`rounded-lg py-2 text-sm font-semibold transition-colors ${on ? t.tabOn : t.tabOff}`}>{label}</button>
+                            );
+                        })}
+                    </div>
+                )}
 
                 <div className="overflow-y-auto">
                     {view === 'choose' && (
@@ -247,6 +263,8 @@ export default function SupportDialog({ onClose, page = 'other', path, user, ton
                             </button>
                         </div>
                     )}
+
+                    {view === 'history' && <div className="p-5"><SupportHistory client={api} base="/user/tickets" /></div>}
 
                     {view === 'ticket' && (
                         <form onSubmit={submit} noValidate className="space-y-4 p-5">
@@ -324,7 +342,10 @@ export default function SupportDialog({ onClose, page = 'other', path, user, ton
                             <h3 className="mb-1 text-lg font-bold">We have your ticket</h3>
                             {ref && <p className={`mb-1 text-sm ${t.muted}`}>Reference <span className="font-mono font-bold">#{ref}</span></p>}
                             <p className={`mb-5 text-sm ${t.muted}`}>Our team will reply to {form.email.trim() || "your email"}. Need it sooner? Call <a href={`tel:${SUPPORT_PHONE}`} className="font-bold text-indigo-500 hover:underline">{SUPPORT_PHONE}</a>.</p>
-                            <button type="button" onClick={onClose} className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700">Done</button>
+                            <div className="flex flex-wrap justify-center gap-2">
+                                {signedIn && <button type="button" onClick={() => setView('history')} className={`rounded-xl px-5 py-2.5 text-sm font-bold transition ${t.tile}`}>My requests</button>}
+                                <button type="button" onClick={onClose} className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700">Done</button>
+                            </div>
                         </div>
                     )}
                 </div>

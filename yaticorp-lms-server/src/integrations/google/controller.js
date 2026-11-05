@@ -48,6 +48,8 @@ const getStatus = async (req, res) => {
       // Whether an administrator has set the integration up at all. The UI
       // hides the whole feature rather than offering a button that cannot work.
       available: isConfigured(),
+      // Whether this student's uploads need Drive: not for developer cards (DEVICE_LIMIT_EXEMPT_CARDS).
+      driveNeeded: await require('./driveStore').usesDrive(req.user._id),
       connected: Boolean(link) && !link.needsReconnect,
       needsReconnect: Boolean(link?.needsReconnect),
       email: link?.email || '',

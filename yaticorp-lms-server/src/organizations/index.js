@@ -224,6 +224,33 @@ const { lessonUpload, attachmentUpload, tagUploadLimit, tagAttachmentLimit } = r
 const { cleanBody } = require('../utils/sanitizeUpdate');
 
 router.get('/me/course-access', orgCourse.getCourseAccess);
+// Its support tickets, and "not resolved, again" on a resolved one (controllers/ticketController).
+{
+    const { listTickets, reopenTicket } = require('../controllers/ticketController');
+    const orgTickets = (req) => ({ organizationId: req.organization._id, from: 'organization' });
+    router.get('/me/tickets', listTickets(orgTickets));
+    router.post('/me/tickets/:id/reopen', reopenTicket(orgTickets));
+}
+// A support ticket from the panel: its name, ID and email come from the account, not the form.
+router.post('/me/tickets', async (req, res) => {
+    try {
+        const subject = String(req.body?.subject || '').trim().slice(0, 200);
+        const message = String(req.body?.message || '').trim().slice(0, 5000);
+        if (!subject || !message) return res.status(400).json({ message: 'Add a subject and a message.' });
+        const org = req.organization;
+        const email = String(req.body?.email || '').trim() || org.email || '';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ field: 'email', message: 'Enter a valid email so we can reply.' });
+        const path = typeof req.body?.path === 'string' && /^\/(?!\/)/.test(req.body.path) ? req.body.path.slice(0, 300) : undefined;
+        const ticket = await require('../models/Ticket').create({
+            name: org.name, email, subject, message, page: 'dashboard', path,
+            from: 'organization', organizationId: org._id, orgCode: org.orgCode
+        });
+        res.status(201).json({ message: 'Your support request has been sent.', ticketId: ticket._id });
+    } catch (error) {
+        console.error('[organizations] ticket failed:', error.message);
+        res.status(500).json({ message: 'Could not send your request just now. Please try again.' });
+    }
+});
 // The institution's logo: asked for before its first course, shown across its panel.
 router.post('/me/logo', imageUpload.single('image'), orgCtrl.uploadLogo);
 // Each student's progress on the organization's own courses, and the courses

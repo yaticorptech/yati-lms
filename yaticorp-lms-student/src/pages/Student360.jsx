@@ -28,8 +28,9 @@
  * Server: src/three60 (GET /api/user/360, POST/DELETE /api/user/360/proofs).
  */
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import useAutoRefresh from '../hooks/useAutoRefresh';
 import { Link } from 'react-router-dom';
-import { Orbit, UserRound, Upload, FileText, ImageIcon, CheckCircle2, Clock, XCircle, Trash2, X, Loader2, Plus, Camera, Search, MessageSquare, Paperclip } from 'lucide-react';
+import { Orbit, Landmark, UserRound, BarChart3, RotateCcw, ChevronRight, Target, Upload, FileText, ImageIcon, CheckCircle2, Clock, XCircle, Trash2, X, Loader2, Plus, Camera, Search, MessageSquare, Paperclip } from 'lucide-react';
 import api from '../utils/api';
 import YatiLoader from '../components/YatiLoader';
 import Portal from '../components/Portal';
@@ -55,14 +56,12 @@ export default function Student360() {
     const [adding, setAdding] = useState(null);      // { activityId }: the Add proof popup
     const [notice, setNotice] = useState('');
     const [showAll, setShowAll] = useState(false);
+    const [teacherOpen, setTeacherOpen] = useState(false);   // the teacher card, opened to their contact
     const [confirm, confirmDialog] = useConfirmDialog();
 
     const load = () => api.get('/user/360').then((r) => { setData(r.data); setFailed(false); });
-    useEffect(() => {
-        let live = true;
-        load().catch(() => { if (live) setFailed(true); });
-        return () => { live = false; };
-    }, []);
+    // Marks and checks from the teacher show without a refresh: asked again every 15s while on screen.
+    useAutoRefresh(() => load().catch(() => setFailed(true)), 15000);
     const retry = () => { setFailed(false); load().catch(() => setFailed(true)); };
     useEffect(() => { if (!notice) return undefined; const t = setTimeout(() => setNotice(''), 4000); return () => clearTimeout(t); }, [notice]);
 
@@ -96,6 +95,8 @@ export default function Student360() {
     // Per-proof activities have no top: their marks come on top of `possible` (never "23 of 20").
     const perProof = all.some((a) => a.mode === 'each');
     const total = data.totals?.total || 0;
+    const left = Math.max(possible - total, 0);
+    const pct = possible > 0 ? Math.round(Math.min(100, (total / possible) * 100)) : 0;
     const count = (status) => proofs.filter((p) => p.status === status).length;
     // Sent back first (they need a new upload), then the rest, newest first (2026-11-04).
     const newest = [...proofs].sort((a, b) => ((b.status === 'rejected') - (a.status === 'rejected')) || (new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
@@ -120,48 +121,107 @@ export default function Student360() {
 
     return (
         <div className="space-y-5 pb-10">
-            <header className="flex items-center gap-3.5">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"><Orbit size={22} aria-hidden="true" /></span>
-                <div className="min-w-0 flex-1">
-                    <h1 className="text-2xl font-black tracking-tight text-slate-900">360</h1>
-                    <p className="text-sm text-slate-500">{data.organization ? `${data.organization} · ` : ''}your activities, marks and teachers</p>
+            {/* Welcome, with the campus behind and Add proof on the right. */}
+            <header className="relative isolate overflow-hidden rounded-3xl bg-[linear-gradient(100deg,#ede9fe_0%,#eef2ff_45%,#e9e5ff_100%)] px-5 py-6 sm:px-8 sm:py-7">
+                <img src="/illustrations/360/campus.png" alt="" aria-hidden="true" loading="lazy"
+                    className="pointer-events-none absolute bottom-0 right-[14%] -z-10 hidden h-full w-auto max-w-[58%] object-cover object-bottom opacity-90 [mask-image:linear-gradient(90deg,transparent,black_18%,black_80%,transparent)] md:block" />
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-center gap-4">
+                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-indigo-100/80 text-indigo-600 shadow-inner shadow-indigo-200/50 sm:h-16 sm:w-16"><Landmark size={30} strokeWidth={2.25} aria-hidden="true" /></span>
+                        <div className="min-w-0">
+                            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{data.organization || '360'}</h1>
+                            <p className="mt-1 text-sm font-medium text-slate-600 sm:text-lg">Your activities, marks and teachers</p>
+                        </div>
+                    </div>
+                    {addButton('Add Proof', 'hidden rounded-2xl bg-indigo-600 px-6 py-3.5 text-base text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 sm:inline-flex')}
                 </div>
-                {addButton('Add proof', 'hidden bg-indigo-600 text-white shadow-indigo-600/20 hover:bg-indigo-700 sm:inline-flex')}
             </header>
 
             {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800">{notice}</p>}
 
-            {/* The marks, inside the turning 360 ring. */}
-            <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-5 text-white shadow-lg shadow-indigo-600/20 sm:p-6" aria-label="Your 360 marks">
-                <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
-                    <Ring total={total} />
+            {/* The marks: the ring, the bar, the three counts, and the cap on the books. */}
+            <section aria-label="Your 360 marks" className="relative overflow-hidden rounded-3xl border border-white bg-white/80 p-5 shadow-[0_20px_50px_-28px_rgba(79,70,229,0.35)] ring-1 ring-indigo-100/70 backdrop-blur sm:p-7">
+                <div className="flex flex-col items-center gap-6 lg:flex-row lg:gap-8">
+                    <MarksRing total={total} possible={possible} />
                     <div className="w-full min-w-0 flex-1">
-                        <p className="text-xs font-bold uppercase tracking-wider text-white/75">Your 360 marks</p>
-                        <p className="text-4xl font-black leading-tight tabular-nums">{fmt(total)}</p>
-                        {possible > 0 && <p className="text-xs font-semibold text-white/80">{perProof ? `of ${fmt(possible)}, plus marks per proof` : `of ${fmt(possible)} you can earn`}</p>}
+                        <div className="flex items-center gap-3">
+                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-indigo-600 shadow-md shadow-indigo-200/60 ring-1 ring-indigo-50"><BarChart3 size={22} strokeWidth={2.5} aria-hidden="true" /></span>
+                            <div className="min-w-0">
+                                <h2 className="text-xl font-black text-slate-900 sm:text-2xl">Your 360 Marks</h2>
+                                <p className="text-sm text-slate-500">{possible <= 0 ? 'Your marks add up here as your proofs are accepted.' : left > 0 ? `Earn ${fmt(left)} more marks to complete.` : 'Every mark earned. Well done!'}{perProof && possible > 0 ? ' Some activities give marks for each proof too.' : ''}</p>
+                            </div>
+                        </div>
                         {possible > 0 && (
-                            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/20" role="progressbar" aria-label="Marks earned" aria-valuemin={0} aria-valuemax={possible} aria-valuenow={Math.min(total, possible)}>
-                                <div className="h-full rounded-full bg-white" style={{ width: `${Math.min(100, (total / possible) * 100)}%` }} />
+                            <div className="mt-5 flex items-center gap-3">
+                                <div className="h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200/80" role="progressbar" aria-label="Marks earned" aria-valuemin={0} aria-valuemax={possible} aria-valuenow={Math.min(total, possible)}>
+                                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-sky-400 transition-[width] duration-700" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-700 tabular-nums">{pct}%</span>
                             </div>
                         )}
-                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                            {[['Accepted', count('approved')], ['Waiting', count('pending')], ['Sent back', count('rejected')]].map(([label, n]) => (
-                                <div key={label} className="rounded-xl bg-white/12 px-2 py-2 ring-1 ring-white/15">
-                                    <p className="text-lg font-black tabular-nums">{n}</p>
-                                    <p className="text-[11px] font-semibold text-white/80">{label}</p>
+                        <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-4">
+                            {[
+                                ['Accepted', count('approved'), CheckCircle2, 'bg-emerald-50/80', 'bg-emerald-100 text-emerald-600'],
+                                ['Waiting', count('pending'), Clock, 'bg-amber-50/80', 'bg-amber-100 text-amber-500'],
+                                ['Sent Back', count('rejected'), RotateCcw, 'bg-rose-50/80', 'bg-rose-100 text-rose-500']
+                            ].map(([label, n, Icon, bg, chip]) => (
+                                <div key={label} className={`flex flex-col items-start gap-2 rounded-2xl p-3 sm:flex-row sm:items-center sm:gap-3 sm:p-4 ${bg}`}>
+                                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-14 sm:w-14 ${chip}`}><Icon size={24} strokeWidth={2.25} aria-hidden="true" /></span>
+                                    <div className="min-w-0">
+                                        <p className="text-2xl font-black leading-none text-slate-900 tabular-nums sm:text-3xl">{n}</p>
+                                        <p className="mt-1 truncate text-xs font-medium text-slate-600 sm:text-base">{label}</p>
+                                    </div>
                                 </div>
                             ))}
                         </div>
-                        {teachers.length > 0 && (
-                            <p className="mt-3 flex min-w-0 items-center gap-2 text-sm text-white/85">
-                                <UserRound size={15} className="shrink-0" aria-hidden="true" />
-                                <span className="truncate">{teachers.length === 1 ? 'Your 360 teacher' : 'Your 360 teachers'}: <strong className="text-white">{teachers.map((t) => t.name).join(', ')}</strong></span>
-                            </p>
-                        )}
                     </div>
+                    <img src="/illustrations/360/books.png" alt="" aria-hidden="true" loading="lazy"
+                        className="hidden w-52 shrink-0 mix-blend-multiply xl:block 2xl:w-60" />
                 </div>
-                {addButton('Add proof', 'mt-5 flex w-full bg-white text-indigo-700 hover:bg-indigo-50 sm:hidden')}
             </section>
+
+            {/* Who checks the proof, and what is left to earn. */}
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
+                {teachers.length > 0 && (
+                    <section className="relative overflow-hidden rounded-3xl border border-white bg-white/80 shadow-[0_20px_50px_-30px_rgba(79,70,229,0.35)] ring-1 ring-indigo-100/70">
+                        <svg aria-hidden="true" viewBox="0 0 400 80" preserveAspectRatio="none" className="pointer-events-none absolute inset-x-0 bottom-0 h-14 w-full text-indigo-100/70"><path d="M0 60 C 120 20, 260 90, 400 30 L400 80 L0 80 Z" fill="currentColor" /></svg>
+                        <button type="button" onClick={() => setTeacherOpen((v) => !v)} aria-expanded={teacherOpen}
+                            className="relative flex w-full items-center gap-4 p-5 text-left sm:p-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
+                            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 sm:h-[4.5rem] sm:w-[4.5rem]"><UserRound size={30} aria-hidden="true" /></span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm text-slate-500 sm:text-base">{teachers.length === 1 ? 'Your 360 Teacher' : 'Your 360 Teachers'}</span>
+                                <span className="block truncate text-xl font-black text-slate-900 sm:text-2xl">{teachers.map((t) => t.name).join(', ')}</span>
+                            </span>
+                            <ChevronRight size={22} aria-hidden="true" className={`shrink-0 text-slate-500 transition-transform ${teacherOpen ? 'rotate-90' : ''}`} />
+                        </button>
+                        {teacherOpen && (
+                            <ul className="relative space-y-1.5 px-5 pb-5 sm:px-6">
+                                {teachers.map((t) => (
+                                    <li key={t.name} className="rounded-xl bg-white/90 px-3 py-2 text-sm ring-1 ring-slate-100">
+                                        <p className="font-semibold text-slate-800">{t.name}{t.subjects?.length ? <span className="font-normal text-slate-500"> · {t.subjects.join(', ')}</span> : null}</p>
+                                        <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs">
+                                            {t.email && <a href={`mailto:${t.email}`} className="font-semibold text-indigo-600 hover:underline">{t.email}</a>}
+                                            {t.phone && <a href={`tel:${t.phone}`} className="font-semibold text-indigo-600 hover:underline">{t.phone}</a>}
+                                            {!t.email && !t.phone && <span className="text-slate-400">No contact details shared.</span>}
+                                        </p>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </section>
+                )}
+                <section className={`relative flex items-center gap-4 overflow-hidden rounded-3xl border border-white bg-[linear-gradient(100deg,#ffffff_0%,#f5f3ff_55%,#ede9fe_100%)] p-5 shadow-[0_20px_50px_-30px_rgba(79,70,229,0.35)] ring-1 ring-indigo-100/70 sm:p-6 ${teachers.length ? '' : 'lg:col-span-2'}`}>
+                    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-indigo-600 sm:h-20 sm:w-20"><Target size={56} strokeWidth={2} aria-hidden="true" /></span>
+                    <div className="min-w-0 flex-1">
+                        {possible > 0 && left > 0 ? (
+                            <p className="text-xl font-black text-slate-900 sm:text-2xl">Earn <span className="text-indigo-600">{fmt(left)}</span> more marks!</p>
+                        ) : <p className="text-xl font-black text-slate-900 sm:text-2xl">{possible > 0 ? <>All <span className="text-indigo-600">{fmt(possible)}</span> marks earned!</> : 'Earn your 360 marks!'}</p>}
+                        <p className="mt-1 text-sm text-slate-600 sm:text-base">Submit activities and get them approved to reach your target.</p>
+                    </div>
+                    <img src="/illustrations/360/rosette.png" alt="" aria-hidden="true" loading="lazy" className="hidden h-24 w-auto shrink-0 mix-blend-multiply sm:block" />
+                </section>
+            </div>
+            {addButton('Add Proof', 'flex w-full rounded-2xl bg-indigo-600 py-3.5 text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 sm:hidden')}
 
             {/* What has been uploaded: sent back first, then newest first. */}
             <section aria-labelledby="s360-uploads" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -185,7 +245,14 @@ export default function Student360() {
                         <ul className="space-y-2">
                             {listed.map((p) => {
                                 const a = activityOf(p.activityId);
-                                return <UploadRow key={p._id} proof={p} score={a && a.mode !== 'each' ? `${fmt(byActivity[String(a._id)] || 0)} / ${fmt(a.marks)}` : ''} onRemove={() => removeProof(p)} onAgain={() => openAdd(p.activityId)} />;
+                                // The marks it brought: per proof (mode each), or the activity's marks so far out of its top.
+                                // Each upload its own marks (2026-11-04); a mark given the old way on the whole activity shows as that.
+                                const perProof = a && proofs.some((x) => String(x.activityId) === String(a._id) && x.status === 'approved' && x.marks > 0);
+                                const score = p.status !== 'approved' ? null
+                                    : a?.mode === 'each' ? { got: p.marks || a.marks || 0, of: null }
+                                        : a && !perProof && byActivity[String(a._id)] ? { got: byActivity[String(a._id)], of: a.marks || 0 }
+                                            : { got: p.marks || 0, of: null };
+                                return <UploadRow key={p._id} proof={p} score={score} onRemove={() => removeProof(p)} onAgain={() => openAdd(p.activityId)} />;
                             })}
                         </ul>
                         {newest.length > SHOWN && (
@@ -210,17 +277,21 @@ export default function Student360() {
     );
 }
 
-/** The marks in a ring that turns slowly (still for anyone who asks for less motion). */
-function Ring({ total }) {
+/** The marks inside a ring that fills, indigo into sky, as they are earned. */
+function MarksRing({ total, possible }) {
+    const share = possible > 0 ? Math.min(1, total / possible) : 0;
+    const R = 44, C = 2 * Math.PI * R;
     return (
-        <div className="relative h-36 w-36 shrink-0 sm:h-40 sm:w-40" aria-hidden="true">
-            <div className="absolute inset-0 rounded-full bg-[conic-gradient(from_0deg,rgba(255,255,255,0.95),rgba(255,255,255,0.08)_30%,rgba(255,255,255,0.55)_55%,rgba(255,255,255,0.08)_80%,rgba(255,255,255,0.95))] motion-safe:animate-[spin_8s_linear_infinite]" />
-            <div className="absolute inset-[5px] rounded-full bg-gradient-to-br from-indigo-600 to-violet-700" />
-            <div className="absolute inset-3 rounded-full border-2 border-dashed border-white/25 motion-safe:animate-[spin_24s_linear_infinite_reverse]" />
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-[11px] font-black uppercase tracking-[0.25em] text-white/70">360</span>
-                <span className="text-4xl font-black leading-none tabular-nums">{fmt(total)}</span>
-                <span className="mt-1 text-[11px] font-semibold text-white/75">marks</span>
+        <div className="relative h-48 w-48 shrink-0 rounded-full bg-white shadow-[0_18px_40px_-16px_rgba(79,70,229,0.45),inset_0_0_0_10px_#f1f5f9] sm:h-56 sm:w-56" aria-hidden="true">
+            <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full -rotate-90">
+                <defs><linearGradient id="s360-ring" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#4f46e5" /><stop offset="1" stopColor="#38bdf8" /></linearGradient></defs>
+                <circle cx="50" cy="50" r={R} fill="none" stroke="#e2e8f0" strokeWidth="5" />
+                <circle cx="50" cy="50" r={R} fill="none" stroke="url(#s360-ring)" strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={`${Math.max(C * share, share > 0 ? 2 : 0)} ${C}`} className="transition-[stroke-dasharray] duration-700" />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <p className="flex items-baseline gap-1"><span className="text-5xl font-black leading-none text-slate-900 tabular-nums sm:text-6xl">{fmt(total)}</span>{possible > 0 && <span className="text-xl font-bold text-slate-500 sm:text-2xl">/ {fmt(possible)}</span>}</p>
+                <p className="mt-2 text-sm font-medium text-slate-600 sm:text-base">Marks</p>
             </div>
         </div>
     );
@@ -230,12 +301,25 @@ function Ring({ total }) {
 function UploadRow({ proof: p, score, onRemove, onAgain }) {
     const Icon = p.fileType === 'pdf' ? FileText : ImageIcon;
     const chip = p.status === 'approved'
-        ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700"><CheckCircle2 size={12} aria-hidden="true" />Accepted{p.marks ? ` · +${fmt(p.marks)}` : score ? ` · ${score}` : ''}</span>
+        ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700"><CheckCircle2 size={12} aria-hidden="true" />Accepted</span>
         : p.status === 'rejected'
             ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700"><XCircle size={12} aria-hidden="true" />Sent back</span>
             : <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700"><Clock size={12} aria-hidden="true" />Waiting</span>;
+    // Accepted: the marks, large enough to see at a glance; "Marks to come" while the teacher has not given them.
+    const marks = score && (score.got > 0 ? (
+        <span className="inline-flex shrink-0 items-baseline gap-1 rounded-xl bg-indigo-600 px-2.5 py-1 text-white tabular-nums"
+            title={score.of ? 'Marks for this activity so far' : 'Marks for this proof'}>
+            <span className="text-sm font-black">{score.of ? fmt(score.got) : `+${fmt(score.got)}`}</span>
+            {score.of ? <span className="text-[11px] font-semibold opacity-75">/ {fmt(score.of)}</span> : null}
+            <span className="text-[11px] font-semibold opacity-75">marks</span>
+        </span>
+    ) : (
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200">
+            <Clock size={12} aria-hidden="true" />Marks to come
+        </span>
+    ));
     return (
-        <li className={`rounded-xl border px-3 py-2.5 ${p.status === 'rejected' ? 'border-red-200 bg-red-50/50' : 'border-slate-200 bg-slate-50/50'}`}>
+        <li className={`rounded-xl border px-3 py-2.5 ${p.status === 'rejected' ? 'border-red-200 bg-red-50/50' : p.status === 'approved' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
             <div className="flex items-start gap-2.5">
                 <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 ring-1 ring-slate-200"><Icon size={16} aria-hidden="true" /></span>
                 <div className="min-w-0 flex-1">
@@ -243,8 +327,9 @@ function UploadRow({ proof: p, score, onRemove, onAgain }) {
                     <p className="truncate text-xs text-slate-500">{p.groupName ? `${p.groupName} · ` : ''}Sent {day(p.createdAt)}</p>
                     <a href={p.fileUrl} target="_blank" rel="noreferrer" className="block truncate text-xs font-semibold text-indigo-600 hover:underline">{p.fileName || 'Proof'}</a>
                 </div>
-                <div className="hidden shrink-0 items-center gap-1 sm:flex">
+                <div className="hidden shrink-0 items-center gap-2 sm:flex">
                     {chip}
+                    {marks}
                     {p.status !== 'approved' && (
                         <button type="button" onClick={onRemove} aria-label={`Remove proof ${p.fileName || ''}`}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
@@ -252,7 +337,7 @@ function UploadRow({ proof: p, score, onRemove, onAgain }) {
                 </div>
             </div>
             <div className="mt-1.5 flex items-center justify-between gap-2 pl-[42px] sm:hidden">
-                {chip}
+                <span className="flex items-center gap-2">{chip}{marks}</span>
                 {p.status !== 'approved' && (
                     <button type="button" onClick={onRemove} aria-label={`Remove proof ${p.fileName || ''}`}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
