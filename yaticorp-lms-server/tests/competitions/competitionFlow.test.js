@@ -408,7 +408,9 @@ describe('an inter-college chess competition, start to finish', () => {
         const teammate = champs.players.find((p) => String(p.userId) !== String(player.user._id));
         if (teammate) {
             const mate = colleges.flatMap((x) => x.students).find((s) => String(s.user._id) === String(teammate.userId));
-            assert.ok((await mate.call('GET', '/certificates')).body.certificates.some((x) => x.competitionId === comp.id), 'a teammate keeps theirs');
+            // Only a teammate who actually played a match has one (services/certificate.js eligibleFor, 2026-11-06).
+            const played = await require('../../src/competitions/services/certificate').tookPart(await Competition.findById(comp.id).lean(), teammate.userId);
+            assert.equal((await mate.call('GET', '/certificates')).body.certificates.some((x) => x.competitionId === comp.id), played, played ? 'a teammate who played keeps theirs' : 'a teammate who never played has none');
         }
         // Downloading it again from Games & Competitions puts it back.
         const again = await fetch(`http://127.0.0.1:${app.server.address().port}/api/competitions/${comp.id}/certificate`, { headers: { Authorization: `Bearer ${player.token}` } });

@@ -34,6 +34,7 @@ import ProfileImage from '../components/ProfileImage';
 import PlatformClosed from '../components/PlatformClosed';
 import useAccessHours from '../hooks/useAccessHours';
 import CompetitionAlerts from '../competitions/CompetitionAlerts';
+import ReminderPopup from '../competitions/ReminderPopup';
 import ResultsCelebration from '../competitions/ResultsCelebration';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
@@ -160,8 +161,24 @@ const useThree60 = (userId) => {
     return [open, points];
 };
 
+// The Games page's first pictures, fetched quietly once the app is idle (2026-11-06): its "What do you want to play?"
+// chooser and the room popups then open with their pictures already there instead of drawing them in late.
+const WARM_PICTURES = ['/games/choose/solo.jpg', '/games/choose/group.jpg', '/games/lobby/table-2.jpg', '/games/lobby/table-4.jpg', '/games/lobby/table-6.jpg'];
+let warmed = false;
+const warmGamesPictures = () => {
+    if (warmed || typeof window === 'undefined') return;
+    warmed = true;
+    const go = () => {
+        WARM_PICTURES.forEach((src) => { const img = new Image(); img.decoding = 'async'; img.src = src; });
+        // The Games page's own code as well, so even a first visit opens it (and its chooser) straight away.
+        import('../career/pages/dashboard/Games').catch(() => {});
+    };
+    if ('requestIdleCallback' in window) window.requestIdleCallback(go, { timeout: 3000 }); else setTimeout(go, 1500);
+};
+
 const StudentLayout = () => {
     const { user, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
+    useEffect(() => { if (user) warmGamesPictures(); }, [user]);
     // The organization's access hours: outside them, the closed screen (components/PlatformClosed).
     const accessHours = useAccessHours(Boolean(user));
     const [three60, three60Points] = useThree60(user?._id);
@@ -1120,6 +1137,7 @@ const StudentLayout = () => {
             </main>
             {/* A match or Quiz Arena just opened for me: my joining code, on screen. */}
             <CompetitionAlerts />
+            <ReminderPopup />
             {/* The results of a competition I played in, just published: congratulations and my certificate. */}
             <ResultsCelebration />
             {/* No profile picture yet: choose one before going on. */}

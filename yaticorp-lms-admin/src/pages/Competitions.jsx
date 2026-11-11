@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Trophy, Plus, Users, AlertTriangle, CalendarClock, Radio, Pencil, Trash2, Crown, FileText, Award, LayoutDashboard } from 'lucide-react';
+import { Trophy, Plus, Users, AlertTriangle, CalendarClock, Radio, Pencil, Trash2, Crown, FileText, Award } from 'lucide-react';
 import api from '../utils/api';
 import { CARD, BTN } from '../components/orgUi';
 import { CompetitionForm, Chip, GameIcon } from '../competitions/shared';
@@ -26,7 +26,9 @@ const ARENA_FILTER = { draft: 'draft', registration: 'upcoming', upcoming: 'upco
 // The boxes at the top: each a count, and a click shows just those.
 const FILTERS = [['all', 'All', Trophy, 'text-slate-700 bg-slate-100'], ['upcoming', 'Upcoming', CalendarClock, 'text-sky-600 bg-sky-50'], ['live', 'Live', Radio, 'text-rose-600 bg-rose-50'], ['completed', 'Completed', Crown, 'text-amber-600 bg-amber-50'], ['draft', 'Drafts', FileText, 'text-slate-600 bg-slate-100']];
 // A competition whose start date passed without being drawn is over: under Completed, not Upcoming.
-const inFilter = (c, f) => f === 'all' || (c.phase === 'expired' ? f === 'completed' : f === 'upcoming' ? ['registration', 'closed'].includes(c.status) : c.status === f);
+// The Competition Dashboard's own views too (2026-11-04): those with teams to approve, matches to decide, approved teams.
+const NEEDS = { pending: (c) => c.counts?.pending > 0, decide: (c) => c.counts?.needsDecision > 0, teams: (c) => c.counts?.approved > 0, publish: (c) => c.status === 'completed' && !c.resultsPublishedAt };
+const inFilter = (c, f) => (NEEDS[f] ? NEEDS[f](c) : f === 'all' || (c.phase === 'expired' ? f === 'completed' : f === 'upcoming' ? ['registration', 'closed'].includes(c.status) : c.status === f));
 
 /** A card's top: its icon, its name (two lines at most) — the whole card opens it — and what it is. */
 const CardTop = ({ icon, title, sub, to }) => (
@@ -51,19 +53,22 @@ const Facts = ({ rows }) => (
     </div>
 );
 
-export default function Competitions({ apiBase = '/competitions/admin', linkBase = '/competitions', organizer = 'YATICORP', embedded = false, hosted = false }) {
+// `cardsOnly` (the Competition Dashboard, 2026-11-04): just the cards, every one, with Open / Edit / Delete and the create form — no banner, no filter boxes.
+// `view`: the filter, set from outside (the Competition Dashboard's boxes); else the page's own boxes set it.
+export default function Competitions({ apiBase = '/competitions/admin', linkBase = '/competitions', organizer = 'YATICORP', embedded = false, hosted = false, cardsOnly = false, view = null, formOnly = false }) {
     const navigate = useNavigate();
     const [rows, setRows] = useState(() => lastSeen[apiBase]?.rows ?? null);
     const [error, setError] = useState('');
-    const [filter, setFilter] = useState('all');
-    const [creating, setCreating] = useState(false);
+    const [ownFilter, setFilter] = useState('all');
+    const filter = view || ownFilter;
     // ?new=1 (the Competition Dashboard's New competition, 2026-11-04): the form open at once.
     const [params, setParams] = useSearchParams();
-    useEffect(() => {
-        if (params.get('new') !== '1') return;
-        setCreating(true);
-        const next = new URLSearchParams(params); next.delete('new'); setParams(next, { replace: true });
-    }, [params, setParams]);
+    const [creatingNow, setCreating] = useState(false);
+    const creating = creatingNow || params.get('new') === '1';
+    const stopCreating = () => {
+        setCreating(false);
+        if (params.get('new')) { const next = new URLSearchParams(params); next.delete('new'); setParams(next, { replace: true }); }
+    };
     // Quiz Arena: the platform's only (not a college's own competitions).
     // Quiz Arena: the platform's, or a hosting college's own.
     const withArena = apiBase === '/competitions/admin' || apiBase === '/competitions/org/host';
@@ -108,12 +113,27 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
     const shown = (rows || []).filter((c) => inFilter(c, filter));
     // Both lists, or neither: the cards appear together, in their places.
     const ready = rows !== null && arenas !== null;
-    const arenaShown = (arenas || []).filter((a) => filter === 'all' || ARENA_FILTER[a.state] === filter);
+    const arenaShown = (arenas || []).filter((a) => filter === 'all' || ARENA_FILTER[a.status === 'draft' ? 'draft' : a.state] === filter);
     const counts = Object.fromEntries(FILTERS.map(([k]) => [k, k === 'all' ? (rows || []).length + (arenas || []).length : (rows || []).filter((c) => inFilter(c, k)).length + (arenas || []).filter((a) => ARENA_FILTER[a.state] === k).length]));
 
+    const createForm = creating && (
+                <CompetitionForm organizer={organizer} hosted={hosted} uploadBanner={bannerUploader(apiBase)} onCancel={stopCreating}
+                    arena={withArena}
+                    onSaveArena={(body, publish) => api.post(arenaApi(), body).then(async (r) => {
+                        const id = r.data.competition.id;
+                        let notice = '';
+                        if (publish) await api.post(`${arenaApi()}/${id}/publish`).catch((err) => { notice = `Saved as a draft, not published: ${errorOf(err)}`; });
+                        stopCreating();
+                        navigate(arenaPath(`/competitions/arena/${id}`), { state: notice ? { notice } : undefined });
+                    })}
+                    onSave={(body) => api.post(apiBase, body).then((r) => { stopCreating(); navigate(`${linkBase}/${r.data.competition.id}`); })} />
+    );
+    // `formOnly` (the Competition Dashboard's New competition, 2026-11-06): only the create form, as its popup.
+    if (formOnly) return createForm || null;
+
     return (
-        <div className={`space-y-6 ${embedded ? "" : "pb-12"}`}>
-            {embedded ? null : (
+        <div className={`space-y-6 ${embedded || cardsOnly ? "" : "pb-12"}`}>
+            {embedded || cardsOnly ? null : (
                 // A bigger banner for the section.
                 <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#2d2693] via-[#3b31c4] to-[#5a3fd8] p-6 text-white shadow-lg sm:p-9" data-competitions-hero>
                     <Trophy size={170} aria-hidden className="pointer-events-none absolute -right-8 -top-8 text-white/10" />
@@ -124,8 +144,6 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
                             <p className="mt-2 text-sm text-white/85 sm:text-base">Inter-college Chess, Rapid Fire, Code Clash, Brain Sprint and Quiz Arena. Colleges enter their students or register teams; you approve them, run the matches, decide disputes and publish the results.</p>
                         </div>
                         <div className="flex shrink-0 flex-wrap gap-2">
-                            {/* The Competition Dashboard (2026-11-04). */}
-                            {!hosted && apiBase === '/competitions/admin' && <Link to="/competitions/dashboard" className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-white/15 px-5 py-3 text-sm font-black text-white ring-1 ring-white/30 hover:bg-white/25" data-dashboard-link><LayoutDashboard size={17} aria-hidden /> Dashboard</Link>}
                             {/* The Certificate Builder (2026-10-31). */}
                             <Link to="/competitions/certificates" className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-white/15 px-5 py-3 text-sm font-black text-white ring-1 ring-white/30 hover:bg-white/25" data-create-certificate><Award size={18} /> Create Certificate</Link>
                             <button type="button" onClick={() => setCreating(true)} className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-white px-5 py-3 text-sm font-black text-indigo-700 shadow-lg hover:bg-indigo-50"><Plus size={18} /> Create</button>
@@ -137,7 +155,7 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
             {/* The filter, as boxes: click one to see just those. */}
             {/* Small boxes in one row; on a college's Host tab, Create closes the row. */}
             {/* The same boxes as the college's Take part tab: equal, filling the row (Create closes it on the Host tab). */}
-            <div className={embedded ? 'flex flex-wrap items-stretch gap-3 md:flex-nowrap' : 'grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5'} role="tablist" aria-label="Show" data-filter-boxes>
+            {!cardsOnly && <div className={embedded ? 'flex flex-wrap items-stretch gap-3 md:flex-nowrap' : 'grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5'} role="tablist" aria-label="Show" data-filter-boxes>
                 {FILTERS.map(([k, label, Icon, tone]) => (
                     <button key={k} type="button" role="tab" aria-selected={filter === k} onClick={() => setFilter(k)} data-filter={k}
                         className={`${CARD} flex items-center gap-3 p-4 text-left transition-colors duration-200 hover:border-indigo-200 hover:bg-indigo-50/60 ${embedded ? 'min-w-[9rem] flex-1 md:min-w-0 md:basis-0' : ''} ${filter === k ? 'border-indigo-400 bg-indigo-50 ring-2 ring-indigo-300' : ''}`}>
@@ -147,7 +165,7 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
                 ))}
                 {/* A college's Host tab: the boxes share the row equally, up to Create. */}
                 {embedded && <button type="button" onClick={() => setCreating(true)} className={`${BTN} shrink-0 whitespace-nowrap px-5`}><Plus size={16} /> Create</button>}
-            </div>
+            </div>}
 
             {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
             {!ready && !error && <CardGridSkeleton />}
@@ -196,18 +214,7 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
                 ))}
             </div>}
 
-            {creating && (
-                <CompetitionForm organizer={organizer} hosted={hosted} uploadBanner={bannerUploader(apiBase)} onCancel={() => setCreating(false)}
-                    arena={withArena}
-                    onSaveArena={(body, publish) => api.post(arenaApi(), body).then(async (r) => {
-                        const id = r.data.competition.id;
-                        let notice = '';
-                        if (publish) await api.post(`${arenaApi()}/${id}/publish`).catch((err) => { notice = `Saved as a draft, not published: ${errorOf(err)}`; });
-                        setCreating(false);
-                        navigate(arenaPath(`/competitions/arena/${id}`), { state: notice ? { notice } : undefined });
-                    })}
-                    onSave={(body) => api.post(apiBase, body).then((r) => { setCreating(false); navigate(`${linkBase}/${r.data.competition.id}`); })} />
-            )}
+            {createForm}
         </div>
     );
 }

@@ -31,7 +31,8 @@ export const linguisticApi = {
     // The learning plan (2026-10-24): the roadmap, the times to choose (before the student has started: as they said), making or changing it.
     plan: () => get('/plan'),
     planOptions: (course, language, level) => get(`/plan/options?${new URLSearchParams({ course: course || 'en', language: language || '', level: level || '' })}`),
-    setPlan: (days) => post('/plan', { days }),
+    // The days are set by the server (2026-11-04): 90 for a Beginner, 60 after the Advanced entry test.
+    setPlan: () => post('/plan', {}),
     /** The language to learn: 'en', or another course (Vocabulary and Translation), starting at a level. */
     setCourse: (course, start = null) => post('/course', { course, start }),
     /** Choose the student's own language (meanings and translation). */

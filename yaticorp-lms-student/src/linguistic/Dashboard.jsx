@@ -128,57 +128,105 @@ function Hero({ dash }) {
     );
 }
 
-/**
- * The four doors, as drawn in the picture, each hanging from the scene above by two strings (the picture's
- * coloured lines, a ring pinned to the scene and a bead on the card; asked 2026-10-29). The strings show
- * when the four sit in one row under the scene.
+/*
+ * The four doors (2026-11-05, as the user's picture: "make it like this"): soft cards in their colour — its picture
+ * on the left, its name and what it is for, a round arrow in its colour on the right — four in a row on a laptop, two
+ * by two on a tablet; on a phone, a row of four round buttons with the same pictures, each name under it. (Before:
+ * picture cards hung from the scene by two strings, 2026-10-29; the Start door went 2026-11-05.)
  */
 const DOORS = [
-    // In this order (asked 2026-10-29): Home, Learn, Writing, Practice, Badges. Home's picture is the Learn
-    // card's, recoloured, with a house in place of the book; its words are drawn live (`text`).
-    { id: 'home', label: 'Start: your dashboard', w: 454, string: '#1E88F0', text: ['Start', 'Your dashboard'], v: 2 },
-    { id: 'learn', to: '/linguistic', label: 'Learn: words and sentences', w: 454, string: '#6DBE5A' },
-    { id: 'writing', to: '/linguistic/writing', label: 'Write: practise and improve', w: 422, string: '#3E9BE9', img: 'write', text: ['Write', 'Practice and improve'] },
-    { id: 'practice', to: '/linguistic/practice', label: 'Practice: daily challenge and mistakes', w: 390, string: '#F2994A', img: 'practice2', text: ['Practice', 'Challenge & fix mistakes'] },
-    { id: 'badges', to: '/linguistic/badges', label: 'Certificates: your levels and awards', w: 423, string: '#B07CE8', img: 'certificates', text: ['Certificates', 'Your levels & awards'] }
+    { id: 'learn', to: '/linguistic', label: 'Learn: study new words and sentences', name: 'Learn', sub: 'Study new words & sentences', tint: ['#F1FBEA', '#E4F6D9'], edge: '#CDEDBB', ink: '#2FB52F', arrow: ['#46C746', '#22A322'] },
+    { id: 'writing', to: '/linguistic/writing', label: 'Write: practise writing', name: 'Write', sub: 'Practice writing', tint: ['#EEF6FF', '#E1EFFE'], edge: '#C3DDF8', ink: '#1A84F0', arrow: ['#3B98F5', '#1477E0'] },
+    { id: 'practice', to: '/linguistic/practice', label: 'Practice: solve exercises and improve', name: 'Practice', sub: 'Solve exercises & improve', tint: ['#FFF5EA', '#FFEBD8'], edge: '#F9D7B2', ink: '#F2994A', arrow: ['#FFA43A', '#F2861C'] },
+    { id: 'badges', to: '/linguistic/badges', label: 'Certificates: view your progress and awards', name: 'Certificates', sub: 'View your progress & awards', tint: ['#F6F0FF', '#ECE2FE'], edge: '#DCCBFB', ink: '#9B4DFF', arrow: ['#A866FF', '#8A3BF0'] }
 ];
-/** One string: a ring at the top (on the scene's edge), the line, a bead where it meets the card. */
-const HangString = ({ at, color }) => (
-    <span aria-hidden="true" className="pointer-events-none absolute bottom-[calc(100%-4px)] z-10 hidden h-[48px] w-3 -translate-x-1/2 flex-col items-center xl:flex" style={{ left: at }}>
-        <span className="h-[9px] w-[9px] shrink-0 rounded-full border-2 bg-white shadow-[0_1px_2px_rgba(0,0,0,.2)]" style={{ borderColor: color }} />
-        <span className="w-[2px] flex-1 rounded-full" style={{ background: `linear-gradient(${color}, ${color}cc)` }} />
-        <span className="h-[7px] w-[7px] shrink-0 rounded-full shadow-[0_1px_2px_rgba(0,0,0,.25)]" style={{ background: color }} />
-    </span>
-);
+const line = { strokeLinecap: 'round', strokeLinejoin: 'round' };
+/** Each door's picture, drawn: an open book with its ribbon, a notepad and pencil, a clipboard of ticks and a pencil, a certificate with its medal. */
+const DOOR_PICS = {
+    learn: (
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M6 18 Q19 13 32 19 Q45 13 58 18 L58 50 Q45 45 32 51 Q19 45 6 50 Z" fill="#E2752F" stroke="#1F3A68" strokeWidth="2.5" {...line} />
+            <path d="M9 16 Q20 11 31 17 L31 47 Q20 42 9 46 Z" fill="#fff" stroke="#1F3A68" strokeWidth="2.2" {...line} />
+            <path d="M33 17 Q44 11 55 16 L55 46 Q44 42 33 47 Z" fill="#fff" stroke="#1F3A68" strokeWidth="2.2" {...line} />
+            {[22, 28, 34].map((y) => <path key={y} d={`M13 ${y} Q20 ${y - 3} 27 ${y}`} stroke="#9AA8BF" strokeWidth="2" fill="none" {...line} />)}
+            {[22, 28, 34].map((y) => <path key={`r${y}`} d={`M37 ${y} Q44 ${y - 3} 51 ${y}`} stroke="#9AA8BF" strokeWidth="2" fill="none" {...line} />)}
+            <path d="M44 12 L44 26 L47.5 23 L51 26 L51 13" fill="#F26B21" stroke="#1F3A68" strokeWidth="1.8" {...line} />
+            <path d="M6 50 Q19 45 32 51 Q45 45 58 50 L58 54 Q45 49 32 55 Q19 49 6 54 Z" fill="#2E9E4F" stroke="#1F3A68" strokeWidth="2" {...line} />
+        </svg>
+    ),
+    writing: (
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+            <rect x="9" y="10" width="38" height="46" rx="5" fill="#2F86E8" stroke="#1A4F9C" strokeWidth="2" />
+            <rect x="13" y="15" width="30" height="37" rx="2.5" fill="#fff" />
+            {[19, 25, 31, 37, 43].map((y, i) => <path key={y} d={`M17 ${y} H${i === 4 ? 30 : 39}`} stroke="#B8C7DC" strokeWidth="2.2" {...line} />)}
+            <path d="M17 37 H25" stroke="#2F86E8" strokeWidth="2.6" {...line} />
+            {[18, 28, 38].map((x) => <rect key={x} x={x} y="6" width="3.5" height="9" rx="1.7" fill="#5C6B80" />)}
+            <g transform="rotate(40 46 34)"><rect x="41.5" y="10" width="9" height="34" rx="2" fill="#F7C531" stroke="#B5791A" strokeWidth="1.6" /><rect x="41.5" y="10" width="9" height="6" rx="2" fill="#F07A8B" /><path d="M41.5 44 L46 52 L50.5 44 Z" fill="#F4D7A8" stroke="#B5791A" strokeWidth="1.4" {...line} /><path d="M44.6 49 L46 52 L47.4 49 Z" fill="#3A3A3A" /></g>
+        </svg>
+    ),
+    practice: (
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+            <rect x="9" y="11" width="38" height="47" rx="5" fill="#2F86E8" stroke="#1A4F9C" strokeWidth="2" />
+            <rect x="13" y="16" width="30" height="38" rx="2.5" fill="#fff" />
+            <rect x="20" y="7" width="16" height="9" rx="3" fill="#5C6B80" stroke="#3D4A5C" strokeWidth="1.4" />
+            {[23, 32, 41].map((y) => <g key={y}><path d={`M16 ${y} l2.5 2.6 l4.5 -5`} stroke="#2FB52F" strokeWidth="2.6" fill="none" {...line} /><path d={`M26 ${y} H39`} stroke="#B8C7DC" strokeWidth="2.2" {...line} /></g>)}
+            <g transform="rotate(40 48 36)"><rect x="43.5" y="12" width="9" height="34" rx="2" fill="#F7C531" stroke="#B5791A" strokeWidth="1.6" /><rect x="43.5" y="12" width="9" height="6" rx="2" fill="#F07A8B" /><path d="M43.5 46 L48 54 L52.5 46 Z" fill="#F4D7A8" stroke="#B5791A" strokeWidth="1.4" {...line} /><path d="M46.6 51 L48 54 L49.4 51 Z" fill="#3A3A3A" /></g>
+        </svg>
+    ),
+    badges: (
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+            <rect x="6" y="9" width="46" height="40" rx="4" fill="#7E4BE0" stroke="#4E2B9A" strokeWidth="2" />
+            <rect x="10" y="13" width="38" height="32" rx="2" fill="#fff" />
+            <path d="M15 19 H31" stroke="#6C4ED9" strokeWidth="3" {...line} />
+            {[26, 31, 36].map((y, i) => <path key={y} d={`M15 ${y} H${i === 2 ? 28 : 40}`} stroke="#C9CFDA" strokeWidth="2.2" {...line} />)}
+            <path d="M42 46 L39 60 L44.5 56.5 L47 61 L49 47 Z" fill="#E5484D" stroke="#A42B30" strokeWidth="1.4" {...line} />
+            <path d="M50 46 L53 60 L47.5 56.5 L45 61 L43 47 Z" fill="#F0636A" stroke="#A42B30" strokeWidth="1.4" {...line} />
+            <circle cx="46" cy="44" r="9" fill="#F7C531" stroke="#C88A12" strokeWidth="2" />
+            <circle cx="46" cy="44" r="5.2" fill="#FFD95A" stroke="#E0A31F" strokeWidth="1.4" />
+        </svg>
+    )
+};
 /**
  * The four doors: Learn opens the learning path (its own page, as before); Practice, Badges and Writing are
  * tabs (asked 2026-10-29), each opening its page here, under them — pressed again, the dashboard's own cards.
+ * On a phone (2026-11-05, "make it like buttons"; chose "one row of four"): four round buttons in a row, each with its
+ * picture and its name under it; the open one ringed in its colour.
  */
 function Doors({ tab, onTab }) {
     const navigate = useNavigate();
     return (
-        <nav role="tablist" aria-label="Language Learning" className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4 xl:!mt-11 xl:flex xl:gap-3" data-lingo-doors>
+        <nav role="tablist" aria-label="Language Learning" className="grid grid-cols-4 gap-1 sm:grid-cols-2 sm:gap-4 xl:flex xl:gap-4" data-lingo-doors>
             {DOORS.map((d) => {
-                // Home is lit while the dashboard's own cards show; Learn (another page) never is.
-                const on = d.id === 'home' ? tab === 'learn' : d.id !== 'learn' && tab === d.id;
+                // The open tab's door is lit; Learn (another page) never is.
+                const on = d.id !== 'learn' && tab === d.id;
                 return (
                     <div key={d.id} className="group/door relative min-w-0 flex-1">
-                        <HangString at="24%" color={d.string} />
-                        <HangString at="78%" color={d.string} />
                         <button type="button" role={d.id === 'learn' ? 'link' : 'tab'} aria-selected={d.id === 'learn' ? undefined : on} aria-controls={d.id === 'learn' ? undefined : 'lingo-tab-panel'} aria-label={d.label} data-door={d.id} data-active={on || undefined}
-                            onClick={() => (d.id === 'learn' ? navigate(d.to) : onTab(d.id === 'home' || on ? 'learn' : d.id))}
-                            className={`group relative block w-full overflow-hidden rounded-[18px] transition-[transform,box-shadow] duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${on ? 'shadow-[0_10px_24px_rgba(31,42,68,.14)]' : 'shadow-[0_8px_22px_rgba(31,42,68,.10)] group-hover/door:translate-y-[3px] group-hover/door:shadow-[0_16px_30px_rgba(31,42,68,.16)]'}`}>
-                            {/* All five one size (2026-10-29): the same shape, each picture filling it from the right (its
-                                arrow always whole) and a touch larger, so its cut edges fall outside the card's own. */}
-                            <img src={`${ART}/card-${d.img || d.id}-tall.png?v=2`} alt="" draggable="false" className="block aspect-[4.4/1] w-full select-none object-cover object-right sm:aspect-[3.3/1]" style={{ transform: 'scale(1.03)' }} />
-                            {/* The edge; the open door's in its colour, drawn inside so the card keeps its size (2026-10-29). */}
-                            <span aria-hidden="true" className={`pointer-events-none absolute inset-0 rounded-[18px] ring-inset ${on ? 'ring-2' : 'ring-1 ring-black/[.06]'}`} style={on ? { '--tw-ring-color': d.string } : undefined} data-door-ring={on || undefined} />
-                            {d.text && (
-                                <span className="pointer-events-none absolute inset-0 text-left [container-type:inline-size]">
-                                    <span className="absolute top-[26.1%] block font-black leading-none text-[#17184a] sm:top-[32.5%]" style={{ left: '36%', fontSize: '5.7cqw' }}>{d.text[0]}</span>
-                                    <span className="absolute top-[58.8%] block font-bold leading-none whitespace-nowrap text-[#4a5875] sm:top-[56.5%]" style={{ left: '36%', fontSize: '3.9cqw' }}>{d.text[1]}</span>
+                            onClick={() => (d.id === 'learn' ? navigate(d.to) : onTab(on ? 'learn' : d.id))}
+                            className={`group relative block w-full rounded-2xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:rounded-[22px] sm:transition-[transform,box-shadow] sm:duration-200 ${on ? '' : 'sm:group-hover/door:-translate-y-0.5'}`}
+                            style={{ '--door-shadow': `0 10px 24px ${d.ink}26` }}>
+                            {/* On a phone: a round button, its picture and its name under it. */}
+                            <span className="flex flex-col items-center gap-1.5 py-1 sm:hidden" data-door-button>
+                                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full shadow-[0_6px_14px_rgba(31,42,68,.14)] ring-[3px] transition-transform group-active:scale-95"
+                                    style={{ background: `linear-gradient(160deg, ${d.tint[0]}, ${d.tint[1]})`, '--tw-ring-color': on ? d.ink : d.edge }} aria-hidden="true">
+                                    <span className="block h-11 w-11" data-door-pic>{DOOR_PICS[d.id]}</span>
                                 </span>
-                            )}
+                                <span className="whitespace-nowrap text-[clamp(11px,3.4vw,13px)] font-extrabold leading-tight tracking-tight" style={{ color: on ? d.ink : '#17184a' }}>{d.name}</span>
+                            </span>
+                            {/* On a tablet and a laptop: the card. */}
+                            <span className="relative hidden min-h-[80px] items-center gap-2.5 rounded-[22px] border-[1.5px] px-3.5 py-3 shadow-[var(--door-shadow)] sm:flex xl:min-h-[84px] xl:px-4"
+                                style={{ background: `linear-gradient(135deg, ${d.tint[0]}, ${d.tint[1]})`, borderColor: d.edge }} data-door-card>
+                                <span className="block h-11 w-11 shrink-0 xl:h-12 xl:w-12" data-door-pic>{DOOR_PICS[d.id]}</span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-[18px] font-black leading-tight text-[#17184a] xl:text-[19px]">{d.name}</span>
+                                    <span className="mt-0.5 block text-[12.5px] font-semibold leading-snug text-[#3b4566]">{d.sub}</span>
+                                </span>
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white shadow-[0_5px_12px_rgba(0,0,0,.14)] transition-transform group-hover:translate-x-0.5" style={{ background: `linear-gradient(160deg, ${d.arrow[0]}, ${d.arrow[1]})` }} aria-hidden="true">
+                                    <ChevronRight size={19} strokeWidth={3} />
+                                </span>
+                                {/* The open door's edge in its colour, drawn inside so the card keeps its size (2026-10-29). */}
+                                <span aria-hidden="true" className={`pointer-events-none absolute inset-0 rounded-[22px] ring-inset ${on ? 'ring-2' : 'ring-0'}`} style={on ? { '--tw-ring-color': d.ink } : undefined} data-door-ring={on || undefined} />
+                            </span>
                         </button>
                     </div>
                 );
@@ -197,6 +245,8 @@ const CHEERS = {
 };
 
 /** The roadmap: the plan's day, the lessons done, how it goes, and the road over the landscape. */
+/** How many of today's lessons a roadmap card shows before "+ n more". */
+const TODAY_FIRST = 5;
 function Roadmap({ dash }) {
     const p = dash.plan;
     // A phone (the landscape wider than its box): it glides from Start to the trophy, rests a moment at the
@@ -204,6 +254,8 @@ function Roadmap({ dash }) {
     // a swipe takes over; the glide picks up again after a pause.
     // Not on a wider screen (nothing to scroll), nor for someone who asked for less motion.
     const sceneScroll = useRef(null);
+    // Today's first five lessons; the rest behind "+ n more" (2026-11-06, the user: "show 4 or 5, hide the rest").
+    const [allToday, setAllToday] = useState(false);
     useEffect(() => {
         const el = sceneScroll.current;
         if (!el || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined;
@@ -295,8 +347,8 @@ function Roadmap({ dash }) {
             </div>
             {/* Today's lessons, as before. */}
             <p className="mt-4 text-xs font-extrabold uppercase tracking-wider text-[#9CA3AF]">{left.length ? `Today: ${left.length} lesson${left.length === 1 ? '' : 's'} to do` : 'Today’s lessons are done!'}</p>
-            <ul className="mt-1.5 space-y-1">
-                {lessons.map((l) => {
+            <ul className="mt-1.5 space-y-1" data-plan-today-list>
+                {(allToday ? lessons : lessons.slice(0, TODAY_FIRST)).map((l) => {
                     const done = l.status === 'completed';
                     const row = (
                         <>
@@ -307,7 +359,12 @@ function Roadmap({ dash }) {
                     return <li key={l.id}>{!done && l.open ? <Link to={`/linguistic/${l.module}/${l.id}`} className="-mx-2 flex items-center gap-2.5 rounded-xl px-2 py-1 hover:bg-[#F7F7F7]" data-plan-today={l.id}>{row}<ChevronRight size={16} className="shrink-0 text-[#AFAFAF]" /></Link> : <span className="flex items-center gap-2.5 py-1" data-plan-today={l.id}>{row}</span>}</li>;
                 })}
             </ul>
-            <Link to="/linguistic/roadmap" className="mt-3 inline-flex min-h-10 items-center gap-1 text-sm font-extrabold text-indigo-600 hover:text-indigo-700" data-see-roadmap>See in detail <ArrowRight size={16} /></Link>
+            {lessons.length > TODAY_FIRST && (
+                <button type="button" onClick={() => setAllToday((x) => !x)} aria-expanded={allToday} className="mt-1 inline-flex min-h-9 items-center gap-1 text-sm font-bold text-[#6B7280] hover:text-[#374151]" data-plan-today-more>
+                    {allToday ? 'Show less' : `+ ${lessons.length - TODAY_FIRST} more`} <ChevronRight size={15} className={`transition-transform ${allToday ? '-rotate-90' : 'rotate-90'}`} />
+                </button>
+            )}
+            <Link to="/linguistic/roadmap" className="mt-2 flex min-h-10 items-center gap-1 text-sm font-extrabold text-indigo-600 hover:text-indigo-700" data-see-roadmap>See in detail <ArrowRight size={16} /></Link>
         </section>
     );
 }
@@ -319,7 +376,7 @@ function Roadmap({ dash }) {
  */
 const GREEN = '#1E8E3E';
 const CARD2 = 'relative flex h-full min-w-0 flex-col overflow-hidden rounded-[22px] border border-slate-100 bg-white p-5 shadow-[0_8px_26px_rgba(31,42,68,.08)] sm:p-6';
-const GREEN_LINK = 'inline-flex shrink-0 items-center gap-1 text-[15px] font-bold hover:opacity-80';
+const GREEN_LINK = 'inline-flex shrink-0 items-center gap-1 text-[14px] font-bold hover:opacity-80';
 const ROW = 'rounded-2xl bg-white shadow-[0_2px_10px_rgba(31,42,68,.08)] ring-1 ring-slate-100';
 const Pic = ({ name, className = '' }) => <img src={`${ART}/dash-${name}.png`} alt="" draggable="false" className={`select-none object-contain ${className}`} />;
 /** A green bar, as the picture's. */
@@ -335,8 +392,8 @@ const CardHead = ({ pic, title, sub, action }) => {
         <div className="mb-4 flex items-start gap-3.5">
             <Pic name={pic} className="h-12 w-12 shrink-0 sm:h-14 sm:w-14" />
             <div className="min-w-0 flex-1">
-                <h2 className="text-[22px] font-black leading-tight text-[#14213D] sm:text-[26px]">{words.join(' ')} <span style={{ color: GREEN }}>{last}</span></h2>
-                {sub && <p className="mt-0.5 text-sm font-medium text-slate-500 sm:text-[15px]">{sub}</p>}
+                <h2 className="text-[19px] font-black leading-tight text-[#14213D] sm:text-[22px]">{words.join(' ')} <span style={{ color: GREEN }}>{last}</span></h2>
+                {sub && <p className="mt-0.5 text-[13px] font-medium text-slate-500 sm:text-sm">{sub}</p>}
             </div>
             {action}
         </div>
@@ -360,10 +417,10 @@ function Skills({ dash }) {
                                 <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#EAF6EC] text-[#1F6F3A]"><Icon size={28} strokeWidth={2} /></span>
                                 <span className="min-w-0 flex-1">
                                     <span className="flex items-baseline justify-between gap-2">
-                                        <span className="truncate text-lg font-bold text-[#14213D]">{meta.short}</span>
-                                        <span className="shrink-0 text-lg font-black tabular-nums" style={{ color: GREEN }}>{v}%</span>
+                                        <span className="truncate text-base font-bold text-[#14213D]">{meta.short}</span>
+                                        <span className="shrink-0 text-base font-black tabular-nums" style={{ color: GREEN }}>{v}%</span>
                                     </span>
-                                    <span className="block text-sm text-slate-500">{m.completed} / {m.total} lessons{m.average != null && <> · {m.average}% average</>}</span>
+                                    <span className="block text-[13px] text-slate-500">{m.completed} / {m.total} lessons{m.average != null && <> · {m.average}% average</>}</span>
                                     <GreenBar value={v} className="mt-2" label={`${meta.short}: ${m.completed} of ${m.total} lessons`} />
                                 </span>
                                 <ChevronRight size={20} strokeWidth={2.6} className="shrink-0 text-[#14213D] transition-transform group-hover:translate-x-0.5" />
@@ -398,8 +455,8 @@ function Levels({ dash }) {
                             <Link to="/linguistic/badges" className="group flex min-w-0 flex-1 items-center gap-2">
                                 <span className="min-w-0 flex-1">
                                     <span className="flex items-baseline justify-between gap-2">
-                                        <span className="truncate text-[17px] font-bold text-[#14213D]">{meta.label} <span style={{ color: GREEN }}>· {meta.cefr}</span></span>
-                                        <span className="shrink-0 text-sm tabular-nums text-slate-600">{l.completed} / {l.total}</span>
+                                        <span className="truncate text-[15px] font-bold text-[#14213D]">{meta.label} <span style={{ color: GREEN }}>· {meta.cefr}</span></span>
+                                        <span className="shrink-0 text-[13px] tabular-nums text-slate-600">{l.completed} / {l.total}</span>
                                     </span>
                                     <GreenBar value={pct(l.completed, l.total)} className="mt-2" label={`${meta.label}: ${l.completed} of ${l.total} lessons`} />
                                 </span>
@@ -459,7 +516,7 @@ function KnowsSheet({ dash, onClose, onSaved }) {
 
 /**
  * The languages the student speaks, writes and reads (asked last on the start screens, 2026-10-28): how many
- * and which, for each, beside the globe; a row (or Change) opens the questions again.
+ * and which, for each; a row (or Change) opens the questions again.
  */
 const KNOW_PIC = { speak: 'f-uk', write: 'f-in', read: 'f-book' };
 function KnowsCard({ dash, onSaved }) {
@@ -479,10 +536,10 @@ function KnowsCard({ dash, onSaved }) {
                                     <button type="button" onClick={() => setOpen(true)} className={`${ROW} group flex w-full items-center gap-3 p-3 text-left hover:ring-emerald-200`}>
                                         <Pic name={KNOW_PIC[k.id]} className="h-12 w-12 shrink-0 sm:h-14 sm:w-14" />
                                         <span className="min-w-0 flex-1">
-                                            <span className="block text-[17px] font-bold text-[#14213D]">{k.label} · <span className="tabular-nums">{list.length} language{list.length === 1 ? '' : 's'}</span></span>
+                                            <span className="block text-[15px] font-bold text-[#14213D]">{k.label} · <span className="tabular-nums">{list.length} language{list.length === 1 ? '' : 's'}</span></span>
                                             <span className="mt-1.5 flex flex-wrap gap-1.5">
                                                 {list.map((code, i) => (
-                                                    <span key={code} className={`rounded-lg px-3 py-1 text-sm font-semibold ${i ? 'bg-[#EEF0F2] text-[#14213D]' : 'bg-[#E3F4E6] text-[#1F6F3A]'}`} lang={code}>{name(code).native}</span>
+                                                    <span key={code} className={`rounded-lg px-2.5 py-0.5 text-[13px] font-semibold ${i ? 'bg-[#EEF0F2] text-[#14213D]' : 'bg-[#E3F4E6] text-[#1F6F3A]'}`} lang={code}>{name(code).native}</span>
                                                 ))}
                                             </span>
                                         </span>
@@ -494,11 +551,11 @@ function KnowsCard({ dash, onSaved }) {
                     </ul>
                 ) : (
                     <div className="relative z-10 flex min-w-0 flex-1 flex-col items-start gap-3 self-start" data-knows-ask>
-                        <p className="text-[15px] font-medium text-slate-600">Tell us which languages you speak, write and read: they are kept here, with the one you are learning.</p>
-                        <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-[15px] font-bold text-white shadow-[0_6px_16px_rgba(30,142,62,.3)] hover:brightness-105" style={{ background: GREEN }} data-knows-start>Tell us <ArrowRight size={16} strokeWidth={2.6} /></button>
+                        <p className="text-sm font-medium text-slate-600">Tell us which languages you speak, write and read: they are kept here, with the one you are learning.</p>
+                        <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-bold text-white shadow-[0_6px_16px_rgba(30,142,62,.3)] hover:brightness-105" style={{ background: GREEN }} data-knows-start>Tell us <ArrowRight size={16} strokeWidth={2.6} /></button>
                     </div>
                 )}
-                <Pic name="globe" className="pointer-events-none -mb-5 -mr-5 hidden w-[30%] max-w-[170px] shrink-0 self-end sm:-mb-6 sm:-mr-6 sm:block" />
+                {/* The globe on its books was here (removed 2026-11-04, the user: "remove this"). */}
             </div>
             {open && <KnowsSheet dash={dash} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); onSaved(); }} />}
         </section>
@@ -522,10 +579,10 @@ function CourseCard({ dash }) {
         <section className={`${CARD2} !h-auto gap-4 !p-4 sm:!flex-row sm:items-center sm:!p-6`} data-lingo-course>
             <div className="min-w-0 sm:flex-1">
                 <p className="text-xs font-bold uppercase tracking-wide" style={{ color: GREEN }}>{body.tag}</p>
-                <h2 className="mt-1 text-xl font-black leading-tight text-[#14213D] sm:text-2xl">{body.title}</h2>
-                <p className="mt-1 text-[15px] leading-relaxed text-slate-500">{body.text}</p>
+                <h2 className="mt-1 text-lg font-black leading-tight text-[#14213D] sm:text-xl">{body.title}</h2>
+                <p className="mt-1 text-sm leading-relaxed text-slate-500">{body.text}</p>
             </div>
-            <Link to={body.to} className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl px-6 text-base font-bold text-white bg-gradient-to-b from-[#ff8a3d] to-[#f35b0f] shadow-[0_8px_18px_rgba(243,91,15,.35)] hover:brightness-110 sm:w-auto">{body.link} <ArrowRight size={18} strokeWidth={2.6} /></Link>
+            <Link to={body.to} className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl px-6 text-[15px] font-bold text-white bg-gradient-to-b from-[#ff8a3d] to-[#f35b0f] shadow-[0_8px_18px_rgba(243,91,15,.35)] hover:brightness-110 sm:w-auto">{body.link} <ArrowRight size={18} strokeWidth={2.6} /></Link>
         </section>
     );
 }
@@ -536,12 +593,12 @@ function MistakesBox({ dash }) {
             <Pic name="notes" className="mx-auto h-32 w-auto max-w-full shrink-0 sm:mx-0 sm:w-[34%] sm:max-w-[200px]" />
             <div className="min-w-0 sm:flex-1">
                 <p className="text-xs font-bold uppercase tracking-wide" style={{ color: GREEN }}>Practice</p>
-                <h2 className="mt-1 text-xl font-black leading-tight text-[#14213D] sm:text-2xl">{n ? `${n} mistake${n === 1 ? '' : 's'} to fix` : 'No mistakes to fix'}</h2>
-                <p className="mt-1 text-[15px] leading-relaxed text-slate-500">{n ? 'Practise them until you get them right.' : 'Wrong answers come here to practise.'}</p>
+                <h2 className="mt-1 text-lg font-black leading-tight text-[#14213D] sm:text-xl">{n ? `${n} mistake${n === 1 ? '' : 's'} to fix` : 'No mistakes to fix'}</h2>
+                <p className="mt-1 text-sm leading-relaxed text-slate-500">{n ? 'Practise them until you get them right.' : 'Wrong answers come here to practise.'}</p>
             </div>
             {n > 0
-                ? <Link to="/linguistic/review" className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl border-2 bg-white px-8 text-base font-bold hover:bg-emerald-50 sm:w-auto" style={{ borderColor: GREEN, color: GREEN }}>Fix now <ChevronRight size={18} strokeWidth={2.8} /></Link>
-                : <p className="inline-flex items-center gap-1.5 text-base font-bold" style={{ color: GREEN }}><Check size={18} strokeWidth={3} /> All clear</p>}
+                ? <Link to="/linguistic/review" className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-xl border-2 bg-white px-8 text-[15px] font-bold hover:bg-emerald-50 sm:w-auto" style={{ borderColor: GREEN, color: GREEN }}>Fix now <ChevronRight size={18} strokeWidth={2.8} /></Link>
+                : <p className="inline-flex items-center gap-1.5 text-[15px] font-bold" style={{ color: GREEN }}><Check size={18} strokeWidth={3} /> All clear</p>}
         </section>
     );
 }
@@ -554,7 +611,7 @@ function QuestsBox({ dash }) {
     ];
     return (
         <section className={CARD2} data-quests>
-            <Pic name="gift" className="pointer-events-none absolute right-4 top-2 hidden w-[24%] max-w-[180px] sm:block" />
+            {/* The gift box was here, at the top right (removed 2026-11-04, the user: "remove this"). */}
             <div className="relative sm:pr-[24%]"><CardHead pic="h-quests" title="Daily quests" sub="Complete daily goals and earn rewards" /></div>
             <ul className="relative space-y-4">
                 {rows.map((r) => {
@@ -564,10 +621,10 @@ function QuestsBox({ dash }) {
                         <>
                             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#EAF6EC]" style={{ color: GREEN }}><r.icon size={28} strokeWidth={2.2} /></span>
                             <span className="min-w-0 flex-1">
-                                <span className={`block truncate text-lg font-bold ${ok ? 'text-slate-400 line-through' : 'text-[#14213D]'}`}>{r.title}</span>
+                                <span className={`block truncate text-base font-bold ${ok ? 'text-slate-400 line-through' : 'text-[#14213D]'}`}>{r.title}</span>
                                 <span className="mt-1.5 flex items-center gap-3">
                                     <GreenBar value={Math.max(v, 4)} className="flex-1" label={`${r.title}: ${r.value} of ${r.goal}`} />
-                                    <span className="w-12 shrink-0 text-right text-[15px] tabular-nums text-slate-600">{Math.min(r.value, r.goal)} / {r.goal}</span>
+                                    <span className="w-12 shrink-0 text-right text-sm tabular-nums text-slate-600">{Math.min(r.value, r.goal)} / {r.goal}</span>
                                 </span>
                             </span>
                             <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-[0_3px_10px_rgba(31,42,68,.12)] ring-1 ring-slate-100 ${ok ? 'text-white' : 'bg-white'}`} style={ok ? { background: GREEN } : { color: GREEN }}>

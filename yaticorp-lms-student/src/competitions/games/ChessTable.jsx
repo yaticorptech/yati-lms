@@ -102,23 +102,8 @@ const formatClock = (ms) => {
 
 const squareName = (row, col) => `${FILES[col]}${8 - row}`;
 
-/** What each side has taken, and the material balance, read off the board. */
-const material = (board) => {
-    const count = { w: { q: 0, r: 0, b: 0, n: 0, p: 0 }, b: { q: 0, r: 0, b: 0, n: 0, p: 0 } };
-    const points = { w: 0, b: 0 };
-    for (const row of board || []) {
-        for (const piece of row || []) {
-            if (!piece || piece.type === 'k' || !count[piece.color]) continue;
-            count[piece.color][piece.type] += 1;
-            points[piece.color] += VALUE[piece.type] || 0;
-        }
-    }
-    const taken = (victim) => Object.keys(START_COUNT).flatMap((t) => Array(Math.max(0, START_COUNT[t] - count[victim][t])).fill(t));
-    return { w: { taken: taken('b'), lead: points.w - points.b }, b: { taken: taken('w'), lead: points.b - points.w } };
-};
 
-function PlayerBar({ seat, info, clockMs, running, isYou, captured, avatar }) {
-    const color = seat === 1 ? 'b' : 'w';
+function PlayerBar({ seat, info, clockMs, running, isYou, avatar }) {
     const low = clockMs < 20000;
     const [broken, setBroken] = useState(false);
     const name = info?.name || info?.label || (seat === 1 ? 'Black' : 'White');
@@ -135,12 +120,7 @@ function PlayerBar({ seat, info, clockMs, running, isYou, captured, avatar }) {
                 <p className="truncate text-base font-bold text-[#f3e3c3] sm:text-lg" style={{ margin: 0 }}>
                     {name}{isYou && <span className="ml-1.5 font-semibold" style={{ color: GOLD }}>(you)</span>}
                 </p>
-                <div className="flex h-4 items-center" data-captured={seat}>
-                    {captured.taken.map((t, i) => (
-                        <span key={`${t}-${i}`} style={{ marginRight: -4 }}><PieceIcon type={t} color={color === 'w' ? 'b' : 'w'} size={14} /></span>
-                    ))}
-                    {captured.lead > 0 && <span className="ml-2 text-xs font-semibold text-[#d9cbb4]">+{captured.lead}</span>}
-                </div>
+                {/* The pieces taken and the material lead are not shown (asked 2026-11-06). */}
             </div>
             <span data-clock={seat} data-running={running ? 'true' : 'false'}
                 className="inline-flex shrink-0 items-center gap-2 rounded-xl border-2 px-3 py-1 text-xl font-black tabular-nums sm:text-2xl"
@@ -326,12 +306,11 @@ export default function ChessTable({ view, onAction, busy }) {
         send({ type: 'move', from, to: promoteTo, promotion: type });
     };
 
-    const taken = material(board);
     const bottomSeat = flipped ? 1 : 0;
     const topSeat = 1 - bottomSeat;
     const bar = (seat) => (
         <PlayerBar seat={seat} info={view?.seats?.[seat]} avatar={view?.avatars?.[seat]} clockMs={clockFor(seat)} running={seat === turn}
-            isYou={seat === you} captured={seat === 1 ? taken.b : taken.w} />
+            isYou={seat === you} />
     );
 
     const order = [0, 1, 2, 3, 4, 5, 6, 7];

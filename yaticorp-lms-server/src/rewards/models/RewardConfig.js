@@ -50,7 +50,8 @@ const rewardConfigSchema = new mongoose.Schema({
     dailyMinutes: { type: Number, default: C.DEFAULT_GAMES.dailyMinutes, min: 0 },
     xpOneStar: { type: Number, default: C.DEFAULT_GAMES.xpOneStar, min: 0 },
     xpTwoStars: { type: Number, default: C.DEFAULT_GAMES.xpTwoStars, min: 0 },
-    xpThreeStars: { type: Number, default: C.DEFAULT_GAMES.xpThreeStars, min: 0 }
+    xpThreeStars: { type: Number, default: C.DEFAULT_GAMES.xpThreeStars, min: 0 },
+    groupDailyMinutes: { type: Number, default: C.DEFAULT_GAMES.groupDailyMinutes, min: 0 }
   },
   // Opening balance each student is credited once (spend-only). 0 = none.
   // Changing it affects students who have not been credited yet.

@@ -40,8 +40,10 @@ describe('how course words sound', () => {
             const lines = linesOf(code);
             for (const [seedKey, items] of Object.entries(packOf(code).items)) {
                 // In a course, an "-en-kn" lesson's sentences are built (in the language learnt); the others are read.
-                const key = seedKey.replace(/^translation-(\w)\w*-/, '$1-'), built = key.endsWith('-en-kn');
+                const key = seedKey.replace(/^translation-(\w)\w*-/, '$1-');
                 for (const [id, it] of Object.entries(items)) {
+                    // Its lesson's way, or its own (2026-11-04: a short one to read in a lesson to write).
+                    const built = it.direction ? it.direction === 'en-kn' : key.endsWith('-en-kn');
                     const say = lines[key]?.[id], text = built ? it.model : it.source;
                     assert.ok(say, `${code} ${key} ${id}: ${text}`);
                     assert.match(say, /^[a-zA-Z\u00C0-\u024F ,.'-]+$/, `${code} ${key} ${id}: English letters only`);
@@ -57,8 +59,10 @@ describe('how course words sound', () => {
         for (const code of CODES) {
             const lines = linesOf(code), glosses = glossesOf(code);
             for (const [key, list] of Object.entries(lines)) {
-                if (key.endsWith('-en-kn')) continue;
+                const items = packOf(code).items[Object.keys(packOf(code).items).find((k) => k.replace(/^translation-(\w)\w*-/, '$1-') === key)] || {};
                 for (const [id, say] of Object.entries(list)) {
+                    const built = items[id]?.direction ? items[id].direction === 'en-kn' : key.endsWith('-en-kn');
+                    if (built) continue;
                     const g = glosses[key]?.[id];
                     assert.ok(g, `${code} ${key} ${id}: no meanings`);
                     const gs = g.split('|');
@@ -101,7 +105,8 @@ describe('how course words sound', () => {
 
         test('French, built from tiles: every tile has its sound; a wrong answer comes back with the right one\'s', async () => {
             const l = await lessonOf(fr, 'fr:translation-beginner-en-kn');
-            const tiled = l.items.filter((it) => it.bank?.length);
+            // Those built in French (not the short one to read, its own way since 2026-11-04, answered in Hindi).
+            const tiled = l.items.filter((it) => it.bank?.length && it.direction !== 'en-kn');
             assert.ok(tiled.length > 0);
             for (const it of tiled) for (const t of it.bank) assert.ok(it.bankSays?.[t], `${it.id}: "${t}" has no sound`);
             // The lesson has its unit's share of the sentences (parts.js): one of them, got wrong.
@@ -115,17 +120,19 @@ describe('how course words sound', () => {
             const l = await lessonOf(fr, 'fr:translation-beginner-kn-en');
             assert.deepEqual(['sourceSay', 'sourceEn'].map((k) => l.items.find((it) => it.id === 'i3')[k]), ['ma fa-mee ay grahnd', 'My family is big.'], 'and its English, for a tap');
             assert.ok(l.items.every((it) => it.sourceSay), 'every sentence');
-            assert.deepEqual(l.items.find((it) => it.id === 'i3').sourceWords, [['ma', 'my'], ['fa-mee', 'family'], ['ay', 'is'], ['grahnd', 'big']], 'each word with its English');
-            assert.ok(l.items.every((it) => it.sourceWords?.length === it.sourceSay.split(' ').length), 'every sentence, word by word');
+            // Each word of the sentence itself with its English, two or three ways where there are (2026-11-06, as Duolingo's hints).
+            assert.deepEqual(l.items.find((it) => it.id === 'i3').sourceHints, { on: 'text', spaced: true, words: [['Ma', ['my', 'mine']], ['famille', ['family', 'household', 'relatives']], ['est', ['is', "'s"]], ['grande.', ['big', 'large']]] }, 'each word with its English');
+            assert.ok(l.items.every((it) => it.sourceHints?.words.length === it.source.trim().split(/\s+/).length), 'every sentence, word by word');
         });
 
-        test('Hindi and Kannada, to read (2026-11-02): no sound, but every sentence\'s English for a tap; none on a sentence to write', async () => {
+        test('Hindi and Kannada, to read (2026-11-02): no sound, but every sentence\'s English for a tap, and each word\'s (2026-11-06); none on a sentence to write', async () => {
             for (const [u, code] of [[hi, 'hi'], [kn, 'kn']]) {
                 const l = await lessonOf(u, `${code}:translation-beginner-kn-en`);
-                assert.ok(l.items.length && l.items.every((it) => it.sourceEn && !it.sourceSay && !it.sourceWords), `${code}: ${JSON.stringify(l.items[0])}`);
+                assert.ok(l.items.length && l.items.every((it) => it.sourceEn && !it.sourceSay && it.sourceHints?.on === 'text'), `${code}: ${JSON.stringify(l.items[0])}`);
                 assert.equal(l.items.find((it) => it.id === 'i3').sourceEn, 'My family is big.');
                 const back = await lessonOf(u, `${code}:translation-beginner-en-kn`);
-                assert.ok(back.items.every((it) => !it.sourceEn), `${code}: the English is the answer there`);
+                assert.ok(back.items.filter((it) => it.direction !== 'en-kn').every((it) => !it.sourceEn), `${code}: the English is the answer there`);
+                assert.ok(back.items.filter((it) => it.direction === 'en-kn').every((it) => it.sourceEn), `${code}: the short one to read there (2026-11-04) has its English`);
             }
         });
 

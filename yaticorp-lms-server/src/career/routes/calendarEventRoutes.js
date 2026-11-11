@@ -6,7 +6,8 @@ const {
   createEvent,
   updateEvent,
   deleteEvent,
-  syncToGoogle
+  syncToGoogle,
+  markReminded
 } = require('../controllers/calendarEventController');
 const { protect } = require('../middleware/authMiddleware');
 const { validateObjectId } = require('../middleware/validateObjectId');
@@ -20,6 +21,8 @@ router.route('/')
 
 // Before '/:id', so 'sync-google' is never read as an event id.
 router.post('/sync-google', protect, syncToGoogle);
+
+router.post('/:id/reminded', protect, markReminded);
 
 router.route('/:id')
   .put(protect, updateEvent)

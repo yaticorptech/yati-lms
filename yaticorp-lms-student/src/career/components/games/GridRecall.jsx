@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { sfx } from './gameSfx';
 import GameShell from './GameShell';
 import useGameProgress, { between, starsForFixed, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
@@ -55,6 +56,11 @@ function Round({ progress, onExit }) {
     return () => clearTimeout(t);
   }, [started, round, over, showing, config.showMs]);
 
+  // The pause before the next pattern: long after a miss (2026-11-06), so the student sees which tiles were lit.
+  const WRONG_PAUSE_MS = 2000;
+  const pending = useRef(null);
+  useEffect(() => () => clearTimeout(pending.current), []);
+
   const nextRound = () => {
     setRound((r) => r + 1);
     setPicked([]);
@@ -68,13 +74,14 @@ function Round({ progress, onExit }) {
     setPicked(next);
     if (!lit.includes(i)) {
       setVerdict('wrong');
-      setTimeout(nextRound, 700);
+      sfx.wrong();
+      pending.current = setTimeout(nextRound, WRONG_PAUSE_MS);
       return;
     }
     if (next.length === lit.length) {
       setVerdict('right');
       setHits((h) => h + 1);
-      setTimeout(nextRound, 600);
+      pending.current = setTimeout(nextRound, 600);
     }
   };
 
@@ -148,6 +155,11 @@ function Round({ progress, onExit }) {
             );
           })}
         </div>
+      )}
+      {started && !over && verdict === 'wrong' && (
+        <p className="mt-4 text-center text-sm font-bold text-rose-600" role="alert">
+          Oops, wrong tile — the lit tiles are shown in violet.
+        </p>
       )}
     </GameShell>
   );

@@ -4,6 +4,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 /* Few enough letters that a match comes round often, and none that look
    alike on a screen. */
@@ -50,6 +51,7 @@ function Round({ progress, onExit }) {
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
   const [started, setStarted] = useState(false);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -64,10 +66,15 @@ function Round({ progress, onExit }) {
   const advance = () => setSeq((s) => [...s, nextLetter(s, config.back)]);
 
   const answer = (same) => {
-    if (over || flash) return;
-    const right = (current === seq[seq.length - 1 - config.back]) === same;
-    if (right) setScore((s) => s + 1);
-    setFlash(right ? 'right' : 'wrong');
+    if (over || flash || busy) return;
+    const isSame = current === seq[seq.length - 1 - config.back];
+    if (same !== isSame) {
+      // The buzz, the tapped button red and the right one green, then the next letter.
+      showWrong(same, isSame, advance);
+      return;
+    }
+    setScore((s) => s + 1);
+    setFlash('right');
     setTimeout(() => {
       setFlash(null);
       advance();
@@ -122,7 +129,7 @@ function Round({ progress, onExit }) {
           <p className="text-xs font-black tracking-[0.18em] text-ink-400 uppercase">Letter {seq.length}</p>
           <p
             className={`mt-2 text-7xl font-black text-ink-900 transition-transform sm:text-8xl ${
-              flash === 'right' ? 'scale-110 text-emerald-600' : flash === 'wrong' ? 'scale-95 text-rose-500' : ''
+              flash === 'right' ? 'scale-110 text-emerald-600' : ''
             }`}
           >
             {current}
@@ -144,14 +151,16 @@ function Round({ progress, onExit }) {
               <button
                 type="button"
                 onClick={() => answer(true)}
-                className="fp-press flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-emerald-50 text-lg font-black text-emerald-800 ring-1 ring-emerald-200 transition-colors ring-inset hover:bg-emerald-100"
+                disabled={busy}
+                className={`fp-press flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-emerald-50 text-lg font-black text-emerald-800 ring-1 ring-emerald-200 transition-colors ring-inset ${busy ? '' : 'hover:bg-emerald-100'} ${toneOf(true)}`}
               >
                 <Check className="h-5 w-5" strokeWidth={3} /> Same
               </button>
               <button
                 type="button"
                 onClick={() => answer(false)}
-                className="fp-press flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-rose-50 text-lg font-black text-rose-700 ring-1 ring-rose-200 transition-colors ring-inset hover:bg-rose-100"
+                disabled={busy}
+                className={`fp-press flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-rose-50 text-lg font-black text-rose-700 ring-1 ring-rose-200 transition-colors ring-inset ${busy ? '' : 'hover:bg-rose-100'} ${toneOf(false)}`}
               >
                 <X className="h-5 w-5" strokeWidth={3} /> Different
               </button>

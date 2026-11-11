@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 /**
  * 🧩 Logic & deduction: the grid follows a rule. Finish it.
@@ -74,6 +75,7 @@ function Round({ progress, onExit }) {
   const [puzzle, setPuzzle] = useState(() => makePuzzle(config.offset));
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -83,13 +85,18 @@ function Round({ progress, onExit }) {
   const choose = (value) => {
     // The answer stays on screen for the flash, so a second tap in that
     // moment would score the same question again. Ignored, as DotCount does.
-    if (over || flash) return;
-    const right = same(value, puzzle.answer);
-    if (right) setScore((s) => s + 1);
-    setFlash(right ? 'right' : 'wrong');
+    if (over || flash || busy) return;
+    const next = () => setPuzzle(makePuzzle(config.offset));
+    if (!same(value, puzzle.answer)) {
+      // `puzzle.answer` is one of the option objects itself, so the reveal can mark it by identity.
+      showWrong(value, puzzle.answer, next);
+      return;
+    }
+    setScore((s) => s + 1);
+    setFlash('right');
     setTimeout(() => {
       setFlash(null);
-      setPuzzle(makePuzzle(config.offset));
+      next();
     }, 400);
   };
 
@@ -149,16 +156,16 @@ function Round({ progress, onExit }) {
                 key={i}
                 type="button"
                 onClick={() => choose(value)}
-                disabled={flash !== null}
+                disabled={flash !== null || busy}
+                aria-label={`${value.count} ${value.colour.key} dots`}
                 className={`fp-press rounded-2xl ring-1 transition-all ring-inset ${
                   flash === 'right' && same(value, puzzle.answer)
                     ? 'bg-emerald-50 ring-emerald-300'
-                    : flash === 'wrong' && !same(value, puzzle.answer)
-                      ? 'bg-rose-50 ring-rose-300'
-                      : 'bg-surface-50 ring-line-200 hover:bg-cyan-50 hover:ring-cyan-300'
-                }`}
+                    : `bg-surface-50 ring-line-200 ${busy ? 'p-1' : 'hover:bg-cyan-50 hover:ring-cyan-300'}`
+                } ${toneOf(value)}`}
               >
-                <Cell value={value} />
+                {/* During the reveal the dots sit on white inside a green / red frame, so a red or green dot stays visible. */}
+                <Cell value={value} className={busy ? 'h-14 w-14 bg-surface' : ''} />
               </button>
             ))}
           </div>

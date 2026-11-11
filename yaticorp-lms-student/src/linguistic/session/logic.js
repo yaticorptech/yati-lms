@@ -11,7 +11,7 @@
  *          question | translate | write | speak          answer, then CHECK
  */
 import { tr, line, praiseIn } from '../say';
-import { ticksOf, needOf, wordCount } from '../parts/speakTicks';
+import { ticksOf, needOf, wordCount, canTranscribe } from '../parts/speakTicks';
 
 const PAIR_ROUND = 4;
 
@@ -93,11 +93,13 @@ export const buildLesson = (lesson) => {
             const bySound = lesson.words.filter((w) => !w.for);
             if (bySound.length >= 2) pairRounds(bySound).forEach((round) => add({ part: 'practice', kind: 'pairs', words: round, language }));
         } else if (!['unit', 'hear'].includes(lesson.review)) pairRounds(lesson.words).forEach((round) => add({ part: 'practice', kind: 'pairs', words: round, language }));
-        // Spelling is English's; a course in another language matches and quizzes its words.
-        if (!lesson.course && !letters) spellPicks(lesson.words).forEach((i) => {
+        // Write the word, its picture beside (2026-11-06, the user: "make this question in every language"): English's words
+        // and, since then, a course's too, in its own letters (or as they sound in English letters).
+        if (!letters) spellPicks(lesson.words).forEach((i) => {
             const w = lesson.words[i];
             add({ part: 'practice', kind: 'question', section: 'spell', retry: true, word: w, language,
-                q: { id: `spell:${i}`, type: 'spelling', prompt: tr(language)('Type this word in English'), hint: `${w.word[0]}${'_'.repeat(Math.max(0, w.word.length - 1))} (${line(language, 'lettersCount', w.word.length)})`, kannada: w.kannada, audio: w.audio } });
+                q: { id: `spell:${i}`, type: 'spelling', prompt: tr(language)('Type this word in English'), kannada: w.kannada, audio: w.audio, pic: w.pic || null, writeIn: lesson.course ? lesson.target : 'en',
+                    ...(lesson.course ? {} : { hint: `${w.word[0]}${'_'.repeat(Math.max(0, w.word.length - 1))} (${line(language, 'lettersCount', w.word.length)})` }) } });
         });
     }
     if (m === 'grammar') (lesson.practice || []).forEach((q) => add({ part: 'practice', kind: 'question', section: 'practice', retry: true, q }));
@@ -105,6 +107,14 @@ export const buildLesson = (lesson) => {
     if (m === 'speaking' && lesson.speaking?.prompt) add({ part: 'practice', kind: 'speak', speaking: lesson.speaking });
     // A review's sentences each carry their own direction (it mixes both).
     if (m === 'translation') (lesson.items || []).forEach((item) => add({ part: 'practice', kind: 'translate', section: 'items', retry: !item.open, item, direction: item.direction || lesson.direction, language }));
+    // Fill in the blanks (2026-11-05, the translation and Words lessons): the unit's sentences, a word or two missing, filled with tiles.
+    (lesson.blanks || []).forEach((q) => add({ part: 'practice', kind: 'question', section: 'blanks', retry: true, q, language }));
+    // Tap what you hear (2026-11-06): a sentence of the unit heard, built from its word tiles.
+    (lesson.hears || []).forEach((q) => add({ part: 'practice', kind: 'question', section: 'hear', retry: true, q, language }));
+    // Complete the conversation (2026-11-07): a question of the topic asked, its reply chosen from three.
+    (lesson.chats || []).forEach((q) => add({ part: 'practice', kind: 'question', section: 'chat', retry: true, q, language }));
+    // Say this sentence (2026-11-06): where the browser can write down what is said; elsewhere (Firefox) left out, not stuck on.
+    if (canTranscribe()) (lesson.sayits || []).forEach((q) => add({ part: 'practice', kind: 'sayit', q, language }));
 
     // The quiz: it counts, one try per question.
     const quiz = lesson.quiz || [];
@@ -123,7 +133,7 @@ export const buildLesson = (lesson) => {
 export const tilesOf = (step) => (step.kind === 'translate' ? step.item?.bank : step.kind === 'write' ? step.task?.words : step.q?.words) || [];
 
 /** Whether this screen is answered with word tiles (until the student switches to the keyboard). */
-export const usesTiles = (step) => (step.kind === 'question' && step.q.type === 'rearrange') || (step.kind === 'write' && step.task.type === 'jumbled') || (step.kind === 'translate' && !!step.item?.bank?.length);
+export const usesTiles = (step) => (step.kind === 'question' && ['rearrange', 'blanks', 'hear'].includes(step.q.type)) || (step.kind === 'write' && step.task.type === 'jumbled') || (step.kind === 'translate' && !!step.item?.bank?.length);
 
 /** A screen's answer before the student does anything. */
 export const startValue = (step) => {
@@ -135,6 +145,8 @@ export const startValue = (step) => {
 
 /** The answer as the server takes it: tiles (their places in the bank) as words in order; text as typed. */
 export const givenOf = (step, value) => {
+    // A sentence filled in: each box's word, in order (an empty box, nothing).
+    if (step.kind === 'question' && step.q?.type === 'blanks') { const t = tilesOf(step); return Array.isArray(value) ? value.map((i) => (Number.isInteger(i) ? t[i] : '')).join(' ').trim() : ''; }
     if (Array.isArray(value)) { const t = tilesOf(step); return value.map((i) => t[i]).join(' '); }
     if (value && typeof value === 'object') return '';
     return String(value ?? '');
@@ -151,14 +163,16 @@ export const answered = (step, value) => {
     // A speaking task is answered by voice (2026-10-28: "don't give a tick option manually"): recorded, five words
     // or more said, and half the checklist or more ticked by itself from what was said (speakTicks.js).
     if (step.kind === 'speak') return !!value?.recorded && wordCount(value.said) >= 5 && ticksOf(step.speaking, value.said, value.seconds).filter(Boolean).length >= needOf(step.speaking);
-    if (step.kind === 'pairs') return false;
+    if (step.kind === 'pairs' || step.kind === 'sayit') return false;
+    // Every box filled.
+    if (step.kind === 'question' && step.q.type === 'blanks') return Array.isArray(value) && value.filter((i) => Number.isInteger(i)).length === step.q.parts.filter((p) => p === null).length;
     // "Write at least three sentences, otherwise don't go to the next question" (2026-10-28).
     if (step.kind === 'write' && OPEN_WRITING.includes(step.task.type)) return sentenceCount(value) >= LEAST_SENTENCES;
     if (step.kind === 'question' && step.q.type === 'correction') return givenOf(step, value).trim() && givenOf(step, value).trim() !== String(step.q.prompt).trim();
     return !!givenOf(step, value).trim();
 };
 
-export const isInfo = (step) => ['notes', 'words', 'passage', 'comic', 'letterWords', 'dialogue', 'intro', 'missReview'].includes(step?.kind);
+export const isInfo = (step) => ['notes', 'words', 'passage', 'comic', 'letterWords', 'dialogue', 'intro', 'practiceReview'].includes(step?.kind);
 
 /**
  * The sheet under a checked answer: its tone (right, wrong, or info for work
@@ -201,4 +215,28 @@ export const sheetOf = (step, r, n = 0) => {
 export const clock = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 /** XP in a list of reward events. */
+/** XP by what it was for ({ linguistic_lesson: 20, … }), added to `into` (2026-11-06). */
+export const xpBy = (events, into = {}) => { for (const e of events || []) if (e?.kind === 'xp' && e.amount) into[e.source || 'other'] = (into[e.source || 'other'] || 0) + e.amount; return into; };
 export const xpIn = (events) => (events || []).filter((e) => e.kind === 'xp').reduce((a, e) => a + (Number(e.amount) || 0), 0);
+
+/*
+ * Say this sentence (2026-11-06): whether what the browser heard is the sentence — every word of it that carries the
+ * meaning there (a small one, "a" or "the", may slip), in any case, without its marks, a number said or written ("six" / "6"); Chinese and Japanese, written
+ * without spaces, by their letters. The words heard, not how each sound was made: the browser cannot tell that.
+ */
+const NUMBERS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const plain = (t) => String(t || '').toLowerCase().normalize('NFKC').replace(/[\p{P}\p{S}]+/gu, ' ').split(/\s+/).filter(Boolean).map((w) => (/^\d+$/.test(w) && NUMBERS[Number(w)] ? NUMBERS[Number(w)] : w));
+export const saidRight = (heard, sentence, locale = 'en') => {
+    const want = plain(sentence), got = plain(heard);
+    if (!want.length || !got.length) return false;
+    if (/^(zh|ja)/.test(locale)) {
+        const a = [...want.join('')], b = [...got.join('')];
+        const left = [...b];
+        const found = a.filter((c) => { const k = left.indexOf(c); if (k === -1) return false; left.splice(k, 1); return true; }).length;
+        return found / a.length >= 0.85 && b.length <= a.length + 3;
+    }
+    const left = [...got];
+    const missed = want.filter((w) => { const k = left.indexOf(w); if (k === -1) return true; left.splice(k, 1); return false; });
+    // Every word that carries the meaning heard ("a dog and a cat" is not "a dog and a rabbit"); a small one (a, the) may slip.
+    return missed.every((w) => [...w].length < 3) && missed.length <= Math.max(1, Math.floor(want.length / 5)) && got.length <= want.length + 3;
+};

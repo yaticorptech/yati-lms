@@ -75,9 +75,10 @@ const reverseOf = (code) => {
         }
     }
     for (const [key, list] of Object.entries(linesOf(code))) {
-        const items = pack.items?.[seedKeyOf(key)] || {}, built = key.endsWith('-en-kn');
+        const items = pack.items?.[seedKeyOf(key)] || {};
         for (const [id, say] of Object.entries(list)) {
-            const it = items[id], text = built ? it?.model : it?.source;
+            // Built from tiles by its lesson's way, unless the sentence goes the other way (its own `direction`, 2026-11-04).
+            const it = items[id], built = it?.direction ? it.direction === 'en-kn' : key.endsWith('-en-kn'), text = built ? it?.model : it?.source;
             if (!text) continue;
             whole.set(text, say);
             if (!built) { const pairs = pairWords(say, meanings[key]?.[id]); if (pairs) hints.set(text, pairs); continue; }

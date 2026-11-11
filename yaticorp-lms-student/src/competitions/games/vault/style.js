@@ -8,7 +8,7 @@ export const GLYPH_TEXT = { star: '★', moon: '☾', sun: '☀', triangle: '△
 export const fs = (min, cqw, max) => `clamp(${min}px, ${cqw}cqw, ${max}px)`;
 export const at = (box) => ({ '--l': `${box.l}%`, '--t': `${box.t}%`, '--w': `${box.w}%`, '--h': box.h ? `${box.h}%` : 'auto' });
 /** Where something sits over the chamber's image: absolute on wider screens, in the flow on a phone. */
-export const placed = 'relative md:absolute md:left-[var(--l)] md:top-[var(--t)] md:w-[var(--w)] md:h-[var(--h)]';
+export const placed = 'relative @min-[560px]:absolute @min-[560px]:left-[var(--l)] @min-[560px]:top-[var(--t)] @min-[560px]:w-[var(--w)] @min-[560px]:h-[var(--h)]';
 
 export const tile = 'flex items-center justify-center rounded-[0.5cqw] border border-[#8a6a2f] bg-gradient-to-b from-[#4a3418] to-[#21160a] shadow-[inset_0_2px_6px_rgba(0,0,0,.6),0_2px_4px_rgba(0,0,0,.4)]';
 export const goldButton = 'rounded-full border border-[#f4d27a] bg-gradient-to-b from-[#e0ab48] to-[#93631a] font-black uppercase tracking-wide text-[#fff8e1] shadow-[0_3px_8px_rgba(0,0,0,.45),inset_0_1px_0_rgba(255,255,255,.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50';
@@ -32,3 +32,12 @@ export const traceBeam = (p, states) => {
     }
     return { hit: false, pts };
 };
+
+/**
+ * A phone, upright (2026-11-05: "the same look, held vertically, full screen"): the chamber is a tall window
+ * PHONE_SCENE_DVH of the screen high, the picture filling its height and cut at the sides around the chamber's
+ * key spot (`phoneFocus`), not its middle. `phoneLeft(x, focus)` is where the picture's x% lands in that window.
+ */
+export const PHONE_SCENE_DVH = 40;
+export const phoneFocus = (ch) => Math.min(72, Math.max(28, ch.hotspot.x));
+export const phoneLeft = (x, focus) => `calc(50% + ${(((x - focus) / 100) * PHONE_SCENE_DVH * (2000 / 1120)).toFixed(3)}dvh)`;

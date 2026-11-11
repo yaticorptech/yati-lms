@@ -3,18 +3,18 @@
  * much time they need to learn the language, and generate their learning
  * road map from it"). With a plan: how far along they are, whether they are
  * on track, and every day of it — the days gone with what was done, today's
- * lessons, the days to come. Without one (or to change it): the times to
- * choose from, each with its lessons a day and minutes, and whether it has
- * every lesson or the main ones (service.js on the server). Days only, never
- * dates (asked 2026-10-24).
+ * lessons, the days to come. Days only, never dates (asked 2026-10-24). The
+ * time is not chosen (2026-11-04, "don't give the learning days to choose"):
+ * the server sets it, 90 days for a Beginner, 60 of the Advanced lessons after
+ * the Advanced entry test (service.js autoPlan); a plan chosen before then
+ * keeps its days. Without a plan, one is made by itself here.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import { Check, Lock, CalendarDays, ChevronDown, Target } from 'lucide-react';
+import { Check, Lock, ChevronDown, Target } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS } from './meta';
-import { Bar, Chunky, Loading, Mascot, Panel, Problem } from './ui';
-import PlanChoices from './parts/PlanChoices';
+import { Bar, Loading, Panel, Problem } from './ui';
 import { planLabel, planStatus } from './parts/plan';
 
 const KIND = { lesson: 'Lesson', story: 'Story', speaking: 'Speaking', listening: 'Listening', review: 'Review', checkpoint: 'Checkpoint', talk: 'Speak on a topic' };
@@ -42,19 +42,15 @@ export default function Roadmap() {
     const { reload } = useOutletContext();
     const [data, setData] = useState(undefined);
     const [error, setError] = useState(null);
-    const [changing, setChanging] = useState(false);
-    const [busy, setBusy] = useState(null);
     const [showPast, setShowPast] = useState(false);
-    const load = useCallback(() => linguisticApi.plan().then((d) => { setData(d); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
+    // No plan yet: made by itself, then shown.
+    const load = useCallback(() => linguisticApi.plan().then((d) => (d.plan ? d : linguisticApi.setPlan().then((made) => { reload?.(); return made; })))
+        .then((d) => { setData(d); setError(null); }).catch((e) => { setError(e); setData(null); }), [reload]);
     useEffect(() => { load(); }, [load]);
     if (data === undefined) return <Loading label="Opening your roadmap…" />;
     if (!data) return <Problem error={error} onRetry={load} />;
 
     const course = data.course?.name || 'English';
-    const pick = (days) => {
-        setBusy(days); setError(null);
-        linguisticApi.setPlan(days).then((d) => { setData(d); setChanging(false); reload?.(); }).catch(setError).finally(() => setBusy(null));
-    };
     const p = data.plan;
     const header = (
         // No back arrow (2026-10-29, "remove this"): the ✕ above opens the dashboard.
@@ -62,21 +58,7 @@ export default function Roadmap() {
             <h1 className="text-2xl font-extrabold text-[#3c3c3c]">Your {course} roadmap</h1>
         </div>
     );
-    const choose = (
-        <Panel className="p-5" data-plan-choose>
-            <div className="mb-4 flex items-end gap-3">
-                <Mascot pose="thinking" className="h-20 w-20 shrink-0" />
-                <div className="min-w-0">
-                    <h2 className="text-xl font-extrabold text-[#3c3c3c]">How much time do you have to learn {course}?</h2>
-                    <p className="mt-1 text-[15px] font-semibold text-[#777]">Your roadmap is made to fit it: every lesson when there is time, the main ones when time is short.</p>
-                </div>
-            </div>
-            <PlanChoices options={data.options} picked={p?.days} onPick={pick} busy={busy} />
-            {error && <p className="mt-3 text-sm font-bold" style={{ color: COLORS.red.ink }} role="alert">{error.message}</p>}
-            {p && <div className="mt-3 text-right"><Chunky variant="ghost" color="blue" onClick={() => setChanging(false)}>Keep my plan</Chunky></div>}
-        </Panel>
-    );
-    if (!p || changing) return <div className="space-y-5" data-roadmap>{header}{choose}</div>;
+    if (!p) return <div className="space-y-5" data-roadmap>{header}<Loading label="Making your roadmap…" /></div>;
 
     const status = planStatus(p);
     const past = p.schedule.filter((d) => d.past);
@@ -90,7 +72,6 @@ export default function Roadmap() {
                         <p className="text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{planLabel(p.days)} plan · {p.tier === 'full' ? 'every lesson' : 'the main lessons'}</p>
                         <p className="mt-1 text-xl font-extrabold text-[#3c3c3c]">Day <span data-plan-day>{Math.min(p.day, p.days)}</span> of {p.days}</p>
                     </div>
-                    <Chunky variant="outline" color="blue" onClick={() => setChanging(true)} className="!min-h-11" data-plan-change><CalendarDays size={17} /> Change my time</Chunky>
                 </div>
                 <div className="mt-3 flex items-center gap-3">
                     <Bar value={p.total ? (p.done / p.total) * 100 : 0} className="h-3 flex-1" label={`${p.done} of ${p.total} lessons done`} />
@@ -103,7 +84,7 @@ export default function Roadmap() {
                         {data.about.studyTime && <>You like to learn <span className="font-extrabold text-[#4b4b4b]">{data.about.studyTime === 'night' ? 'at night' : `in the ${data.about.studyTime}`}</span>.</>}
                     </p>
                 )}
-                {p.tier === 'main' && <p className="mt-2 text-sm font-semibold text-[#777]">Your time is short, so this roadmap has the main lessons. Choose a longer time to add the extra practice (unit reviews and listening).</p>}
+                {p.tier === 'main' && <p className="mt-2 text-sm font-semibold text-[#777]">Your time is short, so this roadmap has the main lessons; the extra practice (unit reviews and listening) is left out.</p>}
             </Panel>
 
             {past.length > 0 && (

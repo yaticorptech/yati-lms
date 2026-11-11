@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Sparkles, Timer, Eye, Hand, Trophy } from 'lucide-react';
+import { Sparkles, Eye, Hand, Trophy } from 'lucide-react';
 import { Scoreboard } from './QuizTable';
 import usePhaseClock from './usePhaseClock';
 
@@ -61,11 +61,6 @@ export default function RoundFrame({ view, title, intro, children, detail, wide 
                             <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/85">Round {view.number} of {view.total}{title ? ` · ${title}` : ''}</p>
                             <span className="inline-flex items-center gap-1.5">
                                 {phase && <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-xs font-bold"><Icon size={13} aria-hidden="true" /> {phase.label}</span>}
-                                {view.phase === 'answer' && (
-                                    <span data-timer={seconds} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-black tabular-nums ${seconds <= 5 ? 'bg-white text-rose-600' : 'bg-white/20'}`}>
-                                        <Timer size={14} aria-hidden="true" /> {seconds}s
-                                    </span>
-                                )}
                             </span>
                         </div>
                         <div className="mt-2.5 flex gap-1" aria-hidden="true">
@@ -80,7 +75,8 @@ export default function RoundFrame({ view, title, intro, children, detail, wide 
                     <div className="space-y-4 p-4 sm:p-6">
                         {children(clock, theme)}
                         {view.phase === 'reveal' && view.results && (
-                            <ul className="grid gap-2 sm:grid-cols-2" data-round-results>
+                            // On a phone the live scoreboard above already lists everyone (2026-11-06): this second list only on wider screens.
+                            <ul className="hidden gap-2 sm:grid sm:grid-cols-2" data-round-results>
                                 {view.seats.map((s, i) => {
                                     const r = view.results[i];
                                     if (!r) return null;

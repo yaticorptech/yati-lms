@@ -36,6 +36,9 @@ const TeamForm = ({ competition: c, team, students, onSaved, onCancel }) => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const shown = useMemo(() => students.filter((s) => `${s.name} ${s.email} ${s.cardNumber}`.toLowerCase().includes(q.toLowerCase())), [students, q]);
+    // Players on the team who are no longer the college's students (they left):
+    // not in the list below, so shown here to take off — the server refuses them.
+    const gone = students.length ? (team?.players || []).filter((p) => picked.has(p.userId) && !students.some((s) => s.id === p.userId)) : [];
     const toggle = (id) => setPicked((p) => {
         const next = new Set(p);
         if (next.has(id)) next.delete(id); else if (next.size < c.playersPerTeam) next.add(id);
@@ -63,6 +66,12 @@ const TeamForm = ({ competition: c, team, students, onSaved, onCancel }) => {
                         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your students" className={`${INPUT} pl-9`} /></label>
                 </div>
+                {gone.length > 0 && (
+                    <p className="mb-2 flex flex-wrap items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                        No longer your students — take them off to save:
+                        {gone.map((p) => <button key={p.userId} type="button" onClick={() => toggle(p.userId)} className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 font-semibold ring-1 ring-amber-200 hover:bg-amber-100">{p.name} <X size={13} /></button>)}
+                    </p>
+                )}
                 {students.length === 0 ? <p className="text-sm text-slate-500">Your college has no students on the LMS yet.</p> : (
                     <ul className="grid max-h-72 gap-1.5 overflow-y-auto sm:grid-cols-2">
                         {shown.map((s) => {
@@ -156,7 +165,7 @@ const CompetitionPanel = ({ summary, students, onChanged }) => {
     const [error, setError] = useState('');
     const load = useCallback(() => api.get(`/competitions/org/${summary.id}`).then((r) => setDetail(r.data)).catch((err) => setError(errorOf(err))), [summary.id]);
     useEffect(() => { load(); }, [load]);
-    if (!detail) return <div className="mt-4 h-24 animate-pulse rounded-xl bg-slate-100" />;
+    if (!detail) return error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : <div className="mt-4 h-24 animate-pulse rounded-xl bg-slate-100" />;
     const c = detail.competition;
     const team = detail.myTeam;
     const refresh = () => { load(); onChanged(); };
@@ -198,7 +207,7 @@ const CompetitionPanel = ({ summary, students, onChanged }) => {
             )}
             {registering && <TeamForm competition={c} team={team} students={students} onSaved={() => { setEditing(false); setStarting(false); refresh(); }} onCancel={() => { setEditing(false); setStarting(false); }} />}
             {solo && <p className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900" data-solo-entry>Students sign up for this {c.gameLabel.toLowerCase()} themselves, from Competitions in the student app. Tell your students about it{c.registrationOpen ? ` before ${fmtDateTime(c.registrationDeadline)}` : ''}.</p>}
-            {!solo && !c.registrationOpen && !team && <p className="text-sm text-slate-500">Registration is closed.</p>}
+            {!solo && !c.registrationOpen && (!team || team.status === 'withdrawn') && <p className="text-sm text-slate-500">{c.phase === 'registration-soon' && c.registrationOpensAt ? `Registration opens on ${fmtDateTime(c.registrationOpensAt)}.` : 'Registration is closed.'}</p>}
             {team?.status === 'approved' && !['quiz', 'hackathon'].includes(c.kind) && (
                 <div>
                     <h3 className="mb-2 text-sm font-bold text-slate-800">Our matches</h3>
@@ -434,7 +443,7 @@ const Participants = ({ url }) => {
             </div>
             <section className="overflow-hidden rounded-2xl ring-1 ring-slate-200" data-participants>
                 <div className="flex items-center justify-between bg-slate-50 px-4 py-2.5">
-                    <p className="text-sm font-black text-slate-900">Participants ({data.total}){teams ? ` · ${teams.length} teams` : ''}</p>
+                    <p className="text-sm font-black text-slate-900">Participants ({data.total}){teams ? ` · ${teams.length} team${teams.length === 1 ? '' : 's'}` : ''}</p>
                     {!data.resultsPublished && <p className="text-xs font-semibold text-slate-900">Who won shows once the results are published.</p>}
                 </div>
                 {data.rows.length > 0 && <p className="px-4 pb-1 pt-0 text-[11px] font-semibold text-slate-900 md:hidden">Slide the table sideways to see every column →</p>}
@@ -543,6 +552,15 @@ function TakePart() {
         load();
         api.get('/competitions/org/students').then((r) => setStudents(r.data.students)).catch(() => {});
     }, [load]);
+    // Live (2026-11-06): a competition the platform publishes shows here within seconds, without a reload — asked
+    // again every 15 seconds and whenever the window comes back into view.
+    useEffect(() => {
+        const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 15000);
+        const onShow = () => { if (document.visibilityState === 'visible') load(); };
+        window.addEventListener('focus', onShow);
+        document.addEventListener('visibilitychange', onShow);
+        return () => { clearInterval(timer); window.removeEventListener('focus', onShow); document.removeEventListener('visibilitychange', onShow); };
+    }, [load]);
 
     const ready = rows !== null && arenas !== null;
     const all = useMemo(() => [...(arenas || []).map((c) => ({ kind: 'arena', id: `a-${c.id}`, c })), ...(rows || []).map((c) => ({ kind: 'game', id: c.id, c }))], [rows, arenas]);
@@ -552,8 +570,39 @@ function TakePart() {
         .sort((x, y) => ['open', 'live', 'completed', 'closed'].indexOf(standOf(x)) - ['open', 'live', 'completed', 'closed'].indexOf(standOf(y)));
     const openRow = all.find((r) => r.id === open) || null;
 
+    // Registrations open that this college has not entered yet: the notice at the top (2026-11-06).
+    const toEnter = ready ? all.filter((r) => standOf(r) === 'open' && !entered(r)) : [];
+
     return (
         <div className="space-y-5">
+            {toEnter.length > 0 && (
+                <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-white shadow-sm" role="status" aria-live="polite" data-registrations-open>
+                    <div className="flex items-center gap-3 border-b border-emerald-100 px-4 py-3">
+                        <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white">
+                            <Send size={17} />
+                            <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white" /></span>
+                        </span>
+                        <div className="min-w-0">
+                            <p className="text-sm font-black text-emerald-900">Registrations open · {toEnter.length} competition{toEnter.length === 1 ? '' : 's'}</p>
+                            <p className="text-xs text-emerald-800/80">Enter your college before registration closes.</p>
+                        </div>
+                    </div>
+                    <ul className="divide-y divide-emerald-100/70">
+                        {toEnter.slice(0, 4).map((r) => (
+                            <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5">
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-bold text-slate-900">{r.kind === 'arena' ? r.c.title : r.c.name}</span>
+                                    <span className="block text-xs text-slate-500">{r.kind === 'arena' ? 'Quiz Arena' : r.c.gameLabel} · register by {fmtDateTime(r.c.registrationDeadline)}</span>
+                                </span>
+                                <button type="button" onClick={() => setOpen(r.id)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white hover:bg-emerald-700">
+                                    <Send size={13} /> Register college
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                    {toEnter.length > 4 && <button type="button" onClick={() => setFilter('open')} className="w-full border-t border-emerald-100 px-4 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50">See all {toEnter.length}</button>}
+                </section>
+            )}
             {/* At a glance, and the filter: click a box to see just those. */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" role="tablist" aria-label="Show" data-filter-boxes>
                 {FILTERS.map(([k, label, Icon, tone]) => (
@@ -616,7 +665,7 @@ function TakePart() {
                                         <p className="flex items-center gap-2 rounded-xl bg-indigo-50/60 px-3 py-2 text-sm text-slate-700"><Users size={14} className="text-indigo-500" /> <b className="font-bold">{c.myTeam.teamName}</b></p>
                                     )}
                                     <button type="button" onClick={() => setOpen(row.id)} className={`${BTN} mt-auto w-full justify-center`}>
-                                        {c.registrationOpen && (!c.myTeam || ['withdrawn', 'rejected'].includes(c.myTeam.status)) ? <><Send size={15} /> Register college</> : 'View team & matches'}
+                                        {c.registrationOpen && (!c.myTeam || ['withdrawn', 'rejected'].includes(c.myTeam.status)) ? <><Send size={15} /> Register college</> : c.myTeam && c.myTeam.status !== 'withdrawn' ? 'View team & matches' : 'View details'}
                                     </button>
                                 </>
                             )}

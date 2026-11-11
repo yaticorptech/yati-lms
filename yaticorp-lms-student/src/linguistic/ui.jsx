@@ -3,9 +3,9 @@
  * chunky buttons that press down, the mascot, the speaker button, progress
  * bars, the level chip, and the loading and error states.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Volume2, RotateCcw, Loader2 } from 'lucide-react';
-import { COLORS, levelOf, play, canSpeak, canSpeakIn, langOf, usePrefetch } from './meta';
+import { COLORS, levelOf, play, canSpeak, canSpeakIn, langOf, onTalk, talkNow, usePrefetch } from './meta';
 
 /**
  * A chunky button. `color` is one of COLORS; `variant`:
@@ -27,28 +27,79 @@ export function Chunky({ color = 'green', variant = 'solid', className = '', sty
     );
 }
 
-/** The app's own mascot, in a pose from /mascot/stills. */
-export const Mascot = ({ pose = 'wave-hi', className = 'h-28 w-28', alt = '' }) => (
-    <img src={`/mascot/stills/${pose}.png`} alt={alt} aria-hidden={alt ? undefined : 'true'} draggable="false" className={`select-none object-contain ${className}`} />
-);
+/*
+ * Where each pose's mouth is in its picture (2026-11-07, found from the pictures: the dark shape under and between the
+ * eyes): [picture width, height, mouth middle x, y, mouth width, height], in the picture's pixels.
+ */
+const MOUTHS = {
+    'cheer-jump': [427, 443, 223, 147, 53, 31], 'confetti-cheer': [331, 324, 166, 125, 44, 23], 'curious-question': [279, 309, 130, 129, 21, 17],
+    'flex-content': [345, 430, 152, 140, 44, 18], 'flex-determined': [330, 323, 114, 129, 35, 14], 'heart-hands': [237, 313, 129, 130, 38, 17],
+    'jump-cheer': [338, 332, 176, 120, 42, 27], meditating: [286, 308, 137, 125, 39, 14], 'point-right': [387, 437, 165, 155, 53, 30],
+    presenting: [314, 309, 119, 120, 41, 23], running: [248, 311, 135, 128, 41, 24], 'sad-slump': [247, 306, 126, 161, 27, 7], sad: [306, 431, 153, 195, 33, 9],
+    shocked: [247, 324, 129, 133, 24, 25], 'star-celebrate': [309, 324, 124, 116, 44, 26], 'surprised-gasp': [301, 431, 166, 152, 31, 33],
+    thinking: [285, 437, 160, 150, 39, 15], 'thumbs-up': [354, 436, 213, 151, 54, 30], 'walk-wave': [301, 329, 188, 128, 43, 24],
+    'wave-hi': [382, 432, 236, 158, 54, 32], worried: [232, 311, 128, 128, 30, 16]
+};
+
+/** Whether the mascot is speaking now, and how many words it has said (meta.js onTalk); only while `on`. */
+function useTalk(on) {
+    const [now, setNow] = useState(talkNow);
+    useEffect(() => (on ? onTalk(setNow) : undefined), [on]);
+    return on ? now : { on: false, word: 0 };
+}
+
+/**
+ * A speaking mouth over the picture's own (2026-11-07, the user: "lip movement, like Duolingo — for a sentence, its
+ * words"): its own mouth covered with the face's white, a mouth opening and closing on top, opening again at each word
+ * the voice reaches. Drawn in the picture's own pixels, scaled as the picture is (object-contain = "meet").
+ */
+function TalkingMouth({ at: [W, H, x, y, w, h], word }) {
+    const rw = Math.max(w, 26) * 0.48, rh = Math.max(h, 18) * 0.62;
+    return (
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" data-talking-mouth={word}>
+            <defs>
+                <radialGradient id="lingo-face-white"><stop offset="72%" stopColor="#fff" /><stop offset="100%" stopColor="#fff" stopOpacity="0" /></radialGradient>
+            </defs>
+            <ellipse cx={x} cy={y} rx={w * 0.72 + 7} ry={h * 0.85 + 7} fill="url(#lingo-face-white)" />
+            <g key={word} className="lingo-talk">
+                <ellipse cx={x} cy={y} rx={rw} ry={rh} fill="#1F2B4D" />
+                <ellipse cx={x} cy={y + rh * 0.42} rx={rw * 0.62} ry={rh * 0.48} fill="#F47A8C" />
+            </g>
+        </svg>
+    );
+}
+
+/** The app's own mascot, in a pose from /mascot/stills; `talk`: its mouth moves while the app's voice speaks (2026-11-07). */
+export function Mascot({ pose = 'wave-hi', className = 'h-28 w-28', alt = '', talk = false }) {
+    const mouth = talk ? MOUTHS[pose] : null;
+    const now = useTalk(!!mouth);
+    const img = <img src={`/mascot/stills/${pose}.png`} alt={alt} aria-hidden={alt ? undefined : 'true'} draggable="false" className={`select-none object-contain ${mouth ? 'h-full w-full' : className}`} />;
+    if (!mouth) return img;
+    return (
+        <span className={`relative inline-block ${className}`} data-mascot-talking={now.on ? 'yes' : 'no'}>
+            {img}
+            {now.on && <TalkingMouth at={mouth} word={now.word} />}
+        </span>
+    );
+}
 
 /**
  * The big blue speaker: plays the recording, or the browser reads the text.
  * With no recording and no voice for the language on this device, it says so
  * for a few seconds instead of staying silent (2026-10-26).
  */
-export function Speaker({ src, text, lang = 'en-IN', size = 'md', label = 'Listen', className = '' }) {
+export function Speaker({ src, text, lang = 'en-IN', size = 'md', label = 'Listen', className = '', gender = null }) {
     const [missing, setMissing] = useState(false);
     const [note, setNote] = useState('');
     const [loading, setLoading] = useState(false);
-    usePrefetch(src ? [] : [[text, lang]], [src, text, lang]);
+    usePrefetch(src || gender ? [] : [[text, lang]], [src, text, lang, gender]); // a person's line (gender): the device's voice, nothing to make
     if (!(canSpeak(src) || (text && canSpeak()))) return null;
     const say = (msg) => { setNote(msg); setTimeout(() => setNote(''), 5000); };
     const tap = (e) => {
         e.stopPropagation();
         if (loading) return;
         if (!src && !canSpeakIn(lang)) { setMissing(true); setTimeout(() => setMissing(false), 5000); return; }
-        play(src, text, lang, { onLoading: setLoading, onError: say });
+        play(src, text, lang, { gender, onLoading: setLoading, onError: say });
     };
     const icon = size === 'lg' ? 28 : size === 'sm' ? 16 : 22;
     return (

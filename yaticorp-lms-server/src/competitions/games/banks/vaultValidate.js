@@ -14,6 +14,8 @@
  *
  * validate(stages) returns a list of problems ([] when all is well).
  */
+const { codesFitting } = require('./lockClues');
+const RELICS_OK = ['sun', 'moon', 'triangle'];
 const { trace } = require('./vault');
 
 const NAMES = { sun: 'sun', moon: 'moon', triangle: 'triangle' };
@@ -68,13 +70,13 @@ const validate = (stages) => {
     const problems = [];
     const fail = (i, why) => problems.push(`Chamber ${i + 1}: ${why}`);
     const [lock, rings, code, light, trial] = stages;
-    // 1 · exactly one choice completes a pattern, and it is the answer.
-    const gap = lock.pub.sequence.indexOf(null);
-    const completes = lock.pub.choices.filter((c) => isPattern(lock.pub.sequence.map((x, i) => (i === gap ? c : x))));
-    if (!distinct(lock.pub.choices) || lock.pub.choices.length !== 4 || completes.length !== 1 || completes[0] !== lock.answer) fail(0, `${completes.length} choices complete the row`);
-    // 2 · the plate, or the plate reversed.
-    const want = /right to left/.test(rings.pub.prompt) ? [...rings.pub.target].reverse() : rings.pub.target;
-    if (want.join() !== rings.answer.join() || rings.answer.some((s, k) => !rings.pub.rings[k].includes(s)) || rings.pub.rings.some((r, k) => r[((rings.pub.start[k] % 6) + 6) % 6] === rings.answer[k])) fail(1, 'the rings do not match the plate');
+    // 1 · the three clues, read afresh, leave one code, and it is the answer.
+    const fits = codesFitting(lock.pub.clues || []);
+    if (!fits || fits.length < 1 || fits.length > 2 || !fits.includes(lock.answer.padStart(3, '0')) || !RELICS_OK.includes(lock.relic)) fail(0, `the clues fit ${fits ? fits.length : 'no'} codes`);
+    // 2 · the totals, worked as a student would, give the book, and it is one of the four choices.
+    const [A, B, C] = rings.pub.totals || [];
+    const cmp = A / 3; const lan = (B - cmp) / 2; const bk = (C - lan) / 2;
+    if (![cmp, lan, bk].every((x) => Number.isInteger(x) && x > 0) || bk !== rings.answer || rings.pub.choices.filter((c) => c === bk).length !== 1 || new Set(rings.pub.choices).size !== 4) fail(1, 'the totals do not give the book');
     // 3 · the equations give the code.
     const nums = readCode(code.pub);
     if (!nums || `${nums.sun}${nums.moon}${nums.triangle}` !== code.answer) fail(2, 'the equations do not give the code');
@@ -82,7 +84,7 @@ const validate = (stages) => {
     if (!trace(light.pub, light.answer).hit || trace(light.pub, light.pub.start).hit) fail(3, 'the light path does not work');
     // 5 · one order, and the code from it.
     if (nums) {
-        const tests = trial.pub.clues.map((c) => readClue(c, lock.answer));
+        const tests = trial.pub.clues.map((c) => readClue(c, lock.relic));
         if (tests.some((f) => !f)) fail(4, 'a clue could not be read');
         else {
             const fit = ORDERS.filter((o) => tests.every((f) => f(o)));

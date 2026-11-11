@@ -372,11 +372,13 @@ describe('the placement test', () => {
         const r = await raviApi('POST', '/placement', { answers: { b1: 'is', b2: 'small' } });
         assert.equal(r.body.level, 'beginner');
     });
-    test('an open passage translation is compared with the model, its English grammar checked here, never marked wrong nor sent to a teacher', async () => {
+    test('an open passage translation is compared with the model, its English grammar checked here, not sent to a teacher; one far off is wrong (2026-11-05)', async () => {
         await unlock(asha.user, ['translation-advanced-kn-en~2']);
         const l = await lessonBy('translation-advanced-kn-en~2');
+        const off = await api('POST', `/lessons/${l._id}/check`, { section: 'items', id: 'i5', given: 'bvhg' });
+        assert.deepEqual([off.body.verdict, off.body.correct, /degree/.test(off.body.answer)], ['wrong', false, true], 'wrong, with the model to see');
         const r = await api('POST', `/lessons/${l._id}/check`, { section: 'items', id: 'i5', given: 'I finished my degree last year. Now I am searching for a job in a software company. I like to learn new things.' });
-        assert.equal(r.body.verdict, 'review'); assert.equal(r.body.correct, null);
+        assert.equal(r.body.verdict, 'review'); assert.equal(r.body.correct, true);
         assert.ok(r.body.closeness > 50); assert.equal(r.body.submission.status, 'checked');
         assert.equal(r.body.total, 3); assert.equal(r.body.clean, 3, 'no grammar mistake in it');
     });

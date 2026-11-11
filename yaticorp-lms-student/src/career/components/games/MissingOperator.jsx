@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const apply = (a, op, b) => (op === '+' ? a + b : op === '-' ? a - b : op === '×' ? a * b : a / b);
@@ -29,7 +30,10 @@ const makePuzzle = (max, ops) => {
 
     return { a, b, target, answer: op, options: ops };
   }
-  return { a: 6, b: 3, target: 2, answer: '÷', options: ops };
+  // Only + makes 10 from 7 and 3 (× gives 21, − gives 4, ÷ is not whole), and
+  // every band offers +. The old fallback answered ÷, which the first two
+  // bands do not show, so the round had no right button.
+  return { a: 7, b: 3, target: 10, answer: '+', options: ops };
 };
 
 const configFor = (difficulty, levelNo) => ({
@@ -57,6 +61,7 @@ function Round({ progress, onExit }) {
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
   const [started, setStarted] = useState(false);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -64,15 +69,17 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const choose = (op) => {
-    if (over) return;
+    if (over || busy) return;
+    const nextPuzzle = () => setPuzzle(makePuzzle(config.max, config.ops));
     if (op === puzzle.answer) {
       setScore((s) => s + 1);
       setFlash('right');
+      nextPuzzle();
+      setTimeout(() => setFlash(null), 250);
     } else {
-      setFlash('wrong');
+      // The buzz, the pick red and the right sign green, then the next equation.
+      showWrong(op, puzzle.answer, nextPuzzle);
     }
-    setPuzzle(makePuzzle(config.max, config.ops));
-    setTimeout(() => setFlash(null), 250);
   };
 
   return (
@@ -134,7 +141,8 @@ function Round({ progress, onExit }) {
                 type="button"
                 onClick={() => choose(op)}
                 aria-label={`Operator ${op}`}
-                className="fp-press flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-50 text-2xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset hover:bg-amber-50 hover:ring-amber-300"
+                disabled={busy}
+                className={`fp-press flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-50 text-2xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset ${busy ? '' : 'hover:bg-amber-50 hover:ring-amber-300'} ${toneOf(op)}`}
               >
                 {op}
               </button>

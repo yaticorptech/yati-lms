@@ -3,9 +3,9 @@
  * match from its rng — every player in the match gets the same five, in the
  * same order. Each is a real puzzle with its own controls, checked here:
  *
- *   1  The Ancient Lock       (easy) a symbol sequence with one gap
- *   2  The Hidden Mechanism   (easy) three symbol rings, each turned on its
- *                             own, lined up with the bridge plate
+ *   1  The Ancient Lock       (easy) a 3-digit code from three clues (lockClues.js)
+ *   2  The Hidden Mechanism   (easy) a math logic challenge: compass, lantern,
+ *                             book — the book's value
  *   3  The Secret Code        (easy) ☀ given, ☾ a step from it, △ a count of
  *                             the people drawn on the wall: three digits
  *   4  The Light Path         (medium) turn four mirrors so the beam reaches the crystal
@@ -21,6 +21,7 @@
  * data only); `solution` is shown once the game is over; `clue` is what clearing a
  * chamber adds to the player's collected clues.
  */
+const { lockCode, codesFitting } = require('./lockClues');
 const RELICS = ['sun', 'moon', 'triangle'];
 const GLYPH = { star: '★', moon: '☾', sun: '☀', triangle: '△', eye: '◉', key: '⚷' };
 const NAME = { star: 'star', moon: 'moon', sun: 'sun', triangle: 'triangle', eye: 'eye', key: 'key' };
@@ -61,7 +62,9 @@ const PATTERNS = {
     },
     steps: (rng) => {
         const [a, b, c] = shuffle(rng, ALL);
-        return { seq: [a, b, b, c, c, c], gaps: [1, 2, 3, 4, 5], rule: 'one, then two, then three of each' };
+        // Not the first of the three: "a b b ? c c" reads as well as two pairs as a count of three, so the
+        // missing one there is a guess, not a deduction (2026-11-05).
+        return { seq: [a, b, b, c, c, c], gaps: [1, 2, 4, 5], rule: 'one, then two, then three of each' };
     },
     between: (rng) => {
         const [a, ...others] = shuffle(rng, ALL);
@@ -69,25 +72,21 @@ const PATTERNS = {
         return { seq, gaps: [0, 2, 4, 6], rule: `the ${NAME[a]} comes between every other symbol` };
     }
 };
+/**
+ * The Ancient Lock, since 2026-11-05 "Crack the Code" (the approved design): a 3-digit code from three clues
+ * (lockClues.js). Opening it shows the relic carved inside — "the symbol from the first door" of the Final Trial.
+ * (The symbol rows above are kept for the record; the lock no longer uses them.)
+ */
 const ancientLock = (rng) => {
-    for (;;) {
-        const kind = pick(rng, Object.keys(PATTERNS));
-        const { seq, gaps: all, rule } = PATTERNS[kind](rng);
-        // The answer is one of the three relics (the Final Trial asks about it).
-        const gaps = all.filter((i) => RELICS.includes(seq[i]));
-        if (!gaps.length) continue;
-        const gap = pick(rng, gaps);
-        const answer = seq[gap];
-        // Four choices: the answer and three others, shuffled.
-        const choices = shuffle(rng, [answer, ...shuffle(rng, ALL.filter((x) => x !== answer)).slice(0, 3)]);
-        return {
-            title: 'The Ancient Lock', kind: 'sequence',
-            pub: { prompt: 'Which symbol is missing? Pick it and press Submit.', sequence: seq.map((x, i) => (i === gap ? null : x)), choices },
-            answer, pattern: kind,
-            solution: `${GLYPH[answer]} — ${rule}.`,
-            clue: { label: 'Lock key', glyph: GLYPH[answer], text: `The ${NAME[answer]} opened the first door.` }
-        };
-    }
+    const { code, clues } = lockCode(rng);
+    const relic = pick(rng, RELICS);
+    return {
+        title: 'The Ancient Lock', kind: 'lockcode',
+        pub: { prompt: 'Find the 3-digit code for the ancient lock.', clues },
+        answer: code, relic,
+        solution: `${codesFitting(clues).join(' or ')} — ${clues.map((c) => c.replace(/\.$/, '').toLowerCase()).join('; ')}.`,
+        clue: { label: 'Lock key', glyph: GLYPH[relic], text: `Inside the lock: the ${NAME[relic]}. It opened the first door.` }
+    };
 };
 
 /* ── 2 · The Hidden Mechanism ─────────────────────────────────────────── */
@@ -99,6 +98,27 @@ const RING_RULES = [
     { id: 'same', prompt: 'Turn each ring until it shows the same symbol as the bridge plate.', want: (t) => t, why: 'the same as the plate' },
     { id: 'reverse', prompt: 'The bridge plate is read from right to left. Turn the rings to show its symbols in that order.', want: (t) => [...t].reverse(), why: 'the plate read from right to left' }
 ];
+/**
+ * The Hidden Mechanism, since 2026-11-05 a "Math Logic Challenge" (the approved design): three compasses make A,
+ * a compass and two lanterns make B, a lantern and two books make C — the book's value, from four choices. Every
+ * step divides exactly, so there is one answer and it is reached by reasoning, not guessing.
+ */
+const mathLogic = (rng) => {
+    const compass = int(rng, 3, 12);
+    let lantern; do lantern = int(rng, 2, 9); while (lantern === compass);
+    let book; do book = int(rng, 2, 9); while (book === lantern || book === compass);
+    const totals = [3 * compass, compass + 2 * lantern, lantern + 2 * book];
+    const from = Math.max(1, book - int(rng, 0, 3));
+    const choices = [from, from + 1, from + 2, from + 3];
+    return {
+        title: 'The Hidden Mechanism', kind: 'mathlogic',
+        pub: { prompt: 'Find the value of the book.', totals, choices },
+        answer: book,
+        solution: `${book} — three compasses make ${totals[0]}, so a compass is ${compass}; ${compass} + two lanterns make ${totals[1]}, so a lantern is ${lantern}; ${lantern} + two books make ${totals[2]}, so a book is ${book}.`,
+        clue: { label: 'Book', glyph: `📖${book}`, text: `The book is worth ${book}.` }
+    };
+};
+
 const hiddenMechanism = (rng) => {
     const rings = [0, 1, 2].map(() => shuffle(rng, ringFaces));
     const target = shuffle(rng, ALL).slice(0, 3);
@@ -271,11 +291,47 @@ const finalTrial = (rng, lockKey, numbers, level) => {
     };
 };
 
+/**
+ * A game whose first door is still the old symbol row (made by a server running the code from before 2026-11-05 —
+ * several share one database): its door becomes "Crack the Code", the same way on every server, made from the old
+ * door itself so it never changes between looks. The relic inside is the symbol the old door opened with, so the
+ * Final Trial's "the symbol from the first door" still means what it did. Changes `shared` in place; true if it did.
+ */
+const upgradeLock = (shared) => {
+    // The second door, likewise: the rings become the Math Logic Challenge (seeded from the old door).
+    const two = shared?.stages?.[1];
+    let changed = false;
+    if (two && two.kind === 'rings') {
+        let s2 = 2166136261;
+        for (const ch of JSON.stringify(two.pub)) { s2 ^= ch.charCodeAt(0); s2 = Math.imul(s2, 16777619) >>> 0; }
+        shared.stages[1] = mathLogic(() => { s2 = (Math.imul(s2 ^ (s2 >>> 15), 2246822507) + 0x9e3779b9) >>> 0; return s2 / 4294967296; });
+        changed = true;
+    }
+    const old = shared?.stages?.[0];
+    if (!old || old.kind !== 'sequence') return changed;
+    let seed = 2166136261;
+    for (const ch of JSON.stringify(old.pub) + old.answer) { seed ^= ch.charCodeAt(0); seed = Math.imul(seed, 16777619) >>> 0; }
+    const rng = () => { seed = (Math.imul(seed ^ (seed >>> 15), 2246822507) + 0x9e3779b9) >>> 0; return seed / 4294967296; };
+    const { code, clues } = lockCode(rng);
+    const relic = RELICS.includes(old.answer) ? old.answer : 'sun';
+    shared.stages[0] = {
+        title: 'The Ancient Lock', kind: 'lockcode',
+        pub: { prompt: 'Find the 3-digit code for the ancient lock.', clues },
+        answer: code, relic,
+        solution: `${codesFitting(clues).join(' or ')} — ${clues.map((c) => c.replace(/\.$/, '').toLowerCase()).join('; ')}.`,
+        clue: { label: 'Lock key', glyph: GLYPH[relic], text: `Inside the lock: the ${NAME[relic]}. It opened the first door.` }
+    };
+    return true;
+};
+
 /** Whether `value` answers a stage: the kinds' own checks. */
 const checkAnswer = (st, v) => {
     switch (st.kind) {
         case 'sequence': return v === st.answer;
+        // Any code the clues allow opens it (2026-11-07: they may allow two, and 062 counts as much as 170).
+        case 'lockcode': return typeof v === 'string' && /^\d{3}$/.test(v) && (v === st.answer || (codesFitting(st.pub?.clues || []) || []).includes(v));
         case 'rings': return same(v, st.answer);
+        case 'mathlogic': return Number(v) === st.answer;
         case 'code': return typeof v === 'string' && v === st.answer;
         case 'mirrors': return Array.isArray(v) && v.length === st.pub.mirrors.length && v.every((x) => Number.isInteger(x) && x >= 0 && x <= 3) && trace(st.pub, v).hit;
         case 'final': return !!v && same(v.order, st.answer.order) && typeof v.code === 'string' && v.code === st.answer.code;
@@ -301,12 +357,12 @@ const vaultStages = (rng, level = 'medium') => {
 };
 const makeStages = (rng, level) => {
     const lock = ancientLock(rng);
-    const rings = hiddenMechanism(rng);
+    const rings = mathLogic(rng);
     const code = secretCode(rng);
     const light = lightPath(rng);
-    const trial = finalTrial(rng, lock.answer, code.numbers, level);
+    const trial = finalTrial(rng, lock.relic, code.numbers, level);
     // Data only, from here on: it is kept in the game's state.
     return [lock, rings, code, light, trial].map(({ numbers, ...st }) => st);
 };
 
-module.exports = { vaultStages, checkAnswer, trace, shown, GLYPH, RELICS };
+module.exports = { vaultStages, checkAnswer, upgradeLock, trace, shown, GLYPH, RELICS };

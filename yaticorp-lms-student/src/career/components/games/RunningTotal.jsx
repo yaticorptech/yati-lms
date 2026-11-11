@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import GameShell from './GameShell';
 import useGameProgress, { between, starsForFixed, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -68,6 +69,7 @@ function Round({ progress, onExit }) {
   const [round, setRound] = useState(1);
   const [score, setScore] = useState(0);
   const [verdict, setVerdict] = useState(null);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
 
   const playing = shown < stream.steps.length;
 
@@ -89,10 +91,14 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, finishedRound, stars);
 
   const answer = (value) => {
-    if (verdict !== null) return;
-    const right = value === stream.total;
-    if (right) setScore((s) => s + 1);
-    setVerdict(right ? 'right' : 'wrong');
+    if (verdict !== null || busy) return;
+    if (value !== stream.total) {
+      // The buzz, the pick red and the total green, a pause, then the next round.
+      showWrong(value, stream.total, nextRound);
+      return;
+    }
+    setScore((s) => s + 1);
+    setVerdict('right');
   };
 
   const nextRound = () => {
@@ -139,7 +145,9 @@ function Round({ progress, onExit }) {
         <p className="text-center text-sm text-ink-500">
           {playing
             ? `Round ${round} of ${config.rounds} — keep adding`
-            : verdict === null
+            : busy
+              ? `❌ It was ${stream.total}`
+              : verdict === null
               ? 'What was the total?'
               : verdict === 'right'
                 ? '✅ Correct'
@@ -168,12 +176,12 @@ function Round({ progress, onExit }) {
                     key={option}
                     type="button"
                     onClick={() => answer(option)}
-                    disabled={verdict !== null}
+                    disabled={verdict !== null || busy}
                     className={`fp-press min-h-14 rounded-2xl text-xl font-black ring-1 transition-all ring-inset tabular-nums ${
                       verdict !== null && option === stream.total
                         ? 'bg-emerald-50 text-emerald-800 ring-emerald-300'
-                        : 'bg-surface-50 text-ink-900 ring-line-200 hover:bg-emerald-50 hover:ring-emerald-300'
-                    }`}
+                        : `bg-surface-50 text-ink-900 ring-line-200 ${busy || verdict !== null ? '' : 'hover:bg-emerald-50 hover:ring-emerald-300'}`
+                    } ${toneOf(option)}`}
                   >
                     {option}
                   </button>

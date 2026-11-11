@@ -1,0 +1,5 @@
+renders/
+output/
+*.blend
+*.blend1
+tools/

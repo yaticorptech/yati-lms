@@ -98,7 +98,9 @@ const sourcesOf = (stub, helper) => CONTENT
  */
 const withDirection = (s, it) => {
     const order = Number(s.order) || 1;
-    return { ...it, id: order > 1 ? `${s.direction}~${order}~${it.id}` : `${s.direction}~${it.id}`, direction: s.direction };
+    // A sentence with its own way keeps it (2026-11-06: the short one to read in an 'en-kn' lesson, 2026-11-04, was asked the
+    // other way round in the reviews — "write in Spanish" under a Spanish sentence); its id stays as it was.
+    return { ...it, id: order > 1 ? `${s.direction}~${order}~${it.id}` : `${s.direction}~${it.id}`, direction: it.direction || s.direction };
 };
 
 /** Lists taken in turn (one of each, then the next of each), so a review swaps direction as it goes. */

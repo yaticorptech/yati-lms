@@ -1,6 +1,6 @@
 /**
- * The Competitions section's frame (2026-11-04): its own navigation — Competitions (the section's first page), Live
- * now, Registration, Coming up, Completed, My Teams, Leaderboard, Results — each a page of its own, and the page's
+ * The Competitions section's frame (2026-11-04): its own navigation — Competitions (the section's first page;
+ * "Live now" folded into it 2026-11-07), Registration, Registered, Completed, My Teams, Leaderboard, Results — each a page of its own, and the page's
  * title under it when it has one.
  *
  * The tabs are Career Path's (career/CareerShell.jsx, its styles in career/career.css): folder tabs on a lavender
@@ -11,17 +11,16 @@
  */
 import { useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Trophy, Radio, ClipboardList, CalendarClock, CheckCircle2, UsersRound, BarChart3, Award } from 'lucide-react';
+import { Trophy, ClipboardList, ClipboardCheck, CheckCircle2, UsersRound, BarChart3, Award } from 'lucide-react';
 
 const HUB_PAGES = [
-    { to: '/competitions', label: 'Competitions', icon: Trophy, end: true, tone: 'from-violet-500 to-indigo-600 shadow-violet-500/40' },
-    { to: '/competitions/live', label: 'Live now', icon: Radio, tone: 'from-sky-400 to-blue-600 shadow-sky-500/40' },
-    { to: '/competitions/open', label: 'Registration', icon: ClipboardList, tone: 'from-emerald-400 to-teal-600 shadow-emerald-500/40' },
-    { to: '/competitions/upcoming', label: 'Coming up', icon: CalendarClock, tone: 'from-amber-400 to-orange-500 shadow-orange-500/40' },
-    { to: '/competitions/completed', label: 'Completed', icon: CheckCircle2, tone: 'from-indigo-400 to-violet-600 shadow-indigo-500/40' },
-    { to: '/competitions/teams', label: 'My Teams', icon: UsersRound, tone: 'from-orange-400 to-red-500 shadow-orange-500/40' },
-    { to: '/competitions/leaderboard', label: 'Leaderboard', icon: BarChart3, tone: 'from-fuchsia-500 to-violet-600 shadow-fuchsia-500/40' },
-    { to: '/competitions/results', label: 'Results', icon: Award, tone: 'from-slate-400 to-slate-600 shadow-slate-500/40' }
+    { to: '/competitions', label: 'Competitions', icon: Trophy, end: true, tone: 'from-violet-500 to-indigo-600 shadow-violet-500/40', edge: '#7c3aed' },
+    { to: '/competitions/open', label: 'Registration', icon: ClipboardList, tone: 'from-emerald-400 to-green-600 shadow-emerald-500/40', edge: '#16a34a' },
+    { to: '/competitions/registered', label: 'Registered', icon: ClipboardCheck, tone: 'from-amber-400 to-orange-500 shadow-orange-500/40', edge: '#f97316' },
+    { to: '/competitions/completed', label: 'Completed', icon: CheckCircle2, tone: 'from-indigo-400 to-violet-600 shadow-indigo-500/40', edge: '#6366f1' },
+    { to: '/competitions/teams', label: 'My Teams', icon: UsersRound, tone: 'from-orange-400 to-red-500 shadow-orange-500/40', edge: '#ef4444' },
+    { to: '/competitions/leaderboard', label: 'Leaderboard', icon: BarChart3, tone: 'from-fuchsia-500 to-violet-600 shadow-fuchsia-500/40', edge: '#c026d3' },
+    { to: '/competitions/results', label: 'Results', icon: Award, tone: 'from-slate-400 to-slate-600 shadow-slate-500/40', edge: '#64748b' }
 ];
 
 // Kept from page to page: the band's scroll, the folder's place, and which tab was open.
@@ -29,7 +28,7 @@ let barScroll = 0;
 let lastSlider = null;
 let lastIndex = -1;
 
-export default function HubLayout({ title, subtitle, icon: Icon, actions = null, children }) {
+export default function HubLayout({ title, subtitle, icon: Icon, actions = null, tone = null, children }) {
     const { pathname } = useLocation();
     const index = HUB_PAGES.findIndex((p) => (p.end ? pathname === p.to : pathname.startsWith(p.to)));
     // Which way the student moved along the band, so the page arrives from that side.
@@ -83,7 +82,7 @@ export default function HubLayout({ title, subtitle, icon: Icon, actions = null,
                     <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-journey-100 to-transparent md:hidden" />
                     <nav ref={railRef} aria-label="Competitions" data-section-tabs className="relative snap-x overflow-x-auto pt-5 [scrollbar-width:none] sm:pt-6 [&::-webkit-scrollbar]:hidden">
                         <div className="relative flex w-max min-w-full items-end gap-1 sm:gap-1.5">
-                            {slider && <span aria-hidden className="fp-tab-slider" style={{ left: slider.left, width: slider.width }} />}
+                            {slider && <span aria-hidden className="fp-tab-slider" style={{ left: slider.left, width: slider.width, borderColor: HUB_PAGES[index]?.edge }} />}
                             {HUB_PAGES.map((p) => (
                                 <NavLink key={p.to} to={p.to} end={p.end} title={p.label}
                                     className={({ isActive }) => `fp-press group relative z-10 flex min-w-[5.4rem] flex-1 flex-col items-center rounded-t-[1.1rem] px-1.5 pt-1 pb-2.5 text-center transition-all duration-300 sm:min-w-[6.6rem] ${isActive
@@ -109,7 +108,7 @@ export default function HubLayout({ title, subtitle, icon: Icon, actions = null,
                 {title && <header className="flex flex-wrap items-end justify-between gap-3">
                     <div className="min-w-0">
                         <h1 className="flex items-center gap-2.5 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-                            {Icon && <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/30"><Icon size={20} aria-hidden="true" /></span>}
+                            {Icon && <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-md ${tone || 'from-indigo-500 to-violet-600 shadow-indigo-500/30'}`}><Icon size={22} aria-hidden="true" /></span>}
                             {title}
                         </h1>
                         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}

@@ -3,6 +3,8 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useFresh from './useFresh';
+import useAnswerReveal from './useAnswerReveal';
 
 /**
  * 🔟 Math & speed: round it, fast.
@@ -25,7 +27,8 @@ const roundTo = (n, place) => Math.round(n / place) * place;
 
 const makeQuestion = (max, places) => {
   const place = places[rnd(0, places.length - 1)];
-  const value = rnd(place, max);
+  // Never below the place itself: band 3 opens with max 200 and place 1000.
+  const value = rnd(place, Math.max(max, place * 2));
   const answer = roundTo(value, place);
 
   const wrong = new Set();
@@ -48,9 +51,11 @@ export default function RoundingRush({ onExit }) {
 function Round({ progress, onExit }) {
   const config = configFor(progress.difficulty, progress.levelNo);
   const [started, setStarted] = useState(false);
-  const [q, setQ] = useState(() => makeQuestion(config.max, config.places));
+  const fresh = useFresh();
+  const [q, setQ] = useState(() => fresh(() => makeQuestion(config.max, config.places)));
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -58,13 +63,17 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const choose = (value) => {
-    if (over || flash) return;
-    const right = value === q.answer;
-    if (right) setScore((s) => s + 1);
-    setFlash(right ? 'right' : 'wrong');
+    if (over || flash || busy) return;
+    const next = () => setQ(fresh(() => makeQuestion(config.max, config.places)));
+    if (value !== q.answer) {
+      showWrong(value, q.answer, next);
+      return;
+    }
+    setScore((s) => s + 1);
+    setFlash('right');
     setTimeout(() => {
       setFlash(null);
-      setQ(makeQuestion(config.max, config.places));
+      next();
     }, 300);
   };
 
@@ -120,13 +129,12 @@ function Round({ progress, onExit }) {
                 key={n}
                 type="button"
                 onClick={() => choose(n)}
+                disabled={busy}
                 className={`fp-press flex min-h-16 items-center justify-center rounded-2xl text-2xl font-black tabular-nums ring-1 transition-all ring-inset ${
                   flash === 'right' && n === q.answer
                     ? 'bg-emerald-50 text-emerald-800 ring-emerald-300'
-                    : flash === 'wrong' && n !== q.answer
-                      ? 'bg-rose-50 text-rose-700 ring-rose-300'
-                      : 'bg-surface-50 text-ink-900 ring-line-200 hover:bg-amber-50 hover:ring-amber-300'
-                }`}
+                    : `bg-surface-50 text-ink-900 ring-line-200 ${busy ? '' : 'hover:bg-amber-50 hover:ring-amber-300'}`
+                } ${toneOf(n)}`}
               >
                 {n}
               </button>

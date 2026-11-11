@@ -105,7 +105,7 @@ export const GROUP_GAMES = {
     lostkingdom: { label: 'The Lost Kingdom', emoji: '🧭', blurb: 'Five trials to the treasure of Aurelia — numbers, knowledge and logic, new every game.', players: '2 to 20 players', tone: 'from-amber-700 to-emerald-800', table: 'kingdom' },
     finalvault: { label: 'The Final Vault', emoji: '🏛️', blurb: 'Five temple chambers, the same puzzles for everyone — open the treasure vault first.', players: '2 to 20 players', tone: 'from-amber-600 to-yellow-800', table: 'vault' },
     // The solo games that are questions and answers, as group games (2026-10-29): played like Word Logic.
-    synonymmatch: { label: 'Synonym Match', emoji: '🔤', blurb: 'Pick the word that means the same.', players: '2 to 20 players', tone: 'from-fuchsia-500 to-purple-700', table: 'quiz' },
+    synonymmatch: { label: 'Synonyms & Antonyms', emoji: '🔤', blurb: 'Same meaning, then the opposite — in turn.', players: '2 to 20 players', tone: 'from-fuchsia-500 to-purple-700', table: 'quiz' },
     antonymmatch: { label: 'Antonym Match', emoji: '↔️', blurb: 'Pick the word that means the opposite.', players: '2 to 20 players', tone: 'from-rose-500 to-pink-600', table: 'quiz' },
     idiomsense: { label: 'Idiom Sense', emoji: '💬', blurb: 'What does the phrase really mean?', players: '2 to 20 players', tone: 'from-amber-500 to-orange-600', table: 'quiz' },
     sentencegap: { label: 'Sentence Gap', emoji: '✏️', blurb: 'Choose the word that fits the sentence.', players: '2 to 20 players', tone: 'from-sky-500 to-blue-600', table: 'quiz' },
@@ -167,7 +167,8 @@ export const GAMES = {
 };
 /** The games played as a quiz, by id. */
 export const BRAIN_GAMES = Object.keys(GAMES).filter((id) => GAMES[id].brain);
-export const gameImage = (id) => `/games/${id}-card.jpg?v=3`; // v3: the sharper pictures from the design
+// Each game's picture (2026-11-04): the Competitions page's own (public/competitions/hub/game-art-<id>), everywhere a game shows.
+export const gameImage = (id) => `/competitions/hub/game-art-${id}.jpg`;
 export const gameIcon = (id) => `/games/${id}-icon.png`;
 
 export const ORDINAL = { 1: '1st', 2: '2nd', 3: '3rd' };

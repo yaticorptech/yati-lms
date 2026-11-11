@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import GameShell from './GameShell';
 import useGameProgress, { between, starsFor, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 const COLOURS = ['bg-rose-400', 'bg-sky-400', 'bg-emerald-400', 'bg-amber-300', 'bg-violet-400', 'bg-orange-400'];
 const rnd = (n) => Math.floor(Math.random() * n);
@@ -52,6 +53,7 @@ function Round({ progress, onExit }) {
   const [round, setRound] = useState(1);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
+  const { busy, showWrong, state: revealOf } = useAnswerReveal();
 
   // The reveal is scheduled by an effect rather than state being set inside
   // one: `phase` drives it, and only the timer callback writes state.
@@ -75,9 +77,14 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, finishedRound, stars);
 
   const choose = (index) => {
-    if (phase !== 'guess') return;
+    if (phase !== 'guess' || busy) return;
+    if (index !== changed) {
+      // The buzz, the tile tapped outlined red and the changed one green, a pause, then the next round.
+      showWrong(index, changed, nextRound);
+      return;
+    }
     setPicked(index);
-    if (index === changed) setScore((s) => s + 1);
+    setScore((s) => s + 1);
     setPhase('reveal');
   };
 
@@ -124,7 +131,9 @@ function Round({ progress, onExit }) {
       }
       footer={
         <p className="text-center text-sm text-ink-500">
-          {phase === 'study'
+          {busy
+            ? '❌ The green tile was the change'
+            : phase === 'study'
             ? 'Study the grid…'
             : phase === 'guess'
               ? 'One tile changed — tap it'
@@ -145,11 +154,14 @@ function Round({ progress, onExit }) {
                 key={i}
                 type="button"
                 onClick={() => choose(i)}
-                disabled={phase !== 'guess'}
+                disabled={phase !== 'guess' || busy}
                 aria-label={`Tile ${i + 1}`}
                 className={`aspect-square rounded-xl transition-all ${colour} ${
                   phase === 'reveal' && i === changed ? 'ring-4 ring-ink-900' : ''
-                } ${phase === 'reveal' && i === picked && i !== changed ? 'opacity-40' : ''}`}
+                } ${phase === 'reveal' && i === picked && i !== changed ? 'opacity-40' : ''} ${
+                  // The tiles keep their colours (they are the puzzle), so the reveal outlines rather than fills.
+                  { right: 'ring-4 ring-emerald-500 ring-offset-2', wrong: 'ring-4 ring-rose-500 ring-offset-2 gs-wrong', dim: 'opacity-45' }[revealOf(i)] || ''
+                }`}
               />
             ))}
           </div>

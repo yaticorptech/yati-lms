@@ -36,7 +36,8 @@ const makeStageEngine = (config) => {
     const ended = (s, i) => s.out.includes(i) || s.progress[i].done || s.progress[i].failed;
 
     const placesOf = (s) => {
-        const rows = playing(s).map((i) => ({ side: s.seats[i].side, points: s.scores[i], at: s.progress[i].doneMs ?? Infinity }))
+        // Level on points: who finished first by their time plus penalties (the adventures'), not the raw clock.
+        const rows = playing(s).map((i) => ({ side: s.seats[i].side, points: s.scores[i], at: s.progress[i].doneMs == null ? Infinity : s.progress[i].doneMs + (s.progress[i].penaltyMs || 0) }))
             .sort((a, b) => b.points - a.points || a.at - b.at);
         const groups = [];
         let last = null;
@@ -62,6 +63,12 @@ const makeStageEngine = (config) => {
     };
     const maybeOver = (s, now) => {
         if (playing(s).length <= 1 && s.out.length) return finish(s, now, 'The others left');
+        // A race to the end (config.firstFinishWins, Memory Match since 2026-11-07): over the moment one player finishes;
+        // the rest placed by their points.
+        if (config.firstFinishWins) {
+            const first = playing(s).find((i) => s.progress[i].done);
+            if (first != null) return finish(s, now, `${s.seats[first].name} finished first`);
+        }
         return playing(s).every((i) => ended(s, i)) ? finish(s, now, 'Everyone has finished their run') : s;
     };
 
