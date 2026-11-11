@@ -3,6 +3,8 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useFresh from './useFresh';
+import useAnswerReveal from './useAnswerReveal';
 
 const rnd = (n) => Math.floor(Math.random() * n);
 
@@ -54,12 +56,32 @@ const configFor = (difficulty, levelNo) => ({
 });
 
 /** An analogue face with the hands at the given time. */
-function Clock({ h, m }) {
+function Clock({ h, m, minuteTicks = false }) {
   const hourAngle = (h % 12) * 30 + m * 0.5;
   const minuteAngle = m * 6;
   return (
     <svg viewBox="0 0 120 120" className="h-full w-full" aria-hidden>
       <circle cx="60" cy="60" r="56" fill="#fff" stroke="#c7d2fe" strokeWidth="4" />
+      {/* A tick for every minute when the times are to the minute: the
+          options there differ by one minute, which the five-minute marks
+          alone could not tell apart. */}
+      {minuteTicks &&
+        Array.from({ length: 60 }).map((_, i) => {
+          if (i % 5 === 0) return null;
+          const a = (i * Math.PI) / 30;
+          return (
+            <line
+              key={`m${i}`}
+              x1={60 + Math.sin(a) * 50}
+              y1={60 - Math.cos(a) * 50}
+              x2={60 + Math.sin(a) * 52}
+              y2={60 - Math.cos(a) * 52}
+              stroke="#c7d2fe"
+              strokeWidth="1"
+              strokeLinecap="round"
+            />
+          );
+        })}
       {Array.from({ length: 12 }).map((_, i) => {
         const a = (i * Math.PI) / 6;
         const big = i % 3 === 0;
@@ -113,10 +135,12 @@ export default function ClockRead({ onExit }) {
 
 function Round({ progress, onExit }) {
   const config = configFor(progress.difficulty, progress.levelNo);
-  const [round, setRound] = useState(() => makeRound(progress.difficulty));
+  const fresh = useFresh();
+  const [round, setRound] = useState(() => fresh(() => makeRound(progress.difficulty)));
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
   const [started, setStarted] = useState(false);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -124,12 +148,18 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const choose = (text) => {
-    if (over || picked !== null) return;
+    if (over || busy || picked !== null) return;
+    const nextClock = () => setRound(fresh(() => makeRound(progress.difficulty)));
+    if (text !== round.answer) {
+      // The buzz, the pick red and the right time green, then the next clock.
+      showWrong(text, round.answer, nextClock);
+      return;
+    }
     setPicked(text);
-    if (text === round.answer) setScore((s) => s + 1);
+    setScore((s) => s + 1);
     setTimeout(() => {
       setPicked(null);
-      setRound(makeRound(progress.difficulty));
+      setRound(fresh(() => makeRound(progress.difficulty)));
     }, 380);
   };
 
@@ -177,23 +207,21 @@ function Round({ progress, onExit }) {
       {started && !over && (
         <div className="mx-auto max-w-md text-center">
           <div className="mx-auto h-40 w-40 sm:h-44 sm:w-44">
-            <Clock h={round.h} m={round.m} />
+            <Clock h={round.h} m={round.m} minuteTicks={progress.difficulty === 3} />
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {round.options.map((text) => {
-              const show = picked !== null;
               const state =
-                show && text === round.answer
+                picked !== null && text === round.answer
                   ? 'bg-emerald-50 text-emerald-800 ring-emerald-400'
-                  : show && picked === text
-                    ? 'bg-rose-50 text-rose-700 ring-rose-300'
-                    : 'bg-surface-50 text-ink-900 ring-line-200 hover:bg-journey-50 hover:ring-journey-300';
+                  : `bg-surface-50 text-ink-900 ring-line-200 ${busy || picked !== null ? '' : 'hover:bg-journey-50 hover:ring-journey-300'} ${toneOf(text)}`;
               return (
                 <button
                   key={text}
                   type="button"
                   onClick={() => choose(text)}
+                  disabled={busy}
                   className={`fp-press min-h-14 rounded-2xl text-lg font-black ring-1 transition-colors ring-inset tabular-nums ${state}`}
                 >
                   {text}

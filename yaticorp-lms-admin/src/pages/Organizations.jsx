@@ -99,11 +99,11 @@ const FEATURES = {
         icon: Trophy, title: 'Competitions', tone: 'bg-amber-50 text-amber-800 ring-amber-200', iconTone: 'bg-amber-50 text-amber-600',
         field: 'canHostCompetitions', endpoint: 'competition-hosting', onLabel: 'Can host',
         aria: (org) => `${org.name} can host competitions`,
-        what: 'Lets the organization host its own inter-college competitions, not only enter teams in other colleges’ ones.',
+        what: 'Lets the organization host its own competitions for its own students, not only enter teams in the platform’s inter-college ones. Its rewards are capped: up to 1000 XP and 500 reward points per prize place, and 100 XP for taking part.',
         gets: [
             'Create and publish its own competitions from its dashboard (Host competitions).',
-            'Teams from other colleges can enter them.',
-            'Without it, it can still enter its own teams in competitions others host.'
+            'Only its own students take part: other colleges do not see or enter them.',
+            'Without it, it can still enter its own teams in the platform’s competitions.'
         ],
         offNote: 'Turning it off keeps the competitions it already made; you run them from Competitions.'
     },
@@ -333,7 +333,8 @@ const Organizations = () => {
     const [loadFailed, setLoadFailed] = useState(false);
     const [notice, setNotice] = useState('');
 
-    const [status, setStatus] = useState('all');
+    // ?status=pending opens on the waiting ones (the Dashboard's Review link).
+    const [status, setStatus] = useState(() => new URLSearchParams(window.location.search).get('status') || 'all');
     const [type, setType] = useState('all');
     const [search, setSearch] = useState('');
     // The search as sent to the server: a beat behind the box, one request
@@ -345,7 +346,6 @@ const Organizations = () => {
 
     const [detail, setDetail] = useState(null);       // { organization, admins, studentCount, pendingRequests }
     const [detailLoading, setDetailLoading] = useState(false);
-    const [detailFocus, setDetailFocus] = useState(null);   // 'courses' to open at the Course access card
     const [featureFor, setFeatureFor] = useState(null);             // { org, kind }: a Competitions or 360 popup
     const [courseAccessFor, setCourseAccessFor] = useState(null);   // the row whose Course access popup is open
     const [students, setStudents] = useState(null);   // { organization, students }
@@ -421,8 +421,7 @@ const Organizations = () => {
     const wide = useMediaQuery('(min-width: 768px)');
     const [tableBox, moreRight] = useMoreToTheRight();
 
-    const openDetail = async (organizationId, focus = null) => {
-        setDetailFocus(typeof focus === 'string' ? focus : null);
+    const openDetail = async (organizationId) => {
         setDetailLoading(true);
         setDetail({ organization: null });
         try {
@@ -753,8 +752,6 @@ const Organizations = () => {
                 {detail && (
                     <DetailModal
                         detail={detail}
-                        focus={detailFocus}
-                        onCourseAccessSaved={reload}
                         loading={detailLoading}
                         onClose={() => setDetail(null)}
                         onDecide={ask}
@@ -1049,14 +1046,9 @@ const ActivityLog = ({ organizationId }) => {
     );
 };
 
-const DetailModal = ({ detail, focus, onCourseAccessSaved, loading, onClose, onDecide, onStudents, onDeleted }) => {
+const DetailModal = ({ detail, loading, onClose, onDecide, onStudents, onDeleted }) => {
     const org = detail.organization;
-    const coursesRef = useRef(null);
     const { dialogProps, titleId } = useDialog(onClose);
-    // Opened from the Courses column: go straight to the Course access card.
-    useEffect(() => {
-        if (focus === 'courses' && org && !loading) coursesRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }, [focus, org, loading]);
 
     return (
         /* Centred, and the panel alone scrolls.
@@ -1139,9 +1131,8 @@ const DetailModal = ({ detail, focus, onCourseAccessSaved, loading, onClose, onD
                                 </div>
                             </div>
 
-                            <div ref={coursesRef}>
-                                <CourseAccessCard key={org._id} organization={org} courseCount={detail.courseCount} onSaved={onCourseAccessSaved} highlight={focus === 'courses'} />
-                            </div>
+                            {/* No Course access card here (2026-11-04): it lives in the
+                                row's Courses popup, under Features. */}
 
                             {org.statusHistory?.length > 0 && (
                                 <div>

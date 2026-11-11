@@ -129,12 +129,92 @@ const owedBy = async (competitionId, userId) => {
     if (!competitionId) return 0;
     const Competition = require('../models/Competition');
     const Team = require('../models/Team');
-    const c = await Competition.findById(competitionId).select('entryFee').lean();
+    const c = await Competition.findById(competitionId).select('entryFee name').lean();
     const amount = due(c);
     if (!amount) return 0;
+    // Testing (asked 2026-11-06): until 5 pm India time today, a competition named "test…" seats players who have
+    // not paid, so a match can be played end to end. Delete after that day.
+    if (Date.now() < Date.parse('2026-11-06T17:00:00+05:30') && require('../certificates/auto').isTestCompetition(c?.name)) return 0;
     const team = await Team.findOne({ competitionId, status: 'approved', 'players.userId': userId }).select('players').lean();
     const me = team?.players.find((p) => String(p.userId) === String(userId));
     return me && !me.paidAt ? amount : 0;
 };
 
-module.exports = { due, owedBy, startPayment, confirmPayment, setFetch, EntryPayment };
+/** Whether anyone has paid this competition's (or Quiz Arena's) entry fee: the fee is then fixed. */
+const anyPaid = async (kind, competitionId) => !!(await EntryPayment.exists({ kind, competitionId, status: 'paid' }));
+const FEE_LOCKED = 'Players have already paid — the fee can\'t be changed.';
+
+/**
+ * Paid, but not playing (decided 2026-11-06; no refunds are made here): a
+ * student who paid the entry fee and whose team was then turned down, taken
+ * back or removed, who was taken off a team, or whose competition was
+ * cancelled. Their college handles the fee they paid, so they are shown whom
+ * to contact. Only ever this student's own payment.
+ *
+ * The paid EntryPayment rows are the record: they are never deleted, so the
+ * payment survives a team being rebuilt or deleted. (A team's players also
+ * carry paidAt/paidAmount, used when no payment row exists.)
+ *
+ * → null, or { reason: 'rejected' | 'withdrawn' | 'removed' | 'cancelled',
+ *   note, amount, paidAt, competitionName, organization: { name },
+ *   contact: { name, email, phone } }
+ */
+const onHold = async (user, kind, competitionId) => {
+    if (!user?._id || !mongoose.isValidObjectId(competitionId)) return null;
+    const Organization = require('../../organizations/models/Organization');
+    const paid = await EntryPayment.find({ userId: user._id, kind, competitionId, status: 'paid' }).sort({ paidAt: -1 }).lean();
+    let amount = paid.reduce((n, p) => n + (p.amount || 0), 0);
+    let paidAt = paid[0]?.paidAt || null;
+    let reason = null; let note = ''; let name = ''; let orgId = null; let coordinator = null;
+    if (kind === 'arena') {
+        const { ArenaCompetition, ArenaEntry } = require('../arena/models');
+        const c = await ArenaCompetition.findById(competitionId).select('title status hostOrganizationId').lean();
+        if (!c) return null;
+        const entry = await ArenaEntry.findOne({ competitionId, userId: user._id }).lean();
+        if (!paid.length && entry?.paidAt) { amount = entry.paidAmount || 0; paidAt = entry.paidAt; }
+        if (!paidAt) return null;
+        reason = c.status === 'cancelled' ? 'cancelled' : !entry ? 'removed' : entry.status === 'rejected' ? 'rejected' : null;
+        if (!reason) return null;
+        name = c.title;
+        orgId = entry?.organizationId || user.organizationId || c.hostOrganizationId || null;
+        const by = entry?.registeredBy ? await require('../../models/Admin').findById(entry.registeredBy).select('name email').lean() : null;
+        coordinator = by ? { name: by.name || '', email: by.email || '', phone: '' } : null;
+    } else {
+        const Competition = require('../models/Competition');
+        const Team = require('../models/Team');
+        const c = await Competition.findById(competitionId).select('name status hostOrganizationId').lean();
+        if (!c || c.status === 'draft') return null;
+        const teams = await Team.find({ competitionId, 'players.userId': user._id }).lean();
+        if (!paid.length) {
+            const me = teams.flatMap((t) => t.players).find((p) => String(p.userId) === String(user._id) && p.paidAt);
+            if (me) { amount = me.paidAmount || 0; paidAt = me.paidAt; }
+        }
+        if (!paidAt) return null;
+        const playing = teams.find((t) => ['approved', 'pending'].includes(t.status));
+        const left = teams.find((t) => t.status === 'rejected') || teams.find((t) => t.status === 'withdrawn');
+        reason = c.status === 'cancelled' ? 'cancelled' : playing ? null : left ? left.status : 'removed';
+        if (!reason) return null;
+        name = c.name;
+        orgId = user.organizationId || (playing || left)?.organizationId || c.hostOrganizationId || null;
+        if (reason === 'rejected') note = left?.note || '';
+        // The coordinator of the team they were in — or of their college's team in this competition.
+        const team = (c.status === 'cancelled' && playing) || left || (orgId ? await Team.findOne({ competitionId, organizationId: orgId }).sort({ updatedAt: -1 }).lean() : null);
+        coordinator = team?.coordinator || null;
+    }
+    // Missing details come from the college's own contact (Organization: contactPerson, email, phone).
+    const org = orgId ? await Organization.findById(orgId).select('name email phone contactPerson').lean() : null;
+    return {
+        reason, note, amount, paidAt, competitionName: name,
+        organization: { name: org?.name || '' },
+        contact: {
+            name: coordinator?.name || org?.contactPerson || '',
+            email: coordinator?.email || org?.email || '',
+            phone: coordinator?.phone || org?.phone || ''
+        }
+    };
+};
+
+/** The competitions (or arenas) this student paid for: ids, for finding the ones on hold. */
+const paidIds = async (userId, kind) => (await EntryPayment.distinct('competitionId', { userId, kind, status: 'paid' })).map(String);
+
+module.exports = { due, owedBy, startPayment, confirmPayment, setFetch, EntryPayment, anyPaid, onHold, paidIds, FEE_LOCKED };

@@ -15,7 +15,8 @@ export default function TensePick({ onExit }) {
         base: v.base,
         answer: v.answer,
         options: v.options,
-        note: `Yesterday, I ${v.answer}. (${v.base} → ${v.answer})`,
+        ...(v.form ? { form: v.form } : {}),
+        note: v.form === 'participle' ? `I have already ${v.answer}. (${v.base} → ${v.answer})` : `Yesterday, I ${v.answer}. (${v.base} → ${v.answer})`,
         level: v.level,
         tier: v.tier
       })),
@@ -31,7 +32,7 @@ export default function TensePick({ onExit }) {
       onExit={onExit}
       renderPrompt={(q) => (
         <>
-          <p className="text-sm font-bold text-ink-500">Yesterday, I …</p>
+          <p className="text-sm font-bold text-ink-500">{q.form === 'participle' ? 'I have already …' : 'Yesterday, I …'}</p>
           <p className="mt-1 text-3xl font-black tracking-wide text-ink-900 sm:text-4xl">{q.base}</p>
         </>
       )}

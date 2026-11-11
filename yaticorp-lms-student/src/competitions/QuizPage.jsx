@@ -60,7 +60,8 @@ export default function QuizPage() {
         setAnswers(next);
         // Saved a moment after the last pick (one call for quick changes of mind).
         clearTimeout(saving.current);
-        saving.current = setTimeout(() => competitionsApi.saveQuiz(id, { [qid]: choice }).catch((e) => setError(e.message)), 400);
+        // Every answer so far: a quick second pick must not cancel the first one's save (the server merges them).
+        saving.current = setTimeout(() => competitionsApi.saveQuiz(id, next).catch((e) => setError(e.message)), 400);
     };
     const start = () => { setBusy('start'); competitionsApi.startQuiz(id).then(take).catch((e) => setError(e.message)).finally(() => setBusy('')); };
 

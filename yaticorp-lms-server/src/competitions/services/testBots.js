@@ -27,6 +27,62 @@ const hash = (...parts) => {
     return (x >>> 0) / 4294967296;
 };
 
+const PIECE = { p: 1, n: 3, b: 3.2, r: 5, q: 9, k: 0 };
+const CENTER = new Set(['d4', 'e4', 'd5', 'e5']);
+
+/**
+ * A chess move at medium strength (asked 2026-11-05: "play wisely, quickly,
+ * not too sharp"). Each move is scored by material after it, less the best
+ * capture the opponent then has (a defended target costs them their piece),
+ * plus small opening habits: castle, take the centre, develop, give check.
+ * Mate in one is always played; otherwise it usually plays the best score,
+ * sometimes a near-best one, and now and then a looser move.
+ */
+const chessPick = (chess, ply, roll) => {
+    const moves = chess.moves({ verbose: true });
+    if (!moves.length) return null;
+    const us = chess.turn();
+    const material = () => chess.board().flat().reduce((t, sq) => t + (sq ? (sq.color === us ? 1 : -1) * PIECE[sq.type] : 0), 0);
+
+    const scored = moves.map((m) => {
+        chess.move(m);
+        let score;
+        if (chess.isCheckmate()) score = 1000;
+        else if (chess.isDraw()) score = Math.min(0, -material());     // a draw only when behind
+        else {
+            let threat = 0;
+            for (const r of chess.moves({ verbose: true })) {
+                if (r.san.includes('#')) { threat = 1000; break; }
+                if (!r.captured && !r.promotion) continue;
+                let gain = (r.captured ? PIECE[r.captured] : 0) + (r.promotion ? PIECE.q - 1 : 0);
+                if (chess.isAttacked(r.to, us)) gain -= PIECE[r.piece];
+                threat = Math.max(threat, gain);
+            }
+            score = material() - threat;
+            if (chess.inCheck()) score += 0.3;
+            if (m.flags.includes('k') || m.flags.includes('q')) score += 0.6;
+            if (ply < 16) {
+                if (CENTER.has(m.to) && (m.piece === 'p' || m.piece === 'n')) score += 0.25;
+                if ((m.piece === 'n' || m.piece === 'b') && /[18]/.test(m.from[1])) score += 0.3;
+                if ((m.piece === 'n' || m.piece === 'b') && /[18]/.test(m.to[1])) score -= 0.4;   // not back home
+                if (m.piece === 'n' && /[ah]/.test(m.to[0])) score -= 0.4;                     // a knight on the rim
+                if (m.piece === 'p' && /[abgh]/.test(m.to[0])) score -= 0.15;
+                if (m.piece === 'r') score -= 0.3;
+                if (m.piece === 'q' && ply < 10) score -= 0.3;
+                if (m.piece === 'k' && !m.flags.includes('k') && !m.flags.includes('q')) score -= 0.5;
+            }
+        }
+        chess.undo();
+        return { m, score: score + roll(`j${m.from}${m.to}`) * 0.15 };  // a little variety between equal moves
+    }).sort((a, b) => b.score - a.score);
+
+    if (scored[0].score >= 900) return scored[0].m;
+    const r = roll('style');
+    const slack = r < 0.65 ? 0.3 : r < 0.9 ? 1.2 : 2.5;
+    const pool = scored.filter((x) => x.score >= scored[0].score - slack).slice(0, 4);
+    return pool[Math.floor(roll('move') * pool.length)].m;
+};
+
 /** The move seat `i` makes now in `game`, or null (not yet, or nothing to do). */
 const decide = (game, i, now) => {
     const s = game.state;
@@ -37,12 +93,18 @@ const decide = (game, i, now) => {
         const chess = new Chess(s.fen);
         if ((chess.turn() === 'w' ? 0 : 1) !== i) return null;
         const ply = s.history?.length || 0;
-        if (now - s.turnStartedAt < 1500 + 3500 * k('think', ply)) return null;
-        const moves = chess.moves({ verbose: true });
-        if (!moves.length) return null;
-        const captures = moves.filter((m) => m.captured);
-        const pool = captures.length && k('take', ply) < 0.7 ? captures : moves;
-        const m = pool[Math.floor(k('move', ply) * pool.length)];
+        // Thinking time (2026-11-06: "the same for both players, not fast for the bot"): about the opponent's own
+        // average per move so far — their clock used, plus the increments they got back, over their moves — give or
+        // take a fifth; 3–6 s before the opponent has moved; never more than a twentieth of the bot's clock left.
+        const opp = 1 - i;
+        const oppMoves = Math.floor((ply + (opp === 0 ? 1 : 0)) / 2);
+        const startMs = Math.round((s.clockMinutes || 0) * 60000);
+        const oppUsed = startMs ? startMs - (s.clocks?.[opp] ?? startMs) + oppMoves * (s.incrementMs || 0) : 0;
+        const pace = oppMoves && oppUsed > 0 ? oppUsed / oppMoves : 3000 + 3000 * k('first', ply);
+        const think = Math.min(Math.max(1500, pace * (0.8 + 0.4 * k('think', ply))), 45000, Math.max(1500, (s.clocks?.[i] ?? 60000) / 20));
+        if (now - s.turnStartedAt < think) return null;
+        const m = chessPick(chess, ply, (p) => k(p, ply));
+        if (!m) return null;
         return { type: 'move', from: m.from, to: m.to, ...(m.promotion ? { promotion: 'q' } : {}) };
     }
 

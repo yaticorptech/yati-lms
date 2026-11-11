@@ -78,7 +78,7 @@ export default function LingoShell() {
     if (!dash) return <Problem error={error} onRetry={load} />;
     // No level yet: the start screens first (the placement test, or a level chosen), Duolingo-style.
     if (!dash.started) return <Onboarding dash={dash} onDone={load} />;
-    // Started, but no learning plan in this course yet (2026-10-26): how much time they have, before the path.
+    // Started, but no learning plan in this course yet (2026-10-26): it is made, its days set by itself (2026-11-04), before the path.
     if (!dash.plan) return <PlanQuestion dash={dash} onDone={load} />;
 
     return (

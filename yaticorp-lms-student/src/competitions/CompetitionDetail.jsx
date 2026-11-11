@@ -17,7 +17,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, CalendarClock, Users, Trophy, Clock, Swords, Download, Loader2, UserCheck, ListOrdered } from 'lucide-react';
 import { competitionsApi, ORDINAL, PHASE, fmtDateTime } from './api';
 import { Rounds, Podium, Standings } from './parts';
-import { GameHero, JoinCard, HowItWorks, CollegesCard, PayCard } from './GameInfo';
+import { GameHero, JoinCard, HowItWorks, CollegesCard, PayCard, PaymentHoldCard } from './GameInfo';
 import { gameRules } from './gameRules';
 import CertificateInline from './CertificateInline';
 import { payOnline } from './razorpay';
@@ -82,7 +82,7 @@ export default function CompetitionDetail() {
     // What to do now, for a player in this competition.
     const join = !c.myTeam || solo ? null : c.myTeam.status !== 'approved'
         ? { title: `You play for ${c.myTeam.teamName}`, note: 'Waiting for the organizer to approve the team.' }
-        : c.status === 'completed' ? null
+        : ['completed', 'cancelled'].includes(c.status) ? null
             : challenge ? { ok: true, title: `You play for ${c.myTeam.teamName}`, note: c.kind === 'quiz' ? 'Take the quiz below while it is open.' : 'Read the problem below and hand in your team\'s project before it is due.' }
             : !mm ? { ok: true, title: `You play for ${c.myTeam.teamName}`, note: c.status === 'live' ? 'No match for your team right now. Your next match appears here once it is drawn.' : 'The matches are drawn once registration closes. Your match appears here then.' }
                 : mm.rematchAt && !mm.started ? { ok: true, title: `${mm.roundName}: draw — rematch at ${new Date(mm.rematchAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`, showJoin: mm.playing, note: 'The game was drawn. The rematch opens 5 minutes after it — your joining code shows here then, and you enter it to join again.' }
@@ -104,7 +104,8 @@ export default function CompetitionDetail() {
                 meta={[[CalendarClock, fmtDateTime(c.startsAt)], [Users, `${c.teamsCount} / ${c.maxTeams} ${solo ? 'students' : own ? 'teams' : 'colleges'}`], challenge ? [Clock, `${c.kind === 'quiz' ? 'Closes' : 'Projects due'} ${fmtDateTime(c.endsAt)}`] : [Swords, `${c.teamsPerMatch} teams a match`]]} />
 
             {/* The entry fee first: until it is paid, no code and no Join. */}
-            {data.myPayment && !data.myPayment.paid && !finished ? <PayCard amount={data.myPayment.amount} pay={() => payOnline(() => competitionsApi.pay(c.id), (r) => competitionsApi.payVerify(c.id, r))} onPaid={reload} />
+            {data.paymentOnHold ? <PaymentHoldCard hold={data.paymentOnHold} />
+                : data.myPayment && !data.myPayment.paid && !finished ? <PayCard amount={data.myPayment.amount} pay={() => payOnline(() => competitionsApi.pay(c.id), (r) => competitionsApi.payVerify(c.id, r))} onPaid={reload} />
                 : join && <JoinCard {...join} label="Join game" />}
             {solo && !finished && <SignUpBox competition={c} onChanged={(d) => setState((s) => ({ data: d, error: '', tick: s.tick + 1 }))} />}
             {c.myTeam && c.status === 'completed' && c.myTeam.status === 'approved' && (

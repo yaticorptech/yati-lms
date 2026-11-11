@@ -1,4 +1,5 @@
-import { Timer, Crown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Crown } from 'lucide-react';
 import usePhaseClock from './usePhaseClock';
 import { GROUP_GAMES } from '../api';
 
@@ -13,11 +14,20 @@ export default function TurnTable({ view, onAction, busy }) {
     // The dark room (2026-11-02): the page sets view.dark for the group games with no design of their own.
     const dark = !!view.dark;
     const info = GROUP_GAMES[view.game] || {};
-    const { left, share } = usePhaseClock({ status: view.status, phaseStartedAt: view.turnStartedAt, phaseEndsAt: view.turnStartedAt + view.turnMs, serverNow: view.serverNow });
-    const seconds = Math.ceil(left / 1000);
+    const { share } = usePhaseClock({ status: view.status, phaseStartedAt: view.turnStartedAt, phaseEndsAt: view.turnStartedAt + view.turnMs, serverNow: view.serverNow });
     const active = view.status === 'active';
     const can = view.canMove && !busy;
     const move = (extra) => { if (can) onAction({ type: 'move', ...extra }).catch(() => {}); };
+    // Who took the round just played (2026-11-06): the board resets at once, so a banner says it for a moment.
+    const played = view.history?.length || 0;
+    const [dismissed, setDismissed] = useState(played);       // rounds already announced (or there on arrival)
+    useEffect(() => {
+        if (played <= dismissed) return undefined;
+        const t = setTimeout(() => setDismissed(played), 2800);
+        return () => clearTimeout(t);
+    }, [played, dismissed]);
+    const last = played > dismissed ? view.history[played - 1] : null;
+    const banner = last && { round: last.round, who: last.winner != null ? view.seats[last.winner] : null, you: last.winner != null && last.winner === view.you };
     return (
         <div className="mx-auto w-full max-w-xl space-y-4" data-turn-table={view.game}>
             {/* The two players: round wins, whose turn. */}
@@ -31,7 +41,7 @@ export default function TurnTable({ view, onAction, busy }) {
                                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-black text-white" style={{ background: s.color }}>{lead ? <Crown size={18} /> : view.game === 'tictactoe' ? MARK[i] : (s.name || '?')[0]}</span>
                                 <span className="min-w-0 flex-1">
                                     <span className={`block truncate text-sm font-black ${dark ? 'text-white' : 'text-slate-900'}`}>{s.name}{view.you === i && <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] text-white" style={{ background: s.color }}>YOU</span>}</span>
-                                    <span className={`block text-[11px] font-bold ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>{turn ? 'Their move' : 'Waiting'}</span>
+                                    <span className={`block text-[11px] font-bold ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>{turn ? (view.you === i ? 'Your move' : 'Their move') : 'Waiting'}</span>
                                 </span>
                                 <span className="text-2xl font-black tabular-nums" style={{ color: s.color }}>{view.wins[i]}</span>
                             </div>
@@ -43,10 +53,18 @@ export default function TurnTable({ view, onAction, busy }) {
             <section className={dark ? 'overflow-hidden rounded-3xl border border-[#4b46b8]/50 bg-[#10142f]/90 shadow-[0_24px_60px_-20px_rgba(0,0,0,.85),0_0_40px_rgba(99,102,241,.12)]' : 'overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm'}>
                 <div className={`flex items-center justify-between gap-3 bg-gradient-to-r ${info.tone || 'from-indigo-500 to-violet-600'} px-5 py-3 text-white`}>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/90">Round {view.round} of {view.rounds} · first to {view.toWin}</p>
-                    {active && <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-black tabular-nums ${seconds <= 5 ? 'bg-white text-rose-600' : 'bg-white/20'}`}><Timer size={14} /> {seconds}s</span>}
                 </div>
                 {active && <div className={`h-1 ${dark ? 'bg-white/10' : 'bg-slate-100'}`}><div className={`h-full ${share < 0.25 ? 'bg-rose-500' : 'bg-indigo-400'}`} style={{ width: `${share * 100}%` }} /></div>}
-                <div className="p-5 sm:p-7">
+                <div className="relative p-5 sm:p-7">
+                    {banner && (
+                        <div className="pointer-events-none absolute inset-x-4 top-3 z-10 flex justify-center" role="status" aria-live="polite" data-round-banner>
+                            <span className="gs-pop inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black text-white shadow-lg"
+                                style={{ background: banner.who ? banner.who.color : '#64748b' }}>
+                                {banner.who && <Crown size={16} aria-hidden="true" />}
+                                {banner.who ? (banner.you ? `You took round ${banner.round}!` : `${banner.who.name} took round ${banner.round}`) : `Round ${banner.round} is a draw`}
+                            </span>
+                        </div>
+                    )}
                     <p className={`mb-4 text-center text-sm font-bold ${dark ? 'text-[#c7c9e4]' : 'text-slate-600'}`} data-turn-status>
                         {!active ? view.message : view.canMove ? 'Your move.' : `${view.seats[view.turn]?.name} is thinking…`}
                     </p>

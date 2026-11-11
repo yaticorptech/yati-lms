@@ -34,7 +34,7 @@ import useGoBack from '../hooks/useGoBack';
 const STUDENT_PORTAL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
 
 /** One match: its teams, time, and what the admin may do with it. */
-const AdminMatch = ({ match, onCall }) => {
+const AdminMatch = ({ match, onCall, busy = false }) => {
     const [at, setAt] = useState(toLocalInput(match.scheduledAt));
     const [deciding, setDeciding] = useState(false);
     const [winner, setWinner] = useState(match.sides[0]?.teamId || '');
@@ -64,8 +64,8 @@ const AdminMatch = ({ match, onCall }) => {
                 <div className="mt-3 flex flex-wrap items-end gap-2">
                     <label className="min-w-0 flex-1 basis-44"><span className={LABEL}>Match time</span>
                         <DateTimeInput value={at} onChange={setAt} label="Match time" /></label>
-                    <button type="button" className={BTN2} onClick={() => onCall('put', `/matches/${match.id}`, { scheduledAt: at ? new Date(at).toISOString() : null })}><CalendarClock size={15} /> Save time</button>
-                    <button type="button" className={BTN} onClick={() => onCall('post', `/matches/${match.id}/start`)}><Play size={15} /> Start now</button>
+                    <button type="button" className={BTN2} disabled={busy} onClick={() => onCall('put', `/matches/${match.id}`, { scheduledAt: at ? new Date(at).toISOString() : null })}><CalendarClock size={15} /> Save time</button>
+                    <button type="button" className={BTN} disabled={busy} onClick={() => onCall('post', `/matches/${match.id}/start`)}><Play size={15} /> Start now</button>
                 </div>
             )}
             {match.status === 'bye' && <p className="mt-2 text-xs text-slate-500">No opponent this round: goes straight through.</p>}
@@ -86,7 +86,7 @@ const AdminMatch = ({ match, onCall }) => {
                         <input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} className={INPUT} placeholder="e.g. Opponent did not turn up" /></label>
                     <div className="flex justify-end gap-2">
                         <button type="button" className={BTN2} onClick={() => setDeciding(false)}>Cancel</button>
-                        <button type="button" className={BTN} onClick={() => onCall('post', `/matches/${match.id}/result`, { winnerTeamId: winner, note }).then(() => setDeciding(false))}><Gavel size={15} /> Decide match</button>
+                        <button type="button" className={BTN} disabled={busy} onClick={() => onCall('post', `/matches/${match.id}/result`, { winnerTeamId: winner, note }).then(() => setDeciding(false))}><Gavel size={15} /> Decide match</button>
                     </div>
                 </div>
             ) : (
@@ -307,7 +307,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
                         <div key={r.round}>
                             <h3 className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{r.name}</h3>
                             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                {r.matches.map((m) => <AdminMatch key={`${m.id}-${m.status}-${m.scheduledAt}`} match={m} onCall={(method, path, body) => quiet(call(method, path, body))} />)}
+                                {r.matches.map((m) => <AdminMatch key={`${m.id}-${m.status}-${m.scheduledAt}`} match={m} busy={!!busy} onCall={(method, path, body) => quiet(call(method, path, body))} />)}
                             </div>
                         </div>
                     ))}
@@ -342,14 +342,14 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
                         <ul className="mt-2 space-y-1">
                             {c.prizes.map((p) => <li key={p.place}>{ORDINAL[p.place]}: {p.title || '—'} · {p.xp} XP · {p.rewardPoints} reward points (each player)</li>)}
                             {c.participationXp > 0 && <li>Taking part: {c.participationXp} XP each</li>}
-                            <li>{c.certificates ? 'Certificates for every player' : 'No certificates'}</li>
+                            <li>{c.certificates && c.participationCertificates ? 'Certificates for every player' : c.certificates ? 'Certificates for the top three' : c.participationCertificates ? 'Participation certificates (not for the top three)' : 'No certificates'}</li>
                         </ul>
-                        {c.status === 'completed' && (
+                        {c.status === 'completed' && !c.resultsHidden && (
                             <button type="button" className={`${BTN2} mt-3`} disabled={!!busy} onClick={() => quiet(call('post', '/award'))}>
                                 <Gift size={15} /> Issue prizes again
                             </button>
                         )}
-                        {c.status === 'completed' && <p className="mt-1 text-xs text-slate-500">Prizes went out automatically when the final was decided. Issuing again pays only what is missing.</p>}
+                        {c.status === 'completed' && !c.resultsHidden && <p className="mt-1 text-xs text-slate-500">Prizes went out automatically when the results were published. Issuing again pays only what is missing.</p>}
                     </div>
                 </section>
             )}

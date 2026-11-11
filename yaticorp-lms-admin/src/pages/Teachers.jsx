@@ -12,9 +12,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     BookOpenCheck, Loader2, UserPlus, Upload, Eye, Pencil, Ban, CheckCircle2, Trash2, XCircle, ShieldCheck, Clock,
-    ChevronRight, Mail, KeyRound, X
+    ChevronRight, Mail, KeyRound, X, LayoutDashboard
 } from 'lucide-react';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import useMediaQuery from '../hooks/useMediaQuery';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
@@ -25,6 +26,8 @@ import BulkTeachersModal from '../components/teachers/BulkTeachersModal';
 import TeacherDetailModal from '../components/teachers/TeacherDetailModal';
 import { TeacherStatus, TeacherSummary, Field } from '../components/teachers/TeacherBits';
 import { refusal, fmtDay, strongPassword, assignable } from '../components/teachers/teacherUtils';
+
+const STUDENT_APP = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5173';
 
 const STATUS_TABS = [['all', 'All'], ['active', 'Active'], ['pending', 'Waiting'], ['inactive', 'Blocked']];
 const PAGE_SIZE = 50;
@@ -42,6 +45,8 @@ export default function Teachers() {
     const [organizations, setOrganizations] = useState([]);
     const [busyId, setBusyId] = useState(null);
     const [savingSwitch, setSavingSwitch] = useState(false);
+    // Optional: the page also renders where no sign-in context is around it.
+    const admin = useAuth()?.admin;
     const [open, setOpen] = useState(null);           // { kind: 'add' | 'bulk' | 'view' | 'edit' | 'decline' | 'delete', teacher? }
     const wide = useMediaQuery('(min-width: 1280px)');
 
@@ -100,6 +105,26 @@ export default function Teachers() {
     const close = () => setOpen(null);
     const teachers = data?.teachers || [];
 
+    /**
+     * The teacher's own dashboard, in a new tab (2026-11-11), as a student's
+     * opens from Users: a one-time code in the URL fragment, traded by the
+     * student app's /admin-access/teacher for a two-hour session. The tab is
+     * opened first so a popup blocker sees it come from the click.
+     */
+    const openTeacherDashboard = async (t) => {
+        const tab = window.open('', '_blank');
+        try {
+            const { data: d } = await api.post(`/admin/teachers/${t._id}/dashboard-access`);
+            const target = `${STUDENT_APP.replace(/\/$/, '')}/admin-access/teacher#code=${encodeURIComponent(d.code)}`;
+            if (tab) tab.location.href = target;
+            else window.location.assign(target);
+        } catch (err) {
+            if (tab) tab.close();
+            setError(err.response?.data?.message || 'Could not open this teacher\'s dashboard.');
+        }
+    };
+    const superAdmin = admin?.role === 'superadmin';
+
     const actions = (t) => (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {t.status === 'pending' ? (
@@ -112,6 +137,10 @@ export default function Teachers() {
                         className="inline-flex items-center gap-1 text-sm font-semibold text-red-500 hover:text-red-700"><XCircle size={14} />Turn down</button>
                 </>
             ) : null}
+            {superAdmin && t.status === 'active' && (
+                <button type="button" onClick={() => openTeacherDashboard(t)} title={`Open ${t.name}'s dashboard in a new tab`}
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-600 hover:text-emerald-800"><LayoutDashboard size={14} />Dashboard</button>
+            )}
             <button type="button" onClick={() => setOpen({ kind: 'view', teacher: t })} className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-900"><Eye size={14} />View</button>
             <button type="button" onClick={() => setOpen({ kind: 'edit', teacher: t })} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-500 hover:text-indigo-600"><Pencil size={14} />Edit</button>
             {t.status !== 'pending' && (

@@ -2,7 +2,7 @@ import { uiLocale } from '../i18n/translator';
 import React, { useCallback, useContext, useState, useEffect, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
-import saveToDrive from '../integrations/google/saveToDrive';
+import { ensureDriveLinked, downloadWithDrive, askIfDriveRequired } from '../integrations/google/driveGate';
 import CertificatesFrame from '../components/CertificatesFrame';
 import ResumeSection from '../components/ResumeSection';
 import AiKeySettings from '../components/AiKeySettings';
@@ -26,7 +26,6 @@ import ProgressCard from '../components/rewards/ProgressCard';
 import LeaderboardCard from '../components/rewards/LeaderboardCard';
 import RankClimbCard from '../components/rewards/RankClimbCard';
 import Portal from '../components/Portal';
-import { saveBlob } from '../native/saveFile';
 import { pictureUrl } from '../native/pictures';
 import { isShortOfFunds, serverMessage, isWalletCancel } from '../utils/walletCharge';
 import PhotoPicker from '../components/PhotoPicker';
@@ -251,6 +250,8 @@ const Profile = ({ view = 'dashboard' }) => {
     const openPicker = () => setPickerOpen(true);
 
     const handleDownloadCertificate = async (cert) => {
+        // Drive first (2026-11-05), before the certificate is made or charged for.
+        if (!(await ensureDriveLinked('So the certificates you earn here are kept in your own Google Drive.'))) return;
         setDownloadingId(cert._id);
         setCertError(null);
         try {
@@ -261,17 +262,9 @@ const Profile = ({ view = 'dashboard' }) => {
             );
             const blob = new Blob([res.data], { type: 'application/pdf' });
             const fileName = `Certificate_${(cert.courseId?.title || 'Course').replace(/\s+/g, '_')}.pdf`;
-            await saveBlob(blob, fileName, { title: 'Certificate' });
-
-            // And a copy in their own Drive. Not awaited: the certificate is
-            // already on their machine, and a filing failure is not a download
-            // failure.
-            saveToDrive(blob, {
-                name: fileName,
-                description: `Your certificate for ${cert.courseId?.title || 'a course'}, issued by YATICORP.`,
-                reason: 'So the certificates you earn here are kept in your own Google Drive.'
-            });
+            await downloadWithDrive(blob, fileName, { title: 'Certificate', description: `Your certificate for ${cert.courseId?.title || 'a course'}, issued by YATICORP.`, reason: 'So the certificates you earn here are kept in your own Google Drive.' });
         } catch (e) {
+            if (askIfDriveRequired(e, 'So the certificates you earn here are kept in your own Google Drive.')) return;
             if (!isWalletCancel(e)) setCertError(isShortOfFunds(e) ? serverMessage(e) : 'Failed to download certificate. Please try again.');
         } finally {
             setDownloadingId(null);

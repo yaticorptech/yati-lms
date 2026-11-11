@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 const DOTS = [
   { name: 'RED', dot: 'bg-rose-500', word: 'text-rose-600' },
@@ -64,6 +65,7 @@ function Round({ progress, onExit }) {
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
   const [started, setStarted] = useState(false);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -71,13 +73,18 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const choose = (n) => {
-    if (over || flash) return;
-    const right = n === round.count;
-    if (right) setScore((s) => s + 1);
-    setFlash(right ? 'right' : 'wrong');
+    if (over || flash || busy) return;
+    const fresh = () => setRound(makeRound(config.colours, config.side));
+    if (n !== round.count) {
+      // The buzz, the pick red and the true count green, the board left up to recount, then the next one.
+      showWrong(n, round.count, fresh);
+      return;
+    }
+    setScore((s) => s + 1);
+    setFlash('right');
     setTimeout(() => {
       setFlash(null);
-      setRound(makeRound(config.colours, config.side));
+      fresh();
     }, 260);
   };
 
@@ -130,7 +137,7 @@ function Round({ progress, onExit }) {
 
           <div
             className={`mx-auto mt-5 grid w-fit gap-2 rounded-2xl bg-surface-50 p-3 ring-1 ring-line-200 ring-inset transition-transform ${COLS[config.side]} ${
-              flash === 'right' ? 'scale-[1.03]' : flash === 'wrong' ? 'opacity-60' : ''
+              flash === 'right' ? 'scale-[1.03]' : ''
             }`}
           >
             {round.grid.map((d, i) => (
@@ -144,7 +151,8 @@ function Round({ progress, onExit }) {
                 key={n}
                 type="button"
                 onClick={() => choose(n)}
-                className="fp-press min-h-14 rounded-2xl bg-surface-50 text-xl font-black text-ink-900 ring-1 ring-line-200 transition-colors ring-inset tabular-nums hover:bg-journey-50 hover:ring-journey-300"
+                disabled={busy}
+                className={`fp-press min-h-14 rounded-2xl bg-surface-50 text-xl font-black text-ink-900 ring-1 ring-line-200 transition-colors ring-inset tabular-nums ${busy ? '' : 'hover:bg-journey-50 hover:ring-journey-300'} ${toneOf(n)}`}
               >
                 {n}
               </button>

@@ -6,6 +6,7 @@ import React, { useRef, useState } from 'react';
 import api from '../utils/api';
 import { MessageCircleQuestion, CheckCircle2, Clock, AlertCircle, ChevronDown, Save, Send } from 'lucide-react';
 import useAutoRefresh from '../hooks/useAutoRefresh';
+import Select from '../components/Select';
 
 const statusColors = {
     'open': 'bg-red-50 text-red-600 border-red-200',
@@ -26,10 +27,25 @@ const pageLabels = {
     'other': 'Other'
 };
 
+// Who wrote in. Tickets from before 2026-11-04 carry no `from`: all students'.
+const fromLabels = {
+    student: 'Student',
+    teacher: 'Teacher',
+    organization: 'Organization'
+};
+const fromOf = (t) => t.from || 'student';
+const fromColors = {
+    student: 'bg-sky-50 text-sky-700 border-sky-200',
+    teacher: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    organization: 'bg-violet-50 text-violet-700 border-violet-200'
+};
+
 const Tickets = () => {
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filterStatus, setFilterStatus] = useState('');
+    // ?status=open opens on the open ones (the Dashboard's link).
+    const [filterStatus, setFilterStatus] = useState(() => new URLSearchParams(window.location.search).get('status') || '');
+    const [filterFrom, setFilterFrom] = useState('');
     const [expandedId, setExpandedId] = useState(null);
     const [updatingId, setUpdatingId] = useState(null);
     const [adminNotes, setAdminNotes] = useState({});
@@ -137,7 +153,7 @@ const Tickets = () => {
         }
     };
 
-    const shown = filterStatus ? tickets.filter(t => t.status === filterStatus) : tickets;
+    const shown = tickets.filter(t => (!filterStatus || t.status === filterStatus) && (!filterFrom || fromOf(t) === filterFrom));
     const openCount = tickets.filter(t => t.status === 'open').length;
     const inProgressCount = tickets.filter(t => t.status === 'in-progress').length;
     const resolvedCount = tickets.filter(t => t.status === 'resolved').length;
@@ -148,7 +164,7 @@ const Tickets = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-slate-200">
                 <div className="min-w-0">
                     <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">Support Tickets</h1>
-                    <p className="text-sm lg:text-base text-slate-500 mt-1">Manage and resolve student support requests</p>
+                    <p className="text-sm lg:text-base text-slate-500 mt-1">Manage and resolve support requests from students, teachers and organizations</p>
                 </div>
             </div>
 
@@ -191,8 +207,21 @@ const Tickets = () => {
                         </button>
                     ))}
                 </div>
-                <div className="px-4 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-tighter sm:text-right">
-                    Found {shown.length} records
+                <div className="flex items-center justify-between gap-3 px-1 sm:justify-end">
+                    <Select
+                        value={filterFrom}
+                        onChange={(e) => setFilterFrom(e.target.value)}
+                        aria-label="Filter tickets by who sent them"
+                        className="w-44 px-3 py-2 border border-slate-200 rounded-xl bg-white text-xs font-bold text-slate-600 shadow-sm focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="">From: Everyone</option>
+                        <option value="student">From: Students</option>
+                        <option value="teacher">From: Teachers</option>
+                        <option value="organization">From: Organizations</option>
+                    </Select>
+                    <span className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-tighter whitespace-nowrap">
+                        Found {shown.length} records
+                    </span>
                 </div>
             </div>
 
@@ -235,13 +264,14 @@ const Tickets = () => {
                                         {ticket.subject}
                                     </p>
                                     <p className="text-sm text-slate-500 mt-0.5 break-words [overflow-wrap:anywhere]">
-                                        {ticket.from === 'organization' && <span className="mr-1.5 inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-700 whitespace-nowrap">Organization</span>}
-                                        {ticket.from === 'teacher' && <span className="mr-1.5 inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 whitespace-nowrap">Teacher</span>}
+                                        <span className={`mr-1.5 text-xs font-semibold border px-1.5 py-0.5 rounded whitespace-nowrap ${fromColors[fromOf(ticket)]}`}>{fromLabels[fromOf(ticket)]}</span>
                                         <span className="font-medium text-slate-600">{ticket.name}</span>
                                         {ticket.orgCode && <> · ID: <span className="font-mono text-slate-600">{ticket.orgCode}</span></>}
                                         {' · '}{ticket.email}
-                                        {ticket.cardNumber && (String(ticket.cardNumber).startsWith('Phone ') ? ` · ${ticket.cardNumber}` : ` · Card: ${ticket.cardNumber}`)}
-                                        {!['organization', 'teacher'].includes(ticket.from) && <>{' · '}<span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">{pageLabels[ticket.page] || ticket.page}</span></>}
+                                        {ticket.cardNumber && (String(ticket.cardNumber).startsWith('Phone ')
+                                            ? ` · ${ticket.cardNumber}`
+                                            : <>{' · '}<span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-mono text-xs font-bold tracking-wide text-amber-800">Card {ticket.cardNumber}</span></>)}
+                                        {fromOf(ticket) === 'student' && <>{' · '}<span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">{pageLabels[ticket.page] || ticket.page}</span></>}
                                     </p>
                                     <p className="sm:hidden mt-1 text-xs text-slate-400">{new Date(ticket.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                                 </div>

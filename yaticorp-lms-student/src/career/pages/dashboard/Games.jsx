@@ -5,51 +5,29 @@ import api from '../../services/api';
 import useBackClose from '../../../native/useBackClose';
 import { useToast } from '../../components/ui/Toast';
 import GameThumb from '../../components/games/GameThumb';
-import { GameTokensArt, HeroScene, PlayLearnGrow } from '../../components/games/GamesHeroArt';
 // Each game is downloaded when it is first opened, not with the hub: most visits play one or two.
 const MemoryMatch = lazy(() => import('../../components/games/MemoryMatch'));
 const SequenceRecall = lazy(() => import('../../components/games/SequenceRecall'));
 const NumberRecall = lazy(() => import('../../components/games/NumberRecall'));
-const CodeBreaker = lazy(() => import('../../components/games/CodeBreaker'));
 const NextInSequence = lazy(() => import('../../components/games/NextInSequence'));
-const OddOneOut = lazy(() => import('../../components/games/OddOneOut'));
 const WordScramble = lazy(() => import('../../components/games/WordScramble'));
 const SynonymMatch = lazy(() => import('../../components/games/SynonymMatch'));
-const SentenceGap = lazy(() => import('../../components/games/SentenceGap'));
 const MathSprint = lazy(() => import('../../components/games/MathSprint'));
-const QuickCompare = lazy(() => import('../../components/games/QuickCompare'));
-const MissingOperator = lazy(() => import('../../components/games/MissingOperator'));
+const SentenceGap = lazy(() => import('../../components/games/SentenceGap'));
 const ColourMatch = lazy(() => import('../../components/games/ColourMatch'));
-const SpotTheChange = lazy(() => import('../../components/games/SpotTheChange'));
-const Deduction = lazy(() => import('../../components/games/Deduction'));
-const LightsOut = lazy(() => import('../../components/games/LightsOut'));
 const SpellingFix = lazy(() => import('../../components/games/SpellingFix'));
-const WordRoots = lazy(() => import('../../components/games/WordRoots'));
 const PercentSnap = lazy(() => import('../../components/games/PercentSnap'));
+const SpeedSort = lazy(() => import('../../components/games/SpeedSort'));
+const ReverseRecall = lazy(() => import('../../components/games/ReverseRecall'));
+const TensePick = lazy(() => import('../../components/games/TensePick'));
+const SoundAlike = lazy(() => import('../../components/games/SoundAlike'));
 const RunningTotal = lazy(() => import('../../components/games/RunningTotal'));
 const GridRecall = lazy(() => import('../../components/games/GridRecall'));
 const TicTacToe = lazy(() => import('../../components/games/TicTacToe'));
 const MiniSudoku = lazy(() => import('../../components/games/MiniSudoku'));
 const TypingSprint = lazy(() => import('../../components/games/TypingSprint'));
-const BinaryBlitz = lazy(() => import('../../components/games/BinaryBlitz'));
-const SpeedSort = lazy(() => import('../../components/games/SpeedSort'));
 // The second wave.
-const ReverseRecall = lazy(() => import('../../components/games/ReverseRecall'));
-const SeenBefore = lazy(() => import('../../components/games/SeenBefore'));
-const ScaleBalance = lazy(() => import('../../components/games/ScaleBalance'));
-const ShapeMatrix = lazy(() => import('../../components/games/ShapeMatrix'));
-const AntonymMatch = lazy(() => import('../../components/games/AntonymMatch'));
 const IdiomSense = lazy(() => import('../../components/games/IdiomSense'));
-const NumberBonds = lazy(() => import('../../components/games/NumberBonds'));
-const RoundingRush = lazy(() => import('../../components/games/RoundingRush'));
-const DotCount = lazy(() => import('../../components/games/DotCount'));
-const MatchBack = lazy(() => import('../../components/games/MatchBack'));
-const SpinMatch = lazy(() => import('../../components/games/SpinMatch'));
-const LastStone = lazy(() => import('../../components/games/LastStone'));
-const TensePick = lazy(() => import('../../components/games/TensePick'));
-const SoundAlike = lazy(() => import('../../components/games/SoundAlike'));
-const FractionMatch = lazy(() => import('../../components/games/FractionMatch'));
-const ClockRead = lazy(() => import('../../components/games/ClockRead'));
 import GameLeaderboard from '../../components/games/GameLeaderboard';
 import { starsForGame, levelReached, pullProgress, markPlayed, lastPlayed, setGameXpTable, GAME_XP } from '../../components/games/levels';
 import { useHideLoop } from '../../../components/loopVisibility';
@@ -157,12 +135,8 @@ const CATEGORIES = [
       { id: 'sequence-recall', name: 'Sequence Recall', blurb: 'Watch a growing pattern and play it back.', Component: SequenceRecall },
       { id: 'number-recall', name: 'Number Recall', blurb: 'Memorise a number, then type it back.', Component: NumberRecall },
       { id: 'colour-match', name: 'Colour Match', blurb: 'Tap the ink colour, not the word.', Component: ColourMatch },
-      { id: 'spot-the-change', name: 'Spot the Change', blurb: 'One tile changes. Which one was it?', Component: SpotTheChange },
       { id: 'grid-recall', name: 'Grid Recall', blurb: 'Tiles light up, then go dark. Tap the ones that lit.', Component: GridRecall },
-      { id: 'reverse-recall', name: 'Reverse Recall', blurb: 'Memorise a number, then type it backwards.', Component: ReverseRecall },
-      { id: 'seen-before', name: 'Seen Before', blurb: 'A set flashes up. Which one did you see?', Component: SeenBefore },
-      { id: 'dot-count', name: 'Dot Count', blurb: 'How many dots of one colour? Count fast.', Component: DotCount },
-      { id: 'match-back', name: 'Match Back', blurb: 'Is this letter the same as the one before?', Component: MatchBack }
+      { id: 'reverse-recall', name: 'Reverse Recall', blurb: 'Memorise a number, then type it backwards.', Component: ReverseRecall }
     ]
   },
   {
@@ -178,17 +152,9 @@ const CATEGORIES = [
     thumb: 'bg-sky-50',
     glow: 'shadow-sky-500/30',
     games: [
-      { id: 'code-breaker', name: 'Code Breaker', blurb: 'Crack a four-colour code from the feedback.', Component: CodeBreaker },
       { id: 'next-in-sequence', name: 'Next in Sequence', blurb: 'Spot the rule, then continue the run.', Component: NextInSequence },
-      { id: 'odd-one-out', name: 'Odd One Out', blurb: 'Three belong together. One does not.', Component: OddOneOut },
-      { id: 'deduction', name: 'Deduction', blurb: 'Does the conclusion actually follow?', Component: Deduction },
-      { id: 'lights-out', name: 'Lights Out', blurb: 'Turn every light off. Taps flip neighbours.', Component: LightsOut },
       { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', blurb: 'Beat a computer that gets sharper every level.', Component: TicTacToe },
-      { id: 'mini-sudoku', name: 'Mini Sudoku', blurb: 'A four-by-four grid, solved against the clock.', Component: MiniSudoku },
-      { id: 'scale-balance', name: 'Scale Balance', blurb: 'Read the scales and find the heaviest.', Component: ScaleBalance },
-      { id: 'shape-matrix', name: 'Shape Matrix', blurb: 'Spot the rule and finish the grid.', Component: ShapeMatrix },
-      { id: 'spin-match', name: 'Spin Match', blurb: 'Which one is the same shape, only turned?', Component: SpinMatch },
-      { id: 'last-stone', name: 'Last Stone', blurb: 'Take one, two or three. Take the last and win.', Component: LastStone }
+      { id: 'mini-sudoku', name: 'Mini Sudoku', blurb: 'A four-by-four grid, solved against the clock.', Component: MiniSudoku }
     ]
   },
   {
@@ -205,12 +171,10 @@ const CATEGORIES = [
     glow: 'shadow-fuchsia-500/30',
     games: [
       { id: 'word-scramble', name: 'Word Scramble', blurb: 'Unscramble the word from its letters and a clue.', Component: WordScramble },
-      { id: 'synonym-match', name: 'Synonym Match', blurb: 'Pick the option that means the same.', Component: SynonymMatch },
+      { id: 'synonym-match', name: 'Synonyms & Antonyms', blurb: 'Same meaning, then the opposite — in turn.', Component: SynonymMatch },
       { id: 'sentence-gap', name: 'Sentence Gap', blurb: 'Choose the word that fits the sentence.', Component: SentenceGap },
       { id: 'spelling-fix', name: 'Spelling Fix', blurb: 'One of these four is spelled correctly.', Component: SpellingFix },
-      { id: 'word-roots', name: 'Word Roots', blurb: 'What does this prefix or root mean?', Component: WordRoots },
       { id: 'typing-sprint', name: 'Typing Sprint', blurb: 'Type the word exactly, fast, and learn it on the way.', Component: TypingSprint },
-      { id: 'antonym-match', name: 'Antonym Match', blurb: 'Pick the word that means the opposite.', Component: AntonymMatch },
       { id: 'idiom-sense', name: 'Idiom Sense', blurb: 'What does the phrase really mean?', Component: IdiomSense },
       { id: 'tense-pick', name: 'Tense Pick', blurb: 'Go, went, gone — pick the right past tense.', Component: TensePick },
       { id: 'sound-alike', name: 'Sound Alike', blurb: 'Their, there or they’re? Only one fits.', Component: SoundAlike }
@@ -230,16 +194,9 @@ const CATEGORIES = [
     glow: 'shadow-amber-500/30',
     games: [
       { id: 'math-sprint', name: 'Math Sprint', blurb: 'Sixty seconds. Answer as many as you can.', Component: MathSprint },
-      { id: 'quick-compare', name: 'Quick Compare', blurb: 'Tap the side with the larger value.', Component: QuickCompare },
-      { id: 'missing-operator', name: 'Missing Operator', blurb: 'Which sign makes the equation true?', Component: MissingOperator },
       { id: 'percent-snap', name: 'Percent Snap', blurb: 'Percentages, in your head, against the clock.', Component: PercentSnap },
       { id: 'running-total', name: 'Running Total', blurb: 'Numbers arrive one at a time. Keep the total.', Component: RunningTotal },
-      { id: 'binary-blitz', name: 'Binary Blitz', blurb: 'Read binary as fast as you read decimal.', Component: BinaryBlitz },
-      { id: 'speed-sort', name: 'Speed Sort', blurb: 'Tap the numbers from smallest to largest.', Component: SpeedSort },
-      { id: 'number-bonds', name: 'Number Bonds', blurb: 'Tap the two tiles that make the target.', Component: NumberBonds },
-      { id: 'rounding-rush', name: 'Rounding Rush', blurb: 'Round it to the nearest ten, hundred or thousand.', Component: RoundingRush },
-      { id: 'fraction-match', name: 'Fraction Match', blurb: 'Which fraction is worth the same amount?', Component: FractionMatch },
-      { id: 'clock-read', name: 'Clock Read', blurb: 'Read the hands and pick the time.', Component: ClockRead }
+      { id: 'speed-sort', name: 'Speed Sort', blurb: 'Tap the numbers from smallest to largest.', Component: SpeedSort }
     ]
   }
 ];
@@ -338,7 +295,7 @@ const SPARKS = [
  * measures work on the roadmap, and a card promising some would be making a
  * promise the product does not keep.
  */
-function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = null, chip = null, playLabel = null, disabled = false, art = null, action = null }) {
+function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = null, chip = null, playLabel = null, disabled = false, art = null, action = null, tight = false }) {
   const started = reached > 1;
   const ref = useRef(null);
   const frame = useRef(0);
@@ -401,7 +358,9 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = n
         {/* The group games (2026-11-02, the reference sheets): the game's own 3D artwork fills the top,
             fading into the card's wash. The solo games keep their icon on its lit disc. */}
         {art ? <>
-          <img src={art} alt="" aria-hidden loading="lazy" draggable="false" className="absolute inset-0 h-full w-full object-cover" />
+          <img src={art} alt="" aria-hidden loading="lazy" decoding="async" draggable="false" className="absolute inset-0 h-full w-full object-cover transition-[transform,filter] duration-700 ease-out group-hover:scale-110 group-hover:brightness-110" />
+          {/* Hover (2026-11-04): a band of light crossing the picture. */}
+          <span aria-hidden className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
           {/* The art ends in a soft wave of the card's wash, as on the reference (2026-11-02), a fine light line along it. */}
           <svg aria-hidden viewBox="0 0 100 16" preserveAspectRatio="none" className="absolute inset-x-0 -bottom-px h-[18%] w-full">
             <path d="M0,16 L0,9 C18,2 34,3 52,8 C70,13 86,10 100,4 L100,16 Z" fill={theme.fade} />
@@ -440,10 +399,10 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = n
       </span>
 
       {/* ---- The words and the two controls ---------------------------- */}
-      <span className="flex flex-1 flex-col px-3 pb-3 sm:px-4 sm:pb-4">
-        <span className={`block truncate leading-tight font-black ${art ? '-mt-1 text-sm text-[#1b1d3a] sm:text-xl' : 'text-sm text-[#173a63] sm:text-base'}`}>{game.name}</span>
+      <span className="relative z-10 flex flex-1 flex-col px-3 pb-3 sm:px-4 sm:pb-4">
+        <span className={`line-clamp-2 leading-tight font-black sm:block sm:truncate ${tight ? 'mt-0.5 text-[0.9rem] text-[#0e0f2b] sm:-mt-1 sm:text-[1.3rem] sm:tracking-tight' : art ? 'mt-0.5 text-[0.9rem] text-[#1b1d3a] sm:-mt-1 sm:text-xl' : 'text-sm text-[#173a63] sm:text-base'}`}>{game.name}</span>
         {/* Two lines at most, and room for two always: every card the same height. */}
-        <span className={`mt-1.5 hidden sm:block ${art ? 'line-clamp-3 min-h-[3.4rem] text-[13px] leading-snug text-[#2b2f4a]' : 'line-clamp-2 min-h-[2.1rem] text-xs leading-snug text-slate-500'}`}>{game.blurb}</span>
+        <span className={`hidden sm:block ${tight ? 'mt-1 line-clamp-2 min-h-[2.4rem] text-[13px] leading-[1.2rem] text-[#1f2340]' : art ? 'mt-1.5 line-clamp-3 min-h-[3.4rem] text-[13px] leading-snug text-[#2b2f4a]' : 'mt-1.5 line-clamp-2 min-h-[2.1rem] text-xs leading-snug text-slate-500'}`}>{game.blurb}</span>
 
         <span className="mt-auto flex items-center justify-between gap-2 pt-2 sm:pt-3.5">
           {/* `chip={false}`: none (a group game that is on); the play button keeps its place on the right. */}
@@ -485,7 +444,44 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = n
 // The ten, mixed rather than grouped by kind: a memory game, a logic game,
 // a word game, a strategy game, and round again.
 // Then the solo games that are questions and answers, as group games too (2026-10-29).
-const GROUP_ORDER = ['chess', 'memorymatrix', 'patternmaster', 'wordlogic', 'sequence', 'numberlogic', 'spatialiq', 'sudoku', 'deduction', 'finalvault', 'lostkingdom', 'synonymmatch', 'antonymmatch', 'idiomsense', 'sentencegap', 'soundalike', 'wordroots', 'spellingfix', 'tensepick', 'oddoneout', 'percentsnap', 'binaryblitz', 'roundingrush', 'fractionmatch', 'quickcompare', 'scalebalance', 'colourmatch', 'dotcount', 'clockread', 'shapematrix', 'numberrecall', 'reverserecall', 'seenbefore', 'spotthechange', 'matchback', 'runningtotal', 'memorymatch', 'lightsout', 'codebreaker', 'typingsprint', 'speedsort', 'numberbonds', 'mathsprint', 'tictactoe', 'laststone'];
+/**
+ * Explore Individual Games (2026-11-06): down to the categories and their games. The page scrolls inside the app's
+ * own <main> (not the window), where scrollIntoView did nothing on some phones — so the scrolling box is found and
+ * moved directly, the header's height left above, and the row flashes so the jump is plain to see.
+ */
+const exploreSolo = () => {
+  const el = document.querySelector('[data-solo-categories]');
+  if (!el) return;
+  // The box that really scrolls: an ancestor set to scroll AND taller inside than it is (on a phone the app's <main>
+  // is set to scroll but grows with the page, so the window scrolls instead — scrolling <main> did nothing there).
+  let box = el.parentElement;
+  while (box && box !== document.body) {
+    if (/(auto|scroll)/.test(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight + 1) break;
+    box = box.parentElement;
+  }
+  const inBox = box && box !== document.body;
+  const scroller = inBox ? box : document.scrollingElement || document.documentElement;
+  const offset = inBox ? box.getBoundingClientRect().top : 0;
+  const top = el.getBoundingClientRect().top - offset + scroller.scrollTop - 88;
+  if (inBox) box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  else window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  el.classList.remove('gs-flash');
+  void el.offsetWidth;
+  el.classList.add('gs-flash');
+  // Then the focus onto the first game, without a second jump, so the keyboard (and a screen reader) is there too.
+  // A backstop: if the page has not moved (a browser that ignored the smooth scroll), jump there outright.
+  const before = el.getBoundingClientRect().top;
+  setTimeout(() => {
+    const now = el.getBoundingClientRect().top;
+    if (Math.abs(now - before) < 4 && now > 140) el.scrollIntoView({ block: 'start' });
+    document.querySelector('[data-solo-games] a, [data-solo-games] button')?.focus({ preventScroll: true });
+  }, 500);
+};
+
+/** A picture fading to nothing at all four edges: the two fades, crossed. */
+const SOFT_EDGES = 'linear-gradient(to right, transparent, black 16%, black 84%, transparent), linear-gradient(to bottom, transparent, black 14%, black 80%, transparent)';
+
+const GROUP_ORDER = ['chess', 'memorymatrix', 'patternmaster', 'wordlogic', 'sequence', 'numberlogic', 'idiomsense', 'numberrecall', 'runningtotal', 'memorymatch', 'typingsprint', 'mathsprint', 'tictactoe', 'finalvault', 'lostkingdom'];
 /* The group cards' accents (2026-11-02, the reference sheets): a pale wash of the accent under the artwork, a
    glowing edge, a tinted chip and a glossy Play in the accent. `fade` is the wash's top, where the art fades in. */
 const GROUP_ACCENTS = {
@@ -497,6 +493,16 @@ const GROUP_ACCENTS = {
   orange: { wash: 'from-[#fff5ec] via-[#ffeedd] to-[#ffe2c7]', ring: 'ring-2 ring-[#fb923c]/80', chip: 'bg-[#ffe7d1] text-[#c2410c]', play: 'bg-gradient-to-b from-[#f97316] to-[#9a3412] hover:brightness-110', glow: 'rgb(249 115 22 / 0.5)', fade: '#fff5ec' },
   teal: { wash: 'from-[#ecfdfa] via-[#e1f8f4] to-[#d0f1eb]', ring: 'ring-2 ring-[#2dd4bf]/80', chip: 'bg-[#d6f5ef] text-[#0f766e]', play: 'bg-gradient-to-b from-[#14b8a6] to-[#115e59] hover:brightness-110', glow: 'rgb(20 184 166 / 0.5)', fade: '#ecfdfa' }
 };
+/*
+ * The solo cards drawn as the group ones are (2026-11-04): each game's own 3D picture on top — the reference design's
+ * artwork (public/games/solo, 876 × 573, cut from it and enlarged; full-size originals would replace them as they
+ * are) — and its colours in turn across the row: violet, orange, blue, pink, green.
+ */
+// The banner picture's words, for a screen reader.
+const SOLO_HERO_WORDS = 'Individual games — Play solo. Sharpen your skills. A collection of quick, single-player games to improve your memory, logic, vocabulary, maths and speed.';
+const SOLO_COLOURS = ['violet', 'orange', 'blue', 'pink', 'green'];
+const soloArt = (id) => `/games/solo/${id}.jpg`;
+
 const GROUP_ACCENT = {
   chess: 'gold', memorymatrix: 'violet', patternmaster: 'blue', wordlogic: 'pink', sequence: 'green',
   numberlogic: 'green', spatialiq: 'violet', sudoku: 'orange', deduction: 'blue', finalvault: 'pink',
@@ -586,8 +592,18 @@ function GroupHub() {
     roomsApi.games().then((rows) => setCatalog(Object.fromEntries(rows.map((g) => [g.id, g])))).catch(() => {});
     roomsApi.onlineInfo().then(setFees).catch(() => {});
     roomsApi.unlocks().then(setUnlocks).catch(() => {});
+    // The lobby's table pictures, fetched now (2026-11-06): the players popup then shows them at once instead of
+    // drawing an empty box and popping the picture in a moment later (worst on a phone).
+    [2, 4, 6].forEach((n) => { const img = new Image(); img.decoding = 'async'; img.src = `${LOBBY}/table-${n}.jpg`; });
   }, []);
   const fail = (e) => setError({ message: e.message, roomId: e.roomId });
+  // The game I am still in (2026-11-06): asked again every 20 s and on coming back, so its card comes and goes live.
+  useEffect(() => {
+    const ask = () => { if (document.visibilityState === 'visible') roomsApi.mine().then(setRoom).catch(() => {}); };
+    const t = setInterval(ask, 20000);
+    document.addEventListener('visibilitychange', ask);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', ask); };
+  }, []);
 
   // A shared invitation card's link (/games?mode=group&code=K7Q2XM, 2026-11-03): the code waits in Join a Room.
   const sharedCode = (params.get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
@@ -632,6 +648,29 @@ function GroupHub() {
 
   return (
     <>
+      {/* ---- The game I am still in (2026-11-06): on top, plain to see — e.g. all five puzzles done in Final Vault or
+          Lost Kingdom while the others play on. Until it ends, no other game can be started; Open takes me back. ---- */}
+      {room && (
+        <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-white p-3.5 shadow-sm sm:gap-4 sm:p-4" role="status" aria-live="polite" data-my-room>
+          <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white text-2xl shadow ring-1 ring-emerald-100">
+            {GROUP_THUMBS[room.game] ? <GameThumb id={GROUP_THUMBS[room.game]} className="h-10 w-10" /> : <span aria-hidden>{room.emoji || '🎮'}</span>}
+            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white" /></span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-black tracking-[0.14em] text-emerald-700 uppercase">{room.status === 'waiting' ? 'Waiting in the lobby' : 'Game in progress'}</p>
+            <p className="truncate text-base font-black text-slate-900 sm:text-lg">You are in {room.label}{room.code ? <span className="font-bold text-slate-400"> · {room.code}</span> : null}</p>
+            <p className="text-xs text-slate-600 sm:text-sm">
+              {room.runDone ? 'You have finished your run — the others are still playing. Open it to watch the scores and the result.'
+                : room.status === 'waiting' ? 'The game starts when everyone is in. You can play another game once you leave this room.'
+                  : 'The game is still going on. Open it to carry on — another game can start once it is over.'}
+            </p>
+          </div>
+          <button type="button" onClick={() => playRoom(navigate, room.id)} className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-black text-white shadow-md shadow-emerald-600/30 hover:bg-emerald-700 sm:w-auto">
+            <DoorOpen className="h-4 w-4" /> Open game
+          </button>
+        </section>
+      )}
+
       {/* ---- The banner (2026-11-02): the reference picture itself (public/games/banner, 2910 × 540), with the live parts
           laid exactly over its own — the play time over its pill, the code box and Join Room over its own box and
           button. Positions are the picture's, in % of it; text in cqw of the banner. On a phone: the picture's left
@@ -639,12 +678,16 @@ function GroupHub() {
       <section className="relative" data-group-hero>
         <form onSubmit={join} className="relative hidden overflow-hidden rounded-[28px] md:block" style={{ aspectRatio: '2910 / 540', containerType: 'inline-size' }} data-join-room>
           <img src="/games/banner/group-banner.jpg" alt="Group games — Bring your friends. Battle brains together!" draggable="false" className="absolute inset-0 h-full w-full select-none" />
-          {groupLeft !== null && (
+          {groupLeft !== null && !groupOut && (
             <span className="absolute flex items-center justify-center gap-[0.5cqw] bg-[#15130f] font-black whitespace-nowrap text-white"
               style={{ left: '23.7%', top: '78.1%', width: '16.3%', height: '10.4%', fontSize: '1.15cqw' }} data-group-time>
-              {groupOut ? <Moon style={{ width: '1.3cqw', height: '1.3cqw' }} /> : <Timer style={{ width: '1.3cqw', height: '1.3cqw' }} />}
-              {groupOut ? 'Play time used — back at midnight' : `${clock(groupLeft)} of play left today`}
+              <Timer style={{ width: '1.3cqw', height: '1.3cqw' }} />
+              {`${clock(groupLeft)} of play left today`}
             </span>
+          )}
+          {/* Time used up: no words (2026-11-05); the banner's own pill, with its sample time, covered over. */}
+          {(groupLeft === null || groupOut) && (
+            <span aria-hidden className="pointer-events-none absolute" style={{ left: '21.5%', top: '72%', width: '20.5%', height: '22%', background: 'radial-gradient(closest-side, #110f0c 78%, rgba(17,15,12,0))' }} />
           )}
           <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} aria-label="Room code" autoCapitalize="characters" data-room-code-input
             className={`absolute rounded-[1.1cqw] text-center font-mono tracking-[0.3em] text-slate-900 outline-none focus:ring-2 focus:ring-violet-500/50 ${code ? 'bg-white' : 'bg-transparent'}`}
@@ -657,57 +700,40 @@ function GroupHub() {
           {groupOut && <span aria-hidden className="pointer-events-none absolute rounded-[2cqw] bg-black/35" style={{ left: '71.6%', top: '10%', width: '27%', height: '81%' }} />}
         </form>
 
-        {/* A phone: the banner tall (2026-11-04) — the one wide picture in three pieces: its words and play-time pill
-            across the top, its two sides (the knight; the trophy and controller) side by side under them. Each piece is
-            the picture itself, cut by background size and position, so nothing is cropped away. */}
+        {/* A phone (2026-11-04), as its reference: one dark card — the label, the words, the gold knight and
+            controller on their podiums (public/games/banner/group-phone-art.jpg), today's play time, and Join a Room
+            inside it on cream. */}
         <div className="md:hidden">
-          {(() => {
-            const IMG = 'url(/games/banner/group-banner-left.jpg)';
-            // A piece from a to b across the picture (shares of its width), its whole height (insetting the rounded corners on the sides).
-            const piece = (a, b, inset = 0) => ({
-              aspectRatio: `${((b - a) * 2070)} / ${540 * (1 - inset * 2)}`,
-              backgroundImage: IMG, backgroundRepeat: 'no-repeat',
-              backgroundSize: `${100 / (b - a)}% ${100 / (1 - inset * 2)}%`,
-              backgroundPosition: `${(a / (1 - (b - a))) * 100}% 50%`
-            });
-            return (
-              <div role="img" aria-label="Group games — Bring your friends. Battle brains together!" className="overflow-hidden rounded-3xl bg-[#121016] shadow-[0_18px_36px_-16px_rgba(30,20,90,.7)] ring-1 ring-[#e9b25a]/40">
-                <div className="relative w-full" style={{ ...piece(0.27, 0.73), containerType: 'inline-size' }}>
-                  {groupLeft !== null && (
-                    <span className="absolute flex items-center justify-center gap-[1.4cqw] rounded-full bg-[#15130f] font-black whitespace-nowrap text-white"
-                      style={{ left: '13%', top: '77.4%', width: '51%', height: '11.8%', fontSize: '3.5cqw' }} data-group-time>
-                      {groupOut ? <Moon style={{ width: '3.8cqw', height: '3.8cqw' }} /> : <Timer style={{ width: '3.8cqw', height: '3.8cqw' }} />}
-                      {groupOut ? 'Play time used' : `${clock(groupLeft)} of play left today`}
-                    </span>
-                  )}
-                </div>
-                <div className="flex">
-                  <div style={{ ...piece(0.015, 0.29, 0.06), flex: '1.198 1 0' }} />
-                  <div style={{ ...piece(0.64, 0.985, 0.06), flex: '1.503 1 0' }} />
-                </div>
-              </div>
-            );
-          })()}
-          {/* Join a Room, small (2026-11-04): the code box and the button on one line. */}
-          <form onSubmit={join} className="mt-3 rounded-2xl border border-[#e9b25a] bg-[#f8efe0] p-2.5 shadow-[0_0_16px_rgba(245,180,70,.3)]" data-join-room>
-            <p className="flex items-center gap-1.5 px-1 text-sm font-black text-[#14122a]"><Link2 className="h-4 w-4 text-violet-600" /> Join a Room</p>
-            <div className="mt-2 flex gap-2">
-              <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="Paste code" autoCapitalize="characters" aria-label="Room code"
-                className="min-w-0 flex-1 rounded-xl bg-white px-3 py-2 text-center font-mono text-base tracking-[0.25em] text-slate-900 shadow-sm placeholder:font-sans placeholder:text-sm placeholder:tracking-normal placeholder:text-slate-400 focus:ring-2 focus:ring-violet-500/30 focus:outline-none" />
+          <div className="relative overflow-hidden rounded-[24px] bg-[radial-gradient(110%_70%_at_50%_0%,#2b2214_0%,#121010_50%,#0a0909_100%)] px-3.5 pt-3.5 pb-3.5 text-center shadow-[0_24px_48px_-20px_rgba(20,14,6,.8)] ring-1 ring-[#e9b25a]/35" data-group-hero-phone>
+            <span aria-hidden className="pointer-events-none absolute -top-10 right-[-20%] h-40 w-[70%] -rotate-[30deg] bg-gradient-to-r from-transparent via-[#ffb43a]/25 to-transparent blur-2xl" />
+            <span className="relative inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-[#2a1f0e] to-[#120d05] px-4 py-1 font-serif text-[0.68rem] font-bold tracking-[0.12em] text-[#f6e7bd] uppercase ring-1 ring-[#e9b25a]/80 shadow-[0_0_14px_rgba(233,178,90,.35)]">Group games</span>
+            <h2 className="relative mt-2 font-serif text-[1.3rem] leading-[1.15] font-bold italic min-[400px]:text-[1.45rem]">
+              <span className="block text-white drop-shadow">Bring Your Friends,</span>
+              <span className="block bg-gradient-to-b from-[#ffe39a] to-[#d99a2b] bg-clip-text text-transparent">Battle Brains Together!</span>
+            </h2>
+            <span aria-hidden className="relative mx-auto mt-1.5 block h-[2px] w-36 rounded-full bg-[radial-gradient(closest-side,#ffb43a,transparent)]" />
+            <img src="/games/banner/group-phone-art.jpg" alt="" aria-hidden draggable="false" className="relative mx-auto mt-1 block w-[76%] max-w-[16rem]"
+              style={{ maskImage: 'radial-gradient(74% 72% at 50% 52%, black 70%, transparent 100%)', WebkitMaskImage: 'radial-gradient(74% 72% at 50% 52%, black 70%, transparent 100%)' }} />
+            {groupLeft !== null && !groupOut && (
+              <span className="relative mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3.5 py-1.5 text-xs font-bold text-white ring-1 ring-white/60" data-group-time>
+                <Timer className="h-3.5 w-3.5" />
+                {`${clock(groupLeft)} of play left today`}
+              </span>
+            )}
+            <form onSubmit={join} className="relative mt-3 rounded-2xl bg-[#fbf3e6] p-3 text-left shadow-[0_0_0_1.5px_rgba(233,178,90,.9),0_0_28px_rgba(245,180,70,.45)]" data-join-room>
+              <p className="flex items-center gap-1.5 text-sm font-black text-[#14122a]"><Users className="h-4 w-4 text-violet-600" /> Join a Room <span className="font-semibold text-slate-500">· enter your room code</span></p>
+              <div className="mt-2 flex gap-2">
+              <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="e.g. K7Q2XM" autoCapitalize="characters" aria-label="Room code"
+                className="min-w-0 flex-1 rounded-xl bg-white px-2 py-2.5 text-center font-mono text-base tracking-[0.25em] text-slate-900 shadow-sm placeholder:font-sans placeholder:text-base placeholder:tracking-normal placeholder:text-slate-400 focus:ring-2 focus:ring-violet-500/30 focus:outline-none" />
               <button type="submit" disabled={code.length !== 6 || !!busy || groupOut}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-[#7442f0] to-[#4f22c9] px-4 text-sm font-black text-white shadow-md disabled:opacity-60">
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-[#7442f0] to-[#4f22c9] px-4 py-2.5 text-sm font-black text-white shadow-[0_8px_18px_-8px_rgba(79,34,201,.7)] disabled:opacity-60">
                 {busy === 'join' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />} Join
               </button>
-            </div>
-          </form>
+              </div>
+            </form>
+          </div>
         </div>
 
-        {room && (
-          <button type="button" onClick={() => playRoom(navigate, room.id)} data-my-room
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-black text-emerald-700 shadow-sm ring-1 ring-emerald-200 ring-inset">
-            <DoorOpen className="h-3.5 w-3.5" /> You are in a {room.label} room ({room.code}) — open it
-          </button>
-        )}
       </section>
 
       {error && (
@@ -725,8 +751,8 @@ function GroupHub() {
         </div>
       )}
 
-      {/* ---- Every group game, four to a row, in the solo games' cards ---- */}
-      <div className={`grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 ${groupOut ? 'pointer-events-none opacity-50 grayscale' : ''}`} aria-disabled={groupOut || undefined} data-group-games>
+      {/* ---- Every group game, in the solo games' cards ---- */}
+      <div className={`grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ${groupOut ? 'pointer-events-none opacity-50 grayscale' : ''}`} aria-disabled={groupOut || undefined} data-group-games>
         {GROUP_ORDER.map((id, i) => {
           const g = GROUP_GAMES[id];
           const off = catalog[id]?.enabled === false;
@@ -753,7 +779,7 @@ function GroupHub() {
       {/* ---- A card's Join: paste the code a friend shared; Join only once it is all there. ---- */}
       {joinFor && (
         <Portal>
-          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md" onClick={() => setJoinFor(null)}>
+          <div className="gs-fade fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 sm:backdrop-blur-md" onClick={() => setJoinFor(null)}>
             <form onSubmit={join} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Join a ${joinFor.label} room`} data-join-popup
               className="relative w-full max-w-sm rounded-[28px] border border-white/10 bg-[#0b1020] p-5 text-white shadow-[0_40px_80px_-20px_rgba(0,0,0,.9)] sm:p-6">
               <button type="button" onClick={() => setJoinFor(null)} aria-label="Close" className="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"><X className="h-4 w-4" /></button>
@@ -809,9 +835,9 @@ function GroupHub() {
         );
         return (
         <Portal>
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md" onClick={close}>
+        <div className="gs-fade fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 sm:backdrop-blur-md" onClick={close}>
           <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Play ${info.label}`}
-            className="relative max-h-[92dvh] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-[28px] border border-white/10 bg-[#0b1020] p-4 text-white shadow-[0_40px_80px_-20px_rgba(0,0,0,.9),inset_0_1px_0_rgba(255,255,255,.08)] sm:p-7" data-play-choice>
+            className="relative max-h-[92dvh] w-full max-w-2xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-[28px] border border-white/10 bg-[#0b1020] p-4 text-white shadow-[0_40px_80px_-20px_rgba(0,0,0,.9),inset_0_1px_0_rgba(255,255,255,.08)] sm:p-7" data-play-choice>
             {/* Soft studio light. */}
             <span aria-hidden="true" className="pointer-events-none absolute -top-40 left-1/2 h-80 w-[36rem] -translate-x-1/2 rounded-full bg-indigo-500/25 blur-3xl" />
             <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
@@ -896,8 +922,8 @@ function GroupHub() {
           the screen uncovered. */}
       {picking && (
         <Portal>
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onClick={() => setPicking(null)}>
-          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Create a ${GROUP_GAMES[picking.id].label} room`} className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+        <div className="gs-fade fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-4 sm:bg-slate-900/50 sm:backdrop-blur-sm" onClick={() => setPicking(null)}>
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Create a ${GROUP_GAMES[picking.id].label} room`} className="gs-pop-in w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
             <div className="flex items-center gap-3">
               <GameThumb id={GROUP_THUMBS[picking.id]} className="h-14 w-14" />
               <div className="min-w-0">
@@ -997,10 +1023,10 @@ function OnlineLobby({ online, setOnline, fees, busy, onPlay, open = null }) {
   const label = 'font-extrabold uppercase text-[#5b6074]';
   return (
     <Portal>
-      <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-900/50 p-3 backdrop-blur-sm" onClick={close}>
+      <div className="gs-fade fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-3 sm:bg-slate-900/50 sm:backdrop-blur-sm" onClick={close}>
         {/* The outer box sets the size (and is what the card's units measure); the card inside is styled against it. */}
         <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Play ${info.label} online`} data-online-setup
-          className="relative my-auto select-none" style={{ width: 'min(94vw, 470px, calc((100dvh - 24px) * 1055 / 1490))', containerType: 'inline-size' }}>
+          className="gs-pop-in relative my-auto select-none" style={{ width: 'min(94vw, 470px, calc((100dvh - 24px) * 1055 / 1490))', containerType: 'inline-size' }}>
         <div className="relative w-full bg-[#fefdfe] shadow-[0_30px_70px_rgba(40,30,90,.28)]"
           style={{ borderRadius: u(56), border: `${u(2)} solid #eeecf5`, padding: `${u(46)} ${u(38)} ${u(40)}` }}>
 
@@ -1028,9 +1054,12 @@ function OnlineLobby({ online, setOnline, fees, busy, onPlay, open = null }) {
 
           {/* The table: its own picture for 2, 4 or 6 (more than six: the six's, with the count), the prize on its felt. */}
           <div className="relative flex items-center justify-center" style={{ height: u(530), marginTop: u(14) }} data-online-table={n}>
-            <div key={n} className="relative" style={{ width: `${(table.w / 920) * 100}%`, aspectRatio: `${table.w} / ${table.h}`, animation: 'lobby-table-in .3s ease-out both' }}>
-              <img src={`${LOBBY}/table-${big ? 6 : n}.jpg`} alt="" draggable="false" className="h-full w-full"
-                style={{ maskImage: 'linear-gradient(to right, transparent, #000 3%, #000 97%, transparent), linear-gradient(to bottom, transparent, #000 4%, #000 96%, transparent)', maskComposite: 'intersect', WebkitMaskImage: 'linear-gradient(to right, transparent, #000 3%, #000 97%, transparent), linear-gradient(to bottom, transparent, #000 4%, #000 96%, transparent)', WebkitMaskComposite: 'source-in' }} />
+            <div key={n} className="relative rounded-[12%] bg-gradient-to-b from-slate-100/70 to-transparent" style={{ width: `${(table.w / 920) * 100}%`, aspectRatio: `${table.w} / ${table.h}`, animation: 'lobby-table-in .3s ease-out both' }}>
+              <img src={`${LOBBY}/table-${big ? 6 : n}.jpg`} alt="" draggable="false" decoding="async"
+                onLoad={(e) => { e.currentTarget.style.opacity = '1'; }}
+                className="h-full w-full transition-opacity duration-200"
+                ref={(el) => { if (el && el.complete) el.style.opacity = '1'; }}
+                style={{ opacity: 0, maskImage: 'linear-gradient(to right, transparent, #000 3%, #000 97%, transparent), linear-gradient(to bottom, transparent, #000 4%, #000 96%, transparent)', maskComposite: 'intersect', WebkitMaskImage: 'linear-gradient(to right, transparent, #000 3%, #000 97%, transparent), linear-gradient(to bottom, transparent, #000 4%, #000 96%, transparent)', WebkitMaskComposite: 'source-in' }} />
               <div className="pointer-events-none absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center" style={{ left: `${table.felt[0]}%`, top: `${table.felt[1]}%` }}>
                 <span className="bg-gradient-to-b from-[#fff3c4] via-[#f6c35a] to-[#d68a13] bg-clip-text font-black leading-none text-transparent drop-shadow-[0_2px_2px_rgba(0,0,0,.45)]" style={{ fontSize: u(online.fee ? 44 : 50) }}>{online.fee ? `${prize} XP` : 'XP'}</span>
                 <span className="font-extrabold tracking-wide whitespace-nowrap text-white uppercase" style={{ fontSize: u(21), marginTop: u(6) }}>{online.fee ? `Pot ${pot} XP` : 'Free table'}</span>
@@ -1120,21 +1149,14 @@ function OnlineLobby({ online, setOnline, fees, busy, onPlay, open = null }) {
             <span className="font-black text-[#4c1fd1]" style={{ fontSize: u(34) }}>{online.fee ? `${prize} XP` : 'XP only'}</span>
             <ChevronRight className={`text-[#4c1fd1] transition-transform ${why ? 'rotate-90' : ''}`} style={{ width: u(32), height: u(32) }} strokeWidth={2.6} />
           </button>
-          <p className="flex items-center bg-[#f9f9fc] text-[#4b5066]" style={{ minHeight: u(90), marginTop: u(16), borderRadius: u(22), border: `${u(2)} solid #f1f0f6`, padding: `${u(12)} ${u(26)}`, gap: u(22), fontSize: u(19.5), lineHeight: 1.45 }} data-online-note>
+          {/* The standing note (fee, 30 s search…) left out (2026-11-07); only "Winner gets"'s explanation, when opened. */}
+          {why && <p className="flex items-center bg-[#f9f9fc] text-[#4b5066]" style={{ minHeight: u(90), marginTop: u(16), borderRadius: u(22), border: `${u(2)} solid #f1f0f6`, padding: `${u(12)} ${u(26)}`, gap: u(22), fontSize: u(19.5), lineHeight: 1.45 }} data-online-note>
             <Info className="shrink-0 text-[#3b4160]" style={{ width: u(36), height: u(36) }} strokeWidth={2} />
             <span>
-              {why
-                ? (online.fee ? `Pot ${pot} XP: ${n} players × ${online.fee} XP. The winner takes ${Math.round(fees.prizeShare * 100)}% of it, ${prize} XP.` : `A free table: no entry fee and no pot. Places earn XP — ${XP_BY_PLACE}.`)
-                : <>{online.fee ? `${online.fee} XP is taken from your XP when you sit down. ` : ''}We look for players for {fees.waitSeconds || 30} seconds. If the table isn&apos;t full, it starts with whoever is there; if nobody comes, {online.fee ? 'your fee comes back' : 'the table closes'}.</>}
+              {online.fee ? `Pot ${pot} XP: ${n} players × ${online.fee} XP. The winner takes ${Math.round(fees.prizeShare * 100)}% of it, ${prize} XP.` : `A free table: no entry fee and no pot. Places earn XP — ${XP_BY_PLACE}.`}
             </span>
-          </p>
+          </p>}
           </>}
-          {online.room && (
-            <p className="flex items-center bg-[#f9f9fc] text-[#4b5066]" style={{ minHeight: u(90), marginTop: u(26), borderRadius: u(22), border: `${u(2)} solid #f1f0f6`, padding: `${u(12)} ${u(26)}`, gap: u(22), fontSize: u(19.5), lineHeight: 1.45 }} data-room-note>
-              <Info className="shrink-0 text-[#3b4160]" style={{ width: u(36), height: u(36) }} strokeWidth={2} />
-              <span>A private room, free to play: you get a code to share with your friends, and you start the game when everyone is in. Places earn XP — {XP_BY_PLACE}.</span>
-            </p>
-          )}
 
           {/* Cancel, and Create room (sits you at an online table of this size and fee). */}
           <div className="grid grid-cols-[1fr_1.1fr]" style={{ gap: u(20), marginTop: u(28) }}>
@@ -1169,6 +1191,16 @@ export default function Games() {
     next.set('mode', m === 'group' ? 'group' : 'solo');
     setParams(next, { replace: true });
   };
+  // While the chooser is up, the page behind it stays still (2026-11-06: on a phone it scrolled under the popup).
+  const chooserUp = choosing && !active;
+  useEffect(() => {
+    if (!chooserUp) return undefined;
+    const main = document.querySelector('main');
+    const prev = [document.body.style.overflow, main?.style.overflow];
+    document.body.style.overflow = 'hidden';
+    if (main) main.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev[0]; if (main) main.style.overflow = prev[1] || ''; };
+  }, [chooserUp]);
   const toast = useToast();
   // Android's back button leaves the game for the hub, the same as the
   // game's own exit — not the Games page, and never the app.
@@ -1271,19 +1303,6 @@ export default function Games() {
     <div className="relative">
       {Game && (
         <div className="fp-enter space-y-3">
-          {/* During play a wide screen shows the clock in the game's left rail
-              (GameShell), beside the board; this pill covers the briefing,
-              the result and narrower screens, where there is no rail. */}
-          {left !== null && (
-            <p className={`mx-auto flex w-fit items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-black tabular-nums shadow-sm ring-1 ring-inset ${
-              inPlay ? 'xl:hidden' : ''
-            } ${
-              left <= 60 ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-surface text-ink-700 ring-line-200'
-            }`}>
-              <Timer className="h-3.5 w-3.5" />
-              {clock(left)} of play left today
-            </p>
-          )}
           <PlayClockContext.Provider value={playClock}>
             <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><span className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" aria-label="Loading the game" /></div>}>
               <Game onExit={() => setActive(null)} />
@@ -1296,9 +1315,14 @@ export default function Games() {
           and a bulb for Individual games, a trophy and three players for Group games (public/games/choose). */}
       {choosing && !active && (
         <Portal>
-          <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-black/80 p-3 backdrop-blur-md sm:p-6" data-games-choose>
+          <div className="gs-fade fixed inset-0 z-[120] flex touch-none items-center justify-center overflow-hidden overscroll-none bg-black/80 p-3 sm:p-6 sm:backdrop-blur-md" style={{ height: '100dvh' }} data-games-choose>
             <div role="dialog" aria-modal="true" aria-label="Choose games"
-              className="relative my-auto w-full max-w-3xl overflow-hidden rounded-[28px] bg-[radial-gradient(90%_60%_at_50%_0%,#2a2216_0%,#0d0c0a_55%,#070707_100%)] px-4 pt-6 pb-5 text-white shadow-[0_50px_100px_-30px_rgba(0,0,0,.95)] ring-1 ring-[#e8b04b]/25 sm:px-8 sm:pt-8 sm:pb-8">
+              className="relative my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-hidden rounded-[24px] bg-[radial-gradient(90%_60%_at_50%_0%,#2a2216_0%,#0d0c0a_55%,#070707_100%)] px-3 pt-5 pb-4 sm:rounded-[28px] text-white shadow-[0_50px_100px_-30px_rgba(0,0,0,.95)] ring-1 ring-[#e8b04b]/25 sm:px-8 sm:pt-8 sm:pb-8">
+              {/* ✕: closed without choosing, the Individual games show (2026-11-04). */}
+              <button type="button" onClick={() => setMode('solo')} aria-label="Close" data-games-choose-close
+                className="absolute top-3 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-[#f5c055] ring-1 ring-[#e8b04b]/40 transition hover:bg-[#e8b04b]/15 hover:text-[#ffe39a] sm:top-4 sm:right-4">
+                <X className="h-5 w-5" />
+              </button>
               {/* The heading: a gold pad between two gold lines, GAMES, the question, a gold glow under it. */}
               <div className="flex items-center justify-center gap-3 sm:gap-5" aria-hidden>
                 <span className="h-px w-10 bg-gradient-to-r from-transparent to-[#e8b04b] sm:w-16" />
@@ -1306,35 +1330,37 @@ export default function Games() {
                 <span className="h-px w-10 bg-gradient-to-l from-transparent to-[#e8b04b] sm:w-16" />
               </div>
               <p className="mt-1 text-center text-[11px] font-semibold tracking-[0.45em] text-slate-300 uppercase sm:text-xs">Games</p>
-              <h2 className="mt-1.5 text-center text-2xl leading-tight font-black tracking-tight sm:text-4xl">
+              <h2 className="mt-1 text-center text-xl leading-tight font-black tracking-tight sm:mt-1.5 sm:text-4xl">
                 <span className="bg-gradient-to-b from-white to-slate-300 bg-clip-text text-transparent">What do you want to </span>
                 <span className="bg-gradient-to-b from-[#ffe39a] to-[#d99a2b] bg-clip-text text-transparent">play?</span>
               </h2>
               <span aria-hidden className="mx-auto mt-3 block h-[3px] w-40 rounded-full bg-[radial-gradient(closest-side,#ffb43a,transparent)] sm:w-64" />
 
-              <div className="mt-5 grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 sm:mt-7 sm:gap-6">
+              <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-7 sm:gap-6">
                 {[
                   ['solo', 'Individual games', 'Quick brain games on your own', User, '/games/choose/solo.jpg'],
                   ['group', 'Group games', 'Play with friends in a room', Users, '/games/choose/group.jpg']
                 ].map(([m, label, note, Icon, art]) => (
                   <button key={m} type="button" onClick={() => setMode(m)} data-games-mode={m}
-                    className="group relative flex flex-col overflow-hidden rounded-[24px] bg-[linear-gradient(160deg,#1c1a17,#0b0a09)] p-3 text-left shadow-[0_0_0_1.5px_rgba(232,176,75,.7),0_0_24px_-4px_rgba(232,176,75,.45),0_30px_50px_-20px_rgba(0,0,0,.9),inset_0_1px_0_rgba(255,255,255,.08)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_0_1.5px_rgba(255,200,90,.95),0_0_36px_-2px_rgba(255,190,80,.6),0_36px_56px_-20px_rgba(0,0,0,.9)] active:translate-y-0 sm:p-4">
+                    className="group relative flex flex-col overflow-hidden rounded-[18px] bg-[linear-gradient(160deg,#1c1a17,#0b0a09)] p-2 text-left sm:rounded-[24px] sm:p-4 shadow-[0_0_0_1.5px_rgba(232,176,75,.7),0_0_24px_-4px_rgba(232,176,75,.45),0_30px_50px_-20px_rgba(0,0,0,.9),inset_0_1px_0_rgba(255,255,255,.08)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_0_1.5px_rgba(255,200,90,.95),0_0_36px_-2px_rgba(255,190,80,.6),0_36px_56px_-20px_rgba(0,0,0,.9)] active:translate-y-0">
                     {/* The art, its own dark ground faded into the card's. */}
-                    <span className="relative block overflow-hidden rounded-2xl" style={{ aspectRatio: '520 / 370' }}>
-                      <img src={art} alt="" draggable="false" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    <span className="relative block overflow-hidden rounded-xl sm:rounded-2xl" style={{ aspectRatio: '520 / 370' }}>
+                      <img src={art} alt="" draggable="false" fetchPriority="high" decoding="async"
+                        ref={(el) => { if (el && el.complete) el.style.opacity = '1'; }} onLoad={(e) => { e.currentTarget.style.opacity = '1'; }}
+                        className="absolute inset-0 h-full w-full object-cover opacity-0 transition-[opacity,transform] duration-300 group-hover:scale-105"
                         style={{ maskImage: 'radial-gradient(75% 80% at 50% 50%, black 60%, transparent 100%)', WebkitMaskImage: 'radial-gradient(75% 80% at 50% 50%, black 60%, transparent 100%)' }} />
                     </span>
-                    <span className="mt-2 flex items-center gap-3 px-1 sm:mt-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-[#5a3a17] to-[#2a1a0a] text-[#f5c055] shadow-[0_6px_14px_-4px_rgba(0,0,0,.8),inset_0_1px_0_rgba(255,220,150,.35),0_0_0_1px_rgba(232,176,75,.35)] sm:h-12 sm:w-12">
-                        <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
+                    <span className="mt-2 flex items-center gap-2 px-0.5 sm:mt-3 sm:gap-3 sm:px-1">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-b from-[#5a3a17] to-[#2a1a0a] sm:h-12 sm:w-12 sm:rounded-xl text-[#f5c055] shadow-[0_6px_14px_-4px_rgba(0,0,0,.8),inset_0_1px_0_rgba(255,220,150,.35),0_0_0_1px_rgba(232,176,75,.35)]">
+                        <Icon className="h-4 w-4 sm:h-6 sm:w-6" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-lg leading-tight font-black text-white sm:text-xl">{label}</span>
-                        <span className="mt-0.5 block text-xs text-slate-300 sm:text-sm">{note}</span>
+                        <span className="block text-[13px] leading-tight font-black text-white sm:text-xl">{label}</span>
+                        <span className="mt-0.5 hidden text-sm text-slate-300 sm:block">{note}</span>
                       </span>
                     </span>
-                    <span className="mt-4 flex items-center justify-center gap-2 rounded-full bg-gradient-to-b from-[#ffe08a] via-[#f5b53f] to-[#c98316] py-2.5 text-base font-black text-[#2a1a05] shadow-[0_0_0_1px_rgba(255,230,160,.6),0_8px_22px_-6px_rgba(245,181,63,.75),inset_0_2px_0_rgba(255,255,255,.55),inset_0_-3px_0_rgba(120,70,0,.35)] transition-transform group-active:scale-[.98] sm:py-3 sm:text-lg">
-                      <Play className="h-4 w-4 fill-current sm:h-5 sm:w-5" /> Play
+                    <span className="mt-2.5 flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-b from-[#ffe08a] via-[#f5b53f] to-[#c98316] py-2 text-sm font-black text-[#2a1a05] shadow-[0_0_0_1px_rgba(255,230,160,.6),0_8px_22px_-6px_rgba(245,181,63,.75),inset_0_2px_0_rgba(255,255,255,.55),inset_0_-3px_0_rgba(120,70,0,.35)] transition-transform group-active:scale-[.98] sm:mt-4 sm:gap-2 sm:py-3 sm:text-lg">
+                      <Play className="h-3.5 w-3.5 fill-current sm:h-5 sm:w-5" /> Play
                     </span>
                   </button>
                 ))}
@@ -1368,62 +1394,59 @@ export default function Games() {
           })}
         </div>
 
+        {/* ---- The Individual games banner (2026-11-04): the reference picture itself (public/games/banner/
+            solo-banner.jpg) — its knight, its words, Explore and its trophy — faded at its right into the same violet,
+            with this week's live leaderboard on a white card beside it (under it on a phone), and the picture's
+            Explore button made a real one. ---- */}
         {!group && (
-        <section className="relative isolate overflow-hidden rounded-3xl shadow-card ring-1 ring-sky-200/70 ring-inset">
-          <HeroScene className="absolute inset-0 h-full w-full" />
-
-          {/* `minmax(0,1fr)` and not a bare column: the leaderboard's rows
-              keep their names on one line, so as an auto column this sized
-              itself to "Bhagyashree YOU ★ 117" and on a narrow phone ran the
-              pitch and the board out through the banner's right padding. A
-              zero minimum lets the column be the banner's width and the name
-              shorten instead. */}
-          <div className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_20.5rem]">
-            {/* The pitch */}
-            <div className="flex items-end gap-4">
-              <GameTokensArt className="hidden h-[10.5rem] w-[10.5rem] shrink-0 self-end lg:block" />
-
-              <div className="min-w-0 flex-1 pb-1">
-                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3.5 py-1.5 text-[0.68rem] font-black tracking-[0.12em] text-white uppercase shadow-md shadow-violet-500/30">
-                  Brain Boosters
+          <section className="relative isolate overflow-hidden rounded-[28px] bg-[linear-gradient(100deg,#3a1077_0%,#4a1890_55%,#321066_100%)] shadow-[0_30px_60px_-24px_rgba(91,33,182,.7)] ring-1 ring-violet-400/30" data-solo-hero>
+            <span aria-hidden className="pointer-events-none absolute -top-8 right-[6%] h-28 w-[40%] -rotate-[10deg] rounded-full bg-gradient-to-r from-transparent via-fuchsia-300/30 to-transparent blur-xl" />
+            <span aria-hidden className="pointer-events-none absolute -bottom-10 right-0 h-24 w-[45%] -rotate-[8deg] rounded-full bg-gradient-to-r from-transparent via-violet-300/25 to-transparent blur-xl" />
+            <div className="relative grid grid-cols-[minmax(0,1fr)] items-center lg:grid-cols-[minmax(0,1fr)_minmax(0,21rem)]">
+              {/* A wide screen: the picture as drawn, its left 70%; its Explore button, live: down to the games. */}
+              {/* A phone (2026-11-04), as its reference: the label, the words, the knight and the trophy on one lit
+                  podium (public/games/banner/solo-phone-art.jpg), then Explore — the play time and leaderboard follow. */}
+              {/* A phone (2026-11-06): drawn as the Group games card is — the serif label chip, the serif italic headline
+                  with its gold second line, a glowing rule, then the picture — in this section's own violet. */}
+              <div className="px-3.5 pt-3 pb-0.5 text-center text-white lg:hidden">
+                <span className="relative inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-[#3b1a78] to-[#1f0d45] px-4 py-1 font-serif text-[0.68rem] font-bold tracking-[0.12em] text-[#f6e7bd] uppercase ring-1 ring-[#e9b25a]/80 shadow-[0_0_14px_rgba(233,178,90,.35)]">
+                  <Zap className="h-3 w-3 fill-[#f6e7bd] text-[#f6e7bd]" /> Individual games
                 </span>
-
-                <h1 className="mt-2.5 text-2xl leading-[1.15] font-black text-[#173a63] sm:text-3xl lg:text-[2.1rem]">
-                  <span className="block">Your brain&apos;s next</span>
-                  <span className="block">
-                    <span className="text-violet-600">boss</span> <span className="text-pink-500">battle</span> starts here!
-                  </span>
+                <h1 className="relative mt-2 font-serif text-[1.3rem] leading-[1.15] font-bold italic min-[400px]:text-[1.45rem]">
+                  <span className="block text-white drop-shadow">Play Solo,</span>
+                  <span className="block bg-gradient-to-b from-[#ffe39a] to-[#d99a2b] bg-clip-text text-transparent">Sharpen Your Skills!</span>
                 </h1>
-
-                <p className="mt-2.5 hidden max-w-md text-sm leading-relaxed text-slate-700 sm:block">
-                  Where every challenge makes you <span className="font-bold text-[#173a63]">sharper</span>. <span className="font-bold text-[#173a63]">Quick</span> games for memory,
-                  logic, words and numbers.
-                </p>
-
-                {/* Today's play allowance, from the admin's rules. */}
-                {playTime && left !== null && (
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 shadow-sm ring-1 ring-inset ${
-                      outOfTime ? 'bg-slate-100 text-slate-600 ring-slate-200' : 'bg-white/90 text-[#173a63] ring-sky-200'
-                    }`}>
-                      {outOfTime ? <Moon className="h-3.5 w-3.5" /> : <Timer className="h-3.5 w-3.5" />}
-                      {outOfTime ? 'Play time used — back at midnight' : `${clock(left)} of play left today`}
-                    </span>
-                  </div>
-                )}
+                <span aria-hidden className="relative mx-auto mt-1.5 block h-[2px] w-36 rounded-full bg-[radial-gradient(closest-side,#ffb43a,transparent)]" />
+              </div>
+              <div role="img" aria-label={SOLO_HERO_WORDS} className="relative hidden w-full lg:block"
+                style={{ aspectRatio: '1470 / 458', backgroundImage: 'url(/games/banner/solo-banner.jpg)', backgroundSize: `${100 / 0.7}% 100%`, backgroundPosition: '0% 50%',
+                  maskImage: 'linear-gradient(to right, black 88%, transparent)', WebkitMaskImage: 'linear-gradient(to right, black 88%, transparent)' }}>
+                <button type="button" aria-label="Explore Individual Games" data-explore-solo
+                  onClick={exploreSolo}
+                  className="absolute cursor-pointer rounded-full transition hover:bg-white/10 hover:shadow-[0_0_24px_rgba(255,216,77,.55)] focus-visible:ring-4 focus-visible:ring-yellow-300/70 focus-visible:outline-none"
+                  style={{ left: '31.1%', top: '69.4%', width: '34.7%', height: '20.1%' }} />
+              </div>
+              {/* Today's play allowance on a phone: its own clear line under the picture. */}
+              {playTime && left !== null && !outOfTime && (
+                <div className="flex justify-center px-4 pt-1.5 lg:hidden">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold ring-1 ring-white/60 ${outOfTime ? 'bg-black/50 text-white/80' : 'bg-black/40 text-white'}`} data-play-left>
+                    {outOfTime ? <Moon className="h-4 w-4" /> : <Timer className="h-4 w-4" />}
+                    {outOfTime ? 'Play time used — back at midnight' : `${clock(left)} of play left today`}
+                  </span>
+                </div>
+              )}
+              {/* This week's leaderboard. */}
+              <div className="relative mx-3 my-3 rounded-[18px] bg-gradient-to-b from-white to-[#f6f2ff] p-2.5 text-[#1e1b4b] lg:p-4 lg:rounded-[22px] shadow-[0_20px_40px_-16px_rgba(30,10,80,.7),inset_0_1px_0_#fff] ring-1 ring-violet-200/80 lg:mx-0 lg:mr-5 lg:self-center" data-solo-board>
+                <GameLeaderboard dense />
               </div>
             </div>
-
-            {/* The standings, on frosted glass so the scene still reads behind
-              them and the two halves stay one picture. */}
-            <div className="rounded-2xl bg-white/80 p-4 shadow-lg ring-1 ring-white/70 backdrop-blur-md ring-inset">
-              <GameLeaderboard dense />
-            </div>
-          </div>
-
-          {/* The lettering, floating over the sky between the two halves. */}
-          <PlayLearnGrow className="pointer-events-none absolute top-[6%] left-[46%] hidden h-24 w-24 xl:block" />
-        </section>
+          </section>
+        )}
+        {!group && playTime && left !== null && !outOfTime && (
+          <p className={`-mt-3 hidden items-center gap-1.5 text-xs font-black lg:flex ${outOfTime ? 'text-slate-500' : 'text-violet-700'}`}>
+            {outOfTime ? <Moon className="h-3.5 w-3.5" /> : <Timer className="h-3.5 w-3.5" />}
+            {outOfTime ? 'Play time used — back at midnight' : `${clock(left)} of play left today`}
+          </p>
         )}
 
         {group && <GroupHub />}
@@ -1433,7 +1456,7 @@ export default function Games() {
           const category = CATEGORIES.find((c) => c.key === categoryKey) || CATEGORIES[0];
           return (
             <section>
-              <div className="mb-3 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Game categories">
+              <div className="mb-3 flex scroll-mt-24 gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Game categories" data-solo-categories>
                 {CATEGORIES.map((c) => {
                   const Icon = c.icon;
                   const on = c.key === category.key;
@@ -1448,15 +1471,16 @@ export default function Games() {
                   );
                 })}
               </div>
-              <p className="mb-4 flex items-center gap-2 text-sm text-ink-500"><Sparkles aria-hidden className="h-4 w-4 shrink-0 text-amber-400" />{category.blurb}</p>
 
               {/* Five across on a wide screen, as on the sheet. */}
-              <div key={category.key} className="fp-game-stage grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <div key={category.key} data-solo-games className="fp-game-stage grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {category.games.map((game, i) => (
                   <GameCard
                     key={game.id}
                     game={game}
-                    theme={CARD_THEMES[i % CARD_THEMES.length]}
+                    theme={GROUP_ACCENTS[SOLO_COLOURS[i % SOLO_COLOURS.length]]}
+                    art={soloArt(game.id)}
+                    tight
                     index={i}
                     reached={levelReached(game.id)}
                     stars={starsForGame(game.id)}
@@ -1468,10 +1492,6 @@ export default function Games() {
             </section>
           );
         })()}
-
-        <p className={`hidden px-1 text-xs leading-relaxed text-ink-400 ${group ? '' : 'sm:block'}`}>
-          Your level and stars in each game are saved to your account when a level ends, so they follow you between devices and count on the leaderboard. A level pays XP for its best stars, once per star — replaying at the same stars pays nothing.
-        </p>
       </div>
     </div>
   );

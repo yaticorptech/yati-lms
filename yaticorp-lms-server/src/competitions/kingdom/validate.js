@@ -81,7 +81,25 @@ const validate = (trials) => {
     if (!Array.isArray(trials) || trials.length !== 5) return ['There must be five trials.'];
     trials.forEach((t, i) => {
         if (!t.prompt || !t.title) fail(i, 'no question');
-        if (t.kind === 'bridges') {
+        if (t.kind === 'grid' || t.kind === 'triangle') {
+            // Worked as a student would (rules.js): every rule tried, every way; exactly one number may fill the gap.
+            const { triangleFills, gridFills } = require('./rules');
+            const gaps = t.kind === 'grid' ? t.data.cells.filter((v) => v == null).length : t.data.rows.flat().filter((v) => v == null).length;
+            const fit = gaps === 1 ? (t.kind === 'grid' ? gridFills(t.data.cells) : triangleFills(t.data.rows)) : [];
+            if (fit.length !== 1 || fit[0] !== t.answer) fail(i, `the ${t.kind} has ${fit.length} possible answers`);
+        } else if (t.kind === 'swap') {
+            // Three of each symbol, the start not already solved, and the given answer a real solution of the same tiles.
+            const { swapSolved } = require('./generator');
+            const count = (a) => ['gem', 'sun', 'leaf'].map((x) => a.filter((y) => y === x).length).join();
+            const ok = Array.isArray(t.data?.start) && t.data.start.length === 9 && count(t.data.start) === '3,3,3'
+                && !swapSolved(t.data.start) && swapSolved(t.answer) && count(t.answer) === count(t.data.start);
+            if (!ok) fail(i, 'the tiles cannot be swapped into one of each per row and column');
+        } else if (t.kind === 'discs') {
+            // Each target symbol is on its disc, the start is not already the answer, and the clues name the answer.
+            const ok = t.data.rings.length === 3 && t.answer.every((x, d) => t.data.rings[d].includes(x)) && new Set(t.answer).size === 3
+                && !t.answer.every((x, d) => t.data.rings[d][t.data.start[d]] === x) && t.answer.every((x) => t.data.lines.join(' ').toLowerCase().includes(x));
+            if (!ok) fail(i, 'the discs do not have one answer');
+        } else if (t.kind === 'bridges') {
             if (!optionsOk(t) || t.options.length !== 4) fail(i, 'options are not four different ones with one answer');
             const b = t.data?.bridges || [];
             const asked = b.filter((x) => x.terms.includes('?'));

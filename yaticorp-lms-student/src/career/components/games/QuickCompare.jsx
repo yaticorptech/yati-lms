@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -52,6 +53,7 @@ function Round({ progress, onExit }) {
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
   const [started, setStarted] = useState(false);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -59,25 +61,32 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const choose = (side) => {
-    if (over) return;
+    if (over || busy) return;
     const bigger = pair.left.value > pair.right.value ? 'left' : 'right';
+    const nextPair = () => setPair(makePair(config.max, config.ops));
     if (side === bigger) {
       setScore((s) => s + 1);
       setFlash('right');
+      nextPair();
+      setTimeout(() => setFlash(null), 250);
     } else {
-      setFlash('wrong');
+      // The buzz, the tapped side red and the bigger side green (values shown), then the next pair.
+      showWrong(side, bigger, nextPair);
     }
-    setPair(makePair(config.max, config.ops));
-    setTimeout(() => setFlash(null), 250);
   };
 
-  const sideClass = `fp-press flex min-h-32 flex-1 basis-40 items-center justify-center rounded-3xl text-3xl font-black tabular-nums ring-1 transition-all ring-inset ${
-    flash === 'right'
-      ? 'bg-emerald-50 text-emerald-800 ring-emerald-300'
-      : flash === 'wrong'
-        ? 'bg-rose-50 text-rose-700 ring-rose-300'
-        : 'bg-surface-50 text-ink-900 ring-line-200 hover:bg-amber-50 hover:ring-amber-300'
-  }`;
+  const sideClass = (side) =>
+    `fp-press flex min-h-32 flex-1 basis-40 flex-col items-center justify-center rounded-3xl text-3xl font-black tabular-nums ring-1 transition-all ring-inset ${
+      flash === 'right'
+        ? 'bg-emerald-50 text-emerald-800 ring-emerald-300'
+        : `bg-surface-50 text-ink-900 ring-line-200 ${busy ? '' : 'hover:bg-amber-50 hover:ring-amber-300'} ${toneOf(side)}`
+    }`;
+  const shown = (side) => (
+    <>
+      {pair[side].text}
+      {busy && <span className="mt-1 text-base font-bold opacity-80">= {pair[side].value}</span>}
+    </>
+  );
 
   return (
     <GameShell
@@ -118,12 +127,12 @@ function Round({ progress, onExit }) {
     >
       {started && !over && (
         <div className="mx-auto flex max-w-md flex-wrap items-stretch gap-3">
-          <button type="button" onClick={() => choose('left')} className={sideClass}>
-            {pair.left.text}
+          <button type="button" onClick={() => choose('left')} disabled={busy} className={sideClass('left')}>
+            {shown('left')}
           </button>
           <span className="flex items-center text-sm font-black text-ink-400">vs</span>
-          <button type="button" onClick={() => choose('right')} className={sideClass}>
-            {pair.right.text}
+          <button type="button" onClick={() => choose('right')} disabled={busy} className={sideClass('right')}>
+            {shown('right')}
           </button>
         </div>
       )}

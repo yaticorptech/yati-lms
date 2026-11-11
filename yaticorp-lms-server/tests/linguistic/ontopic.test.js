@@ -45,13 +45,35 @@ describe('Section 1 translation on its units\' topics', () => {
         });
     }
 
+    // One short sentence to read in every unit (2026-11-04, the user: "add one in every unit, not long, 3 or 4 words").
+    for (const [language, course] of [['kn', null], ['hi', null], ['en', 'kn'], ['kn', 'hi'], ['hi', 'ja']]) {
+        test(`${course || 'English'} for a ${language} speaker: each unit has its one short sentence to read, 3 or 4 words, answered from tiles`, async () => {
+            const progress = progressFor(language, course);
+            const units = unitsOf((await svc.lessonsFor(progress)).filter((l) => l.level === 'beginner')).filter((u) => u.kind === 'topic' && u.lessons.some((x) => x.module === 'translation'));
+            assert.equal(units.length, 8, units.map((u) => u.title).join(', '));
+            for (const u of units) {
+                const doc = u.lessons.find((l) => l.module === 'translation' && !l.review);
+                const l = svc.serve(doc, progress);
+                const short = l.items.filter((it) => ['i7', 'i8'].includes(it.id));
+                assert.equal(short.length, 1, `${u.title}: one (${short.map((x) => x.id)})`);
+                const it = short[0], way = it.direction || l.direction;
+                // To read: the language learnt shown, the student's own written — in the English course, Kannada → English.
+                assert.equal(way, course ? 'en-kn' : 'kn-en', `${u.title}: a sentence to read`);
+                const english = (it.en || it.model).replace(/[.?!]/g, '').split(' ');
+                assert.ok(english.length >= 3 && english.length <= 4, `${u.title}: "${it.en || it.model}" is 3 or 4 words`);
+                const bank = svc.bankFor(it, l);
+                if (bank) assert.ok(bank.length > (it.tiles || it.model.split(' ')).length, `${u.title}: its tiles and a few more (${bank.join(' / ')})`);
+            }
+        });
+    }
+
     test('every language has each of them, in its place', () => {
         for (const code of Object.keys(LANGS)) {
             const items = packOf(code).items;
             for (const [key, side] of [['translation-beginner-kn-en', 'source'], ['translation-beginner-en-kn', 'model']]) {
                 const ids = Object.keys(items[key] || {}).sort();
-                assert.deepEqual(ids, ['i1', 'i2', 'i3', 'i4', 'i5', 'i6', 'q1', 'q2', 'q3', 'q4'], `${code} ${key}`);
-                assert.ok(Object.values(items[key]).every((x) => x[side] && x.explanation), `${code} ${key}: each with its sentence and why`);
+                assert.deepEqual(ids, ['i1', 'i2', 'i3', 'i4', 'i5', 'i6', 'i7', 'i8', 'q1', 'q2', 'q3', 'q4'], `${code} ${key}`);
+                assert.ok(Object.values(items[key]).every((x) => x[x.direction === 'kn-en' ? 'source' : side] && x.explanation), `${code} ${key}: each with its sentence and why`);
             }
         }
     });

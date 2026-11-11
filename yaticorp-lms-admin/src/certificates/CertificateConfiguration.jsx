@@ -4,7 +4,8 @@
  * get one (1st, 2nd, 3rd, participation), the signatories and the template. Nobody's name is typed: when a
  * competition of that kind is over and its results are published, each winner (and participant, if ticked) gets
  * theirs with their own name and place, in their own dashboard (certificates/auto.js). The preview shows a stand-in.
- * The platform admin's Certificate Builder and the student app are not touched.
+ * Since 2026-11-07 the platform admin's Certificate Builder is this same page (side="platform"): its own saved
+ * certificates, templates and defaults, the organising name starting as Yaticorp's.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -22,14 +23,7 @@ import { loadDraft, saveDraft, clearDraft } from './draft';
 const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
 const LABEL = 'mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500';
 const SAMPLES = [['first', '1st'], ['second', '2nd'], ['third', '3rd'], ['participation', 'Participation']];
-const DRAFT = 'certificate-configuration';
 const PLACE = { first: 1, second: 2, third: 3 };
-
-/** Digits typed as a date, DD/MM/YYYY: the slashes go in by themselves. */
-const asDate = (v) => {
-    const d = String(v).replace(/\D/g, '').slice(0, 8);
-    return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join('/');
-};
 
 function Section({ icon: Icon, title, children, aside }) {
     return (
@@ -73,8 +67,11 @@ const fresh = (college = '') => ({
     elements: {}, showQr: false
 });
 
-export default function CertificateConfiguration() {
-    const S = SIDES.organization;
+export default function CertificateConfiguration({ side = 'organization' }) {
+    const S = SIDES[side];
+    const platform = side === 'platform';
+    const DRAFT = platform ? 'certificate-builder-platform' : 'certificate-configuration';
+    const whose = platform ? 'your' : 'your organisation';
     const [design, setDesign] = useState(() => fresh());
     const [status, setStatus] = useState(null);           // the saved certificate's: { issued }
     // The saved certificate being changed (Certificate 1, 2, …); null: a new one, numbered when it is saved.
@@ -185,9 +182,9 @@ export default function CertificateConfiguration() {
         if (!ready) return undefined;
         const t = setTimeout(() => saveDraft(DRAFT, { design, designId, sample: picked, savedAt: Date.now() }), 500);
         return () => clearTimeout(t);
-    }, [design, designId, picked, ready]);
+    }, [design, designId, picked, ready, DRAFT]);
     const startOver = () => {
-        if (!window.confirm('Clear this certificate and start over? Your organisation defaults are loaded again.')) return;
+        if (!window.confirm(`Clear this certificate and start over? ${platform ? 'Your' : 'Your organisation'} defaults are loaded again.`)) return;
         clearDraft(DRAFT);
         setHist({ past: [], future: [] }); setSelected(null); setSaved(null); setStatus(null); setDesignId(null);
         setDesign(fresh(design.details.college));
@@ -196,7 +193,7 @@ export default function CertificateConfiguration() {
     const saveDefaults = () => {
         setSavingDefaults(true); setDefaultsNote(''); setError('');
         api.put(`${S.apiBase}/org-defaults`, design)
-            .then(() => setDefaultsNote('Saved as your organisation’s default: it opens like this next time.'))
+            .then(() => setDefaultsNote(`Saved as ${whose}${platform ? '' : '’s'} default: it opens like this next time.`))
             .catch((err) => setError(err.response ? errorOf(err) : 'Can’t reach the server right now. Try again in a moment.'))
             .finally(() => setSavingDefaults(false));
     };
@@ -208,11 +205,23 @@ export default function CertificateConfiguration() {
         if (m) { const sg = design.signatories[Number(m[2])]; return sg ? (m[1] === 'name' ? sg.name : sg.designation) : undefined; }
         const map = {
             college: design.details.college, address: design.details.address || '', affil: design.details.affiliation || '',
-            title: [design.details.title, design.details.tagline].filter(Boolean).join(' '), tagline: [design.details.title, design.details.tagline].filter(Boolean).join(' '), intro: design.details.intro || '',
-            comp: 'Competition Name', desc: design.description
+            title: [design.details.title, design.details.tagline].filter(Boolean).join(' '), tagline: [design.details.title, design.details.tagline].filter(Boolean).join(' '), intro: design.details.intro || undefined,   // the standard line until it is typed over on the certificate
+            comp: design.elements?.comp?.text ?? '{competition}', desc: design.description
         };
         if (key in map) return map[key];
-        return design.elements?.[key]?.text;
+        // What changes with each certificate (2026-11-07: every text editable) — written with its fill-in words, so it
+        // can be reworded and each student still gets their own name, place and college.
+        const own = design.elements?.[key]?.text;
+        if (own !== undefined) return own;
+        const part = sample === 'participation';
+        const by = [design.details.department && `organised by the ${design.details.department}`, 'at {college}'].filter(Boolean).join(' ');
+        const standard = {
+            name: '{name}', award: '{place}', inst: '{institution}', place: '{rank}',
+            sentence: `${part ? 'has actively participated in the' : 'has secured {place} in the'} {competition}, ${by}, held on {date}. ${design.description || (part
+                ? 'This certificate is presented in appreciation of the enthusiasm, effort and sportsmanship shown. We wish you continued success in all your future endeavours.'
+                : 'This certificate is awarded in recognition of outstanding performance, dedication and excellence. We wish you continued success in all your future endeavours.')}`
+        };
+        return standard[key];
     };
     const onText = (key, v) => {
         const m = SIGTEXT.exec(key);
@@ -222,12 +231,12 @@ export default function CertificateConfiguration() {
         if (key === 'affil') return setDetails({ affiliation: v });
         if (key === 'title' || key === 'tagline') return setDetails({ title: v, tagline: '' });
         if (key === 'intro') return setDetails({ intro: v });
-        if (key === 'comp') return; // filled in from each competition when it is issued
         if (key === 'desc') return set({ description: v });
         remember();
         setDesign((d) => ({ ...d, elements: { ...(d.elements || {}), [key]: { ...(d.elements || {})[key], text: v } } }));
     };
-    const readOnly = (key) => ({ name: 'The student’s name comes from the results: style and position only.', award: 'The position comes from the results: style and position only.', inst: 'The participating college comes from the results.', sentence: 'Made from the position, competition, department, college, date and description fields: change those to change it.', qr: null })[key] || null;
+    // Every text can be typed over (2026-11-07); nothing is read-only.
+    const readOnly = () => null;
 
 
     // Shown only if it is ticked; otherwise the first one that is.
@@ -253,7 +262,8 @@ export default function CertificateConfiguration() {
     /** The preview as it stands, as a PDF (POST preview-pdf): nothing is saved. */
     const downloadPreview = () => {
         setBusy('download'); setError('');
-        api.post(`${S.apiBase}/preview-pdf`, { ...design, sample, sampleName: '' }, { responseType: 'blob' })
+        // With the same stand-ins as the preview on the page, so the PDF matches it.
+        api.post(`${S.apiBase}/preview-pdf`, { ...design, competition: { ...design.competition, name: 'Competition Name' }, date: 'DD/MM/YYYY', sample, sampleName: sample === 'participation' ? 'Participant’s Name' : 'Winner’s Name' }, { responseType: 'blob' })
             .then((r) => {
                 const href = URL.createObjectURL(r.data);
                 const a = Object.assign(document.createElement('a'), { href, download: `Certificate_${(design.competition.name || 'preview').replace(/[^\w.-]+/g, '_')}.pdf` });
@@ -301,10 +311,11 @@ export default function CertificateConfiguration() {
 
     return (
         <div className="space-y-5 pb-16" data-certificate-configuration>
-            <div className="flex flex-wrap items-end justify-between gap-3">
+            {/* Back close to the top (2026-11-07): pulled up into the dashboard's page padding. */}
+            <div className="-mt-3 flex flex-wrap items-end justify-between gap-3 sm:-mt-5 lg:-mt-7">
                 <div>
                     <Link to={S.back} className="mb-1 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} /> Back</Link>
-                    <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 sm:text-3xl"><Award className="text-indigo-600" /> Certificate Configuration</h1>
+                    <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 sm:text-3xl"><Award className="text-indigo-600" /> {platform ? 'Certificate Builder' : 'Certificate Configuration'}</h1>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={startOver} className={BTN2} data-cert-start-over><RotateCcw size={16} /> Start over</button>
@@ -331,7 +342,7 @@ export default function CertificateConfiguration() {
                         <div className="grid gap-3 sm:grid-cols-2">
                             <label className="sm:col-span-2"><span className={LABEL}>Organising college name</span><input value={design.details.college} onChange={(e) => { setDetails({ college: e.target.value }); setSaved(null); }} maxLength={160} placeholder="RV College of Engineering" className={INPUT} data-cert-college /></label>
                             <div className="grid grid-cols-[1fr_8.5rem] gap-2">
-                                <PictureField label="College logo" value={design.branding.logo} onChange={(v) => setBrand({ logo: v })} onError={setError} />
+                                <PictureField label="College logo" value={design.branding.logo} onChange={(v) => setBrand(v ? { logo: v, yaticorp: false } : { logo: v })} onError={setError} />
                                 <label><span className={LABEL}>Logo shape</span>
                                     <Dropdown value={design.branding.logoShape || 'original'} onChange={(v) => setBrand({ logoShape: v })} options={[['original', 'Original'], ['circle', 'Circle'], ['square', 'Square']]} className={`${INPUT} h-12`} data-cert-logo-shape />
                                 </label>
@@ -340,13 +351,20 @@ export default function CertificateConfiguration() {
                             <label><span className={LABEL}>College address</span><input value={design.details.address || ''} onChange={(e) => { setDetails({ address: e.target.value }); setSaved(null); }} maxLength={120} placeholder="Mangaluru, Karnataka" className={INPUT} data-cert-address /></label>
                             <label><span className={LABEL}>Affiliation (optional)</span><input value={design.details.affiliation || ''} onChange={(e) => { setDetails({ affiliation: e.target.value }); setSaved(null); }} maxLength={120} placeholder="Affiliated to Mangalore University" className={INPUT} data-cert-affiliation /></label>
                             <label><span className={LABEL}>{design.details.type === 'inter' ? 'Organising department' : 'Department name'}</span><input value={design.details.department} onChange={(e) => { setDetails({ department: e.target.value }); setSaved(null); }} maxLength={160} placeholder="Department of Computer Science" className={INPUT} data-cert-department /></label>
+                            {/* The platform admin only (2026-11-07): Yaticorp's logo at the top of the certificate, in the college logo's place. */}
+                            {platform && (
+                                <label className={`flex cursor-pointer items-center gap-3 self-end rounded-xl border px-3 py-2.5 text-sm font-bold transition ${design.branding.yaticorp ? 'border-indigo-400 bg-indigo-50 text-indigo-900' : 'border-slate-300 bg-white text-slate-700 hover:border-indigo-300'}`} data-cert-yaticorp-logo>
+                                    <input type="checkbox" checked={Boolean(design.branding.yaticorp)} onChange={(e) => setBrand(e.target.checked ? { yaticorp: true, logo: '' } : { yaticorp: false })} className="h-4 w-4 accent-indigo-600" />
+                                    <img src="/assets/certificates/yaticorp-logo.png" alt="" className="h-6 w-auto max-w-[6rem] object-contain" />
+                                    Use Yaticorp logo
+                                </label>
+                            )}
                         </div>
                     </Section>
 
                     <Section icon={Award} title="Wording">
                         <div className="grid gap-3 sm:grid-cols-2">
                             <label className="sm:col-span-2"><span className={LABEL}>Certificate title</span><input value={[design.details.title, design.details.tagline].filter(Boolean).join(' ')} onChange={(e) => { setDetails({ title: e.target.value, tagline: '' }); setSaved(null); }} maxLength={80} placeholder="Certificate of Achievement" className={INPUT} data-cert-title /></label>
-                            <label className="sm:col-span-2"><span className={LABEL}>Intro line</span><input value={design.details.intro || ''} onChange={(e) => { setDetails({ intro: e.target.value }); setSaved(null); }} maxLength={80} placeholder="This is to certify that" className={INPUT} data-cert-intro /></label>
                             <label className="sm:col-span-2"><span className={LABEL}>Description (optional)</span><textarea value={design.description || ''} onChange={(e) => set({ description: e.target.value })} maxLength={600} rows={2} placeholder="Leave empty for the standard two lines" className={INPUT} data-cert-description /></label>
                             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 sm:col-span-2"><input type="checkbox" checked={Boolean(design.showQr)} onChange={(e) => set({ showQr: e.target.checked })} className="h-4 w-4 accent-indigo-600" data-cert-show-qr /> QR verification code on the certificate</label>
                         </div>

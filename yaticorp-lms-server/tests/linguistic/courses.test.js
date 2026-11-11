@@ -7,7 +7,7 @@
  */
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, makeAdmin, startApp, cleanup, fakeDrive } = require('../helpers');
 const { LinguisticLesson } = require('../../src/linguistic/models');
 const svc = require('../../src/linguistic/service');
 const courses = require('../../src/linguistic/courses');
@@ -134,9 +134,15 @@ describe('courses', () => {
 
         const certs = (await api('GET', '/certificates')).body.certificates;
         assert.deepEqual(certs.map((c) => [c.level, c.course, c.courseName]), [['beginner', 'kn', 'Kannada']]);
-        const pdf = await api('GET', '/certificates/beginner/pdf?course=kn');
-        assert.equal(pdf.status, 200);
-        assert.equal((await api('GET', '/certificates/beginner/pdf?course=en')).status, 404);
+        // A download needs Drive linked (2026-11-05).
+        const drive = fakeDrive();
+        try {
+            assert.equal((await api('GET', '/certificates/beginner/pdf?course=kn')).status, 409, 'not before Drive is linked');
+            drive.link(hindi.user._id);
+            const pdf = await api('GET', '/certificates/beginner/pdf?course=kn');
+            assert.equal(pdf.status, 200);
+            assert.equal((await api('GET', '/certificates/beginner/pdf?course=en')).status, 404);
+        } finally { drive.restore(); }
 
         // A student who had begun two courses before 27 Oct, back in English: its own path, nothing completed there, not started.
         await moveCourse(hindi.user, 'en');

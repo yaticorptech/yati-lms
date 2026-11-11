@@ -35,7 +35,7 @@ const calendarEventSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['Exam', 'Assignment', 'Class', 'Holiday', 'Other'],
+      enum: ['Exam', 'Assignment', 'Class', 'Holiday', 'Competition', 'Other'],
       default: 'Exam'
     },
     notes: {
@@ -48,6 +48,15 @@ const calendarEventSchema = new mongoose.Schema(
      * an account. Empty for everyone else, and empty again once they
      * disconnect. It is a mirror, never the record: this row is the truth.
      */
+    /**
+     * A time on the day and a reminder (2026-11-04, the Competitions calendar): `time` as 'HH:MM' on the student's
+     * clock; `remindAt`, the instant the reminder pops up (worked out on their device, where their clock is);
+     * `reminderShownAt`, once it has, so it shows once on any device. `link`: the competition's page in the app.
+     */
+    time: { type: String, default: '', match: [/^$|^([01]\d|2[0-3]):[0-5]\d$/, 'time must be HH:MM'] },
+    remindAt: { type: Date, default: null },
+    reminderShownAt: { type: Date, default: null },
+    link: { type: String, default: '', maxlength: 300 },
     googleEventId: {
       type: String,
       default: ''

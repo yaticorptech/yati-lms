@@ -261,14 +261,14 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
         className="pointer-events-none absolute bottom-6 left-[46%] h-14 w-48 rounded-full opacity-60"
         style={{ backgroundImage: 'radial-gradient(#60a5fa 1.6px, transparent 1.6px)', backgroundSize: '11px 11px' }}
       />
-      <Leaves className="pointer-events-none absolute -top-1 -right-1 h-16 w-16 opacity-90 sm:h-24 sm:w-24" />
+      <Leaves className="pointer-events-none absolute -top-1 -right-1 hidden h-16 w-16 opacity-90 sm:block sm:h-24 sm:w-24" />
 
       {/* Phones get a compact version of the same layout: the badge, type and
           card all shrink so the briefing is one comfortable screen rather
           than three. */}
-      <div className="relative grid items-center gap-4 p-4 sm:gap-6 sm:p-7 lg:grid-cols-[16rem_minmax(0,1fr)_19rem] lg:gap-8 lg:p-8">
+      <div className="relative grid items-center gap-3 p-3 sm:gap-6 sm:p-7 lg:grid-cols-[16rem_minmax(0,1fr)_19rem] lg:gap-8 lg:p-8">
         {/* ---- The level ---- */}
-        <div className="animate-pop-in mx-auto h-36 w-36 sm:h-60 sm:w-60 lg:h-64 lg:w-64" style={at(0)}>
+        <div className="animate-pop-in mx-auto h-20 w-20 min-[400px]:h-24 min-[400px]:w-24 sm:h-60 sm:w-60 lg:h-64 lg:w-64" style={at(0)}>
           <LevelBadgeArt level={level} still={still} />
         </div>
 
@@ -278,7 +278,7 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
             <Star className="h-3 w-3 fill-current" />
             {stars > 0 ? 'Back for more?' : 'Ready?'}
           </p>
-          <h3 className="animate-fade-in-up mt-2 text-2xl leading-[1.05] font-black text-[#1b2456] sm:mt-3 sm:text-4xl lg:text-[2.6rem]" style={at(0.14)}>
+          <h3 className="animate-fade-in-up mt-1.5 text-xl leading-[1.05] font-black text-[#1b2456] sm:mt-3 sm:text-4xl lg:text-[2.6rem]" style={at(0.14)}>
             {quote.lead}{' '}
             <span className="fp-text-shimmer bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500 bg-clip-text text-transparent">
               {quote.hot}
@@ -289,7 +289,7 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
             {quote.line}
           </p>
 
-          <div className="animate-fade-in-up mt-3 flex items-center justify-center gap-2 sm:mt-4 lg:justify-start" style={at(0.26)}>
+          <div className="animate-fade-in-up mt-2 flex items-center justify-center gap-2 sm:mt-4 lg:justify-start" style={at(0.26)}>
             <Sparkles aria-hidden className="yatiArt-twinkle hidden h-4 w-4 text-amber-400 sm:block" />
             <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 py-1.5 pr-3.5 pl-1.5 text-xs font-bold text-amber-900 ring-1 ring-amber-200/80 ring-inset sm:py-2 sm:pr-4 sm:pl-2 sm:text-sm">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-white shadow-sm sm:h-7 sm:w-7">
@@ -303,7 +303,7 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
           {/* The objective and the clock, so the words above never replace
               the one thing the student has to know. Phones leave the
               objective out and keep the pills; with no pill the row goes too. */}
-          <p className={`animate-fade-in-up mt-3 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-bold text-slate-500 sm:mt-4 sm:flex lg:justify-start ${seconds !== undefined || stars > 0 ? 'flex' : 'hidden'}`} style={at(0.3)}>
+          <p className={`animate-fade-in-up mt-2 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-bold text-slate-500 sm:mt-4 sm:flex lg:justify-start ${seconds !== undefined || stars > 0 ? 'flex' : 'hidden'}`} style={at(0.3)}>
             <span className="hidden items-center gap-1.5 sm:inline-flex"><Target className="h-3.5 w-3.5 text-violet-500" />{objective}</span>
             {seconds !== undefined && (
               <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 ring-inset tabular-nums"><Timer className="h-3.5 w-3.5 text-orange-500" />{seconds}s</span>
@@ -330,7 +330,7 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
             onClick={onStart}
             data-mascot-target="play"
             autoFocus
-            className="fp-btn fp-btn-primary fp-beacon fp-sweep animate-fade-in-up mt-4 inline-flex min-h-12 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-8 text-base font-black text-white shadow-lg shadow-violet-600/30 sm:mt-5 sm:min-h-14 sm:w-auto sm:text-lg lg:min-h-16 lg:px-12"
+            className="fp-btn fp-btn-primary fp-beacon fp-sweep animate-fade-in-up mt-3 inline-flex min-h-11 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-8 text-base font-black text-white shadow-lg shadow-violet-600/30 sm:mt-5 sm:min-h-14 sm:w-auto sm:text-lg lg:min-h-16 lg:px-12"
             style={at(0.36)}
           >
             <Play className="h-5 w-5 fill-current" />
@@ -340,17 +340,17 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
         </div>
 
         {/* ---- How to play ---- */}
-        <div className="animate-fade-in-up rounded-2xl bg-white/90 p-4 shadow-xl shadow-indigo-900/10 ring-1 ring-slate-100 ring-inset backdrop-blur sm:rounded-3xl sm:p-5" style={at(0.4)}>
-          <p className="flex items-center gap-3 text-[0.72rem] font-black tracking-[0.18em] text-violet-700 uppercase">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-md shadow-violet-600/30 sm:h-9 sm:w-9">
+        <div className="animate-fade-in-up rounded-2xl bg-white/90 p-3 shadow-xl shadow-indigo-900/10 ring-1 ring-slate-100 ring-inset backdrop-blur sm:rounded-3xl sm:p-5" style={at(0.4)}>
+          <p className="flex items-center gap-2.5 text-[0.65rem] font-black tracking-[0.18em] text-violet-700 uppercase sm:gap-3 sm:text-[0.72rem]">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-md shadow-violet-600/30 sm:h-9 sm:w-9">
               <Gamepad2 className="h-4 w-4" />
             </span>
             How to play
           </p>
           <ol className="mt-1 divide-y divide-slate-100 sm:mt-2">
             {coach.steps.map((step, i) => (
-              <li key={i} className="animate-fade-in-up flex items-center gap-3 py-2 text-sm font-semibold text-slate-700 sm:py-3 sm:text-[0.9rem]" style={at(0.46 + i * 0.08)}>
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-black text-white shadow-md sm:h-8 sm:w-8 sm:text-sm ${STEP_TONES[i % STEP_TONES.length]}`}>
+              <li key={i} className="animate-fade-in-up flex items-center gap-2.5 py-1.5 text-[0.8rem] leading-snug font-semibold text-slate-700 sm:gap-3 sm:py-3 sm:text-[0.9rem]" style={at(0.46 + i * 0.08)}>
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[0.7rem] font-black text-white shadow-md sm:h-8 sm:w-8 sm:text-sm ${STEP_TONES[i % STEP_TONES.length]}`}>
                   {i + 1}
                 </span>
                 {step}

@@ -4,12 +4,13 @@ import useGameProgress, { between, ramp, starsCap, starsFor, starsOn } from './l
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 
+// `edge` is the deeper shade each answer key sinks into (see .cm-key).
 const INKS = [
-  { name: 'RED', class: 'text-rose-500', button: 'bg-rose-500' },
-  { name: 'BLUE', class: 'text-sky-500', button: 'bg-sky-500' },
-  { name: 'GREEN', class: 'text-emerald-500', button: 'bg-emerald-500' },
-  { name: 'YELLOW', class: 'text-amber-400', button: 'bg-amber-400' },
-  { name: 'PURPLE', class: 'text-violet-500', button: 'bg-violet-500' }
+  { name: 'RED', label: 'Red', class: 'text-rose-500', button: 'bg-gradient-to-b from-rose-400 to-rose-500', edge: '#be123c' },
+  { name: 'BLUE', label: 'Blue', class: 'text-sky-500', button: 'bg-gradient-to-b from-sky-400 to-sky-500', edge: '#0369a1' },
+  { name: 'GREEN', label: 'Green', class: 'text-emerald-500', button: 'bg-gradient-to-b from-emerald-400 to-emerald-500', edge: '#047857' },
+  { name: 'YELLOW', label: 'Yellow', class: 'text-amber-400', button: 'bg-gradient-to-b from-amber-300 to-amber-400', edge: '#b45309' },
+  { name: 'PURPLE', label: 'Purple', class: 'text-violet-500', button: 'bg-gradient-to-b from-violet-400 to-violet-500', edge: '#6d28d9' }
 ];
 
 const rnd = (n) => Math.floor(Math.random() * n);
@@ -34,7 +35,8 @@ const makeCard = (palette, matchChance) => {
 };
 
 const configFor = (difficulty, levelNo) => ({
-  colours: Math.min(5, 3 + (difficulty - 1)),
+  // Always four inks, laid out as a 2×2 grid of answer cards.
+  colours: 4,
   matchChance: Math.max(0.05, 0.4 - ramp(levelNo) * 0.3),
   seconds: between(45, 35, levelNo),
   target: between(8, 20, levelNo) + (difficulty - 1) * 3
@@ -62,7 +64,9 @@ function Round({ progress, onExit }) {
   const palette = INKS.slice(0, config.colours);
   const [card, setCard] = useState(() => makeCard(palette, config.matchChance));
   const [score, setScore] = useState(0);
-  const [flash, setFlash] = useState(null);
+  // Visual feedback only: which way the last answer went, and a counter so
+  // the same animation replays on two answers in a row.
+  const [feedback, setFeedback] = useState({ kind: null, id: 0 });
   const [started, setStarted] = useState(false);
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
@@ -72,14 +76,10 @@ function Round({ progress, onExit }) {
 
   const choose = (name) => {
     if (over) return;
-    if (name === card.ink.name) {
-      setScore((s) => s + 1);
-      setFlash('right');
-    } else {
-      setFlash('wrong');
-    }
+    const right = name === card.ink.name;
+    if (right) setScore((s) => s + 1);
+    setFeedback((f) => ({ kind: right ? 'right' : 'wrong', id: f.id + 1 }));
     setCard(makeCard(palette, config.matchChance));
-    setTimeout(() => setFlash(null), 220);
   };
 
   return (
@@ -87,8 +87,10 @@ function Round({ progress, onExit }) {
       title="Colour Match"
       blurb={`Tap the ink colour, not the word. Reach ${config.target}.`}
       tone="bg-gradient-to-br from-teal-500 to-cyan-700"
+      variant="premium"
       score={score}
       seconds={seconds}
+      totalSeconds={config.seconds}
       progress={progress}
       onRestart={progress.retry}
       onExit={onExit}
@@ -119,29 +121,50 @@ function Round({ progress, onExit }) {
       }
       footer={
         <p className="text-center text-sm text-ink-500">
-          Name the colour it is <strong className="font-black">printed</strong> in
+          Name the colour it is <strong className="font-extrabold text-violet-700">printed</strong> in
         </p>
       }
     >
       {started && !over && (
-        <div className="mx-auto max-w-md text-center">
-          <p
-            className={`text-5xl font-black tracking-wide transition-transform sm:text-6xl ${card.ink.class} ${
-              flash === 'right' ? 'scale-110' : flash === 'wrong' ? 'scale-95 opacity-60' : ''
+        <div className="mx-auto w-full max-w-2xl text-center">
+          <p className="text-[0.66rem] font-bold tracking-[0.2em] text-slate-400 uppercase">What colour is the ink?</p>
+
+          {/* The stage: replays a green ring on a right answer, a shake on a wrong one. */}
+          <div
+            key={feedback.id}
+            className={`relative mx-auto mt-3 flex h-28 min-[400px]:h-32 items-center justify-center rounded-3xl bg-gradient-to-b from-[#f8f7fd] to-white px-3 ring-1 ring-[#ecebf6] ring-inset sm:mt-4 sm:h-44 lg:h-48 ${
+              feedback.kind === 'right' ? 'gs-right' : feedback.kind === 'wrong' ? 'gs-wrong' : ''
             }`}
           >
-            {card.word}
-          </p>
+            <span
+              className={`gs-pop max-w-full leading-none font-black tracking-[0.06em] select-none ${card.ink.class}`}
+              style={{ fontSize: 'clamp(2.5rem, 14vw, 6rem)' }}
+            >
+              {card.word}
+            </span>
+            {feedback.kind === 'right' && (
+              <span aria-hidden className="gs-plus absolute top-3 right-4 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-600 ring-1 ring-emerald-100">
+                +1
+              </span>
+            )}
+          </div>
 
-          <div className="mt-8 flex flex-wrap justify-center gap-2.5">
+          <div className="mx-auto mt-5 grid max-w-xl grid-cols-2 gap-2.5 min-[400px]:gap-3 sm:mt-8 sm:gap-4" role="group" aria-label="Ink colours">
             {palette.map((c) => (
               <button
                 key={c.name}
                 type="button"
                 onClick={() => choose(c.name)}
                 aria-label={c.name}
-                className={`fp-press h-14 w-14 rounded-2xl ring-2 ring-white transition-transform hover:scale-110 ${c.button}`}
-              />
+                style={{ '--edge': c.edge }}
+                className={`cm-key group relative block h-20 overflow-hidden rounded-[18px] min-[400px]:h-24 sm:h-28 sm:rounded-[22px] ${c.button}`}
+              >
+                {/* Gloss: a soft light falling across the top of the card. */}
+                <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-[inherit] bg-gradient-to-b from-white/35 to-transparent" />
+                <span aria-hidden className="pointer-events-none absolute -top-10 -right-8 h-28 w-28 rounded-full bg-white/15 transition-transform duration-300 group-hover:scale-125" />
+                <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-white/25 ring-inset" />
+
+              </button>
             ))}
           </div>
         </div>

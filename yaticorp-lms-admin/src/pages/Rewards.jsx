@@ -16,6 +16,29 @@ import { Segmented } from '../components/orgUi';
 
 const INPUT = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40';
 const LABEL = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500';
+
+/**
+ * A daily allowance, typed in minutes or hours (asked 2026-11-05). Kept in minutes, as the server has it; the unit
+ * is only how it is typed. Opens in hours when the value is whole hours.
+ */
+function TimePerDay({ label, minutes, onChange }) {
+    const [unit, setUnit] = useState(() => (minutes >= 60 && minutes % 60 === 0 ? 'hours' : 'minutes'));
+    const shown = unit === 'hours' ? Math.round((minutes / 60) * 100) / 100 : minutes;
+    return (
+        <div>
+            <label className={LABEL}>{label}</label>
+            <div className="flex gap-2">
+                <input type="number" min="0" step={unit === 'hours' ? 0.5 : 1} value={shown}
+                    onChange={(e) => onChange(Math.max(0, Math.round(Number(e.target.value || 0) * (unit === 'hours' ? 60 : 1))))} className={INPUT} />
+                <select value={unit} onChange={(e) => setUnit(e.target.value)} aria-label={`${label}: unit`}
+                    className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40">
+                    <option value="minutes">Minutes</option>
+                    <option value="hours">Hours</option>
+                </select>
+            </div>
+        </div>
+    );
+}
 const BTN = 'inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition-colors hover:bg-indigo-700 disabled:opacity-50';
 const BTN2 = 'inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50';
 
@@ -308,12 +331,13 @@ const XP_GROUPS = [
 /**
  * The rules in force, by group: one row each — what it is on the left, the
  * amount on the right (₹ before it for a price, XP after it for XP), and a
- * remove button. A value changed since the last save is ringed in amber with
+ * Clear button that sets it to 0 (2026-11-05: no delete — a rule is kept and
+ * cleared, so it can be given an amount again in place). A value changed since the last save is ringed in amber with
  * what it was. `query` narrows the rows; "Add rule" offers any catalogued rule
  * not in force. Only hooks the server really has are in the catalogue, so an
  * added rule always does something.
  */
-function RuleList({ groups, values, saved = {}, query = '', prefix, suffix, step = 1, onSet, onRemove, addLabel }) {
+function RuleList({ groups, values, saved = {}, query = '', prefix, suffix, step = 1, onSet, addLabel }) {
     const [adding, setAdding] = useState(false);
     const [pick, setPick] = useState('');
     const [amount, setAmount] = useState('');
@@ -361,8 +385,9 @@ function RuleList({ groups, values, saved = {}, query = '', prefix, suffix, step
                                             </div>
                                             {changed && <p className="mt-0.5 text-[10px] font-semibold text-amber-700 sm:text-right">was {unit(saved[k])}</p>}
                                         </div>
-                                        <button type="button" onClick={() => onRemove(k)} title="Remove this rule" aria-label={`Remove ${label}`}
-                                            className="shrink-0 rounded-md p-2 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-600 sm:p-1.5"><Trash2 size={15} /></button>
+                                        <button type="button" onClick={() => onSet(k, 0)} disabled={!Number(values[k])}
+                                            title={Number(values[k]) ? 'Set this rule to 0' : 'Already 0'} aria-label={`Clear ${label}`}
+                                            className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs font-bold text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400"><X size={13} /> Clear</button>
                                     </li>
                                 );
                             })}
@@ -436,24 +461,28 @@ function Rules() {
     const [section, setSection] = useState('xp');
     const [query, setQuery] = useState('');
     useEffect(() => { api.get('/rewards/admin/config').then((r) => { setCfg(r.data); setSaved(JSON.stringify(r.data)); }).catch((e) => setMsg({ kind: 'error', text: e.response?.data?.message || 'Failed to load' })); }, []);
+    // Group games' XP by place (2026-11-04): the Group Brain settings', edited and saved with the rest.
+    const [groupXp, setGroupXp] = useState(null);
+    const [groupXpSaved, setGroupXpSaved] = useState('null');
+    useEffect(() => { api.get('/competitions/group-brain/admin/settings').then((r) => { setGroupXp(r.data.settings.xp); setGroupXpSaved(JSON.stringify(r.data.settings.xp)); }).catch(() => {}); }, []);
+    const groupXpDirty = groupXp !== null && JSON.stringify(groupXp) !== groupXpSaved;
     if (!cfg) return <div className="animate-pulse h-64 bg-slate-100 rounded-2xl" />;
-    const dirty = JSON.stringify(cfg) !== saved || removed.xp.length > 0 || removed.wallet.length > 0;
-    const discard = () => { setCfg(JSON.parse(saved)); setRemoved({ xp: [], wallet: [] }); setMsg(null); };
+    const dirty = JSON.stringify(cfg) !== saved || removed.xp.length > 0 || removed.wallet.length > 0 || groupXpDirty;
+    const discard = () => { setCfg(JSON.parse(saved)); setRemoved({ xp: [], wallet: [] }); setMsg(null); if (groupXpDirty) setGroupXp(JSON.parse(groupXpSaved)); };
 
     const set = (path, value) => setCfg((c) => { const n = structuredClone(c); let o = n; const ks = path.split('.'); for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = value; return n; });
     const setRule = (map, key, value) => {
         setCfg((c) => ({ ...c, [map]: { ...(c[map] || {}), [key]: value } }));
         setRemoved((r) => ({ ...r, [map === 'xpRules' ? 'xp' : 'wallet']: r[map === 'xpRules' ? 'xp' : 'wallet'].filter((k) => k !== key) }));
     };
-    const removeRule = (map, key) => {
-        setCfg((c) => { const next = { ...(c[map] || {}) }; delete next[key]; return { ...c, [map]: next }; });
-        const side = map === 'xpRules' ? 'xp' : 'wallet';
-        setRemoved((r) => ({ ...r, [side]: r[side].includes(key) ? r[side] : [...r[side], key] }));
-    };
     const save = async () => {
         setBusy(true); setMsg(null);
         try {
             const r = await api.put('/rewards/admin/config', { xpRules: cfg.xpRules, walletRules: cfg.walletRules, removeRules: removed, levelThresholds: cfg.levelThresholds, streakMilestones: cfg.streakMilestones, leaderboardRewards: cfg.leaderboardRewards, conversion: cfg.conversion, limits: cfg.limits, walletAccess: cfg.walletAccess, startingCredit: cfg.startingCredit, games: cfg.games, globalQuiz: cfg.globalQuiz });
+            if (groupXpDirty) {
+                const g = await api.put('/competitions/group-brain/admin/settings', { xp: groupXp, reason: 'Rewards → Reward rules' });
+                setGroupXp(g.data.settings.xp); setGroupXpSaved(JSON.stringify(g.data.settings.xp));
+            }
             setCfg(r.data); setSaved(JSON.stringify(r.data)); setRemoved({ xp: [], wallet: [] }); setMsg({ kind: 'ok', text: 'Reward rules saved. They apply to every student from the next award or use.' });
         } catch (e) { setMsg({ kind: 'error', text: e.response?.data?.message || 'Failed to save' }); }
         finally { setBusy(false); }
@@ -487,7 +516,8 @@ function Rules() {
         { id: 'streaks', label: 'Streak milestones', count: cfg.streakMilestones.length, dirty: differs('streakMilestones') },
         { id: 'leaderboard', label: 'Leaderboard rewards', count: cfg.leaderboardRewards.weekly.length + cfg.leaderboardRewards.monthly.length, dirty: differs('leaderboardRewards') },
         { id: 'quiz', label: 'Global Quiz', dirty: differs('globalQuiz') },
-        { id: 'games', label: 'Brain Boosters', dirty: differs('games') }
+        { id: 'games', label: 'Individual games (Brain Boosters)', dirty: differs('games') },
+        { id: 'group', label: 'Group games', dirty: differs('games') || groupXpDirty }
     ];
     const search = (placeholder) => (
         <div className="relative mb-4 max-w-sm">
@@ -500,14 +530,14 @@ function Rules() {
         xp: (
             <Card icon={Coins} title="XP rules" sub="XP is learning progress: it drives levels, the leaderboard and badges. It is never wallet points.">
                 {search('Search XP rules…')}
-                <RuleList groups={XP_GROUPS} values={cfg.xpRules} saved={was.xpRules || {}} query={query} suffix="XP" onSet={(k, v) => setRule('xpRules', k, v)} onRemove={(k) => removeRule('xpRules', k)} addLabel="Add XP rule" />
-                <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain Boosters pay their own XP (their own sections). A removed rule pays nothing to anyone; a rule under "Add XP rule" pays nothing until it is added.</p>
+                <RuleList groups={XP_GROUPS} values={cfg.xpRules} saved={was.xpRules || {}} query={query} suffix="XP" onSet={(k, v) => setRule('xpRules', k, v)} addLabel="Add XP rule" />
+                <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain Boosters pay their own XP (their own sections). Clear sets a rule to 0, so it pays nothing until it is given an amount again; a rule under "Add XP rule" pays nothing until it is added.</p>
             </Card>
         ),
         wallet: (
             <Card icon={Wallet} title="Wallet rules" sub="What a feature costs from the student's wallet balance. 0 = free. Students are asked before anything is taken; a short balance is refused, and a feature that fails is refunded." tone="emerald">
                 {search('Search wallet rules…')}
-                <RuleList groups={WALLET_GROUPS} values={cfg.walletRules || {}} saved={was.walletRules || {}} query={query} prefix={cur === 'INR' ? '₹' : cur} step={0.5} onSet={(k, v) => setRule('walletRules', k, v)} onRemove={(k) => removeRule('walletRules', k)} addLabel="Add wallet rule" />
+                <RuleList groups={WALLET_GROUPS} values={cfg.walletRules || {}} saved={was.walletRules || {}} query={query} prefix={cur === 'INR' ? '₹' : cur} step={0.5} onSet={(k, v) => setRule('walletRules', k, v)} addLabel="Add wallet rule" />
             </Card>
         ),
         credit: (
@@ -580,11 +610,10 @@ function Rules() {
             </Card>
         ),
         games: (
-            <Card icon={Gamepad2} title="Brain Boosters" sub="XP a level pays for its best result, once per star reached — replaying at the same stars pays nothing. Play is limited per student per day." tone="indigo">
+            <Card icon={Gamepad2} title="Individual games (Brain Boosters)" sub="Individual games: XP a level pays for its best result, once per star reached — replaying at the same stars pays nothing. Play is limited per student per day." tone="indigo">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="col-span-2 sm:col-span-1">
-                        <label className={LABEL}>Minutes a day</label>
-                        <input type="number" min="0" value={cfg.games?.dailyMinutes ?? 15} onChange={(e) => set('games.dailyMinutes', Number(e.target.value))} className={INPUT} />
+                        <TimePerDay label="Time a day" minutes={cfg.games?.dailyMinutes ?? 15} onChange={(v) => set('games.dailyMinutes', v)} />
                     </div>
                     {[['xpOneStar', '1 star'], ['xpTwoStars', '2 stars'], ['xpThreeStars', '3 stars']].map(([k, label]) => (
                         <div key={k}>
@@ -593,7 +622,23 @@ function Rules() {
                         </div>
                     ))}
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2">0 stars pays 0 XP. Minutes a day = 0 means no limit. A level first finished at 2 stars and later at 3 pays the 2-star XP, then the difference.</p>
+                <p className="text-[11px] text-slate-500 mt-2">0 stars pays 0 XP. Time a day = 0 means no limit. A level first finished at 2 stars and later at 3 pays the 2-star XP, then the difference.</p>
+            </Card>
+        ),
+        group: (
+            <Card icon={Users} title="Group games" sub="Rooms with friends and Play online: XP by finishing place in each game played, and how long a student may play a day." tone="indigo">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div className="col-span-2 sm:col-span-1">
+                        <TimePerDay label="Time a day" minutes={cfg.games?.groupDailyMinutes ?? 30} onChange={(v) => set('games.groupDailyMinutes', v)} />
+                    </div>
+                    {[['first', '1st place'], ['second', '2nd place'], ['third', '3rd place'], ['fourth', '4th place']].map(([k, label]) => (
+                        <div key={k}>
+                            <label className={LABEL}>XP · {label}</label>
+                            <input type="number" min="0" max="1000" disabled={groupXp === null} value={groupXp?.[k] ?? ''} onChange={(e) => setGroupXp((x) => ({ ...x, [k]: Number(e.target.value) }))} className={INPUT} />
+                        </div>
+                    ))}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">Time a day = 0 means no limit. Places below 4th, and a player who resigns, get no XP. Winning because everyone else left pays its own fixed XP.</p>
             </Card>
         )
     }[section];

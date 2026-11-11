@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Check, RotateCcw, Send, Timer, CheckCircle2 } from 'lucide-react';
+import { Check, RotateCcw, Send, CheckCircle2 } from 'lucide-react';
 import RoundFrame from './RoundTable';
-import usePhaseClock from './usePhaseClock';
+import useWrongBuzz from './useWrongBuzz';
 
 /**
  * Memory Matrix (Group Brain), played in the open (asked 2026-10-28): every
@@ -26,7 +26,8 @@ const PlayerGrid = ({ view, r, i, picks, onCell, canPick, big }) => {
     const you = view.you === i;
     const sentCells = view.answers?.[i]?.cells || null;
     const sent = !!view.answers?.[i];
-    const chosenList = sentCells || picks;
+    // Only what was sent counts (2026-11-06): once the round is over, picks never sent show as nothing.
+    const chosenList = sentCells || (view.phase === 'answer' ? picks : []);
     const left = (view.out || []).includes(i);
     const result = view.phase === 'reveal' ? view.results?.[i] : null;
     return (
@@ -37,6 +38,7 @@ const PlayerGrid = ({ view, r, i, picks, onCell, canPick, big }) => {
                     <p className={`truncate text-sm font-black ${dark ? 'text-white' : 'text-slate-900'}`}>{seat.name}{you && <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-black text-white" style={{ background: color }}>YOU</span>}</p>
                     <p className={`flex items-center gap-1 text-[11px] font-semibold ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>
                         {left ? 'Left the game'
+                            : result && !sent ? 'Not sent in time · 0'
                             : result ? `${result.detail?.hits ?? 0} of ${result.detail?.of ?? r.count} right · ${result.points > 0 ? '+' : ''}${result.points}`
                                 : view.phase === 'show' ? 'Watching…'
                                     : sent ? <><CheckCircle2 size={12} className="text-emerald-600" aria-hidden="true" /> Sent</>
@@ -58,7 +60,7 @@ const PlayerGrid = ({ view, r, i, picks, onCell, canPick, big }) => {
                     let tone = rest;
                     if (view.phase === 'show' && lit) tone = 'bg-sky-500 shadow-[0_0_14px_rgba(14,165,233,0.55)]';
                     else if (view.phase === 'answer' && chosen) { tone = ''; style = { background: color }; }
-                    else if (view.phase === 'reveal' || view.phase === 'over') tone = lit && chosen ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,.5)]' : lit ? (dark ? 'bg-emerald-500/30 ring-2 ring-emerald-400' : 'bg-emerald-200 ring-2 ring-emerald-500') : chosen ? 'bg-rose-400' : rest;
+                    else if (view.phase === 'reveal' || view.phase === 'over') tone = lit && chosen ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,.5)]' : lit ? (dark ? 'bg-emerald-500/30 ring-2 ring-emerald-400' : 'bg-emerald-200 ring-2 ring-emerald-500') : chosen ? 'bg-rose-400 gs-wrong' : rest;
                     const mine = you && canPick && !sent;
                     return (
                         <button key={c} type="button" onClick={() => mine && onCell(c)} disabled={!mine} data-cell={you ? c : undefined}
@@ -73,10 +75,8 @@ const PlayerGrid = ({ view, r, i, picks, onCell, canPick, big }) => {
     );
 };
 
-export default function MemoryMatrixTable({ view, onAction }) {
+export default function MemoryMatrixTable({ view, onAction, busy }) {
     const r = view.round;
-    const clock = usePhaseClock(view);
-    const seconds = Math.ceil(clock.left / 1000);
     // My taps show at once; the server's copy (r.picks) is what everyone else sees.
     const roundKey = `${view.number}:${view.phase}`;
     const [kept, setKept] = useState({ key: '', value: [] });
@@ -92,6 +92,8 @@ export default function MemoryMatrixTable({ view, onAction }) {
     const clear = () => { setKept({ key: roundKey, value: [] }); onAction({ type: 'clear' }).catch(() => {}); };
     const send = () => onAction({ type: 'answer', cells: mine }).catch(() => {});
     const sent = view.you != null && !!view.answers?.[view.you];
+    // A grid sent with a cell wrong or missing buzzes at the reveal (2026-11-06): the picks red, the lit cells green.
+    useWrongBuzz(view.status === 'active' && view.phase === 'reveal' && sent && view.results?.[view.you]?.correct === false ? view.number : null);
 
     // Only your own grid (asked 2026-10-29): the others are names and scores on the live board, or the
     // scoreboard row. Someone watching (no seat) sees every grid.
@@ -115,17 +117,11 @@ export default function MemoryMatrixTable({ view, onAction }) {
                                 <PlayerGrid key={i} view={view} r={r} i={i} picks={i === view.you ? mine : r.picks?.[i] || []} onCell={toggle} canPick={canPick} big={!four} />
                             ))}
                         </div>
-                        {view.phase === 'answer' && !single && (
-                            <div className="pointer-events-none absolute left-1/2 top-1/2 hidden h-20 w-20 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-gradient-to-br from-[#1e1b4b] to-[#4c1d95] text-white shadow-xl ring-4 sm:flex" style={{ "--tw-ring-color": view.dark ? "rgba(255,255,255,.25)" : "#fff" }} data-center-timer>
-                                <Timer size={14} className="text-white/70" aria-hidden="true" />
-                                <span className={`text-2xl font-black tabular-nums ${seconds <= 5 ? 'text-rose-300' : ''}`}>{seconds}s</span>
-                            </div>
-                        )}
                     </div>
                     {view.phase === 'answer' && !sent && view.you != null && (
                         <div className="flex justify-center gap-2">
                             <button type="button" onClick={clear} disabled={!mine.length} className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold ring-1 disabled:opacity-40 ${view.dark ? 'text-white/80 ring-white/20 hover:bg-white/10' : 'text-slate-600 ring-slate-200 hover:bg-slate-50'}`}><RotateCcw size={15} aria-hidden="true" /> Clear</button>
-                            <button type="button" onClick={send} disabled={mine.length !== r.count || !canPick} data-send className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-40"><Send size={15} aria-hidden="true" /> Send</button>
+                            <button type="button" onClick={send} disabled={mine.length !== r.count || !canPick || busy} data-send className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-40"><Send size={15} aria-hidden="true" /> Send</button>
                         </div>
                     )}
                 </div>

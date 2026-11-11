@@ -158,7 +158,7 @@ const Entries = ({ data, canReview, onReview }) => {
                                 {canReview && g.organizationId && (
                                     <span className="flex gap-1.5">
                                         <button type="button" onClick={() => onReview({ organizationId: g.organizationId, status: 'approved' })} className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-700">Approve all</button>
-                                        <button type="button" onClick={() => onReview({ organizationId: g.organizationId, status: 'rejected' })} className="rounded-lg px-2.5 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50">Reject all</button>
+                                        <button type="button" onClick={() => { if (window.confirm('Reject every student from this college?')) onReview({ organizationId: g.organizationId, status: 'rejected' }); }} className="rounded-lg px-2.5 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50">Reject all</button>
                                     </span>
                                 )}
                             </div>
