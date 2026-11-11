@@ -142,6 +142,9 @@ const gradeQuestion = (q, given) => {
 
 const TRANSLATION_PASS = 0.85;   // this close to a reference counts as right
 const TRANSLATION_NEAR = 0.6;    // this close is "almost": worth another go
+// A passage in the student's own words (2026-11-05, "a wrong answer: ask it again until it is right"): half as close
+// as the model counts — a fair paraphrase scores about 0.55, half the passage about 0.3, letters typed at random 0.
+const PASSAGE_PASS = 0.5;
 
 /**
  * Check a translation against the model and the accepted alternatives.
@@ -149,8 +152,9 @@ const TRANSLATION_NEAR = 0.6;    // this close is "almost": worth another go
  *           'close'   — very nearly matches one (counts as correct)
  *           'almost'  — on the way, but not right yet
  *           'wrong'
- *           'review'  — an open passage: compared, never marked wrong; a
- *                       teacher reviews it
+ *           'review'  — an open passage close enough to the model (PASSAGE_PASS),
+ *                       right, to compare with it; further off, 'wrong' (until
+ *                       2026-11-05 a passage was never marked wrong)
  * Also returns the reference it was closest to, a word-by-word diff against
  * it, and the closeness as a percentage.
  */
@@ -173,7 +177,7 @@ const checkTranslation = (item, given, direction, language = 'kn', target = 'en'
     const closeness = Math.round(best.s * 100);
     const base = { closest: best.ref, closeness, diff: diff(g, best.n, unitsOf(lang)) };
     if (!g) return { ...base, verdict: 'wrong', correct: false };
-    if (item.open) return { ...base, verdict: 'review', correct: null };
+    if (item.open) return best.s >= PASSAGE_PASS ? { ...base, verdict: 'review', correct: true } : { ...base, verdict: 'wrong', correct: false };
     if (scored.some((x) => (cjk ? compact(x.n) === compact(g) : x.n === g))) return { ...base, verdict: 'exact', correct: true };
     if (ACCENTED.includes(lang) && scored.some((x) => plain(x.n) === plain(g))) return { ...base, verdict: 'close', correct: true, accents: true };
     const short = shortOf(best.n);
@@ -182,4 +186,4 @@ const checkTranslation = (item, given, direction, language = 'kn', target = 'en'
     return { ...base, verdict: 'wrong', correct: false };
 };
 
-module.exports = { normalize, similarity, charRatio, wordOverlap, levenshtein, diff, gradeQuestion, checkTranslation, TRANSLATION_PASS, TRANSLATION_NEAR, NO_SPACES };
+module.exports = { normalize, similarity, charRatio, wordOverlap, levenshtein, diff, gradeQuestion, checkTranslation, TRANSLATION_PASS, TRANSLATION_NEAR, PASSAGE_PASS, NO_SPACES };

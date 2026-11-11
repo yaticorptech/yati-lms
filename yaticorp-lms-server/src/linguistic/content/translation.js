@@ -43,9 +43,12 @@ module.exports = [
             item('i1', 'word', 'vocabulary', 'ತಾಯಿ', 'mother', 'ತಾಯಿ means mother (ಅಮ್ಮ is what you call her).', ['a mother', 'mom', 'mum', 'mummy']),
             item('i2', 'sentence', 'grammar', 'ಇದು ನನ್ನ ಮನೆ.', 'This is my house.', 'ಇದು = this. English needs the verb "is".', ['This is my home.']),
             item('i3', 'sentence', 'vocabulary', 'ನನ್ನ ಕುಟುಂಬ ದೊಡ್ಡದು.', 'My family is big.', 'ಕುಟುಂಬ = family, ದೊಡ್ಡದು = (is) big. English needs "is".', ['My family is large.', 'I have a big family.', 'Our family is big.']),
+            // One short sentence to read for each unit (2026-11-04, the user: "one in every unit, 3 or 4 words"), the last of its half.
+            item('i7', 'sentence', 'vocabulary', 'ಇದು ನನ್ನ ಕುಟುಂಬ.', 'This is my family.', 'ಇದು = this, ಕುಟುಂಬ = family. English needs "is".', ['Here is my family.', 'This is our family.']),
             item('i4', 'word', 'vocabulary', 'ಊಟ', 'food', 'ಊಟ means food or a meal.', ['meal', 'a meal']),
             item('i5', 'sentence', 'vocabulary', 'ನಾನು ಖುಷಿಯಾಗಿದ್ದೇನೆ.', 'I am happy.', 'ಖುಷಿ = happiness; ಖುಷಿಯಾಗಿದ್ದೇನೆ = I am happy. English needs "am".', ['I\'m happy.', 'I am glad.', 'I\'m glad.']),
-            item('i6', 'sentence', 'grammar', 'ಆನೆ ದೊಡ್ಡದು.', 'The elephant is big.', 'ಆನೆ = elephant, ದೊಡ್ಡದು = (is) big. English adds "the" and "is".', ['An elephant is big.', 'Elephants are big.', 'The elephant is large.'])
+            item('i6', 'sentence', 'grammar', 'ಆನೆ ದೊಡ್ಡದು.', 'The elephant is big.', 'ಆನೆ = elephant, ದೊಡ್ಡದು = (is) big. English adds "the" and "is".', ['An elephant is big.', 'Elephants are big.', 'The elephant is large.']),
+            item('i8', 'sentence', 'vocabulary', 'ನನಗೆ ಊಟ ಇಷ್ಟ.', 'I like food.', 'Kannada says "to me, food is liked": ನನಗೆ … ಇಷ್ಟ = I like ….', ['I love food.', 'I like the food.'])
         ],
         quiz: [
             item('q1', 'sentence', 'vocabulary', 'ಅವಳು ನನ್ನ ತಂಗಿ.', 'She is my younger sister.', 'ತಂಗಿ is a younger sister (ಅಕ್ಕ is an elder sister).', ['She is my sister.', 'She is my little sister.']),
@@ -63,9 +66,12 @@ module.exports = [
             item('i1', 'word', 'vocabulary', 'friend', 'ಸ್ನೇಹಿತ', 'Friend is ಸ್ನೇಹಿತ (or ಗೆಳೆಯ; for a girl, ಸ್ನೇಹಿತೆ or ಗೆಳತಿ).', ['ಗೆಳೆಯ', 'ಸ್ನೇಹಿತೆ', 'ಗೆಳತಿ']),
             item('i2', 'word', 'vocabulary', 'school', 'ಶಾಲೆ', 'School is ಶಾಲೆ.'),
             item('i3', 'sentence', 'grammar', 'I am a student.', 'ನಾನು ವಿದ್ಯಾರ್ಥಿ.', 'Kannada needs no word for "am" or "a" here.', ['ನಾನು ವಿದ್ಯಾರ್ಥಿನಿ.', 'ನಾನೊಬ್ಬ ವಿದ್ಯಾರ್ಥಿ.', 'ನಾನು ಒಬ್ಬ ವಿದ್ಯಾರ್ಥಿ.']),
+            // One short sentence to read for each unit (2026-11-04, the user: "one in every unit, 3 or 4 words"), the last of its half; these two read Kannada and are written in English, the other way from the rest of this lesson.
+            { ...item('i7', 'sentence', 'vocabulary', 'ಅವನು ನನ್ನ ಸ್ನೇಹಿತ.', 'He is my friend.', 'ಅವನು = he, ಸ್ನೇಹಿತ = friend. English needs "is".', ['He\'s my friend.']), direction: 'kn-en' },
             item('i4', 'word', 'vocabulary', 'read', 'ಓದು', 'Read is ಓದು (politely ಓದಿ).', ['ಓದಿ', 'ಓದುವುದು']),
             item('i5', 'sentence', 'grammar', 'I write a letter.', 'ನಾನು ಪತ್ರ ಬರೆಯುತ್ತೇನೆ.', 'ಪತ್ರ = letter, ಬರೆಯುತ್ತೇನೆ = I write. The verb goes at the end.', ['ನಾನು ಒಂದು ಪತ್ರ ಬರೆಯುತ್ತೇನೆ.', 'ನಾನು ಪತ್ರವನ್ನು ಬರೆಯುತ್ತೇನೆ.', 'ನಾನು ಕಾಗದ ಬರೆಯುತ್ತೇನೆ.']),
-            item('i6', 'sentence', 'vocabulary', 'This lesson is easy.', 'ಈ ಪಾಠ ಸುಲಭ.', 'ಪಾಠ = lesson, ಸುಲಭ = easy. Kannada needs no word for "is".', ['ಈ ಪಾಠ ಸುಲಭವಾಗಿದೆ.', 'ಈ ಪಾಠವು ಸುಲಭ.'])
+            item('i6', 'sentence', 'vocabulary', 'This lesson is easy.', 'ಈ ಪಾಠ ಸುಲಭ.', 'ಪಾಠ = lesson, ಸುಲಭ = easy. Kannada needs no word for "is".', ['ಈ ಪಾಠ ಸುಲಭವಾಗಿದೆ.', 'ಈ ಪಾಠವು ಸುಲಭ.']),
+            { ...item('i8', 'sentence', 'vocabulary', 'ನಾನು ಪುಸ್ತಕ ಓದುತ್ತೇನೆ.', 'I read a book.', 'ಓದುತ್ತೇನೆ = I read. Kannada puts the verb at the end; English puts it after "I".', ['I am reading a book.', 'I read books.', 'I will read a book.']), direction: 'kn-en' }
         ],
         quiz: [
             item('q1', 'sentence', 'grammar', 'This is my book.', 'ಇದು ನನ್ನ ಪುಸ್ತಕ.', 'ಇದು = this, ನನ್ನ = my, ಪುಸ್ತಕ = book.', ['ಇದು ನನ್ನ ಪುಸ್ತಕವು.']),

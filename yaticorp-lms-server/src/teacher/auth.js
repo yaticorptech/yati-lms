@@ -67,6 +67,8 @@ const protectTeacher = async (req, res, next) => {
             return res.status(401).json({ code: 'PASSWORD_CHANGED', message: 'Your password was changed. Please sign in again.' });
         }
         req.teacher = teacher;
+        // A super admin's visit (2026-11-11): named in the token, never the teacher.
+        req.impersonatedBy = decoded.impersonatedBy || null;
         next();
     } catch (error) {
         if (error.name === 'TokenExpiredError') return res.status(401).json({ message: 'Session expired' });
@@ -335,6 +337,7 @@ const updateMe = async (req, res) => {
 
 const changePassword = async (req, res) => {
     try {
+        if (req.impersonatedBy) return res.status(403).json({ message: 'Only the teacher can change their password.' });
         const { currentPassword, newPassword } = req.body || {};
         if (typeof currentPassword !== 'string' || !currentPassword) return res.status(400).json({ field: 'currentPassword', message: 'Enter your current password.' });
         if (typeof newPassword !== 'string' || !newPassword) return res.status(400).json({ field: 'newPassword', message: 'Choose a new password.' });
@@ -388,8 +391,10 @@ const orgCheck = async (req, res) => {
             return res.status(404).json({ code: 'NOT_ADDED', message: 'No organization has added a teacher with this mobile number yet. Ask your organization to add you, then try again.' });
         }
         const Organization = require('../organizations/models/Organization');
-        const orgs = await Organization.find({ _id: { $in: found.map((t) => t.organizationId) } }).select('name').lean();
+        const orgs = await Organization.find({ _id: { $in: found.map((t) => t.organizationId) } }).select('name three60.programs.name').lean();
         const names = Object.fromEntries(orgs.map((o) => [String(o._id), o.name]));
+        // The courses the organization lists (Teachers → Courses & sections), offered as the department.
+        const courses = Object.fromEntries(orgs.map((o) => [String(o._id), (o.three60?.programs || []).map((p) => p.name).filter(Boolean)]));
         res.json({
             verified: true,
             teachers: found.map((t) => ({
@@ -398,7 +403,7 @@ const orgCheck = async (req, res) => {
                 active: t.status === 'active',
                 needsPassword: Boolean(t.passwordPending),
                 // For "Is this you?": only while the account is still to be set up.
-                ...(t.passwordPending ? { id: t._id, name: t.name, phone: t.phone } : {})
+                ...(t.passwordPending ? { id: t._id, name: t.name, phone: t.phone, courses: courses[String(t.organizationId)] || [] } : {})
             }))
         });
     } catch (error) {
@@ -440,6 +445,8 @@ const orgSetup = async (req, res) => {
         if (await Teacher.exists({ email: new RegExp(`^\\s*${escapeRegExp(email)}\\s*$`, 'i'), _id: { $ne: teacher._id } })) {
             return res.status(400).json({ field: 'email', code: 'EMAIL_TAKEN', message: 'Another teacher account already uses this email address.' });
         }
+        if (!String(body.designation || '').trim()) return res.status(400).json({ field: 'designation', message: 'Enter your designation.' });
+        if (!String(body.department || '').trim()) return res.status(400).json({ field: 'department', message: 'Choose or enter your department.' });
         teacher.password = password;
         teacher.passwordPending = false;
         teacher.email = email;
@@ -459,4 +466,36 @@ const orgSetup = async (req, res) => {
     }
 };
 
-module.exports = { protectTeacher, register, login, orgCheck, orgSetup, cardScan, forgotPassword, forgotPasswordPreview, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };
+/**
+ * POST /api/teacher/auth/admin-access/exchange { code } — the super admin's
+ * one-time code (teacher/admin.js) for the teacher's session: their own
+ * screens, two hours, naming the admin. Not a sign-in by the teacher, so
+ * loginCount and lastLoginAt are left alone. Claimed and spent in one update.
+ */
+const adminAccess = async (req, res) => {
+    try {
+        const { hashAccessCode, ADMIN_VIEW_SESSION } = require('../controllers/adminUserController');
+        const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+        const gone = () => res.status(410).json({ code: 'ACCESS_CODE_INVALID', message: 'This link has expired or was already used. Go back to the admin panel and press Dashboard again.' });
+        if (!code || code.length > 100) return gone();
+        const grant = await require('../models/AdminAccessCode').findOneAndUpdate(
+            { codeHash: hashAccessCode(code), usedAt: null, expiresAt: { $gt: new Date() }, kind: 'teacher' },
+            { $set: { usedAt: new Date() } },
+            { returnDocument: 'after' }
+        ).lean();
+        if (!grant) return gone();
+        const Admin = require('../models/Admin');
+        const [teacher, admin] = await Promise.all([Teacher.findById(grant.userId), Admin.findById(grant.adminId).select('name email role')]);
+        if (!admin || admin.role !== 'superadmin') return gone();
+        if (!teacher) return res.status(404).json({ message: 'That teacher no longer exists.' });
+        if (teacher.status !== 'active') return res.status(400).json({ message: 'This teacher is not active. Unblock or approve them to open their dashboard.' });
+        const token = jwt.sign({ id: teacher._id, role: 'teacher', impersonatedBy: String(admin._id) }, process.env.JWT_SECRET, { expiresIn: ADMIN_VIEW_SESSION });
+        console.log(`[admin] ${admin.name || admin.email} (${admin._id}) opened the dashboard of teacher ${teacher._id}`);
+        res.json({ ...view(teacher), token, viewedBy: grant.adminName || admin.name || 'Super Admin' });
+    } catch (error) {
+        console.error('[teacher] admin access failed:', error.message);
+        res.status(500).json({ message: 'Could not open the dashboard just now.' });
+    }
+};
+
+module.exports = { adminAccess, protectTeacher, register, login, orgCheck, orgSetup, cardScan, forgotPassword, forgotPasswordPreview, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };

@@ -417,23 +417,132 @@ const LANGS = {
     }
 };
 
+/*
+ * One short sentence to read in each Section 1 unit (2026-11-04, the user: "add one in every unit — not a long sentence,
+ * 3 or 4 words — and change nothing"): i7 the last of a lesson's first unit, i8 of its second. Those of the English →
+ * Kannada lesson go the other way (read, `direction: 'kn-en'`). id → per language [sentence, its sound, each word's
+ * English, why].
+ */
+const ADDED = {
+    'translation-beginner-kn-en': { sound: 'b-kn-en', ids: ['i7', 'i8'] },
+    'translation-beginner-en-kn': { sound: 'b-en-kn', ids: ['i7', 'i8'], direction: 'kn-en' },
+    'translation-beginner-3': { sound: 'b-3', ids: ['i7', 'i8'] },
+    'translation-beginner-4': { sound: 'b-4', ids: ['i7', 'i8'] }
+};
+// In each language, the eight in this order: family, food; friend, book; bus, hot; morning, sleep early.
+const SHORT = {
+    hi: [['यह मेरा परिवार है।', null, null, 'यह = this, परिवार = family.'], ['मुझे खाना पसंद है।', null, null, 'Hindi says "to me, food is liked": मुझे … पसंद है = I like ….'],
+        ['वह मेरा दोस्त है।', null, null, 'वह = he, दोस्त = friend.'], ['मैं किताब पढ़ता हूँ।', null, null, 'पढ़ता हूँ = (I) read; a girl says पढ़ती हूँ.'],
+        ['बस आ गई है।', null, null, 'आ गई है = has come.'], ['आज गर्मी है।', null, null, 'गर्मी = heat; English says "It is hot."'],
+        ['अभी सुबह है।', null, null, 'अभी = now, सुबह = morning.'], ['मैं जल्दी सोता हूँ।', null, null, 'जल्दी = early, सोता हूँ = (I) sleep.']],
+    mr: [['हे माझे कुटुंब आहे.', 'he maajhe kutumb aahe', 'this|my|family|is', 'हे = this, कुटुंब = family.'], ['मला जेवण आवडते.', 'malaa jevan aavadate', 'to me|food|is liked', 'मला … आवडते = I like ….'],
+        ['तो माझा मित्र आहे.', 'to maajhaa mitra aahe', 'he|my|friend|is', 'तो = he, मित्र = friend.'], ['मी पुस्तक वाचतो.', 'mi pustak vaachato', 'I|book|read', 'वाचतो = (I) read; a girl says वाचते.'],
+        ['बस आली आहे.', 'bas aali aahe', 'bus|came|is (has)', 'आली आहे = has come.'], ['आज गरम आहे.', 'aaj garam aahe', 'today|hot|is', 'गरम = hot.'],
+        ['आता सकाळ आहे.', 'aataa sakaal aahe', 'now|morning|is', 'आता = now, सकाळ = morning.'], ['मी लवकर झोपतो.', 'mi lavkar jhopato', 'I|early|sleep', 'लवकर = early, झोपतो = (I) sleep.']],
+    bn: [['এটা আমার পরিবার।', 'eta amar poribar', 'this|my|family', 'এটা = this, পরিবার = family.'], ['আমার খাবার ভালো লাগে।', 'amar khabar bhalo lage', 'to me|food|good|feels', 'Bengali says "food feels good to me": I like food.'],
+        ['সে আমার বন্ধু।', 'she amar bondhu', 'he|my|friend', 'সে = he, বন্ধু = friend.'], ['আমি বই পড়ি।', 'ami boi pori', 'I|book|read', 'বই = book, পড়ি = (I) read.'],
+        ['বাস এসে গেছে।', 'bas eshe geche', 'bus|having come|has (is here)', 'এসে গেছে = has come.'], ['আজ গরম।', 'aj gorom', 'today|hot (is)', 'গরম = hot.'],
+        ['এখন সকাল।', 'ekhon shokal', 'now|morning (is)', 'এখন = now, সকাল = morning.'], ['আমি তাড়াতাড়ি ঘুমাই।', 'ami taratari ghumai', 'I|early|sleep', 'তাড়াতাড়ি = early, ঘুমাই = (I) sleep.']],
+    gu: [['આ મારું કુટુંબ છે.', 'aa maarun kutumb chhe', 'this|my|family|is', 'આ = this, કુટુંબ = family.'], ['મને ભોજન ગમે છે.', 'mane bhojan game chhe', 'to me|food|pleases|(it does)', 'મને … ગમે છે = I like ….'],
+        ['તે મારો મિત્ર છે.', 'te maaro mitra chhe', 'he|my|friend|is', 'તે = he, મિત્ર = friend.'], ['હું પુસ્તક વાંચું છું.', 'hun pustak vaanchun chhun', 'I|book|read|am', 'વાંચું છું = I read.'],
+        ['બસ આવી ગઈ છે.', 'bas aavi gai chhe', 'bus|came|went (has)|is', 'આવી ગઈ છે = has come.'], ['આજે ગરમી છે.', 'aaje garmi chhe', 'today|heat|is', 'ગરમી = heat; English says "It is hot."'],
+        ['અત્યારે સવાર છે.', 'atyaare savaar chhe', 'now|morning|is', 'અત્યારે = now, સવાર = morning.'], ['હું વહેલો સૂઈ જાઉં છું.', 'hun vahelo sooi jaaun chhun', 'I|early|sleep|go|am', 'વહેલો = early, સૂઈ જાઉં છું = I go to sleep.']],
+    pa: [['ਇਹ ਮੇਰਾ ਪਰਿਵਾਰ ਹੈ।', 'ih meraa parivaar hai', 'this|my|family|is', 'ਇਹ = this, ਪਰਿਵਾਰ = family.'], ['ਮੈਨੂੰ ਖਾਣਾ ਪਸੰਦ ਹੈ।', 'mainoo khaanaa pasand hai', 'to me|food|liked|is', 'ਮੈਨੂੰ … ਪਸੰਦ ਹੈ = I like ….'],
+        ['ਉਹ ਮੇਰਾ ਦੋਸਤ ਹੈ।', 'uh meraa dost hai', 'he|my|friend|is', 'ਉਹ = he, ਦੋਸਤ = friend.'], ['ਮੈਂ ਕਿਤਾਬ ਪੜ੍ਹਦਾ ਹਾਂ।', 'main kitaab parhdaa haan', 'I|book|read|am', 'ਪੜ੍ਹਦਾ ਹਾਂ = I read; a girl says ਪੜ੍ਹਦੀ ਹਾਂ.'],
+        ['ਬੱਸ ਆ ਗਈ ਹੈ।', 'bass aa gai hai', 'bus|come|went (has)|is', 'ਆ ਗਈ ਹੈ = has come.'], ['ਅੱਜ ਗਰਮੀ ਹੈ।', 'ajj garmi hai', 'today|heat|is', 'ਗਰਮੀ = heat; English says "It is hot."'],
+        ['ਹੁਣ ਸਵੇਰ ਹੈ।', 'hun saver hai', 'now|morning|is', 'ਹੁਣ = now, ਸਵੇਰ = morning.'], ['ਮੈਂ ਜਲਦੀ ਸੌਂਦਾ ਹਾਂ।', 'main jaldi saundaa haan', 'I|early|sleep|am', 'ਜਲਦੀ = early, ਸੌਂਦਾ ਹਾਂ = I sleep.']],
+    or: [['ଏହା ମୋ ପରିବାର।', 'ehaa mo paribaara', 'this|my|family', 'ଏହା = this, ପରିବାର = family.'], ['ମୋତେ ଖାଦ୍ୟ ଭଲ ଲାଗେ।', 'mote khaadya bhala laage', 'to me|food|good|feels', 'Odia says "food feels good to me": I like food.'],
+        ['ସେ ମୋ ସାଙ୍ଗ।', 'se mo saanga', 'he|my|friend', 'ସେ = he, ସାଙ୍ଗ = friend.'], ['ମୁଁ ବହି ପଢ଼େ।', 'mun bahi padhe', 'I|book|read', 'ବହି = book, ପଢ଼େ = (I) read.'],
+        ['ବସ୍ ଆସିଗଲାଣି।', 'bas aasigalaani', 'bus|has come', 'ଆସିଗଲାଣି = has come.'], ['ଆଜି ଗରମ।', 'aaji garama', 'today|hot (is)', 'ଗରମ = hot.'],
+        ['ଏବେ ସକାଳ।', 'ebe sakaala', 'now|morning (is)', 'ଏବେ = now, ସକାଳ = morning.'], ['ମୁଁ ଶୀଘ୍ର ଶୋଇପଡ଼େ।', 'mun sheeghra soipade', 'I|early|fall asleep', 'ଶୀଘ୍ର = early, ଶୋଇପଡ଼େ = (I) fall asleep.']],
+    ta: [['இது என் குடும்பம்.', 'idhu en kudumbam', 'this|my|family', 'இது = this, குடும்பம் = family.'], ['எனக்கு உணவு பிடிக்கும்.', 'enakku unavu pidikkum', 'to me|food|is liked', 'Tamil says "to me, food is liked": I like food.'],
+        ['அவன் என் நண்பன்.', 'avan en nanban', 'he|my|friend', 'அவன் = he, நண்பன் = friend.'], ['நான் புத்தகம் படிக்கிறேன்.', 'naan puththagam padikkiren', 'I|book|read', 'படிக்கிறேன் = I read.'],
+        ['பேருந்து வந்துவிட்டது.', 'perundhu vandhuvittadhu', 'bus|has come', 'வந்துவிட்டது = has come.'], ['இன்று வெப்பமாக இருக்கிறது.', 'indru veppamaaga irukkiradhu', 'today|hot|is', 'வெப்பமாக = hot.'],
+        ['இப்போது காலை.', 'ippodhu kaalai', 'now|morning', 'இப்போது = now, காலை = morning.'], ['நான் சீக்கிரம் தூங்குகிறேன்.', 'naan seekkiram thoongugiren', 'I|early|sleep', 'சீக்கிரம் = early, தூங்குகிறேன் = I sleep.']],
+    te: [['ఇది మా కుటుంబం.', 'idi maa kutumbam', 'this|our|family', 'ఇది = this, కుటుంబం = family (మా = our; English says "my").'], ['నాకు ఆహారం ఇష్టం.', 'naaku aahaaram ishtam', 'to me|food|liked', 'Telugu says "to me, food is liked": I like food.'],
+        ['అతను నా స్నేహితుడు.', 'athanu naa snehithudu', 'he|my|friend', 'అతను = he, స్నేహితుడు = friend.'], ['నేను పుస్తకం చదువుతాను.', 'nenu pusthakam chaduvuthaanu', 'I|book|read', 'చదువుతాను = I read.'],
+        ['బస్సు వచ్చింది.', 'bassu vachchindi', 'bus|came', 'వచ్చింది = has come.'], ['ఈ రోజు వేడిగా ఉంది.', 'ee roju vedigaa undi', 'this|day|hot|is', 'ఈ రోజు = today, వేడిగా = hot.'],
+        ['ఇప్పుడు ఉదయం.', 'ippudu udayam', 'now|morning', 'ఇప్పుడు = now, ఉదయం = morning.'], ['నేను త్వరగా నిద్రపోతాను.', 'nenu thvaragaa nidrapothaanu', 'I|early|sleep', 'త్వరగా = early, నిద్రపోతాను = I sleep.']],
+    ml: [['ഇത് എന്റെ കുടുംബമാണ്.', 'ithu ente kudumbamaanu', 'this|my|family (it is)', 'ഇത് = this, കുടുംബം = family; ആണ് = is.'], ['എനിക്ക് ഭക്ഷണം ഇഷ്ടമാണ്.', 'enikku bhakshanam ishtamaanu', 'to me|food|liked (it is)', 'Malayalam says "to me, food is liked": I like food.'],
+        ['അവൻ എന്റെ കൂട്ടുകാരനാണ്.', 'avan ente koottukaaranaanu', 'he|my|friend (he is)', 'അവൻ = he, കൂട്ടുകാരൻ = friend.'], ['ഞാൻ പുസ്തകം വായിക്കുന്നു.', 'njaan pusthakam vaayikkunnu', 'I|book|read', 'വായിക്കുന്നു = read.'],
+        ['ബസ് വന്നു.', 'bas vannu', 'bus|came', 'വന്നു = came; English says "The bus is here."'], ['ഇന്ന് ചൂടാണ്.', 'innu choodaanu', 'today|hot (it is)', 'ചൂട് = heat; ആണ് = is.'],
+        ['ഇപ്പോൾ രാവിലെയാണ്.', 'ippol raavileyaanu', 'now|morning (it is)', 'ഇപ്പോൾ = now, രാവിലെ = morning.'], ['ഞാൻ നേരത്തെ ഉറങ്ങും.', 'njaan nerathe urangum', 'I|early|sleep', 'നേരത്തെ = early, ഉറങ്ങും = (I) sleep.']],
+    ur: [['یہ میرا خاندان ہے۔', 'yeh mera khaandaan hai', 'this|my|family|is', 'یہ = this, خاندان = family.'], ['مجھے کھانا پسند ہے۔', 'mujhe khaana pasand hai', 'to me|food|liked|is', 'مجھے … پسند ہے = I like ….'],
+        ['وہ میرا دوست ہے۔', 'woh mera dost hai', 'he|my|friend|is', 'وہ = he, دوست = friend.'], ['میں کتاب پڑھتا ہوں۔', 'main kitaab parhta hoon', 'I|book|read|am', 'پڑھتا ہوں = I read; a girl says پڑھتی ہوں.'],
+        ['بس آ گئی ہے۔', 'bas aa gayi hai', 'bus|come|went (has)|is', 'آ گئی ہے = has come.'], ['آج گرمی ہے۔', 'aaj garmi hai', 'today|heat|is', 'گرمی = heat; English says "It is hot."'],
+        ['ابھی صبح ہے۔', 'abhi subah hai', 'now|morning|is', 'ابھی = now, صبح = morning.'], ['میں جلدی سوتا ہوں۔', 'main jaldi sota hoon', 'I|early|sleep|am', 'جلدی = early, سوتا ہوں = I sleep.']],
+    ar: [['هذه عائلتي.', 'haadhihi aa-ilatee', 'this|my family', 'هذه = this, عائلتي = my family.'], ['أحب الطعام.', 'uhibbu at-taaam', 'I like|the food', 'أحب = I like, I love.'],
+        ['هو صديقي.', 'huwa sadeeqee', 'he|my friend', 'هو = he, صديقي = my friend; no "is".'], ['أقرأ كتابا.', 'aqra kitaaban', 'I read|a book', 'أقرأ = I read, كتابا = a book.'],
+        ['وصلت الحافلة.', 'wasalat al-haafila', 'arrived|the bus', 'وصلت = (it) arrived, الحافلة = the bus.'], ['الجو حار اليوم.', 'al-jaww haarr al-yawm', 'the weather|hot|today', 'حار = hot, اليوم = today.'],
+        ['الآن صباح.', 'al-aan sabaah', 'now|morning', 'الآن = now, صباح = morning.'], ['أنام مبكرا.', 'anaamu mubakkiran', 'I sleep|early', 'أنام = I sleep, مبكرا = early.']],
+    ru: [['Это моя семья.', 'eto moya semya', 'this (is)|my|family', 'семья = family.'], ['Я люблю еду.', 'ya lyublyu yedu', 'I|like|food', 'люблю = (I) like, love; еду = food.'],
+        ['Он мой друг.', 'on moy drug', 'he|my|friend', 'он = he, друг = friend; no "is".'], ['Я читаю книгу.', 'ya chitayu knigu', 'I|read|a book', 'читаю = (I) read, книгу = book.'],
+        ['Автобус пришёл.', 'avtobus prishyol', 'bus|came', 'пришёл = came; English says "The bus is here."'], ['Сегодня жарко.', 'segodnya zharko', 'today|(it is) hot', 'жарко = it is hot.'],
+        ['Сейчас утро.', 'seychas utro', 'now|morning', 'сейчас = now, утро = morning.'], ['Я рано ложусь спать.', 'ya rano lozhus spat', 'I|early|lie down|to sleep', 'рано = early, ложусь спать = go to sleep.']],
+    es: [['Esta es mi familia.', 'es-ta es mee fa-mee-lya', 'this|is|my|family', '"familia" = family.'], ['Me gusta la comida.', 'meh goos-ta la ko-mee-da', 'to me|pleases|the|food', 'Spanish says "food pleases me": "me gusta" = I like.'],
+        ['Él es mi amigo.', 'el es mee a-mee-go', 'he|is|my|friend', '"amigo" = friend.'], ['Leo un libro.', 'leh-o oon lee-bro', 'I read|a|book', '"leo" = I read, "libro" = book.'],
+        ['El autobús ya llegó.', 'el ow-to-boos ya yeh-go', 'the|bus|already|arrived', '"llegó" = arrived; English says "The bus is here."'], ['Hoy hace calor.', 'oy a-seh ka-lor', 'today|makes|heat', 'Spanish says "it makes heat": "hace calor" = it is hot.'],
+        ['Es de mañana.', 'es deh ma-nya-na', 'it is|of|morning', '"mañana" = morning.'], ['Duermo temprano.', 'dwer-mo tem-pra-no', 'I sleep|early', '"duermo" = I sleep, "temprano" = early.']],
+    fr: [['C’est ma famille.', 'say ma fa-mee', 'it is|my|family', '"famille" = family.'], ['J’aime la nourriture.', 'zhem la noo-ree-tewr', 'I like|the|food', '"j’aime" = I like.'],
+        ['C’est mon ami.', 'say mohn a-mee', 'he is|my|friend', '"ami" = friend; "c’est" = he is.'], ['Je lis un livre.', 'zhuh lee uhn lee-vruh', 'I|read|a|book', '"lis" = read, "livre" = book.'],
+        ['Le bus est là.', 'luh bews ay la', 'the|bus|is|here', '"là" = here, there.'], ['Il fait chaud aujourd’hui.', 'eel fay shoh oh-zhoor-dwee', 'it|makes|hot|today', 'French says "it makes hot": "il fait chaud" = it is hot.'],
+        ['C’est le matin.', 'say luh ma-tan', 'it is|the|morning', '"matin" = morning.'], ['Je dors tôt.', 'zhuh dor toh', 'I|sleep|early', '"dors" = sleep, "tôt" = early.']],
+    de: [['Das ist meine Familie.', 'das ist my-neh fa-mee-lyeh', 'that|is|my|family', '"Familie" = family.'], ['Ich mag Essen.', 'ikh mahk es-sen', 'I|like|food', '"mag" = like.'],
+        ['Er ist mein Freund.', 'air ist mine froynt', 'he|is|my|friend', '"Freund" = friend.'], ['Ich lese ein Buch.', 'ikh lay-zeh ine bookh', 'I|read|a|book', '"lese" = (I) read, "Buch" = book.'],
+        ['Der Bus ist da.', 'dair boos ist dah', 'the|bus|is|here', '"da" = here, there.'], ['Heute ist es heiß.', 'hoy-teh ist es hice', 'today|is|it|hot', '"heiß" = hot.'],
+        ['Es ist Morgen.', 'es ist mor-gen', 'it|is|morning', '"Morgen" = morning.'], ['Ich schlafe früh.', 'ikh shlah-feh frew', 'I|sleep|early', '"schlafe" = (I) sleep, "früh" = early.']],
+    pt: [['Esta é a minha família.', 'es-ta eh a mee-nya fa-mee-lya', 'this|is|the|my|family', '"família" = family.'], ['Eu gosto de comida.', 'eh-oo gos-too jee ko-mee-da', 'I|like|of|food', '"gosto de" = I like.'],
+        ['Ele é meu amigo.', 'eh-lee eh meh-oo a-mee-goo', 'he|is|my|friend', '"amigo" = friend.'], ['Eu leio um livro.', 'eh-oo lay-oo oong lee-vroo', 'I|read|a|book', '"leio" = I read, "livro" = book.'],
+        ['O ônibus chegou.', 'oo oh-nee-boos sheh-goh', 'the|bus|arrived', '"chegou" = arrived; English says "The bus is here."'], ['Hoje está quente.', 'oh-zhee es-ta kehn-chee', 'today|is|hot', '"quente" = hot.'],
+        ['É de manhã.', 'eh jee ma-nyahn', 'it is|of|morning', '"manhã" = morning.'], ['Eu durmo cedo.', 'eh-oo door-moo seh-doo', 'I|sleep|early', '"durmo" = I sleep, "cedo" = early.']],
+    zh: [['这是我的家庭。', 'zhè shì wǒ de jiātíng', "this|is|I|'s (of)|family", '家庭 = family.'], ['我喜欢食物。', 'wǒ xǐhuan shíwù', 'I|like|food', '喜欢 = like, 食物 = food.'],
+        ['他是我的朋友。', 'tā shì wǒ de péngyou', "he|is|I|'s (of)|friend", '他 = he, 朋友 = friend.'], ['我读书。', 'wǒ dúshū', 'I|read (books)', '读书 = read a book, read.'],
+        ['公交车来了。', 'gōngjiāochē lái le', 'bus|come|(done)', '来了 = has come.'], ['今天很热。', 'jīntiān hěn rè', 'today|very|hot', '热 = hot; 很 works like "is".'],
+        ['现在是早上。', 'xiànzài shì zǎoshang', 'now|is|morning', '现在 = now, 早上 = morning.'], ['我睡得早。', 'wǒ shuì de zǎo', 'I|sleep|(how)|early', '睡 = sleep, 早 = early.']],
+    ja: [['これは私の家族です。', 'kore wa watashi no kazoku desu', "this|(topic marker)|I|'s (of)|family|is", '家族 = family.'], ['私は食べ物が好きです。', 'watashi wa tabemono ga suki desu', 'I|(topic marker)|food|(subject marker)|liked|is', '好き = liked; 〜が好きです = I like ….'],
+        ['彼は私の友達です。', 'kare wa watashi no tomodachi desu', "he|(topic marker)|I|'s (of)|friend|is", '彼 = he, 友達 = friend.'], ['私は本を読みます。', 'watashi wa hon o yomimasu', 'I|(topic marker)|book|(object marker)|read', '本 = book, 読みます = read.'],
+        ['バスが来ました。', 'basu ga kimashita', 'bus|(subject marker)|came', '来ました = came.'], ['今日は暑いです。', 'kyou wa atsui desu', 'today|(topic marker)|hot|is', '暑い = hot (weather).'],
+        ['今は朝です。', 'ima wa asa desu', 'now|(topic marker)|morning|is', '今 = now, 朝 = morning.'], ['私は早く寝ます。', 'watashi wa hayaku nemasu', 'I|(topic marker)|early|sleep', '早く = early, 寝ます = sleep.']],
+    ko: [['이것은 제 가족이에요.', 'igeoseun je gajogieyo', 'this (topic)|my|family (it is)', '가족 = family.'], ['저는 음식을 좋아해요.', 'jeoneun eumsigeul joahaeyo', 'I (topic)|food (object)|like', '좋아해요 = (I) like.'],
+        ['그는 제 친구예요.', 'geuneun je chinguyeyo', 'he (topic)|my|friend (he is)', '그 = he, 친구 = friend.'], ['저는 책을 읽어요.', 'jeoneun chaegeul ilgeoyo', 'I (topic)|book (object)|read', '책 = book, 읽어요 = read.'],
+        ['버스가 왔어요.', 'beoseuga wasseoyo', 'bus|came', '왔어요 = came.'], ['오늘은 더워요.', 'oneureun deowoyo', 'today (topic)|hot (it is)', '더워요 = it is hot.'],
+        ['지금은 아침이에요.', 'jigeumeun achimieyo', 'now (topic)|morning (it is)', '지금 = now, 아침 = morning.'], ['저는 일찍 자요.', 'jeoneun iljjik jayo', 'I (topic)|early|sleep', '일찍 = early, 자요 = sleep.']]
+};
+/** The added sentences of one lesson in a language: id → [sentence, sound, English words, why]. */
+const addedIn = (code, key) => {
+    const at = Object.keys(ADDED).indexOf(key), rows = SHORT[code];
+    return at < 0 || !rows ? {} : Object.fromEntries(ADDED[key].ids.map((id, k) => [id, rows[at * 2 + k]]));
+};
+const withAdded = (code, map, pick) => {
+    const out = { ...map };
+    for (const key of Object.keys(ADDED)) {
+        const rows = addedIn(code, key), slot = pick.slot(key);
+        const add = Object.fromEntries(Object.entries(rows).map(([id, row]) => [id, pick.value(row, key)]).filter(([, v]) => v != null));
+        if (Object.keys(add).length) out[slot] = { ...(out[slot] || {}), ...add };
+    }
+    return out;
+};
+
 /** The ten items of a lesson in their new places: the new ones, those moved (`MOVED`), and the rest as they were. */
 const remap = (old, way, fresh) => Object.fromEntries(IDS.map((id) => [id, fresh[id] !== undefined ? fresh[id] : old?.[MOVED[way][id] || id]]).filter(([, v]) => v !== undefined));
 const each = (code, way, pick) => Object.fromEntries(Object.entries(LANGS[code]?.[way] || {}).map(([id, row]) => [id, pick(row)]).filter(([, v]) => v != null));
 
-/** A language pack's items with these lessons on topic (languages.js). */
-const packItems = (code, items) => {
+/** A language pack's items with these lessons on topic (languages.js), and each unit's short sentence added. */
+const packItems = (code, items) => withAdded(code, onTopicItems(code, items), { slot: (key) => key, value: ([source, , , explanation], key) => ({ source, explanation, ...(ADDED[key].direction ? { direction: ADDED[key].direction } : {}) }) });
+const onTopicItems = (code, items) => {
     if (!LANGS[code]) return items;
     const read = each(code, 'read', ([source, , , explanation]) => ({ source, explanation }));
     const build = each(code, 'build', ([model, accepted, , explanation, tiles]) => ({ model, accepted, ...(tiles ? { tiles } : {}), explanation }));
     return { ...items, [LESSONS.read]: remap(items?.[LESSONS.read], 'read', read), [LESSONS.build]: remap(items?.[LESSONS.build], 'build', build) };
 };
 /** A language's sounds, and its words' English, with these lessons on topic (content/sounds/index.js). */
-const soundLines = (code, lines) => (LANGS[code] ? {
+const soundLines = (code, lines) => withAdded(code, onTopicLines(code, lines), { slot: (key) => ADDED[key].sound, value: (row) => row[1] });
+const soundGlosses = (code, glosses) => withAdded(code, onTopicGlosses(code, glosses), { slot: (key) => ADDED[key].sound, value: (row) => row[2] });
+const onTopicLines = (code, lines) => (LANGS[code] ? {
     ...lines,
     [SOUNDS.read]: remap(lines?.[SOUNDS.read], 'read', each(code, 'read', (r) => r[1])),
     [SOUNDS.build]: remap(lines?.[SOUNDS.build], 'build', each(code, 'build', (r) => r[2]))
 } : lines);
-const soundGlosses = (code, glosses) => (LANGS[code] ? { ...glosses, [SOUNDS.read]: remap(glosses?.[SOUNDS.read], 'read', each(code, 'read', (r) => r[2])) } : glosses);
+const onTopicGlosses = (code, glosses) => (LANGS[code] ? { ...glosses, [SOUNDS.read]: remap(glosses?.[SOUNDS.read], 'read', each(code, 'read', (r) => r[2])) } : glosses);
 
-module.exports = { LANGS, MOVED, packItems, soundLines, soundGlosses };
+module.exports = { LANGS, MOVED, ADDED, SHORT, packItems, soundLines, soundGlosses };

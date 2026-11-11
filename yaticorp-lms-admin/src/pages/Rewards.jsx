@@ -331,12 +331,13 @@ const XP_GROUPS = [
 /**
  * The rules in force, by group: one row each — what it is on the left, the
  * amount on the right (₹ before it for a price, XP after it for XP), and a
- * remove button. A value changed since the last save is ringed in amber with
+ * Clear button that sets it to 0 (2026-11-05: no delete — a rule is kept and
+ * cleared, so it can be given an amount again in place). A value changed since the last save is ringed in amber with
  * what it was. `query` narrows the rows; "Add rule" offers any catalogued rule
  * not in force. Only hooks the server really has are in the catalogue, so an
  * added rule always does something.
  */
-function RuleList({ groups, values, saved = {}, query = '', prefix, suffix, step = 1, onSet, onRemove, addLabel }) {
+function RuleList({ groups, values, saved = {}, query = '', prefix, suffix, step = 1, onSet, addLabel }) {
     const [adding, setAdding] = useState(false);
     const [pick, setPick] = useState('');
     const [amount, setAmount] = useState('');
@@ -384,8 +385,9 @@ function RuleList({ groups, values, saved = {}, query = '', prefix, suffix, step
                                             </div>
                                             {changed && <p className="mt-0.5 text-[10px] font-semibold text-amber-700 sm:text-right">was {unit(saved[k])}</p>}
                                         </div>
-                                        <button type="button" onClick={() => onRemove(k)} title="Remove this rule" aria-label={`Remove ${label}`}
-                                            className="shrink-0 rounded-md p-2 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-600 sm:p-1.5"><Trash2 size={15} /></button>
+                                        <button type="button" onClick={() => onSet(k, 0)} disabled={!Number(values[k])}
+                                            title={Number(values[k]) ? 'Set this rule to 0' : 'Already 0'} aria-label={`Clear ${label}`}
+                                            className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs font-bold text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400"><X size={13} /> Clear</button>
                                     </li>
                                 );
                             })}
@@ -473,11 +475,6 @@ function Rules() {
         setCfg((c) => ({ ...c, [map]: { ...(c[map] || {}), [key]: value } }));
         setRemoved((r) => ({ ...r, [map === 'xpRules' ? 'xp' : 'wallet']: r[map === 'xpRules' ? 'xp' : 'wallet'].filter((k) => k !== key) }));
     };
-    const removeRule = (map, key) => {
-        setCfg((c) => { const next = { ...(c[map] || {}) }; delete next[key]; return { ...c, [map]: next }; });
-        const side = map === 'xpRules' ? 'xp' : 'wallet';
-        setRemoved((r) => ({ ...r, [side]: r[side].includes(key) ? r[side] : [...r[side], key] }));
-    };
     const save = async () => {
         setBusy(true); setMsg(null);
         try {
@@ -533,14 +530,14 @@ function Rules() {
         xp: (
             <Card icon={Coins} title="XP rules" sub="XP is learning progress: it drives levels, the leaderboard and badges. It is never wallet points.">
                 {search('Search XP rules…')}
-                <RuleList groups={XP_GROUPS} values={cfg.xpRules} saved={was.xpRules || {}} query={query} suffix="XP" onSet={(k, v) => setRule('xpRules', k, v)} onRemove={(k) => removeRule('xpRules', k)} addLabel="Add XP rule" />
-                <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain Boosters pay their own XP (their own sections). A removed rule pays nothing to anyone; a rule under "Add XP rule" pays nothing until it is added.</p>
+                <RuleList groups={XP_GROUPS} values={cfg.xpRules} saved={was.xpRules || {}} query={query} suffix="XP" onSet={(k, v) => setRule('xpRules', k, v)} addLabel="Add XP rule" />
+                <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain Boosters pay their own XP (their own sections). Clear sets a rule to 0, so it pays nothing until it is given an amount again; a rule under "Add XP rule" pays nothing until it is added.</p>
             </Card>
         ),
         wallet: (
             <Card icon={Wallet} title="Wallet rules" sub="What a feature costs from the student's wallet balance. 0 = free. Students are asked before anything is taken; a short balance is refused, and a feature that fails is refunded." tone="emerald">
                 {search('Search wallet rules…')}
-                <RuleList groups={WALLET_GROUPS} values={cfg.walletRules || {}} saved={was.walletRules || {}} query={query} prefix={cur === 'INR' ? '₹' : cur} step={0.5} onSet={(k, v) => setRule('walletRules', k, v)} onRemove={(k) => removeRule('walletRules', k)} addLabel="Add wallet rule" />
+                <RuleList groups={WALLET_GROUPS} values={cfg.walletRules || {}} saved={was.walletRules || {}} query={query} prefix={cur === 'INR' ? '₹' : cur} step={0.5} onSet={(k, v) => setRule('walletRules', k, v)} addLabel="Add wallet rule" />
             </Card>
         ),
         credit: (

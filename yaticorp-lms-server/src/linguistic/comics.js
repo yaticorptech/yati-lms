@@ -10,8 +10,9 @@
  * reading module), made whole here when served. Each one sits in its Advanced topic (`order`), in the Stories
  * track after that topic's article (units.js). English course only, as the talks are.
  *
- * Each story has its own look (`theme`: summer, journey, monsoon, dusk — 2026-10-31, "don't give the same design to
- * all stories") and ends well, with its moral in a box under the last panel ("must have a wonderful conclusion").
+ * Each story ends well, with its moral in a box under the last panel ("must have a wonderful conclusion"). Its
+ * `theme` (summer, journey, monsoon, dusk) gave each its own look from 2026-10-31; since 2026-11-04 every story is
+ * drawn in one bright look (parts/Comic.jsx, "add this type of interface for all stories"), the theme kept as a mark.
  *
  * A panel: { scene, wide?, zoom? (a close-up), title?, caption?, narration?, evening?, night?, rain?, focus? (where the
  * scene's tree stands, % across), cast: [{ who, x (% across), pose?, face?, holds?, y? }],
@@ -312,6 +313,28 @@ const filmOf = (s, L, locale) => ({
         lines: sc.lines.map((ln, k) => ({ ...ln, text: L ? L.scenes[i].lines[k] : ln.text, name: L?.names?.[ln.who] ?? s.people[ln.who]?.name ?? '' }))
     }))
 });
+/*
+ * The people's names in each language (2026-11-05, "mention the names of the persons — the quiz asks about them"):
+ * shown under them in every panel. As each language's story writes them (its quiz, its words); Kitti, never named in
+ * the words, as the others are. Spanish, French, German and Portuguese write them as English does. Those with no name
+ * (the old man, a traveller, the merchant…) have none shown.
+ */
+const NAMES = {
+    Gopal: { kn: 'ಗೋಪಾಲ', hi: 'गोपाल', ta: 'கோபால்', te: 'గోపాల్', ml: 'ഗോപാൽ', mr: 'गोपाळ', bn: 'গোপাল', gu: 'ગોપાલ', pa: 'ਗੋਪਾਲ', or: 'ଗୋପାଳ', ru: 'Гопал', ar: 'غوبال', ur: 'گوپال', zh: '戈帕尔', ja: 'ゴパール', ko: '고팔' },
+    Lakshmi: { kn: 'ಲಕ್ಷ್ಮಿ', hi: 'लक्ष्मी', ta: 'லட்சுமி', te: 'లక్ష్మి', ml: 'ലക്ഷ്മി', mr: 'लक्ष्मी', bn: 'লক্ষ্মী', gu: 'લક્ષ્મી', pa: 'ਲਕਸ਼ਮੀ', or: 'ଲକ୍ଷ୍ମୀ', ru: 'Лакшми', ar: 'لاكشمي', ur: 'لکشمی', zh: '拉克希米', ja: 'ラクシュミ', ko: '락슈미' },
+    Asha: { kn: 'ಆಶಾ', hi: 'आशा', ta: 'ஆஷா', te: 'ఆశ', ml: 'ആശ', mr: 'आशा', bn: 'আশা', gu: 'આશા', pa: 'ਆਸ਼ਾ', or: 'ଆଶା', ru: 'Аша', ar: 'آشا', ur: 'آشا', zh: '阿莎', ja: 'アシャ', ko: '아샤' },
+    Ramu: { kn: 'ರಾಮು', hi: 'रामू', ta: 'ராமு', te: 'రాము', ml: 'രാമു', mr: 'रामू', bn: 'রামু', gu: 'રામુ', pa: 'ਰਾਮੂ', or: 'ରାମୁ', ru: 'Раму', ar: 'رامو', ur: 'رامو', zh: '拉穆', ja: 'ラム', ko: '라무' },
+    Kitti: { kn: 'ಕಿಟ್ಟಿ', hi: 'किट्टी', ta: 'கிட்டி', te: 'కిట్టి', ml: 'കിട്ടി', mr: 'किट्टी', bn: 'কিট্টি', gu: 'કિટ્ટી', pa: 'ਕਿੱਟੀ', or: 'କିଟ୍ଟି', ru: 'Китти', ar: 'كيتي', ur: 'کٹی', zh: '基蒂', ja: 'キッティ', ko: '키티' },
+    Ravi: { kn: 'ರವಿ', hi: 'रवि', ta: 'ரவி', te: 'రవి', ml: 'രവി', mr: 'रवी', bn: 'রবি', gu: 'રવિ', pa: 'ਰਵੀ', or: 'ରବି', ru: 'Рави', ar: 'رافي', ur: 'روی', zh: '拉维', ja: 'ラヴィ', ko: '라비' },
+    Somu: { kn: 'ಸೋಮು', hi: 'सोमू', ta: 'சோமு', te: 'సోము', ml: 'സോമു', mr: 'सोमू', bn: 'সোমু', gu: 'સોમુ', pa: 'ਸੋਮੂ', or: 'ସୋମୁ', ru: 'Сому', ar: 'سومو', ur: 'سومو', zh: '索穆', ja: 'ソム', ko: '소무' },
+    Shankar: { kn: 'ಶಂಕರ', hi: 'शंकर', ta: 'சங்கர்', te: 'శంకర్', ml: 'ശങ്കർ', mr: 'शंकर', bn: 'শঙ্কর', gu: 'શંકર', pa: 'ਸ਼ੰਕਰ', or: 'ଶଙ୍କର', ru: 'Шанкар', ar: 'شانكار', ur: 'شنکر', zh: '尚卡尔', ja: 'シャンカル', ko: '샹카르' },
+    Lata: { kn: 'ಲತಾ', hi: 'लता', ta: 'லதா', te: 'లత', ml: 'ലത', mr: 'लता', bn: 'লতা', gu: 'લતા', pa: 'ਲਤਾ', or: 'ଲତା', ru: 'Лата', ar: 'لاتا', ur: 'لتا', zh: '拉塔', ja: 'ラタ', ko: '라타' },
+    Priya: { kn: 'ಪ್ರಿಯಾ', hi: 'प्रिया', ta: 'பிரியா', te: 'ప్రియ', ml: 'പ്രിയ', mr: 'प्रिया', bn: 'প্রিয়া', gu: 'પ્રિયા', pa: 'ਪ੍ਰਿਆ', or: 'ପ୍ରିୟା', ru: 'Прия', ar: 'بريا', ur: 'پریا', zh: '普丽娅', ja: 'プリヤ', ko: '프리야' },
+    Kumar: { kn: 'ಕುಮಾರ', hi: 'कुमार', ta: 'குமார்', te: 'కుమార్', ml: 'കുമാർ', mr: 'कुमार', bn: 'কুমার', gu: 'કુમાર', pa: 'ਕੁਮਾਰ', or: 'କୁମାର', ru: 'Кумар', ar: 'كومار', ur: 'کمار', zh: '库马尔', ja: 'クマール', ko: '쿠마르' },
+    Gowri: { kn: 'ಗೌರಿ', hi: 'गौरी', ta: 'கௌரி', te: 'గౌరీ', ml: 'ഗൗരി', mr: 'गौरी', bn: 'গৌরী', gu: 'ગૌરી', pa: 'ਗੌਰੀ', or: 'ଗୌରୀ', ru: 'Гоури', ar: 'غوري', ur: 'گوری', zh: '高丽', ja: 'ガウリ', ko: '가우리' }
+};
+/** The story's people, each named one with `tag`, their name in the story's language (`code`; the English story's, null). */
+const named = (people, code) => Object.fromEntries(Object.entries(people || {}).map(([k, p]) => [k, NAMES[p.name] ? { ...p, tag: (code && NAMES[p.name][code]) || p.name } : p]));
 
 /** The stub made whole: the story's panels (each speaker's name with what they say) and its questions. */
 const build = (stub, helper) => {
@@ -327,14 +350,19 @@ const build = (stub, helper) => {
         learn: { intro: INTRO },
         comic: s.film ? filmOf(s, L, L ? info.locale : 'en-IN')
             : L
-            ? { title: L.title, theme: s.theme, moral: L.moral, moralLabel: L.moralLabel, locale: info.locale, people: s.people, panels: inLanguage(s, L) }
+            ? { title: L.title, titleEn: s.title, theme: s.theme, moral: L.moral, moralLabel: L.moralLabel, locale: info.locale, people: named(s.people, stub.course), panels: inLanguage(s, L) }
             : {
                 title: s.title, theme: s.theme, moral: s.moral, locale: 'en-IN',
-                people: s.people,
+                people: named(s.people, null),
                 panels: s.panels.map((p) => ({ ...p, say: (p.say || []).map((b) => ({ ...b, name: s.people[b.who]?.name || '' })) }))
             },
-        quiz: (L ? L.questions : s.questions).map((q, i) => ({ id: `c${i + 1}`, type: 'mcq', prompt: q.prompt, options: [q.answer, ...q.others], answer: q.answer, explanation: q.explanation }))
+        quiz: (L ? L.questions : s.questions).map((q, i) => ({
+            id: `c${i + 1}`, type: 'mcq', prompt: q.prompt, options: [q.answer, ...q.others], answer: q.answer, explanation: q.explanation,
+            // In the language learnt, its English for a tap (2026-11-06, the user: "how will the student understand this
+            // language?"): the question's and each choice's, from the English story.
+            ...(L && s.questions[i] ? { promptMeaning: s.questions[i].prompt, optionMeanings: Object.fromEntries([[q.answer, s.questions[i].answer], ...q.others.map((o, k) => [o, s.questions[i].others[k]])].filter(([, e]) => e)), meaningLang: 'en' } : {})
+        }))
     };
 };
 
-module.exports = { STORIES, SUMMARY, stubs, build, storyOf };
+module.exports = { STORIES, SUMMARY, NAMES, stubs, build, storyOf };

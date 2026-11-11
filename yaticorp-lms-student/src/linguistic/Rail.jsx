@@ -6,7 +6,7 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { Flame, Zap, Gift, BookOpen, Target, ListChecks, Compass, ChevronRight, ChevronDown, CalendarDays, Check, Loader2 } from 'lucide-react';
-import { COLORS, langOf, levelOf } from './meta';
+import { COLORS, langOf, levelOf, markOf } from './meta';
 import { Bar, Panel, Mascot } from './ui';
 import { planLabel, planStatus } from './parts/plan';
 import RoadmapScene from './parts/RoadmapScene';
@@ -15,25 +15,25 @@ const LESSON_GOAL = 2;
 
 /**
  * The course and the student's language (to change either), level, streak and
- * XP, in a row. The chip shows the student's language while they learn
- * English, as it always has; on another course, that course's language.
+ * XP, in a row. The chip shows the language being learnt — English too (2026-11-06, the user: "why Kannada here? show the
+ * learning language"; it showed the student's own language while they learnt English).
  * `compact` (the side panel, 340px) shows the chip's letter without its name.
  */
 export function Stats({ dash, onLanguage, compact = false, className = '' }) {
     const streak = dash.streak?.current || 0;
     const lang = dash.language || { code: 'kn', native: 'ಕನ್ನಡ', name: 'Kannada' };
     const course = dash.course || { code: 'en', name: 'English', native: 'English' };
-    const shown = course.code === 'en' ? lang : course;
+    const shown = course;
     const pad = compact ? 'px-1' : 'px-1 sm:px-2.5';
     return (
         <div className={`flex items-center justify-between gap-1 ${className}`} data-lingo-stats>
             {onLanguage && (
-                <button type="button" onClick={onLanguage} aria-label={`Learning ${course.name}, from ${lang.name}. Change`} title={course.code === 'en' ? 'Your language' : `Learning ${course.name}`}
+                <button type="button" onClick={onLanguage} aria-label={`Learning ${course.name}, from ${lang.name}. Change`} title={`Learning ${course.name}`}
                     data-language-chip={lang.code} data-course-chip={course.code}
                     className="inline-flex min-h-10 items-center gap-1 rounded-xl px-1.5 text-[15px] font-extrabold text-[#777] hover:bg-[#F2F2F2]">
                     <span className="flex h-7 min-w-7 items-center justify-center rounded-lg border-2 px-1 text-xs font-black" lang={shown.code}
-                        style={course.code === 'en' ? { borderColor: '#E5E5E5', background: '#fff', color: '#4b4b4b' } : { borderColor: COLORS.green.edge, background: COLORS.green.face, color: '#fff' }}>{langOf(shown.code).mark}</span>
-                    {!compact && <span className="hidden sm:inline" lang={shown.code}>{shown.native}</span>}
+                        style={{ borderColor: COLORS.green.edge, background: COLORS.green.face, color: '#fff' }} data-chip-mark>{markOf(shown.code)}</span>
+                    {!compact && <span className="hidden sm:inline" lang={shown.code} data-chip-name>{shown.native}</span>}
                     <ChevronDown size={16} strokeWidth={3} />
                 </button>
             )}
@@ -186,7 +186,10 @@ const PLAN_CHEER = {
     red: () => ({ icon: '🔄', title: 'Time is up', text: 'Choose a new time' })
 };
 
+/** How many of today's lessons the card shows before "+ n more" (2026-11-06, the user: "show 4 or 5, hide the rest"). */
+const TODAY_FIRST = 5;
 export function PlanCard({ dash }) {
+    const [allToday, setAllToday] = useState(false);
     const p = dash.plan;
     const status = planStatus(p);
     const today = p.today?.lessons || [];
@@ -229,8 +232,8 @@ export function PlanCard({ dash }) {
             </p>
             <RoadmapScene day={p.day} days={p.days} />
             <p className="mt-4 text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{left.length ? `Today: ${left.length} lesson${left.length === 1 ? '' : 's'} to do` : 'Today’s lessons are done!'}</p>
-            <ul className="mt-1.5 space-y-1">
-                {today.map((l) => {
+            <ul className="mt-1.5 space-y-1" data-plan-today-list>
+                {(allToday ? today : today.slice(0, TODAY_FIRST)).map((l) => {
                     const done = l.status === 'completed';
                     const row = (
                         <>
@@ -241,7 +244,12 @@ export function PlanCard({ dash }) {
                     return <li key={l.id}>{!done && l.open ? <Link to={`/linguistic/${l.module}/${l.id}`} className="-mx-2 flex items-center gap-2.5 rounded-xl px-2 py-1 hover:bg-[#F7F7F7]" data-plan-today={l.id}>{row}<ChevronRight size={16} className="shrink-0 text-[#AFAFAF]" /></Link> : <span className="flex items-center gap-2.5 py-1" data-plan-today={l.id}>{row}</span>}</li>;
                 })}
             </ul>
-            <Link to="/linguistic/roadmap" className="mt-3 inline-flex min-h-10 items-center gap-1 text-sm font-extrabold uppercase tracking-wide" style={{ color: COLORS.blue.ink }} data-see-roadmap>See in detail <ChevronRight size={16} /></Link>
+            {today.length > TODAY_FIRST && (
+                <button type="button" onClick={() => setAllToday((x) => !x)} aria-expanded={allToday} className="mt-1 inline-flex min-h-9 items-center gap-1 text-sm font-bold text-[#777] hover:text-[#4b4b4b]" data-plan-today-more>
+                    {allToday ? 'Show less' : `+ ${today.length - TODAY_FIRST} more`} <ChevronDown size={15} className={allToday ? 'rotate-180' : ''} />
+                </button>
+            )}
+            <Link to="/linguistic/roadmap" className="mt-2 flex min-h-10 items-center gap-1 text-sm font-extrabold uppercase tracking-wide" style={{ color: COLORS.blue.ink }} data-see-roadmap>See in detail <ChevronRight size={16} /></Link>
         </Panel>
     );
 }

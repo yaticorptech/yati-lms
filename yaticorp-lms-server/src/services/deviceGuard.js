@@ -52,14 +52,19 @@ const nextRemovalAt = (user) => {
 };
 
 // Developer test cards with no device limit: DEVICE_LIMIT_EXEMPT_CARDS in .env, comma-separated.
-const exemptCards = () => String(process.env.DEVICE_LIMIT_EXEMPT_CARDS || '').split(',').map((c) => c.trim()).filter(Boolean);
+const exemptCards = () => String(process.env.DEVICE_LIMIT_EXEMPT_CARDS || '').split(',').map((c) => c.replace(/\D/g, '')).filter(Boolean);
+/** One of those cards: like a demo card, its scan is the sign-in (no password). */
+const isExemptCard = (cardNumber) => {
+    const n = String(cardNumber ?? '').replace(/\D/g, '');
+    return Boolean(n) && exemptCards().includes(n);
+};
 
 const exempt = async (user, impersonatedBy) => {
     if (impersonatedBy) return true;
     const cards = exemptCards();
     if (cards.length) {
         const card = user.cardNumber ?? (await User.findById(user._id).select('cardNumber').lean())?.cardNumber;
-        if (card && cards.includes(String(card))) return true;
+        if (card && isExemptCard(card)) return true;
     }
     try { return require('./fullAccess').hasFullAccess(user); } catch { return false; }
 };
@@ -181,4 +186,4 @@ const removeMyDevice = async (userId, deviceId, currentId) => {
     return { ok: true, removed: target.name };
 };
 
-module.exports = { startSession, sessionCurrent, onSessionChange, devicesChanged, onDevicesChange, deviceOf, admitDevice, replaceDevice, resetDevices, limitsFor, nextRemovalAt, view, myDevices, removeMyDevice };
+module.exports = { isExemptCard, startSession, sessionCurrent, onSessionChange, devicesChanged, onDevicesChange, deviceOf, admitDevice, replaceDevice, resetDevices, limitsFor, nextRemovalAt, view, myDevices, removeMyDevice };

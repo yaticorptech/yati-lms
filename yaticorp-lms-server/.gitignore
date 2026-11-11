@@ -21,3 +21,6 @@ scripts/migrateToMultiTenant.js
 # ...but the (secret-free) template must be committed
 !.env.example
 logs/
+
+# Indic Parler-TTS clips (src/tts)
+cache/

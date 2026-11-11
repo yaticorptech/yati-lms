@@ -116,8 +116,40 @@ router.post('/auth/org-check/setup', cardLookupLimiter, auth.orgSetup);
 router.post('/auth/forgot-password/preview', cardLookupLimiter, auth.forgotPasswordPreview);
 router.post('/auth/forgot-password', authLimiter, auth.forgotPassword);
 router.post('/auth/reset-password', authLimiter, auth.resetPassword);
+// The super admin's one-time code for this teacher's dashboard (2026-11-11).
+router.post('/auth/admin-access/exchange', authLimiter, auth.adminAccess);
 
 router.use(protectTeacher);
+
+// Their support tickets, and "not resolved, again" on a resolved one (controllers/ticketController).
+{
+    const { listTickets, reopenTicket } = require('../controllers/ticketController');
+    const mine = (req) => ({ teacherId: req.teacher._id, from: 'teacher' });
+    router.get('/tickets', listTickets(mine));
+    router.post('/tickets/:id/reopen', reopenTicket(mine));
+}
+// A support ticket from the teacher dashboard: name, card or phone and organization come from the account.
+router.post('/tickets', async (req, res) => {
+    try {
+        const t = req.teacher;
+        const subject = String(req.body?.subject || '').trim().slice(0, 200);
+        const message = String(req.body?.message || '').trim().slice(0, 5000);
+        if (!subject || !message) return res.status(400).json({ message: 'Add a subject and a message.' });
+        const email = String(req.body?.email || '').trim() || t.email || '';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ field: 'email', message: 'Enter a valid email so we can reply.' });
+        const org = t.organizationId ? await require('../organizations/models/Organization').findById(t.organizationId).select('orgCode').lean() : null;
+        const path = typeof req.body?.path === 'string' && /^\/(?!\/)/.test(req.body.path) ? req.body.path.slice(0, 300) : undefined;
+        const ticket = await require('../models/Ticket').create({
+            name: t.name, email, cardNumber: t.cardNumber ? String(t.cardNumber) : (t.phone ? `Phone ${t.phone}` : undefined),
+            subject, message, page: 'dashboard', path, from: 'teacher', teacherId: t._id,
+            organizationId: t.organizationId || undefined, orgCode: org?.orgCode
+        });
+        res.status(201).json({ message: 'Your support request has been sent.', ticketId: ticket._id });
+    } catch (error) {
+        console.error('[teacher] ticket failed:', error.message);
+        res.status(500).json({ message: 'Could not send your request just now. Please try again.' });
+    }
+});
 
 /* ── Account ───────────────────────────────────────────────────────────── */
 
@@ -957,12 +989,18 @@ router.post('/plagiarism/check', async (req, res) => {
         if (words > MAX_WORDS) return bad(res, `Check up to ${MAX_WORDS.toLocaleString('en-IN')} words at a time. Split a long chapter into parts.`, 'text');
 
         const sources = await corpusFor(req.teacher._id, exclude);
+        // Free outside sources too, unless asked not to: open research and Wikipedia (./openSources.js).
+        // Not in the test suite, which must not reach the internet (PLAGIARISM_OUTSIDE=on brings it back there).
+        const outsideOn = body.outside !== false && (process.env.NODE_ENV !== 'test' || process.env.PLAGIARISM_OUTSIDE === 'on');
+        const outside = outsideOn ? await require('./openSources').openSourcesFor(content).catch(() => null) : null;
+        if (outside) sources.push(...outside.sources);
         const result = compare(content, sources);
         const cites = citationCheck(content);
         const report = await PlagiarismReport.create({
             teacherId: req.teacher._id, title, text: content, source,
             words: result.words, score: result.score, ownScore: result.ownScore,
             documentsCompared: sources.length,
+            outside: outside ? { checked: true, searched: outside.searched, found: outside.sources.length, fullText: outside.fullText || 0, openalex: outside.services.openalex, wikipedia: outside.services.wikipedia } : { checked: false },
             matches: result.matches, sources: result.sources.slice(0, 20),
             citations: { found: cites.found }, flags: cites.flags.slice(0, 50)
         });

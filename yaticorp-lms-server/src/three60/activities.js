@@ -14,8 +14,19 @@
  *   "per proof" each accepted proof adds N;
  *   any proof can be sent back with a reason, for the student to upload again.
  *
+ * Limits (2026-11-06): a "per proof" activity can have a cap (1 per presentation,
+ * at most 5): past it the teacher can still accept proof, so it is on the
+ * student's record, but it gives 0 marks. An activity can also have a bonus
+ * ("bonusMax"): on accepting proof the teacher may add bonus marks, up to that
+ * much in all; bonus adds to the score, not to the total. An activity
+ * marked "extra" (a bonus, or one for a single year such as Mock Interview)
+ * adds to the student's score but not to the maximum, so the list adds up to
+ * the organization's target (360) while those stay on top of it. One activity
+ * name appears once in the whole list, so nothing is scored twice.
+ *
  * Stored inside existing collections (the cluster is at its collection limit):
- *   Organization.three60.activityGroups   [{ name, activities: [{ name, mode, marks }] }]
+ *   Organization.three60.activityGroups   [{ name, activities: [{ name, mode, marks, cap, bonus }] }]
+ *   Organization.three60.targetTotal      e.g. 360: what the list should add up to (a check only)
  *   User.activityProofs                   [{ activityId, fileUrl, status, … }]
  *   User.activityMarks                    [{ activityId, marks, by, byName, at }]  ("up to N")
  *
@@ -49,12 +60,41 @@ const unlocked = (org) => Boolean(org?.three60?.allowed);
 const locked = (res) => res.status(403).json({ code: 'THREE60_LOCKED', message: '360 is locked for your organization. Ask the YATICORP team to unlock it.' });
 const same = (a, b) => String(a) === String(b);
 const round = (n) => Math.round(n * 100) / 100;
+const MAX_CAP = 100000;
 
 /** The categories as the pages show them. */
 const groupsView = (org) => (org?.three60?.activityGroups || []).map((g) => ({
     _id: g._id, name: g.name,
-    activities: (g.activities || []).map((a) => ({ _id: a._id, name: a.name, mode: a.mode || 'max', marks: a.marks ?? 0 }))
+    activities: (g.activities || []).map((a) => ({
+        _id: a._id, name: a.name, mode: a.mode || 'max', marks: a.marks ?? 0,
+        cap: a.mode === 'each' && a.cap != null ? a.cap : null, bonus: Boolean(a.bonus), bonusMax: a.bonusMax || 0
+    }))
 }));
+/** The most one activity can give: N for "up to N", the cap for "per proof" (null when it has none). */
+const maxOf = (a) => (a.mode === 'each' ? (a.cap != null ? a.cap : null) : (a.marks || 0));
+/**
+ * What the list adds up to: { possible, extra, uncapped, target, groups: [{ name, possible, extra }] }.
+ * `possible` leaves out extra activities; `uncapped` names the "per proof" activities without a
+ * cap, which make the maximum open-ended (each counted once at its marks).
+ */
+const summaryOf = (org) => {
+    let possible = 0; let extra = 0;
+    const uncapped = [];
+    const groups = (org?.three60?.activityGroups || []).map((g) => {
+        let gp = 0; let ge = 0;
+        for (const a of g.activities || []) {
+            const top = maxOf(a);
+            if (top == null) uncapped.push(a.name);
+            const n = top == null ? (a.marks || 0) : top;
+            if (a.bonus) ge += n; else gp += n;
+            ge += a.bonusMax || 0;
+        }
+        possible += gp; extra += ge;
+        return { _id: g._id, name: g.name, possible: round(gp), extra: round(ge) };
+    });
+    const target = org?.three60?.targetTotal;
+    return { possible: round(possible), extra: round(extra), uncapped, target: target == null ? null : target, groups };
+};
 /** The activity by id, with its category. */
 const findActivity = (org, activityId) => {
     for (const g of org?.three60?.activityGroups || []) {
@@ -64,9 +104,25 @@ const findActivity = (org, activityId) => {
     return {};
 };
 const markOf = (marks, activityId) => (marks || []).find((m) => same(m.activityId, activityId)) || null;
-/** What one activity gives a student: "up to N" is the teacher's mark, never above N; "per proof" is N for each accepted proof. */
+/**
+ * What one activity gives a student: "per proof" is N for each accepted proof;
+ * "up to N" is the marks given to each accepted proof, added up and never above
+ * N (2026-11-04). A mark given the old way, on the whole activity, counts until
+ * its proofs have marks of their own.
+ */
 const gotFor = (activity, proofs, marks) => {
-    if (activity.mode === 'each') return round((proofs || []).filter((p) => same(p.activityId, activity._id) && p.status === 'approved').length * (activity.marks || 0));
+    const accepted = (proofs || []).filter((p) => same(p.activityId, activity._id) && p.status === 'approved');
+    return round(baseFor(activity, accepted, marks) + bonusOf(activity, accepted));
+};
+/** The bonus the teacher added on the accepted proof, never above the activity's bonusMax. */
+const bonusOf = (activity, accepted) => Math.min(activity.bonusMax || 0, accepted.reduce((n, p) => n + (Number(p.bonusMarks) || 0), 0));
+const baseFor = (activity, accepted, marks) => {
+    if (activity.mode === 'each') {
+        const got = accepted.reduce((n, p) => n + (Number(p.marks) || 0), 0);
+        return activity.cap != null ? Math.min(activity.cap, got) : got;
+    }
+    const perProof = accepted.reduce((n, p) => n + (Number(p.marks) || 0), 0);
+    if (perProof > 0) return Math.min(activity.marks || 0, perProof);
     const m = markOf(marks, activity._id);
     return m ? Math.min(activity.marks || 0, m.marks || 0) : 0;
 };
@@ -87,7 +143,7 @@ const proofView = (p) => ({
     _id: p._id, activityId: p.activityId, activityName: p.activityName, groupName: p.groupName,
     fileUrl: p.fileUrl, previewUrl: p.previewUrl || (p.fileType === 'image' && !p.driveFileId ? p.fileUrl : ''), inDrive: Boolean(p.driveFileId),
     fileType: p.fileType, fileName: p.fileName, note: p.note,
-    status: p.status, marks: p.marks, reviewerName: p.reviewerName, reviewNote: p.reviewNote, reviewedAt: p.reviewedAt, createdAt: p.createdAt
+    status: p.status, marks: p.marks, bonusMarks: p.bonusMarks || 0, reviewerName: p.reviewerName, reviewNote: p.reviewNote, reviewedAt: p.reviewedAt, createdAt: p.createdAt
 });
 const markView = (m) => ({ activityId: m.activityId, marks: m.marks, byName: m.byName || '', at: m.at });
 
@@ -100,6 +156,8 @@ const cleanGroups = (given) => {
     if (given.length > 30) return { error: { message: 'You can have up to 30 categories.' } };
     const groups = [];
     const seenGroups = new Set();
+    // Each activity once in the whole list: the same one in two categories would count twice.
+    const seenAll = new Map();
     for (const [gi, g] of given.entries()) {
         const name = String(g?.name || '').trim();
         if (!name) return { error: { group: gi, field: 'name', message: 'Every category needs a name, e.g. Academic Excellence.' } };
@@ -117,12 +175,32 @@ const cleanGroups = (given) => {
             if (an.length > 120) return { error: { group: gi, activity: ai, field: 'name', message: `${name}: keep each activity name under 120 characters.` } };
             if (seen.has(an.toLowerCase())) return { error: { group: gi, activity: ai, field: 'name', message: `${an} is in ${name} twice.` } };
             if (!Number.isFinite(marks) || marks < 0 || marks > 1000) return { error: { group: gi, activity: ai, field: 'marks', message: `${an}: marks from 0 to 1000.` } };
+            if (seenAll.has(an.toLowerCase())) return { error: { group: gi, activity: ai, field: 'name', message: `${an} is already in ${seenAll.get(an.toLowerCase())}: keep each activity in one category, or it counts twice.` } };
+            const mode = a?.mode === 'each' ? 'each' : 'max';
+            // The cap of a "per proof" activity: blank for no limit.
+            let cap = null;
+            if (mode === 'each' && a?.cap != null && a.cap !== '') {
+                cap = Number(a.cap);
+                if (!Number.isFinite(cap) || cap < 0 || cap > MAX_CAP) return { error: { group: gi, activity: ai, field: 'cap', message: `${an}: the most it can give is from 0 to ${MAX_CAP}, or blank for no limit.` } };
+                if (cap < marks) return { error: { group: gi, activity: ai, field: 'cap', message: `${an}: the most it can give (${cap}) is less than one proof's marks (${marks}).` } };
+                cap = round(cap);
+            }
             seen.add(an.toLowerCase());
-            activities.push({ ...(idOk(a?._id) ? { _id: a._id } : {}), name: an, mode: a?.mode === 'each' ? 'each' : 'max', marks: round(marks) });
+            seenAll.set(an.toLowerCase(), name);
+            const bonusMax = a?.bonusMax == null || a.bonusMax === '' ? 0 : Number(a.bonusMax);
+            if (!Number.isFinite(bonusMax) || bonusMax < 0 || bonusMax > 1000) return { error: { group: gi, activity: ai, field: 'bonusMax', message: `${an}: bonus from 0 to 1000.` } };
+            activities.push({ ...(idOk(a?._id) ? { _id: a._id } : {}), name: an, mode, marks: round(marks), cap, bonus: a?.bonus === true || a?.bonus === 'true', bonusMax: round(bonusMax) });
         }
         groups.push({ ...(idOk(g?._id) ? { _id: g._id } : {}), name, activities });
     }
     return { groups };
+};
+/** The target total: blank for none, or 0–100000. */
+const cleanTarget = (given) => {
+    if (given == null || given === '') return { target: null };
+    const n = Number(given);
+    if (!Number.isFinite(n) || n < 0 || n > MAX_CAP) return { error: { field: 'targetTotal', message: `The total to aim for is from 0 to ${MAX_CAP}, or blank.` } };
+    return { target: round(n) };
 };
 
 const upload = multer({
@@ -181,12 +259,63 @@ const install = ({ orgAdmin, mentor, student }) => {
         try {
             const { groups, error } = cleanGroups(req.body?.groups);
             if (error) return bad(res, error.message, error);
+            // The total to aim for comes with the list; left as it is when not sent.
+            const target = 'targetTotal' in (req.body || {}) ? cleanTarget(req.body.targetTotal) : null;
+            if (target?.error) return bad(res, target.error.message, target.error);
             const org = await Organization.findById(req.organization._id);
             if (!unlocked(org)) return locked(res);
             org.set('three60.activityGroups', groups);
+            if (target) org.set('three60.targetTotal', target.target);
             await org.save();
-            res.json({ activityGroups: groupsView(org) });
+            res.json({ activityGroups: groupsView(org), summary: summaryOf(org) });
         } catch (error) { fail(res, 'save', error); }
+    });
+
+    /*
+     * The top three students by 360 score in each department (course) the organization added (2026-11-05, on the
+     * 360 Activities page). A student has no department of their own: they are in a course when a 360 teacher who
+     * teaches one of its sections has them on their list. Only scores above 0 are ranked.
+     */
+    orgAdmin.get('/toppers', async (req, res) => {
+        try {
+            const org = await Organization.findById(req.organization._id).select('three60').lean();
+            if (!unlocked(org)) return res.json({ departments: [] });
+            const programs = org.three60?.programs || [];
+            const teachers = await Teacher.find({ organizationId: org._id, mentor360: true }).select('name students360').lean();
+            const nameOf = new Map(teachers.map((t) => [String(t._id), t.name || '']));
+            const listOf = new Map(teachers.map((t) => [String(t._id), (t.students360 || []).map(String)]));
+            // Per course: each student → the course's 360 teachers (mentors) who have them on their list.
+            const mentorsOf = programs.map((p) => {
+                const byStudent = new Map();
+                for (const sec of p.sections || []) for (const t of sec.teachers || []) {
+                    const tid = String(t.teacherId);
+                    for (const id of listOf.get(tid) || []) {
+                        if (!byStudent.has(id)) byStudent.set(id, new Set());
+                        byStudent.get(id).add(tid);
+                    }
+                }
+                return byStudent;
+            });
+            const studentsOf = mentorsOf.map((m) => new Set(m.keys()));
+            const all = [...new Set(studentsOf.flatMap((ids) => [...ids]))];
+            const users = all.length
+                ? await User.find({ _id: { $in: all }, organizationId: org._id }).select('name cardNumber profilePicture +activityProofs +activityMarks').lean()
+                : [];
+            const scored = new Map(users.map((u) => [String(u._id), {
+                _id: u._id, name: u.name, cardNumber: u.cardNumber == null ? '' : String(u.cardNumber), profilePicture: u.profilePicture || '',
+                score: totalsOf(org, u.activityProofs, u.activityMarks).total
+            }]));
+            const departments = programs.map((p, i) => {
+                const rows = [...studentsOf[i]].map((id) => scored.get(id) && {
+                    ...scored.get(id), mentors: [...mentorsOf[i].get(id)].map((tid) => nameOf.get(tid)).filter(Boolean).sort()
+                }).filter(Boolean);
+                return {
+                    _id: p._id, name: p.name, students: rows.length,
+                    top: rows.filter((r) => r.score > 0).sort((x, y) => y.score - x.score || x.name.localeCompare(y.name)).slice(0, 3)
+                };
+            });
+            res.json({ departments });
+        } catch (error) { fail(res, 'toppers', error); }
     });
 
     // ── A student: proof for an activity ─────────────────────────────────
@@ -257,7 +386,7 @@ const install = ({ orgAdmin, mentor, student }) => {
                     const { activity } = findActivity(org, p.activityId);
                     const m = activity && activity.mode !== 'each' ? markOf(st.activityMarks, activity._id) : null;
                     rows.push({ ...proofView(p), student: { _id: st._id, name: st.name, cardNumber: st.cardNumber == null ? '' : String(st.cardNumber), profilePicture: st.profilePicture || '' },
-                        activity: activity ? { mode: activity.mode || 'max', marks: activity.marks ?? 0 } : null,
+                        activity: activity ? { mode: activity.mode || 'max', marks: activity.marks ?? 0, ...(activity.mode === 'each' && activity.cap != null ? { cap: activity.cap } : {}), ...(activity.bonusMax ? { bonusMax: activity.bonusMax } : {}) } : null,
                         // "Up to N": the mark given so far, and how much proof it was given on.
                         mark: m ? markView(m) : null,
                         accepted: (st.activityProofs || []).filter((x) => same(x.activityId, p.activityId) && x.status === 'approved').length });
@@ -269,9 +398,11 @@ const install = ({ orgAdmin, mentor, student }) => {
     });
 
     /*
-     * One proof: { decision: 'approve' | 'reject', marks?, note? }.
-     *   approve, "up to N"   marks 0–N is the activity's mark from now on;
-     *   approve, "per proof" adds N;
+     * One proof: { decision: 'approve' | 'reject', marks?, bonus?, note? }.
+     *   approve, "up to N"   marks for this proof: 0 to what is left of N after the other accepted proofs
+     *                        (again on an accepted proof changes its marks);
+     *   approve, "per proof" adds N, or what is left below its most (0 once full: kept for the record);
+     *   bonus                optional, 0 to what is left of the activity's bonusMax;
      *   reject               a reason is needed; the proof stops counting.
      */
     mentor.put('/proofs/:studentId/:proofId', async (req, res) => {
@@ -291,18 +422,42 @@ const install = ({ orgAdmin, mentor, student }) => {
             const at = { arrayFilters: [{ 'p._id': proof._id }] };
             if (decision === 'reject') {
                 if (!note) return bad(res, 'Say why, so the student can upload the right proof.', { field: 'note' });
-                await User.updateOne({ _id: studentId }, { $set: reviewed(req.teacher, { 'activityProofs.$[p].status': 'rejected', 'activityProofs.$[p].marks': 0, 'activityProofs.$[p].reviewNote': note }) }, at);
+                await User.updateOne({ _id: studentId }, { $set: reviewed(req.teacher, { 'activityProofs.$[p].status': 'rejected', 'activityProofs.$[p].marks': 0, 'activityProofs.$[p].bonusMarks': 0, 'activityProofs.$[p].reviewNote': note }) }, at);
                 return res.json({ message: 'Sent back to the student.' });
             }
-            if (activity.mode === 'each') {
-                await User.updateOne({ _id: studentId }, { $set: reviewed(req.teacher, { 'activityProofs.$[p].status': 'approved', 'activityProofs.$[p].marks': activity.marks || 0, 'activityProofs.$[p].reviewNote': note }) }, at);
-                return res.json({ message: `Accepted: +${activity.marks} mark${activity.marks === 1 ? '' : 's'}.` });
+            const acceptedHere = (user.activityProofs || []).filter((p) => same(p.activityId, activity._id) && p.status === 'approved' && !same(p._id, proof._id));
+            // Bonus (2026-11-06): optional, within what is left of the activity's bonusMax.
+            const bonusRoom = round(Math.max(0, (activity.bonusMax || 0) - acceptedHere.reduce((n, p) => n + (Number(p.bonusMarks) || 0), 0)));
+            const givenBonus = req.body?.bonus;
+            const bonus = givenBonus === '' || givenBonus == null ? 0 : Number(givenBonus);
+            if (!Number.isFinite(bonus) || bonus < 0 || bonus > bonusRoom) {
+                return bad(res, activity.bonusMax ? `Bonus from 0 to ${bonusRoom}${bonusRoom < activity.bonusMax ? ` (${round(activity.bonusMax - bonusRoom)} of ${activity.bonusMax} already given)` : ''}.` : `${activity.name} has no bonus.`, { field: 'bonus' });
             }
+            const bonusText = bonus ? ` + ${round(bonus)} bonus` : '';
+            if (activity.mode === 'each') {
+                // Past its most (2026-11-06) the proof is still accepted, for the record, with 0 marks (or what is left).
+                const given = acceptedHere.reduce((n, p) => n + (Number(p.marks) || 0), 0);
+                const room = activity.cap != null ? Math.max(0, activity.cap - given) : Infinity;
+                const gets = round(Math.min(activity.marks || 0, room));
+                await User.updateOne({ _id: studentId }, { $set: reviewed(req.teacher, { 'activityProofs.$[p].status': 'approved', 'activityProofs.$[p].marks': gets, 'activityProofs.$[p].bonusMarks': round(bonus), 'activityProofs.$[p].reviewNote': note }) }, at);
+                if (gets < (activity.marks || 0)) {
+                    return res.json({ full: true, message: `Accepted with ${gets ? `+${gets}` : 'no'} marks${bonusText}: ${activity.name} has its most, ${activity.cap} marks.` });
+                }
+                return res.json({ message: `Accepted: +${gets} mark${gets === 1 ? '' : 's'}${bonusText}.` });
+            }
+            // This proof's own marks: what is left of the top once the other accepted proofs are counted.
+            const others = acceptedHere.reduce((n, p) => n + (Number(p.marks) || 0), 0);
+            const room = round(Math.max(0, (activity.marks || 0) - others));
             const marks = Number(req.body?.marks);
-            if (req.body?.marks === '' || req.body?.marks == null || !Number.isFinite(marks) || marks < 0 || marks > (activity.marks || 0)) return bad(res, `Give 0 to ${activity.marks} marks.`, { field: 'marks' });
-            await User.updateOne({ _id: studentId }, { $set: reviewed(req.teacher, { 'activityProofs.$[p].status': 'approved', 'activityProofs.$[p].marks': 0, 'activityProofs.$[p].reviewNote': note }) }, at);
-            await setMark(user._id, activity._id, round(marks), req.teacher);
-            res.json({ message: `Accepted: ${activity.name} ${round(marks)} / ${activity.marks}.` });
+            if (req.body?.marks === '' || req.body?.marks == null || !Number.isFinite(marks) || marks < 0 || marks > room) {
+                return bad(res, room < (activity.marks || 0) ? `Give 0 to ${room} marks: the other proofs here already have ${round(others)} of ${activity.marks}.` : `Give 0 to ${activity.marks} marks.`, { field: 'marks' });
+            }
+            await User.updateOne({ _id: studentId }, {
+                $set: reviewed(req.teacher, { 'activityProofs.$[p].status': 'approved', 'activityProofs.$[p].marks': round(marks), 'activityProofs.$[p].bonusMarks': round(bonus), 'activityProofs.$[p].reviewNote': note }),
+                // Marked by proof from now on: the old whole-activity mark goes.
+                $pull: { activityMarks: { activityId: activity._id } }
+            }, at);
+            res.json({ message: `Accepted: ${round(marks)} marks${bonusText} (${round(others + marks)} / ${activity.marks} for ${activity.name}).` });
         } catch (error) { fail(res, 'check proof', error); }
     });
 
@@ -346,7 +501,8 @@ const studentActivities = async (org, userId) => {
     const user = await User.findById(userId).select('+activityProofs +activityMarks').lean();
     const proofs = user?.activityProofs || [];
     const marks = user?.activityMarks || [];
-    return { activityGroups: groupsView(org), proofs: proofs.map(proofView), marks: marks.map(markView), totals: totalsOf(org, proofs, marks) };
+    const { possible, extra } = summaryOf(org);
+    return { activityGroups: groupsView(org), proofs: proofs.map(proofView), marks: marks.map(markView), totals: { ...totalsOf(org, proofs, marks), possible, extra } };
 };
 
-module.exports = { install, groupsView, studentActivities, totalsOf, cleanGroups, isTracked, unlocked, locked };
+module.exports = { install, groupsView, summaryOf, maxOf, studentActivities, totalsOf, cleanGroups, cleanTarget, isTracked, unlocked, locked };

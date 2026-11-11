@@ -7,7 +7,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Download, Maximize2, Minimize2, Loader2, X } from 'lucide-react';
-import { saveBlob } from '../native/saveFile';
+import { downloadWithDrive } from '../integrations/google/driveGate';
+const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 
 export default function CertificateInline({ load, fileName, className = '', onClose }) {
     const [state, setState] = useState({ url: null, blob: null, error: '' });
@@ -32,7 +33,7 @@ export default function CertificateInline({ load, fileName, className = '', onCl
         if (el?.requestFullscreen) el.requestFullscreen().then(() => setFull(true)).catch(() => setFull(true));
         else setFull(true);
     };
-    const save = () => state.blob && saveBlob(state.blob, fileName, { title: 'Certificate' });
+    const save = () => state.blob && downloadWithDrive(state.blob, fileName, { title: 'Certificate', reason: CERT_DRIVE_REASON });
     const btn = 'inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-bold';
     return (
         // A medium card with the whole certificate in view; full screen on request.

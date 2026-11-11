@@ -739,7 +739,7 @@ const exchangeAdminAccess = async (req, res) => {
 
         const AdminAccessCode = require('../models/AdminAccessCode');
         const grant = await AdminAccessCode.findOneAndUpdate(
-            { codeHash: hashAccessCode(code), usedAt: null, expiresAt: { $gt: new Date() } },
+            { codeHash: hashAccessCode(code), usedAt: null, expiresAt: { $gt: new Date() }, kind: { $ne: 'teacher' } },
             { $set: { usedAt: new Date() } },
             { returnDocument: 'after' }
         ).lean();
@@ -787,6 +787,7 @@ const exchangeAdminAccess = async (req, res) => {
 };
 
 module.exports = {
+    hashAccessCode, ACCESS_CODE_TTL_MS, ADMIN_VIEW_SESSION,
     openStudentDashboard,
     exchangeAdminAccess,
     getUsers,

@@ -67,7 +67,7 @@ const initialsOf = (name = '') => name.trim().split(/\s+/).slice(0, 2).map((w) =
  * The last tab: the student's photo. It opens a small card above the bar —
  * My Profile, and the wallet balance (its history opens in the wallet popup).
  */
-function MeTab({ user, rewards, onOpenWallet }) {
+function MeTab({ user, rewards, onOpenWallet, three60Points = null }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
@@ -113,17 +113,32 @@ function MeTab({ user, rewards, onOpenWallet }) {
             <ChevronRight size={16} aria-hidden="true" className="relative shrink-0 text-white/80 transition-transform group-hover:translate-x-0.5" />
           </Link>
 
-          {/* The wallet: the balance here, the history in the wallet popup. */}
-          {wallet && (
-            <button type="button" role="menuitem" onClick={() => { setOpen(false); onOpenWallet?.(); }}
-              className="mt-1.5 flex w-full items-center gap-3 rounded-[20px] p-3 text-left transition-colors hover:bg-emerald-50 active:bg-emerald-50">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600"><Wallet size={19} aria-hidden="true" /></span>
-              <span className="min-w-0 flex-1 leading-tight">
-                <span className="block text-[11px] font-semibold text-slate-500">Wallet balance</span>
-                <span className="block text-lg font-black text-slate-900 tabular-nums">{money(balance(wallet.available), wallet.currency || 'INR')}</span>
-              </span>
-              <span className="shrink-0 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white">History</span>
-            </button>
+          {/* The wallet (its history in the wallet popup), and their 360 marks when 360 is theirs: one row each, lined up. */}
+          {(wallet || three60Points !== null) && (
+            <div className="mt-1.5 divide-y divide-slate-100">
+              {wallet && (
+                <button type="button" role="menuitem" onClick={() => { setOpen(false); onOpenWallet?.(); }} aria-label={`Wallet balance ${money(balance(wallet.available), wallet.currency || 'INR')}, open history`}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-emerald-50 active:bg-emerald-50">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600"><Wallet size={19} aria-hidden="true" /></span>
+                  <span className="min-w-0 flex-1 leading-tight">
+                    <span className="block text-[11px] font-semibold text-slate-500">Wallet balance</span>
+                    <span className="block truncate text-base font-black text-slate-900 tabular-nums">{money(balance(wallet.available), wallet.currency || 'INR')}</span>
+                  </span>
+                  <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-slate-300" />
+                </button>
+              )}
+              {three60Points !== null && (
+                <Link to="/360" role="menuitem" aria-label={`360 marks ${three60Points}, open 360`}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-indigo-50 active:bg-indigo-50">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600"><Orbit size={19} aria-hidden="true" className="motion-safe:animate-[spin_6s_linear_infinite]" /></span>
+                  <span className="min-w-0 flex-1 leading-tight">
+                    <span className="block text-[11px] font-semibold text-slate-500">360 marks</span>
+                    <span className="block truncate text-base font-black text-slate-900 tabular-nums">{three60Points.toLocaleString('en-IN')}</span>
+                  </span>
+                  <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-slate-300" />
+                </Link>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -154,7 +169,7 @@ function Tab({ item, active, onClick, className = '' }) {
   );
 }
 
-export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, isLinguisticEnabled = true, user, rewards, onOpenWallet, isThree60Enabled = false }) {
+export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, isLinguisticEnabled = true, user, rewards, onOpenWallet, isThree60Enabled = false, three60Points = null }) {
   const { pathname } = useLocation();
   const stripRef = useRef(null);
   const [more, setMore] = useState(true);
@@ -210,7 +225,7 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, is
         <div className="relative min-w-0 flex-1">
           <div ref={stripRef} onScroll={check} className="flex h-full items-stretch gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {visible.map((item) => <Tab key={item.to} item={item} active={isActive(item)} className="min-w-[4.4rem] px-2.5" />)}
-            <MeTab user={user} rewards={rewards} onOpenWallet={onOpenWallet} />
+            <MeTab user={user} rewards={rewards} onOpenWallet={onOpenWallet} three60Points={isThree60Enabled ? three60Points : null} />
           </div>
           {scrolled && <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 w-7 bg-gradient-to-r from-white via-white to-transparent" />}
           {more && (

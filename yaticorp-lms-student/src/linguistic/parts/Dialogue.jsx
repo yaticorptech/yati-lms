@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play, Square, Volume2 } from 'lucide-react';
 import { mediaUrl } from '../api';
-import { COLORS, canSpeak } from '../meta';
+import { COLORS, canSpeak, readAloud, usePrefetch } from '../meta';
 
 const SPEAKER_COLORS = ['blue', 'orange', 'purple', 'green'];
 
@@ -24,10 +24,10 @@ export default function Dialogue({ dialogue, audio, compact = false }) {
     const stop = () => {
         stopped.current = true;
         if (player.current) { player.current.pause(); player.current = null; }
-        if (window.speechSynthesis) window.speechSynthesis.cancel();
         setCurrent(-1); setPlayingAll(false);
     };
-    useEffect(() => () => { stopped.current = true; player.current?.pause(); if (window.speechSynthesis) window.speechSynthesis.cancel(); }, []);
+    useEffect(() => () => { stopped.current = true; player.current?.pause(); }, []);
+    usePrefetch(lines.filter((l) => !l.audio).map((l) => [l.text, 'en-IN']), [dialogue]);
 
     /** Play line i; resolves when it ends (or fails). */
     const playLine = (i) => new Promise((resolve) => {
@@ -38,11 +38,11 @@ export default function Dialogue({ dialogue, audio, compact = false }) {
             player.current = a;
             a.onended = resolve; a.onerror = resolve;
             a.play().catch(resolve);
-        } else if (window.speechSynthesis) {
-            const u = new SpeechSynthesisUtterance(line.text);
-            u.lang = 'en-IN'; u.onend = resolve; u.onerror = resolve;
-            window.speechSynthesis.speak(u);
-        } else resolve();
+        } else {
+            // No recording: AI4Bharat's voice reads it (2026-11-05), made ahead as the conversation opens.
+            const halt = readAloud([line.text], 'en-IN', { onEnd: resolve });
+            player.current = { pause: () => { halt(); resolve(); } };
+        }
     });
     const playOne = async (i) => { stop(); stopped.current = false; await playLine(i); if (!stopped.current) setCurrent(-1); };
     const playAll = async () => {

@@ -146,6 +146,7 @@ const researchPage = (Page) => <ResearchOnly>{teacherPage(Page)}</ResearchOnly>;
 const Profile = React.lazy(() => import('./pages/Profile'));
 const Signup = React.lazy(() => import('./pages/Signup'));
 const AdminAccess = React.lazy(() => import('./pages/AdminAccess'));
+const TeacherAdminAccess = React.lazy(() => import('./teacher/pages/TeacherAdminAccess'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 const EnrolledCourses = React.lazy(() => import('./pages/EnrolledCourses'));
 // Downloaded when first opened rather than with the sign-in page: the player
@@ -386,7 +387,9 @@ function App() {
   // Yati is the students' companion: not on the teacher dashboard either.
   const showLoop = !LOOP_HIDDEN_ON.includes(here) && !here.startsWith('/teacher');
   // A game in play hides Loop without unmounting it (components/loopVisibility).
-  const loopHidden = useLoopHidden() || LOOP_QUIET_ON.includes(here);
+  // Not in Language Learning (2026-11-07, the user: "remove the side standing mascot from the multilingo section"): its own
+  // mascot is in the lessons. Kept loaded, so it is back at once on the next page.
+  const loopHidden = useLoopHidden() || LOOP_QUIET_ON.includes(here) || here === '/linguistic' || here.startsWith('/linguistic/');
   return (
     <>
     {/* At most 120px on a laptop (the package's 170 filled too much of the
@@ -402,6 +405,8 @@ function App() {
       <Route path="/reset-password" element={<React.Suspense fallback={<CareerFallback />}><ResetPassword /></React.Suspense>} />
       {/* A superadmin opening a student's dashboard from the admin Users page. */}
       <Route path="/admin-access" element={<React.Suspense fallback={<CareerFallback />}><AdminAccess /></React.Suspense>} />
+      {/* …and a teacher's, from the admin Teachers page (2026-11-11). */}
+      <Route path="/admin-access/teacher" element={<React.Suspense fallback={<CareerFallback />}><TeacherAdminAccess /></React.Suspense>} />
       {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
           has to be able to open these, and so does anyone deciding whether to
           sign up at all. */}

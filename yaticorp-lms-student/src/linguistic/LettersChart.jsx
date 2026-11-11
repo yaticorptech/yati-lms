@@ -9,7 +9,10 @@
 import { useEffect, useState } from 'react';
 import { Volume2 } from 'lucide-react';
 import { linguisticApi } from './api';
-import { COLORS, play, canSpeakIn } from './meta';
+import { useNavigate } from 'react-router-dom';
+import { COLORS, play, canSpeakIn, prefetch, setVoiceCourse } from './meta';
+import AudioPack, { needsPack, lettersPackId } from './AudioPack';
+import { chartSpeech } from './speechText';
 import { Loading, Problem, Panel } from './ui';
 
 const TONE = ['blue', 'green', 'purple', 'orange', 'red'];
@@ -35,10 +38,20 @@ export default function LettersChart() {
     const [chart, setChart] = useState(undefined);
     const [error, setError] = useState(null);
     const [heard, setHeard] = useState('');
+    const [packed, setPacked] = useState(false); // the letters' audio is on the device
+    const navigate = useNavigate();
     const load = () => linguisticApi.letters().then((c) => { setChart(c); setError(null); }).catch((e) => { setError(e); setChart(null); });
     useEffect(() => { load(); }, []);
+    // Every letter's sound made ahead, so a tap plays at once (2026-11-05).
+    useEffect(() => {
+        if (!chart) return undefined;
+        return prefetch(chartSpeech(chart));
+    }, [chart]);
     if (chart === undefined) return <Loading label="Opening the letters…" />;
     if (!chart) return <Problem error={error} onRetry={load} />;
+    setVoiceCourse(chart.course.code);
+    // Every letter's sound downloaded first, as a unit's audio is (2026-11-11).
+    if (!packed && needsPack(lettersPackId(chart.course.code))) return <AudioPack chart={chart} onReady={() => setPacked(true)} onCancel={() => navigate('/linguistic')} />;
     const hear = (char, speak) => { setHeard(char); play(null, speak || char, chart.locale); };
     const voice = canSpeakIn(chart.locale);
     // The vowel signs' own lesson repeats the kagunita's first row: the table has them all.

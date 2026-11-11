@@ -126,9 +126,12 @@ const lessons = [
             item('i1', 'word', 'vocabulary', 'ರೈಲು', 'train', 'A train runs on a railway. English often says "the train": I go by train.', ['a train', 'the train']),
             item('i2', 'word', 'vocabulary', 'ಟಿಕೆಟ್', 'ticket', 'English uses the same word: ticket.', ['a ticket', 'the ticket']),
             item('i3', 'sentence', 'daily conversation', 'ಬಸ್ ನಿಲ್ದಾಣ ಎಲ್ಲಿದೆ?', 'Where is the bus stand?', '"Where" asks about a place. English puts "is" before "the bus stand".', ['Where is the bus stop?', 'Where is the bus station?']),
+            // One short sentence to read for each unit (2026-11-04, the user: "one in every unit, 3 or 4 words"), the last of its half.
+            item('i7', 'sentence', 'vocabulary', 'ಬಸ್ ಬಂದಿದೆ.', 'The bus is here.', 'ಬಂದಿದೆ = has come. English often says "The bus is here."', ['The bus has come.', 'The bus came.', 'The bus has arrived.']),
             item('i4', 'word', 'vocabulary', 'ಮಳೆ', 'rain', '"Rain" is a noun (the rain) and a verb (it rains).', ['the rain']),
             item('i5', 'sentence', 'vocabulary', 'ಇಂದು ತುಂಬಾ ಬಿಸಿಲು ಇದೆ.', 'It is very sunny today.', 'English starts weather sentences with "It is": It is sunny. It is hot.', ['It\'s very sunny today.', 'Today is very sunny.', 'Today it is very sunny.', 'It is very hot today.', 'It\'s very hot today.']),
-            item('i6', 'sentence', 'grammar', 'ಹೊರಗೆ ಮಳೆ ಬರುತ್ತಿದೆ.', 'It is raining outside.', 'For something happening now, use is + -ing: It is raining.', ['It\'s raining outside.', 'Outside it is raining.', 'It is raining out.'])
+            item('i6', 'sentence', 'grammar', 'ಹೊರಗೆ ಮಳೆ ಬರುತ್ತಿದೆ.', 'It is raining outside.', 'For something happening now, use is + -ing: It is raining.', ['It\'s raining outside.', 'Outside it is raining.', 'It is raining out.']),
+            item('i8', 'sentence', 'vocabulary', 'ಇಂದು ಬಿಸಿಯಾಗಿದೆ.', 'It is hot today.', 'English starts weather sentences with "It is": It is hot.', ['It\'s hot today.', 'Today is hot.', 'Today it is hot.'])
         ],
         quiz: [
             item('q1', 'sentence', 'daily conversation', 'ಒಂದು ಟಿಕೆಟ್ ಕೊಡಿ.', 'One ticket, please.', 'Add "please" to ask politely.', ['Please give me one ticket.', 'Give me one ticket, please.', 'Give me one ticket.', 'Please give one ticket.', 'Give one ticket.', 'Please give me a ticket.', 'Give me a ticket, please.']),

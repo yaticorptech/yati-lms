@@ -53,7 +53,7 @@ export const forgetStudent = ({ keep = [] } = {}) => {
 };
 
 /** Pages that are not somewhere to come back to after signing in. */
-const NOT_A_DESTINATION = ['/login', '/signup', '/admin-access', '/reset-password'];
+const NOT_A_DESTINATION = ['/login', '/signup', '/admin-access', '/admin-access/teacher', '/reset-password'];
 
 /**
  * A place in this app to go after signing in, or '/'.
