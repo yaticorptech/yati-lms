@@ -104,7 +104,11 @@ const courseDone = (progress, course = courseOf(progress)) => LEVELS.every((l) =
  * time, finished or not. By card number, so it holds whichever database the server uses.
  */
 const FREE_COURSE_CARDS = new Set(['240100045056', '240100019423']);
-const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(user?.cardNumber));
+// The developer cards (DEVICE_LIMIT_EXEMPT_CARDS in .env) too (2026-11-05): they switch language any time.
+const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(user?.cardNumber))
+    || require('../services/deviceGuard').isExemptCard(user?.cardNumber)
+    // The demo cards too (services/fullAccess.js, 2026-11-05).
+    || require('../services/fullAccess').hasFullAccess(user);
 /**
  * Bhagyashree's account 240100045056 (2026-10-29, user: "allow this user to go to the sections and units without
  * completing the basic level, for testing"): every section and unit open, the assessment not needed. By card
@@ -114,7 +118,8 @@ const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(
 const OPEN_ALL_CARDS = new Set(['240100045056']);
 const openAllUsers = new Set();
 // The demo cards (services/fullAccess.js) open everything too (owner, 2026-11-04).
-const noteOpenAll = (user) => { if (user?._id && (OPEN_ALL_CARDS.has(normaliseCardNumber(user.cardNumber)) || require('../services/fullAccess').hasFullAccess(user))) openAllUsers.add(String(user._id)); };
+// And the developer cards (DEVICE_LIMIT_EXEMPT_CARDS in .env, 2026-11-05): every level and lesson open.
+const noteOpenAll = (user) => { if (user?._id && (OPEN_ALL_CARDS.has(normaliseCardNumber(user.cardNumber)) || require('../services/deviceGuard').isExemptCard(user.cardNumber) || require('../services/fullAccess').hasFullAccess(user))) openAllUsers.add(String(user._id)); };
 const opensAll = (progress) => openAllUsers.has(String(progress?.userId));
 
 /**
@@ -979,12 +984,13 @@ const withStops = (unit, progress) => {
     const key = `${courseOf(progress)}:${unit.id}`;
     nodes.splice(after + 1, 0, {
         id: `chest-${unit.id}`, stop: 'chest', type: 'chest', title: 'Treasure chest', summary: 'Bonus XP for getting this far.',
-        open: nodes[after].status === 'completed', status: (progress.chests || []).includes(key) ? 'completed' : 'new'
+        // Open for the accounts with everything open too (developer and demo cards, 2026-11-05).
+        open: opensAll(progress) || nodes[after].status === 'completed', status: (progress.chests || []).includes(key) ? 'completed' : 'new'
     });
     const review = nodes.findIndex((n) => n.review === 'unit');
     nodes.splice(review >= 0 ? review : nodes.length, 0, {
         id: `practice-${unit.id}`, stop: 'practice', type: 'practice', title: 'Practice', summary: 'Practise the answers you got wrong until they are right.',
-        open: nodes.some((n) => !n.stop && n.status === 'completed'), status: 'new'
+        open: opensAll(progress) || nodes.some((n) => !n.stop && n.status === 'completed'), status: 'new'
     });
     return nodes;
 };

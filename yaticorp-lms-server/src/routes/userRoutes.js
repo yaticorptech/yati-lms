@@ -13,7 +13,7 @@ const { authLimiter } = require('../middleware/rateLimiter');
 const { updatePassword } = require('../controllers/userPasswordController');
 const { upload } = require('../middleware/uploadMiddleware');
 const { getMyCourses, getCourseOutline, getJobsAccess, getBundles, getBundleContent, getCourseContent, updateProgress, getAvailableCourses, getOrganizationCourses, enrollCourse, searchContent } = require('../controllers/userCourseController');
-const { createTicket, getMyTickets } = require('../controllers/ticketController');
+const { createTicket, getMyTickets, reopenMyTicket } = require('../controllers/ticketController');
 const { getMyCertificates } = require('../controllers/certificateController');
 const { getAnnouncementsForUser, clearUserNotifications } = require('../controllers/announcementController');
 
@@ -107,6 +107,7 @@ router.post('/quizzes/global/finish', protectUser, finishGlobalQuiz);
 // Ticket Routes
 router.post('/tickets', protectUser, createTicket);
 router.get('/tickets', protectUser, getMyTickets);
+router.post('/tickets/:id/reopen', protectUser, reopenMyTicket);
 
 // Certificate Routes
 router.get('/certificates', protectUser, getMyCertificates);

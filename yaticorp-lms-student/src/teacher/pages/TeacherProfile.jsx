@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { UserCircle2, Loader2, KeyRound, LogOut, Eye, EyeOff, Building2, Clock, Camera, CreditCard, Mail, Phone, CalendarDays, Microscope, Route, BookMarked, FileText, PenLine, Briefcase, GraduationCap, BookOpen, FlaskConical, Lightbulb } from 'lucide-react';
+import { UserCircle2, Loader2, KeyRound, Eye, EyeOff, Building2, Clock, Camera, CreditCard, Mail, Phone, CalendarDays, Microscope, Route, BookMarked, FileText, PenLine, Briefcase, GraduationCap, BookOpen, FlaskConical, Lightbulb, CheckCircle2 } from 'lucide-react';
 import teacherApi, { messageOf, TEACHER_TOKEN } from '../teacherSession';
 import { useTeacher } from '../useTeacher';
 import { Card, CardTitle, ErrorNote, OkNote, Field, StatTile, TeacherAvatar, Badge, Progress } from '../ui';
@@ -20,6 +20,7 @@ import { btn, inputClass, fmtNum, colorOf } from '../kit';
 import OrganizationDialog from '../OrganizationDialog';
 import PhotoPicker from '../../components/PhotoPicker';
 import WhatITeach from '../WhatITeach';
+import { missingOf } from '../profileGate';
 
 // The banner's faint research icons, placed by hand; the smaller screens show fewer.
 const BANNER_ICONS = [
@@ -57,7 +58,7 @@ const CHECKS_NO_CARD = [
 ];
 
 export default function TeacherProfile() {
-    const { teacher, setTeacher, signOut } = useTeacher();
+    const { teacher, setTeacher } = useTeacher();
     const card = Boolean(teacher?.cardNumber) || teacher?.research === true;
     const fields = card ? FIELDS : FIELDS_NO_CARD;
     const checks = card ? CHECKS : CHECKS_NO_CARD;
@@ -80,6 +81,12 @@ export default function TeacherProfile() {
     const [stats, setStats] = useState(null);
     useEffect(() => { teacherApi.get('/overview').then((r) => setStats(r.data)).catch(() => {}); }, []);
     const [picking, setPicking] = useState(false);
+    // What I teach, as WhatITeach loads it: for the set-up checklist (no card).
+    const [teach, setTeach] = useState(null);
+    const onTeachLoaded = useCallback((d) => setTeach({ classes: d.classes || [], courses: d.courses || [] }), []);
+    const gateMissing = card ? [] : missingOf(teacher, teacher?.mentor360 ? teach?.classes ?? null : null, teach?.courses);
+    const detailsLeft = gateMissing.filter((m) => m !== 'what you teach');
+    const goTo = (id) => { const el = document.getElementById(id); el?.scrollIntoView({ behavior: 'smooth', block: 'start' }); el?.querySelector?.('input:not([readonly]), button[aria-haspopup]')?.focus({ preventScroll: true }); };
 
     // The student's photo picker, saving to this teacher's account.
     const account = {
@@ -120,9 +127,19 @@ export default function TeacherProfile() {
         { to: '/teacher/writing', icon: PenLine, color: 'rose', label: 'Writing today', value: fmtNum(stats.writing.today), sub: `of ${fmtNum(stats.writing.goal)} words` }
     ] : [];
 
+    // Without a card, What I teach sits in the details card, with Save details after it.
+    const merged = !card && Boolean(teacher?.mentor360);
+    const saveButton = <button type="submit" form="profile-details-form" disabled={saving} className={btn.primary}>{saving && <Loader2 size={15} className="animate-spin" />} Save details</button>;
+
     const save = async (e) => {
         e.preventDefault();
-        setSaving(true); setErrors({}); setNote(''); setError('');
+        setErrors({}); setNote(''); setError('');
+        // A teacher their organization added must keep a designation and department.
+        if (!card) {
+            const empty = ['designation', 'department'].find((k) => !String(f[k] || '').trim());
+            if (empty) { setErrors({ [empty]: `Enter your ${empty}.` }); document.getElementById(`me-${empty}`)?.focus(); return; }
+        }
+        setSaving(true);
         try {
             const changed = Object.fromEntries(Object.entries(f).filter(([k, v]) => String(v).trim() !== String(teacher?.[k] || '').trim()).map(([k, v]) => [k, String(v).trim()]));
             if (!Object.keys(changed).length) { setNote('Nothing to save. Your details are as shown.'); return; }
@@ -201,8 +218,33 @@ export default function TeacherProfile() {
                         ))}
                     </dl>
 
+                    {/* Without a card: the two steps that open the dashboard, each with what is left. */}
+                    {!card && gateMissing.length > 0 && (
+                        <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                            <p className="text-sm font-semibold text-slate-900">Finish your profile to open your dashboard</p>
+                            <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+                                {[
+                                    { n: 1, title: 'Your details', left: detailsLeft, todo: `Add your ${detailsLeft.join(', ')}, then press Save details.`, id: 'profile-details' },
+                                    ...(teacher?.mentor360 ? [{ n: 2, title: 'What I teach', left: gateMissing.includes('what you teach') ? ['class'] : [], todo: 'Pick a course, section and subject, then press Add.', id: 'what-i-teach' }] : [])
+                                ].map((s) => {
+                                    const ok = !s.left.length;
+                                    return (
+                                        <li key={s.n} className={`flex items-start gap-3 rounded-lg border bg-white p-3 ${ok ? 'border-emerald-200' : 'border-amber-200'}`}>
+                                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${ok ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-800'}`}>{ok ? <CheckCircle2 size={15} aria-hidden="true" /> : s.n}</span>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-semibold text-slate-900">{s.title}</p>
+                                                <p className="mt-0.5 text-xs text-slate-600">{ok ? 'Done.' : s.todo}</p>
+                                            </div>
+                                            {!ok && <button type="button" onClick={() => goTo(s.id)} className={`${btn.secondary} shrink-0 !px-2.5 !py-1.5 !text-xs`}>Go</button>}
+                                        </li>
+                                    );
+                                })}
+                            </ol>
+                        </div>
+                    )}
+
                     {/* How complete the profile is, and a way to the first thing missing. */}
-                    {missing.length > 0 && (
+                    {card && missing.length > 0 && (
                         <div className="mt-5 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 sm:flex-row sm:items-center">
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-3 text-sm">
@@ -230,17 +272,33 @@ export default function TeacherProfile() {
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
                 <div className="space-y-4">
-                    <Card>
-                        <CardTitle icon={UserCircle2} color="teal">Details</CardTitle>
-                        <form onSubmit={save} className="space-y-3" noValidate>
-                            <ErrorNote>{error}</ErrorNote>
-                            <OkNote>{note}</OkNote>
+                    <Card id="profile-details" className="scroll-mt-24">
+                        <CardTitle icon={UserCircle2} color="teal">{card ? 'Details' : teacher?.mentor360 ? 'Step 1 · Your details' : 'Your details'}</CardTitle>
+                        <form id="profile-details-form" onSubmit={save} className="space-y-3" noValidate>
+                            {!merged && <><ErrorNote>{error}</ErrorNote><OkNote>{note}</OkNote></>}
                             <div className="grid gap-3 sm:grid-cols-2">
                                 {fields.map(([k, label, max]) => (
                                     <div key={k} className={!card && k === 'email' ? 'sm:col-span-2' : ''}>
-                                        <Field id={`me-${k}`} label={label} error={errors[k]} optional={['designation', 'institution', 'department'].includes(k)}
+                                        <Field id={`me-${k}`} label={label} error={errors[k]} optional={(card ? ['designation', 'institution', 'department'] : []).includes(k)}
                                             hint={!card && k === 'phone' ? 'You sign in with this number and your password.' : undefined}>
-                                            <input id={`me-${k}`} type={k === 'email' ? 'email' : k === 'phone' ? 'tel' : 'text'} maxLength={max} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} className={inputClass} />
+                                            <input id={`me-${k}`} type={k === 'email' ? 'email' : k === 'phone' ? 'tel' : 'text'} maxLength={max} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} className={inputClass}
+                                                placeholder={!card && k === 'department' && teach?.courses?.length ? 'Pick your courses below, or type' : undefined} />
+                                            {/* The organization's courses, one tap each; more than one can be picked ("B.Com, BBA"). */}
+                                            {!card && k === 'department' && teach?.courses?.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Your organization's courses (choose one or more)">
+                                                    {teach.courses.map((c) => {
+                                                        const list = String(f.department || '').split(',').map((x) => x.trim()).filter(Boolean);
+                                                        const on = list.some((x) => x.toLowerCase() === c.name.toLowerCase());
+                                                        return (
+                                                            <button key={c._id} type="button" aria-pressed={on}
+                                                                onClick={() => setF((x) => ({ ...x, department: (on ? list.filter((y) => y.toLowerCase() !== c.name.toLowerCase()) : [...list, c.name]).join(', ') }))}
+                                                                className={`min-h-[32px] rounded-full border px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 ${on ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'}`}>
+                                                                {c.name}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </Field>
                                     </div>
                                 ))}
@@ -255,10 +313,21 @@ export default function TeacherProfile() {
                                     </Field>
                                 </>
                             )}
-                            <button type="submit" disabled={saving} className={btn.primary}>{saving && <Loader2 size={15} className="animate-spin" />} Save details</button>
+                            {!merged && saveButton}
                         </form>
+                        {/* Without a card: the second step in the same container, and Save details last. */}
+                        {merged && (
+                            <>
+                                <WhatITeach bare department={teacher?.department} onLoaded={onTeachLoaded} step={2} />
+                                {(error || note) && <div className="mt-5 space-y-2"><ErrorNote>{error}</ErrorNote><OkNote>{note}</OkNote></div>}
+                                <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
+                                    {saveButton}
+                                    <span className="text-xs text-slate-500">Saves your details. Classes save as you add them.</span>
+                                </div>
+                            </>
+                        )}
                     </Card>
-                    {teacher?.mentor360 && <WhatITeach />}
+                    {card && teacher?.mentor360 && <WhatITeach department={teacher?.department} onLoaded={onTeachLoaded} />}
                 </div>
                 <div className="space-y-4">
                     <Card>
@@ -287,11 +356,6 @@ export default function TeacherProfile() {
                                 <button type="button" onClick={() => setShow((v) => !v)} aria-pressed={show} className={btn.ghost}>{show ? <EyeOff size={14} /> : <Eye size={14} />} {show ? 'Hide' : 'Show'}</button>
                             </div>
                         </form>
-                    </Card>
-                    <Card>
-                        <CardTitle icon={LogOut} color="rose">Sign out</CardTitle>
-                        <p className="text-sm text-slate-500">Sign out of your teacher account on this device.</p>
-                        <button type="button" onClick={signOut} className={`${btn.secondary} mt-3`}><LogOut size={15} /> Sign out</button>
                     </Card>
                 </div>
             </div>

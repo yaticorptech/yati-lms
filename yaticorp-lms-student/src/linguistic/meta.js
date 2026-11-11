@@ -3,9 +3,12 @@
  * colours (one per module, as units on the path), the levels, sound, and
  * playback of recordings.
  */
+import { useEffect } from 'react';
 import { previousPage } from '../hooks/useGoBack';
 import { BookA, PenLine, BookOpen, Mic, Languages } from 'lucide-react';
 import { mediaUrl } from './api';
+import client from '../utils/api';
+import { kokoroBlob, kokoroSupported } from '../lib/kokoro';
 
 /** Bright flat colours: a face, the darker edge a button stands on, and a light tint. */
 export const COLORS = {
@@ -197,21 +200,234 @@ const readerFor = (lang) => {
  * on a computer with no Kannada voice, with nothing said). While the voices
  * are not listed yet, it is given the benefit of the doubt.
  */
-export const canSpeakIn = (lang) => typeof window !== 'undefined' && !!window.speechSynthesis && (!voices.length || !!readerFor(lang));
+export const canSpeakIn = (lang) => usesServerVoice(lang) || (typeof window !== 'undefined' && !!window.speechSynthesis && (!voices.length || !!readerFor(lang)));
+
+/*
+ * Every language AI4Bharat's Indic Parler-TTS speaks — English and the Indian languages — is read by it, on the
+ * server (/api/tts), and only by it (2026-11-05, user: "don't use device audio at all, use this only"). Each clip
+ * is kept for the visit, and on the server for everyone. The device's voice is left only for the languages the
+ * model has no voice for (Spanish, Japanese, …), which would otherwise be silent.
+ */
+const SERVER_LANGS = new Set(['as', 'bn', 'en', 'gu', 'hi', 'kn', 'ml', 'mr', 'ne', 'or', 'pa', 'sa', 'ta', 'te', 'ur']);
+const clips = new Map(); // key → Promise of the clip's object URL (made, or being made)
+let playing = null; let asked = 0;
+// On (2026-11-06, user: "use the tts inside this project"). Set false to fall back to the device voice.
+const SERVER_VOICE_ON = true;
+const usesServerVoice = (lang) => SERVER_VOICE_ON && SERVER_LANGS.has(norm(lang).split('-')[0]);
+const base = (lang) => norm(lang).split('-')[0];
+/*
+ * English is spoken by Kokoro-82M in the browser itself (2026-11-07): the model is downloaded once, kept on the
+ * device, and makes each clip locally, with no call to the server. If it cannot load, the server voice reads it.
+ */
+const KOKORO_ON = true;
+const usesKokoro = (lang) => KOKORO_ON && base(lang) === 'en' && kokoroSupported();
+const clipKey = (text, lang) => `${usesKokoro(lang) ? 'kokoro:' : ''}${base(lang)}|${String(text).trim()}`;
+const fromServer = (text, lang) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2 }, responseType: 'blob', timeout: 600000 }).then((r) => r.data);
+const makeClip = (text, lang) => (usesKokoro(lang) ? kokoroBlob(text).catch((e) => { console.warn("[kokoro] falling back to server voice:", e); return fromServer(text, lang); }) : fromServer(text, lang));
+/*
+ * Clips are kept on the device too (2026-11-06, the audio pack): in the browser's Cache Storage, so a unit's
+ * audio downloaded once plays at once on every later visit, with no wait on the voice service.
+ */
+const VOICE_CACHE = 'lingo-voice-v2'; // v2 (2026-11-11): v1 held clips with made-up speech after short words
+const cacheReq = (key) => new Request(`/__lingo-voice/${encodeURIComponent(key)}`);
+// Device storage can hang (seen in Incognito, 2026-11-06): every call gives up after 2 s and the clip comes from the server.
+const within = (p, ms = 2000) => Promise.race([Promise.resolve(p).catch(() => null), new Promise((r) => setTimeout(() => r(null), ms))]);
+let cacheP = null;
+const openCache = () => {
+    if (typeof caches === 'undefined') return Promise.resolve(null);
+    if (!cacheP) cacheP = within(caches.open(VOICE_CACHE)).then((c) => { if (!c) cacheP = null; return c; });
+    return cacheP;
+};
+const fromDevice = async (key) => {
+    const c = await openCache();
+    const hit = c ? await within(c.match(cacheReq(key))) : null;
+    return hit ? within(hit.blob(), 5000) : null;
+};
+const toDevice = async (key, blob) => {
+    const c = await openCache();
+    if (c) await within(c.put(cacheReq(key), new Response(blob, { headers: { 'Content-Type': blob.type || 'audio/wav' } })), 5000);
+};
+const serverClip = (text, lang) => {
+    const key = clipKey(text, lang);
+    if (!clips.has(key)) {
+        const job = fromDevice(key).then((kept) => kept || makeClip(text, lang)
+            .then((blob) => { toDevice(key, blob); return blob; }))
+            .then((blob) => URL.createObjectURL(blob));
+        job.catch(() => clips.delete(key)); // a failed clip is asked for again next time
+        clips.set(key, job);
+    }
+    return clips.get(key);
+};
+/** Whether lessons are read by the AI voice (and so need their audio downloaded first). */
+export const aiVoiceOn = () => SERVER_VOICE_ON;
+/** A clip the server has already made, or null (204) without waiting for the voice model. */
+const keptOnServer = (text, lang) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2, cached: 1 }, responseType: 'blob', timeout: 60000 })
+    .then((r) => (r.status === 204 || !r.data?.size ? null : r.data));
+/**
+ * Download clips to the device: `items` [[text, lang], …]; those already on the device are skipped.
+ * First every clip the server has already made is fetched (fast, eight at a time); then every clip still
+ * missing is made — by the voice service, eight at once so it makes them in one batch, and English by Kokoro
+ * on the device — and kept (2026-11-11, user: "before a lesson opens make sure the voices are ready").
+ * on: { onProgress(done, total), signal: { stopped } }. Resolves to { total, failed }.
+ */
+export const downloadClips = async (items, on = {}) => {
+    const seen = new Set(); const todo = [];
+    for (const [text, lang = 'en-IN'] of items || []) {
+        if (!text || !String(text).trim() || !usesServerVoice(lang)) continue;
+        const key = clipKey(text, lang);
+        if (!seen.has(key)) { seen.add(key); todo.push([text, lang, key]); }
+    }
+    let done = 0, failed = 0; const missing = [];
+    on.onProgress?.(0, todo.length);
+    const tick = () => { done++; on.onProgress?.(done, todo.length); };
+    const run = async (list, n, fn) => {
+        let next = 0;
+        const worker = async () => {
+            while (next < list.length && !on.signal?.stopped) {
+                const item = list[next++];
+                try { await fn(...item); } catch (e) { failed++; tick(); console.error("[voice] clip failed:", item[1], JSON.stringify(item[0]), e); }
+            }
+        };
+        await Promise.all(Array.from({ length: n }, worker));
+    };
+    // 1. Already made: on the device, or on the server.
+    await run(todo, 8, async (text, lang, key) => {
+        if (clips.has(key)) { await clips.get(key); return tick(); }
+        if (await fromDevice(key)) return tick();
+        const blob = usesKokoro(lang) ? null : await keptOnServer(text, lang);
+        if (!blob) { missing.push([text, lang, key]); return; }
+        await toDevice(key, blob);
+        if (!clips.has(key)) clips.set(key, Promise.resolve(URL.createObjectURL(blob)));
+        tick();
+    });
+    // 2. Not made yet: made now, and kept on the server and the device.
+    await run(missing, 8, async (text, lang) => { await serverClip(text, lang); tick(); });
+    return { total: todo.length, failed };
+};
+
+/*
+ * Made ahead (2026-11-05, user: "when the page is open convert all text into audio, don't wait for the click"):
+ * every text a page can read is queued as the page opens, one at a time in page order, so a tap plays at once.
+ * A tap on one not made yet asks for it straight away, ahead of the queue. Leaving the page drops what it queued
+ * and has not started.
+ */
+const queue = [];
+let fetching = false;
+const pump = () => {
+    if (fetching) return;
+    const job = queue.shift();
+    if (!job) return;
+    fetching = true;
+    serverClip(job.text, job.lang).catch(() => {}).finally(() => { fetching = false; pump(); });
+};
+/** Queue clips to be made: `items` is [[text, lang], …]. Returns a function that drops those not started. */
+export const prefetch = (items) => {
+    const mine = [];
+    for (const [text, lang = 'en-IN'] of items || []) {
+        if (!text || !String(text).trim() || !usesServerVoice(lang)) continue;
+        const key = clipKey(text, lang);
+        if (clips.has(key) || queue.some((q) => q.key === key)) continue;
+        const job = { key, text, lang };
+        queue.push(job); mine.push(job);
+    }
+    pump();
+    return () => { for (const j of mine) { const i = queue.indexOf(j); if (i >= 0) queue.splice(i, 1); } };
+};
+// What a lesson screen can read aloud: speechText.js (pure, so the server's audio script uses it too).
+export { stepSpeech, readingSpeech, comicWords } from './speechText';
+import { sentencesOf, courseSpeech } from './speechText';
+/** The course being learnt ('kn', 'en', …): a course in an Indian language reads only its own language. */
+let voiceCourse = 'en';
+export const setVoiceCourse = (target) => { voiceCourse = target || 'en'; };
+/** In a component: make its clips ahead while it is open. `items` as prefetch; re-queued when `deps` change. */
+export const usePrefetch = (items, deps) => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => prefetch(items), deps);
+};
+const stopAll = () => {
+    try { playing?.pause(); } catch { /* already stopped */ }
+    playing = null;
+    try { window.speechSynthesis?.cancel(); } catch { /* no voices */ }
+};
 
 /**
- * Play a recording; with none, the browser's own voice reads the text, where
- * the browser has one — that language's voice, chosen by name rather than
- * left to the browser, which read Kannada with an English voice, i.e. not at
- * all. Returns the Audio element (to stop it) or null.
+ * Play a recording; with none, Indic Parler-TTS reads the text (the languages
+ * it speaks), or else the device's voice. `on` tells the caller when the clip
+ * is being made, playing, done, or could not be made:
+ * { onLoading(bool), onError(message) }. Returns the Audio element or null.
  */
-export const play = (src, text, lang = 'en-IN') => {
-    if (src) {
+export const play = (src, text, lang = 'en-IN', on = {}) => {
+    const me = ++asked;
+    // English text is read by Kokoro even when an older recording exists (2026-11-07).
+    if (src && !(text && usesKokoro(lang))) {
+        stopAll();
         const a = new Audio(mediaUrl(src));
+        playing = a;
         a.play().catch(() => {});
         return a;
     }
+    if (text) {
+        const r = courseSpeech(text, lang, voiceCourse);
+        if (!r) return null; // English beside a Kannada word, say: not read
+        [text, lang] = r;
+    }
+    if (text && usesServerVoice(lang)) {
+        stopAll();
+        on.onLoading?.(true);
+        serverClip(text, lang).then((url) => {
+            on.onLoading?.(false);
+            if (me !== asked) return; // tapped something else meanwhile
+            const a = new Audio(url);
+            playing = a;
+            a.play().catch(() => {});
+        }).catch((e) => {
+            on.onLoading?.(false);
+            if (me !== asked) return;
+            // The voice service is down or slow (2026-11-11): the device's voice reads it rather than nothing.
+            if (typeof window !== 'undefined' && window.speechSynthesis && readerFor(lang)) { deviceSay(text, lang); return; }
+            on.onError?.(e?.response?.status === 503 ? 'The voice service is not set up.' : 'The voice could not be made. Try again.');
+        });
+        return null;
+    }
+    deviceSay(text, lang);
+    return null;
+};
+/**
+ * Read texts aloud one sentence after another (a story, a passage, a conversation), each sentence a clip: the
+ * first plays as soon as it is made while the rest are made, so a long story starts at once (2026-11-05: the
+ * stories were read by the device's voice). `texts` may be a list of [text, lang] (a conversation's lines) or of
+ * texts in `lang`. on: { onLoading(bool), onLine(i) the text being read, onEnd() }. Returns stop().
+ */
+export const readAloud = (texts, lang = 'en-IN', on = {}) => {
+    stopAll();
+    const me = ++asked;
+    let stopped = false;
+    const items = texts.map((t) => (Array.isArray(t) ? t : [t, lang]));
+    const parts = items.flatMap(([t, l], i) => sentencesOf(t).map((x) => { const r = courseSpeech(x, l, voiceCourse); return r && { text: r[0], lang: r[1], line: i }; }).filter(Boolean));
+    const done = () => on.onEnd?.();
+    const drop = prefetch(parts.map((x) => [x.text, x.lang]));
+    (async () => {
+        for (const part of parts) {
+            if (stopped || me !== asked) return;
+            on.onLine?.(part.line);
+            if (usesServerVoice(part.lang)) {
+                on.onLoading?.(true);
+                let url = null;
+                try { url = await serverClip(part.text, part.lang); } catch { /* this sentence could not be made: the next */ }
+                on.onLoading?.(false);
+                if (stopped || me !== asked) return;
+                if (url) await new Promise((resolve) => { const a = new Audio(url); playing = a; a.onended = resolve; a.onerror = resolve; a.play().catch(resolve); });
+                else await new Promise((resolve) => deviceSay(part.text, part.lang, resolve)); // service down: the device reads it
+            } else await new Promise((resolve) => deviceSay(part.text, part.lang, resolve));
+        }
+        if (!stopped && me === asked) done();
+    })();
+    return () => { stopped = true; drop(); if (me === asked) stopAll(); on.onLoading?.(false); };
+};
+/** The device's own voice, only for languages Indic Parler-TTS has no voice for. */
+const deviceSay = (text, lang, onEnd) => {
     if (text && typeof window !== 'undefined' && window.speechSynthesis) {
+        stopAll();
         // Its own voice, or for Kannada a Telugu, Hindi or Marathi one reading it in those letters (2026-10-31).
         const r = readerFor(lang);
         const u = new SpeechSynthesisUtterance(r ? r.map(text) : text);
@@ -219,12 +435,12 @@ export const play = (src, text, lang = 'en-IN') => {
         try { if (r) u.voice = r.voice; } catch { /* not one of this browser's voices: its own pick */ }
         // A letter or a short word said slowly, to be heard clearly (2026-10-31).
         if ([...String(text)].length <= 3) u.rate = 0.75;
-        window.speechSynthesis.cancel();
+        if (onEnd) { u.onend = onEnd; u.onerror = onEnd; }
         window.speechSynthesis.speak(u);
-    }
-    return null;
+    } else onEnd?.();
 };
-export const canSpeak = (src) => !!src || (typeof window !== 'undefined' && !!window.speechSynthesis);
+// The server's voice needs nothing on the device: any text can be read.
+export const canSpeak = (src) => !!src || (typeof window !== 'undefined' && (SERVER_VOICE_ON || !!window.speechSynthesis));
 
 /** Words of praise for a right answer, chosen by its place so they vary. */
 export const PRAISE = ['Nicely done!', 'Great job!', 'Excellent!', 'You got it!', 'Amazing!', 'Correct!', 'Well done!', 'Brilliant!'];

@@ -290,8 +290,22 @@ body.teacher-ui { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sa
 }
 .lg-blob { animation: lg-blob 12s ease-in-out infinite; will-change: transform; }
 
+/* The AI card on the sign-in / sign-up panel turns round and round. */
+@keyframes auth-card-spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+.auth-card-spin { animation: auth-card-spin 12s linear infinite; }
+
+/* Switching between sign in and register: the card flips in. */
+@keyframes auth-swap-in {
+  from { opacity: 0; transform: perspective(1800px) rotateY(var(--auth-swap-from)) scale(0.94); }
+  55%  { opacity: 1; }
+  to   { opacity: 1; transform: perspective(1800px) rotateY(0deg) scale(1); }
+}
+.auth-swap-in { animation: auth-swap-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: center; backface-visibility: hidden; }
+.auth-swap-login { --auth-swap-from: 75deg; }
+.auth-swap-register { --auth-swap-from: -75deg; }
+
 @media (prefers-reduced-motion: reduce) {
-  .lg-float, .lg-rocket, .lg-twinkle, .lg-scan-ring, .lg-blob { animation: none; }
+  .lg-float, .lg-rocket, .lg-twinkle, .lg-scan-ring, .lg-blob, .auth-card-spin, .auth-swap-in { animation: none; }
   .lg-rise { animation-duration: 0.01ms; }
 }
 

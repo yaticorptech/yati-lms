@@ -114,7 +114,7 @@ const renderPlagiarismPdf = (report, teacherName, out) => {
     doc.font('latin-regular').fontSize(9).fillColor(MUTED).text('similar', LEFT + 22, top + 60, { width: 130 });
     doc.font('latin-bold').fontSize(14).fillColor(tone.color).text(tone.label, LEFT + 160, top + 16, { width: width - 180 });
     doc.font('latin-regular').fontSize(10).fillColor(INK)
-        .text(`In others' work (YATICORP, uploaded papers): ${others}%`, LEFT + 160, top + 40, { width: width - 180 })
+        .text(`In others' work (YATICORP, uploaded papers${report.outside?.checked ? ', open research, Wikipedia' : ''}): ${others}%`, LEFT + 160, top + 40, { width: width - 180 })
         .text(`In the author's own documents: ${report.ownScore ?? 0}%`, { width: width - 180 });
     doc.x = LEFT; doc.y = top + 98;
     write(doc, `Citations found: ${num(report.citations?.found)}     Quotations without a citation: ${num(report.flags?.length)}`, { size: 10.5 });
@@ -126,6 +126,8 @@ const renderPlagiarismPdf = (report, teacherName, out) => {
             const y = doc.y;
             doc.x = LEFT;
             write(doc, `${s.own ? 'Own work: ' : ''}${s.label}`, { size: 10.5, width: width - 100, color: s.own ? MARK.own.color : MARK.other.color });
+            // An outside source: where to find it.
+            if (s.url) write(doc, s.url, { size: 8, width: width - 100, color: MUTED });
             const after = doc.y;
             doc.font('latin-regular').fontSize(10).fillColor(MUTED).text(`${num(s.words)} words`, LEFT + width - 90, y, { width: 90, align: 'right' });
             doc.x = LEFT; doc.y = Math.max(after, doc.y);
@@ -152,7 +154,9 @@ const renderPlagiarismPdf = (report, teacherName, out) => {
     doc.moveDown(1.4);
     doc.x = LEFT;
     write(doc, 'About this report', { weight: 'bold', size: 10.5 });
-    write(doc, 'This check compares the text with writing on YATICORP (other teachers\' theses and writing, and the author\'s own) and with the papers the author uploaded. It does not search the internet or published journals, so it is not a university\'s plagiarism certificate. Use your university\'s checker (such as Turnitin, Urkund or DrillBit) before you submit.', { size: 9.5, color: MUTED, width, lineGap: 2 });
+    write(doc, report.outside?.checked
+        ? 'This check compares the text with writing on YATICORP (other teachers\' theses and writing, and the author\'s own), with the papers the author uploaded, and with open research papers (OpenAlex: abstracts, and the whole paper when it is open access) and Wikipedia found for its key sentences. It does not search the whole internet or paywalled journals, so it is not a university\'s plagiarism certificate. Use your university\'s checker (such as Turnitin, Urkund or DrillBit) before you submit.'
+        : 'This check compares the text with writing on YATICORP (other teachers\' theses and writing, and the author\'s own) and with the papers the author uploaded. It does not search the internet or published journals, so it is not a university\'s plagiarism certificate. Use your university\'s checker (such as Turnitin, Urkund or DrillBit) before you submit.', { size: 9.5, color: MUTED, width, lineGap: 2 });
 
     // Page numbers on every page.
     const range = doc.bufferedPageRange();

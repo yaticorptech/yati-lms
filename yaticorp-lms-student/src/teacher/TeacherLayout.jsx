@@ -7,11 +7,14 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users, Compass, Orbit
+    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users, Compass, Orbit, MessageCircleQuestion
 } from 'lucide-react';
 import { useTeacher, hasResearch } from './useTeacher';
 import useBackClose from '../native/useBackClose';
 import TeacherBottomNav from './TeacherBottomNav';
+import { useMissingProfile } from './profileGate';
+import CompleteProfileFirst from './CompleteProfileFirst';
+import TeacherSupport from './TeacherSupport';
 import { colorOf } from './kit';
 import { TeacherAvatar } from './ui';
 import teacherApi, { isEmbedded, readTeacherAdminView } from './teacherSession';
@@ -131,6 +134,14 @@ const Me = ({ teacher }) => (
     </Link>
 );
 
+// Contact support (./TeacherSupport.jsx), above the teacher at the sidebar's foot.
+const SupportButton = ({ onClick }) => (
+    <button type="button" onClick={onClick} aria-haspopup="dialog"
+        className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-200 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
+        <MessageCircleQuestion size={18} aria-hidden="true" /> Contact Support
+    </button>
+);
+
 const SignOut = ({ onClick }) => (
     <button type="button" onClick={onClick} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
         <LogOut size={18} className="text-slate-400" aria-hidden="true" /> Sign out
@@ -148,8 +159,12 @@ export default function TeacherLayout() {
     // Nothing turned on and no club: no bottom bar rather than an empty one.
     const bottom = research ? BOTTOM.map((to) => ALL.find((x) => x.to === to)) : nav[0].items.filter((i) => !i.clubsOnly || hasClubs);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [supportOpen, setSupportOpen] = useState(false);
     const location = useLocation();
     useBackClose(() => setMenuOpen(false), menuOpen);
+    // Without a card: the profile is completed before the other pages open (./profileGate.jsx).
+    const missing = useMissingProfile(teacher, !research && Boolean(teacher), location.pathname);
+    const gated = missing.length > 0 && !['/teacher/profile', '/teacher/360'].includes(location.pathname.replace(/\/$/, ''));
     useEffect(() => { window.scrollTo?.(0, 0); }, [location.pathname]);
     // Inter on the teacher side, popups included (they render outside this tree).
     useEffect(() => {
@@ -167,6 +182,7 @@ export default function TeacherLayout() {
                 <div className="flex h-16 items-center border-b border-slate-200 px-5"><Brand /></div>
                 <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5"><NavList nav={nav} hasClubs={hasClubs} /></div>
                 <div className="space-y-1 border-t border-slate-200 p-3">
+                    <SupportButton onClick={() => setSupportOpen(true)} />
                     <Me teacher={teacher} />
                     <SignOut onClick={signOut} />
                 </div>
@@ -191,6 +207,7 @@ export default function TeacherLayout() {
                         </div>
                         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4"><NavList nav={nav} hasClubs={hasClubs} onPick={() => setMenuOpen(false)} /></div>
                         <div className="space-y-1 border-t border-slate-200 p-3" onClick={(e) => { if (e.target.closest('a')) setMenuOpen(false); }}>
+                            <SupportButton onClick={() => { setMenuOpen(false); setSupportOpen(true); }} />
                             <Me teacher={teacher} />
                             <SignOut onClick={signOut} />
                         </div>
@@ -216,9 +233,11 @@ export default function TeacherLayout() {
                     that is left only stops lines stretching on a very wide
                     monitor. */}
                 <div className="mx-auto w-full max-w-[100rem]">
-                    <Outlet />
+                    {gated ? <CompleteProfileFirst missing={missing} /> : <Outlet />}
                 </div>
             </main>
+
+            {supportOpen && <TeacherSupport teacher={teacher} onClose={() => setSupportOpen(false)} />}
 
             {/* Phone bottom bar, in the students' style */}
             {bottom.length > 0 && <TeacherBottomNav items={bottom} teacher={teacher} />}

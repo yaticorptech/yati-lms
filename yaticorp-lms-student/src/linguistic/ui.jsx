@@ -4,8 +4,8 @@
  * bars, the level chip, and the loading and error states.
  */
 import { useState } from 'react';
-import { Volume2, RotateCcw } from 'lucide-react';
-import { COLORS, levelOf, play, canSpeak, canSpeakIn, langOf } from './meta';
+import { Volume2, RotateCcw, Loader2 } from 'lucide-react';
+import { COLORS, levelOf, play, canSpeak, canSpeakIn, langOf, usePrefetch } from './meta';
 
 /**
  * A chunky button. `color` is one of COLORS; `variant`:
@@ -39,22 +39,28 @@ export const Mascot = ({ pose = 'wave-hi', className = 'h-28 w-28', alt = '' }) 
  */
 export function Speaker({ src, text, lang = 'en-IN', size = 'md', label = 'Listen', className = '' }) {
     const [missing, setMissing] = useState(false);
+    const [note, setNote] = useState('');
+    const [loading, setLoading] = useState(false);
+    usePrefetch(src ? [] : [[text, lang]], [src, text, lang]);
     if (!(canSpeak(src) || (text && canSpeak()))) return null;
+    const say = (msg) => { setNote(msg); setTimeout(() => setNote(''), 5000); };
     const tap = (e) => {
         e.stopPropagation();
+        if (loading) return;
         if (!src && !canSpeakIn(lang)) { setMissing(true); setTimeout(() => setMissing(false), 5000); return; }
-        play(src, text, lang);
+        play(src, text, lang, { onLoading: setLoading, onError: say });
     };
+    const icon = size === 'lg' ? 28 : size === 'sm' ? 16 : 22;
     return (
         <span className="relative inline-flex shrink-0">
-            <button type="button" onClick={tap} aria-label={`${label}: ${text || ''}`}
+            <button type="button" onClick={tap} aria-label={`${label}: ${text || ''}`} aria-busy={loading}
                 className={`lingo-btn inline-flex shrink-0 items-center justify-center ${size === 'lg' ? 'h-16 w-16 rounded-2xl' : size === 'sm' ? 'h-9 w-9 !rounded-xl !border-b-[3px]' : 'h-12 w-12'} ${className}`}
                 style={{ background: COLORS.blue.face, borderColor: COLORS.blue.edge, color: '#fff' }}>
-                <Volume2 size={size === 'lg' ? 28 : size === 'sm' ? 16 : 22} strokeWidth={2.5} />
+                {loading ? <Loader2 size={icon} strokeWidth={2.5} className="animate-spin" /> : <Volume2 size={icon} strokeWidth={2.5} />}
             </button>
-            {missing && (
+            {(missing || note) && (
                 <span role="status" data-no-voice={lang} className="absolute left-1/2 top-full z-30 mt-2 w-56 -translate-x-1/2 rounded-xl bg-[#4b4b4b] px-3 py-2 text-center text-xs font-bold leading-snug text-white shadow-lg">
-                    This device has no {langOf(String(lang).split('-')[0]).name} voice. Add one in your device&apos;s text-to-speech settings.
+                    {note || <>This device has no {langOf(String(lang).split('-')[0]).name} voice. Add one in your device&apos;s text-to-speech settings.</>}
                 </span>
             )}
         </span>

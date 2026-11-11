@@ -11,13 +11,14 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Users, UserCheck, TrendingUp, Award, UserPlus, GraduationCap, Copy, Check, Activity, Share2, ChevronRight,
-    School, University, Presentation, Briefcase, HeartHandshake, Landmark, Building2, IdCard, BookOpen, Clock
+    School, University, Presentation, Briefcase, HeartHandshake, Landmark, Building2, IdCard, BookOpen, Clock, Layers, ArrowRight, CheckCircle2, Circle, Lock
 } from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
-import { CARD, Stat, Bar, Empty, Banner, Rows, Avatar, LoadFailed } from '../../components/orgUi';
+import { CARD, BTN, Stat, Bar, Empty, Banner, Rows, Avatar, LoadFailed, Dialog, DialogTitle } from '../../components/orgUi';
 import { relativeDay } from '../../utils/dates';
 import AccessHoursCard from '../../components/AccessHoursCard';
+import { useOrgProfile, listOf } from '../../utils/orgProfile';
 
 // The organization's kind, as an icon beside its name in the welcome banner.
 const TYPE_ICON = {
@@ -55,6 +56,13 @@ const OrgDashboard = () => {
     };
 
     useAutoRefresh(fetchDashboard, 30000);
+    // No courses yet: the profile is incomplete, and teachers have nothing to pick (Settings → Institution).
+    // Every Settings field, the logo, and the courses (utils/orgProfile).
+    const profile = useOrgProfile('dashboard');
+    const noCourses = profile.missing.length > 0;
+    // While the profile is incomplete the dashboard asks to finish it: a popup with no way past but completing it.
+    // A superadmin looking at this organization is not stopped by it.
+    const asking = noCourses && !getViewedOrganization();
     const retry = () => { setLoading(true); fetchDashboard(); };
 
     const organization = data?.organization;
@@ -150,6 +158,50 @@ const OrgDashboard = () => {
             {/* A failed refresh keeps the last numbers and says so; a failed
                 first load has none, and says that below with a Retry. */}
             {error && data && <Banner onClose={() => setError('')}>{error}</Banner>}
+
+            {asking && (
+                <Dialog onClose={() => {}} size="max-w-lg">
+                    <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-violet-600 px-6 pb-6 pt-7 text-white">
+                        <span aria-hidden className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+                        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25"><Lock size={22} aria-hidden="true" /></span>
+                        <DialogTitle className="mt-4 text-xl font-bold text-white">Complete your profile to get full access</DialogTitle>
+                        <p className="mt-1 text-sm text-indigo-100">Your teachers set up their profiles from your courses and sections, and 360 uses them to track your students.</p>
+                    </div>
+                    <div className="space-y-4 p-6">
+                        <ol className="space-y-2">
+                            {[
+                                ['Organization details & logo', profile.details.length ? `Still to add: ${listOf(profile.details)}` : 'Name, contact, address, website, state and logo', !profile.details.length],
+                                ['Courses & sections', 'e.g. BBA · Section A, B (Settings → Institution)', profile.courses !== false]
+                            ].map(([title, sub, done]) => (
+                                <li key={title} className={`flex items-start gap-3 rounded-xl border p-3 ${done ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/60'}`}>
+                                    {done ? <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" /> : <Circle size={20} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />}
+                                    <span className="min-w-0">
+                                        <span className="block text-sm font-bold text-slate-800">{title}<span className="sr-only">{done ? ' (done)' : ' (to do)'}</span></span>
+                                        <span className="block text-xs text-slate-500">{sub}</span>
+                                    </span>
+                                </li>
+                            ))}
+                        </ol>
+                        <div className="flex">
+                            <Link to={profile.details.length ? '/organization/settings' : '/organization/settings#courses'} className={`${BTN} w-full`}>Complete profile <ArrowRight size={16} aria-hidden="true" /></Link>
+                        </div>
+                    </div>
+                </Dialog>
+            )}
+
+            {/* ── Complete the organization profile: its courses and sections ── */}
+            {noCourses && (
+                <div role="status" className={`${CARD} flex flex-col gap-4 border-amber-200 bg-amber-50/70 p-4 sm:flex-row sm:items-center sm:p-5`}>
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Layers size={20} aria-hidden="true" /></span>
+                    <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-800">Complete your organization profile</p>
+                        <p className="mt-0.5 text-sm text-slate-600">Still to add in Settings: <strong className="text-slate-800">{listOf(profile.missing)}</strong>. The other pages unlock once your profile is complete.</p>
+                    </div>
+                    <Link to={profile.details.length ? '/organization/settings' : '/organization/settings#courses'} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+                        Complete now <ArrowRight size={15} aria-hidden="true" />
+                    </Link>
+                </div>
+            )}
 
             {/* ── Headline numbers: two across on a phone, all five in a row on a desktop ── */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">

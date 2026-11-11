@@ -15,7 +15,7 @@ const { parseResume } = require('../jobboard/services/resumeService');
 const { localParse } = require('../jobboard/services/localResumeParse');
 const { normalizeSkillList } = require('../jobboard/services/matchService');
 const { uploadToBunny } = require('../utils/bunnyStorage');
-const { driveRequired, storeInDrive, sendDriveError, removeFile } = require('../integrations/google/driveStore');
+const { usesDrive, storeInDrive, sendDriveError, removeFile } = require('../integrations/google/driveStore');
 const { buildResumeData, renderAtsPdf } = require('../services/atsResumeService');
 const { hasFullAccess } = require('../services/fullAccess');
 
@@ -94,7 +94,7 @@ const uploadResume = (req, res) => {
 
             // 1. Keep the file: in the student's own Google Drive, shared by link (2026-11-02).
             let fileUrl = '', objectPath = '', driveFileId = '';
-            if (driveRequired()) {
+            if (await usesDrive(req.user._id)) {
                 const d = await storeInDrive(req.user._id, req.file.buffer, { name: filename, mimeType: mime, description: 'The resume you uploaded to YATICORP.' });
                 fileUrl = d.viewUrl; driveFileId = d.driveFileId;
             } else if (bunnyConfigured()) {

@@ -47,6 +47,36 @@ const locate = (org, programId, sectionId) => {
     return { program, section };
 };
 
+// Two semesters a year: 1–2 are the 1st year, 3–4 the 2nd, 5–6 the 3rd.
+const SEMESTERS = [1, 2, 3, 4, 5, 6];
+const semOf = (s) => s.semester || s.year * 2 - 1;
+/** A course's subjects by year (for teachers): { 1: [...], 2: [...], 3: [...] }, with their semesters. */
+const subjectsView = (p) => {
+    const out = { 1: [], 2: [], 3: [] };
+    for (const s of p.subjects || []) if (out[s.year] && !out[s.year].includes(s.name)) out[s.year].push(s.name);
+    return out;
+};
+/** By semester (for the panel): { 1: [...], …, 6: [...] }. */
+const semestersView = (p) => {
+    const out = Object.fromEntries(SEMESTERS.map((n) => [n, []]));
+    for (const s of p.subjects || []) out[semOf(s)]?.push(s.name);
+    return out;
+};
+/** { 1: [names], …, 6: [...] } by semester from the panel, as rows: trimmed, no repeats in a semester. */
+const subjectsFrom = (given) => {
+    const rows = [];
+    for (const semester of SEMESTERS) {
+        const seen = new Set();
+        for (const raw of Array.isArray(given?.[semester]) ? given[semester] : []) {
+            const name = String(raw || '').trim().slice(0, 80);
+            if (!name || seen.has(name.toLowerCase())) continue;
+            seen.add(name.toLowerCase());
+            rows.push({ year: Math.ceil(semester / 2), semester, name });
+        }
+    }
+    return rows.slice(0, 300);
+};
+
 /** The organization's list: each course, its sections, and how many teachers marked each course. */
 const overview = (org) => ({
     // Unlocked by the platform's superadmin (2026-11-04); until then the 360 Activities page is locked.
@@ -54,9 +84,13 @@ const overview = (org) => ({
     enabled: Boolean(org.three60?.enabled),
     // The 360 activities, in their categories (./activities.js).
     activityGroups: require('./activities').groupsView(org),
+    // What the list adds up to, against the total the organization aims for (2026-11-06).
+    summary: require('./activities').summaryOf(org),
     programs: (org.three60?.programs || []).map((p) => ({
         _id: p._id, name: p.name,
         sections: p.sections.map((s) => ({ _id: s._id, name: s.name })),
+        subjects: subjectsView(p),
+        semesters: semestersView(p),
         teachers: new Set(p.sections.flatMap((s) => (s.teachers || []).map((t) => String(t.teacherId)))).size
     }))
 });
@@ -102,11 +136,11 @@ orgAdmin.put('/programs', async (req, res) => {
             if (seen.has(name.toLowerCase())) return res.status(400).json({ row: i, field: 'name', message: `${name} is in the list twice.` });
             if (!Number.isFinite(count) || count < 1 || count > MAX_SECTIONS) return res.status(400).json({ row: i, field: 'sections', message: `${name}: 1 to ${MAX_SECTIONS} sections.` });
             seen.add(name.toLowerCase());
-            rows.push({ _id: idOk(p?._id) ? String(p._id) : null, name, count });
+            rows.push({ _id: idOk(p?._id) ? String(p._id) : null, name, count, subjects: p?.semesters === undefined ? undefined : subjectsFrom(p.semesters) });
         }
         const org = await loadOrg(req);
         const before = org.three60?.programs || [];
-        const next = rows.map(({ _id, name, count }) => {
+        const next = rows.map(({ _id, name, count, subjects }) => {
             const old = _id ? before.find((p) => String(p._id) === _id) : null;
             const kept = (old?.sections || []).slice(0, count).map((s) => s.toObject());
             const used = new Set(kept.map((s) => s.name.toLowerCase()));
@@ -115,7 +149,8 @@ orgAdmin.put('/programs', async (req, res) => {
                 if (kept.length + added.length >= count) break;
                 if (!used.has(`section ${l}`.toLowerCase())) added.push({ name: `Section ${l}` });
             }
-            return { ...(old ? { _id: old._id } : {}), name, sections: [...kept, ...added] };
+            const keptSubjects = subjects ?? (old?.subjects || []).map((x) => ({ year: x.year, semester: semOf(x), name: x.name }));
+            return { ...(old ? { _id: old._id } : {}), name, sections: [...kept, ...added], subjects: keptSubjects };
         });
         org.set('three60.programs', next);
         await org.save();
@@ -156,7 +191,7 @@ const dashboard = async (org, teacherId) => {
     for (const p of programs) {
         for (const s of p.sections) {
             for (const t of s.teachers || []) {
-                if (String(t.teacherId) === me) classes.push({ _id: t._id, programId: p._id, sectionId: s._id, course: p.name, section: s.name, subject: t.subject || '' });
+                if (String(t.teacherId) === me) classes.push({ _id: t._id, programId: p._id, sectionId: s._id, course: p.name, section: s.name, subject: t.subject || '', years: t.years || [] });
             }
         }
     }
@@ -171,7 +206,7 @@ const dashboard = async (org, teacherId) => {
         organization: { name: org.name, logo: org.logo || '' },
         // Not unlocked by the platform yet: the 360 page says so (What I teach still works).
         locked: isLocked,
-        courses: programs.map((p) => ({ _id: p._id, name: p.name, sections: p.sections.map((s) => ({ _id: s._id, name: s.name })) })),
+        courses: programs.map((p) => ({ _id: p._id, name: p.name, sections: p.sections.map((s) => ({ _id: s._id, name: s.name })), subjects: subjectsView(p) })),
         // The 360 activities its students upload proof for (./activities.js).
         activityGroups: isLocked ? [] : require('./activities').groupsView(org),
         classes,
@@ -189,23 +224,30 @@ mentor.get('/', async (req, res) => {
     } catch (error) { fail(res, 'dashboard', error); }
 });
 
-// { programId, sectionId, subject }: a class I teach — this course's section, this subject.
+// { programId, sectionIds (or sectionId), subject, years }: a class I teach — this course's
+// sections (one or more), this subject, these years (1–3). One row is added per section.
 mentor.post('/classes', async (req, res) => {
     try {
         const org = await myOrg(req);
         if (!org) return noOrg(res);
         const subject = String(req.body?.subject || '').trim();
-        const { program, section } = locate(org, req.body?.programId, req.body?.sectionId);
+        const { program } = locate(org, req.body?.programId, null);
         if (!program) return bad(res, 'Choose the course.', 'programId');
-        if (!section) return bad(res, 'Choose the section.', 'sectionId');
+        const ids = [...new Set((Array.isArray(req.body?.sectionIds) ? req.body.sectionIds : [req.body?.sectionId]).map(String))];
+        const sections = ids.map((id) => (idOk(id) ? program.sections.id(id) : null)).filter(Boolean);
+        if (!sections.length || sections.length !== ids.length) return bad(res, 'Choose the section or sections.', 'sectionIds');
         if (!subject) return bad(res, 'Enter the subject you teach.', 'subject');
         if (subject.length > 80) return bad(res, 'Keep the subject under 80 characters.', 'subject');
+        const years = [...new Set((Array.isArray(req.body?.years) ? req.body.years : []).map(Number))].filter((y) => [1, 2, 3].includes(y)).sort();
+        if (!years.length) return bad(res, 'Choose the year or years you teach.', 'years');
         const me = String(req.teacher._id);
-        if (section.teachers.some((t) => String(t.teacherId) === me && (t.subject || '').toLowerCase() === subject.toLowerCase())) {
-            return bad(res, `You already teach ${subject} in ${program.name} ${section.name}.`, 'subject');
+        for (const section of sections) {
+            if (section.teachers.some((t) => String(t.teacherId) === me && (t.subject || '').toLowerCase() === subject.toLowerCase())) {
+                return bad(res, `You already teach ${subject} in ${program.name} ${section.name}.`, 'subject');
+            }
+            if (section.teachers.length >= 40) return bad(res, `${program.name} ${section.name} has as many teachers as it can take.`);
         }
-        if (section.teachers.length >= 40) return bad(res, 'This section has as many teachers as it can take.');
-        section.teachers.push({ teacherId: req.teacher._id, subject });
+        for (const section of sections) section.teachers.push({ teacherId: req.teacher._id, subject, years });
         await org.save();
         res.status(201).json(await dashboard(org, req.teacher._id));
     } catch (error) { fail(res, 'add class', error); }
@@ -281,7 +323,7 @@ const student = express.Router();
 student.get('/', async (req, res) => {
     try {
         const user = await User.findById(req.user._id).select('organizationId').lean();
-        const org = user?.organizationId ? await Organization.findById(user.organizationId).select('name three60').lean() : null;
+        const org = user?.organizationId ? await Organization.findById(user.organizationId).select('name logo three60').lean() : null;
         if (!org?.three60?.enabled || !require('./activities').unlocked(org)) return res.json({ enabled: false });
         const teachers = await Teacher.find({ organizationId: org._id, mentor360: true, students360: req.user._id }).select('name email phone').sort({ name: 1 }).lean();
         // Only the students a 360 teacher has added take part (2026-10-31): for the others 360 stays shut.
@@ -295,6 +337,7 @@ student.get('/', async (req, res) => {
         res.json({
             enabled: true,
             organization: org.name,
+            organizationLogo: org.logo || '',
             teachers: teachers.map((t) => ({ name: t.name, email: t.email || '', phone: t.phone || '', subjects: [...(subjectsOf[String(t._id)] || [])] })),
             // The activities, the student's proofs and their marks (./activities.js).
             ...(await require('./activities').studentActivities(org, req.user._id))

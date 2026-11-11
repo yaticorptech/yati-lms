@@ -11,11 +11,12 @@ import { Zap, Target, Timer, Award, Download, MessageSquareText } from 'lucide-r
 import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
 const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi, announceRewards } from './api';
-import { COLORS, levelOf, backOr } from './meta';
+import { COLORS, levelOf, backOr, setVoiceCourse } from './meta';
 import { Chunky, Loading, Problem } from './ui';
 import Session, { SessionFrame } from './session/Session';
 import { Finish } from './session/Finish';
 import { buildLesson, heartsFor, clock, xpIn } from './session/logic';
+import AudioPack, { needsPack } from './AudioPack';
 
 /** The certificate earned with this lesson, to download at once. */
 function CertificateBanner({ certificate, courseName = 'English' }) {
@@ -45,11 +46,13 @@ function LessonPage() {
     const [run, setRun] = useState({ n: 0, from: 'start' });
     const [done, setDone] = useState(null);           // { r, summary }
     const talked = useRef(null);                      // a talk's last result (Speak on a topic)
+    const [packed, setPacked] = useState(() => !needsPack(lessonId)); // the unit's audio is on the device
 
     const load = useCallback(() => linguisticApi.lesson(lessonId).then((l) => { setLesson(l); setError(null); }).catch((e) => { setError(e); setLesson(null); }), [lessonId]);
     useEffect(() => { load(); }, [load]);
 
     const steps = useMemo(() => (lesson ? buildLesson(lesson) : []), [lesson]);
+    setVoiceCourse(lesson?.target); // only the course's language is read aloud
     const toPath = backOr(navigate, '/linguistic');
     // The ✕ and its End session open the learning path at this lesson (2026-10-31, "not the dashboard"; it was the dashboard from 2026-10-29).
     const endSession = () => navigate(`/linguistic?lesson=${lessonId}`);
@@ -68,6 +71,9 @@ function LessonPage() {
             </SessionFrame>
         );
     }
+
+    // The unit's audio first (2026-11-06): downloaded once, then every lesson in the unit opens straight away.
+    if (!packed) return <SessionFrame label={lesson.title}><AudioPack lessonId={lessonId} onReady={() => setPacked(true)} onCancel={endSession} /></SessionFrame>;
 
     const id = lesson.id;
     const quizFrom = steps.findIndex((s) => s.part === 'quiz');

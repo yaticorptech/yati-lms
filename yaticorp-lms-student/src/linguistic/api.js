@@ -42,6 +42,8 @@ export const linguisticApi = {
     submitPlacement: (answers) => post('/placement', { answers }),
     module: (module) => get(`/modules/${module}`),
     lesson: (id) => get(`/lessons/${id}`),
+    /** The unit this lesson is in, every lesson as the student has it: for downloading its audio first. */
+    lessonPack: (id) => get(`/lessons/${id}/pack`),
     step: (id, step) => post(`/lessons/${id}/step`, { step }),
     check: (id, section, qid, given) => post(`/lessons/${id}/check`, { section, id: qid, given }),
     /** Check one quiz answer as it is given (nothing saved); the quiz is still submitted whole at the end. */

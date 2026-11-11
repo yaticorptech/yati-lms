@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Heart, Volume2, VolumeX, Check, Flame, RotateCcw, Send, ChevronsRight } from 'lucide-react';
 import { useHideLoop } from '../../components/loopVisibility';
-import { COLORS, chime, soundOn, setSoundOn, langFor } from '../meta';
+import { COLORS, chime, soundOn, setSoundOn, langFor, prefetch, stepSpeech } from '../meta';
 import { tr, line } from '../say';
 import { Chunky, Bar, Mascot } from '../ui';
 import { Diff } from './Finish';
@@ -165,6 +165,8 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
 
     const step = queue[index];
     const Screen = SCREENS[step.kind];
+    // Audio fetched ahead (2026-11-05): this screen's and the next two, moving on with the student.
+    useEffect(() => prefetch([index, index + 1, index + 2].flatMap((i) => stepSpeech(queue[i]))), [index, queue]);
     const lastIndex = queue.length - 1;
 
     const finish = (outOfHearts) => {

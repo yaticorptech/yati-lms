@@ -24,6 +24,8 @@ export async function ensureDriveLinked(reason) {
   let state = getSnapshot();
   if (!state.loaded) state = await refresh();
   if (!state.available) return true;
+  // A developer card keeps its uploads on our storage: nothing to link.
+  if (state.driveNeeded === false) return true;
   if (state.connected && !state.needsReconnect) return true;
   await requestConsent(reason, { required: true });
   return false;
