@@ -6,14 +6,15 @@ import ProfileImage from '../components/ProfileImage';
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import DeviceLimitDialog from '../components/DeviceLimitDialog';
-import { Navigate, Link, useSearchParams } from 'react-router-dom';
+import { Navigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import SupportDialog from '../components/SupportDialog';
+import AuthBrandPanel from '../components/AuthBrandPanel';
 import { isNative } from '../native/platform';
 import useBackClose from '../native/useBackClose';
 import { SESSION_ENDED_KEY, safeNextPath } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession, TEACHER_SESSION_ENDED } from '../teacher/teacherSession';
-import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info } from 'lucide-react';
+import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info, ShieldCheck, RefreshCw } from 'lucide-react';
 
 // --- Forgot Password Modal ---
 // Three steps: the card (scanned, or its number typed), then whose account it
@@ -181,11 +182,11 @@ const ForgotPasswordModal = ({ onClose }) => {
                         <div className="space-y-4">
                             <p className="text-sm text-slate-400">Scan your card or type its number. We'll show you the account before sending a reset link to its email.</p>
 
-                            <div className="grid grid-cols-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-1">
+                            <div role="tablist" className="grid grid-cols-3 gap-1 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-1">
                                 {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard], ['email', 'Email', Mail]].map(([id, label, Icon]) => (
-                                    <button key={id} type="button" onClick={() => { setError(''); setScanning(false); setMode(id); }}
-                                        className={`inline-flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold transition-all ${mode === id ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/15' : 'text-slate-400 hover:text-white'}`}>
-                                        <Icon size={15} /> {label}
+                                    <button key={id} type="button" role="tab" aria-selected={mode === id} onClick={() => { setError(''); setScanning(false); setMode(id); }}
+                                        className={`inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-xs font-bold transition-all sm:text-sm ${mode === id ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/15' : 'text-slate-400 hover:text-white'}`}>
+                                        <Icon size={15} className="shrink-0" /> <span className="truncate">{label}</span>
                                     </button>
                                 ))}
                             </div>
@@ -209,7 +210,7 @@ const ForgotPasswordModal = ({ onClose }) => {
                                     </div>
                                 </form>
                             ) : mode === 'scan' ? (
-                                <div className="rounded-2xl border-2 border-dashed border-indigo-400/40 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/70 p-5 text-center">
+                                <div className="rounded-2xl border-2 border-dashed border-indigo-400/30 bg-gradient-to-br from-indigo-500/[0.08] via-white/[0.02] to-violet-500/[0.08] p-5 text-center">
                                     {/* html5-qrcode needs this element present before it starts. */}
                                     <div id={FORGOT_SCANNER_ID} className={`overflow-hidden rounded-xl bg-slate-900 ${scanning ? 'block' : 'hidden'}`} />
                                     {!scanning ? (
@@ -264,6 +265,7 @@ const Login = () => {
     // app is taken; anything else means the dashboard.
     const [searchParams] = useSearchParams();
     const next = safeNextPath(searchParams.get('next') || '/');
+    const swapped = Boolean(useLocation().state?.authSwapFrom);
     const [cardNumber, setCardNumber] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -438,10 +440,11 @@ const Login = () => {
     };
 
     return (
-        <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#232840] via-[#1f2336] to-[#272240] p-4 text-slate-100 sm:p-6">
-            {/* A soft dark backdrop with two quiet glows — nothing to compete with the form. */}
-            <span aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[30rem] w-[44rem] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
-            <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-48 -z-10 h-[28rem] w-[28rem] rounded-full bg-violet-500/10 blur-[120px]" />
+        <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#171a2b] p-4 text-slate-100 sm:p-6 lg:p-10">
+            {/* Quiet backdrop: a fine grid and two soft glows behind the card. */}
+            <span aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-[0.35] [background-image:linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
+            <span aria-hidden className="pointer-events-none absolute -top-48 left-1/4 -z-10 h-[32rem] w-[40rem] rounded-full bg-indigo-600/20 blur-[140px]" />
+            <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-56 -z-10 h-[30rem] w-[30rem] rounded-full bg-violet-600/15 blur-[140px]" />
             {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
             {showContact && <SupportDialog onClose={() => setShowContact(false)} page="login" tone="dark" />}
             {deviceConflict && (
@@ -474,14 +477,19 @@ const Login = () => {
                 </div>
             )}
 
-            <div className="lg-rise w-full max-w-[28rem] overflow-hidden rounded-3xl bg-[#2a2f45] shadow-[0_30px_70px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
+            <div className={`${swapped ? 'auth-swap-in auth-swap-login' : 'lg-rise'} grid w-full max-w-[28rem] overflow-hidden rounded-[28px] bg-[#232740] shadow-[0_40px_90px_-40px_rgba(0,0,0,0.8)] ring-1 ring-white/[0.08] lg:max-w-[60rem] lg:grid-cols-[1.05fr_1fr]`}>
 
-                {/* ── Right: the sign-in card ──────────────────────────── */}
-                <section className="relative px-6 py-8 sm:px-9 sm:py-9">
-                    <div className="mx-auto max-w-md">
-                        <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
-                            <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-6 h-8 w-auto object-contain" />
-                            <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">Welcome back</h2>
+                {/* ── Left: brand panel (desktop) ─────────────────────── */}
+                <AuthBrandPanel eyebrow="Student & teacher portal" title="Your card is the key to every lesson."
+                    text="Scan the QR on your card or type its number, and pick up exactly where you left off."
+                    points={[[ScanLine, 'Sign in with a quick card scan'], [ShieldCheck, 'Protected on up to two devices'], [RefreshCw, 'Progress kept in sync everywhere']]} />
+
+                {/* ── Right: the sign-in form ─────────────────────────── */}
+                <section className="relative px-6 py-9 sm:px-10 sm:py-11 lg:px-12 lg:py-12">
+                    <div className="mx-auto flex h-full max-w-sm flex-col justify-center">
+                        <div className="lg-rise" style={{ animationDelay: '0.1s' }}>
+                            <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-8 h-7 w-auto object-contain lg:hidden" />
+                            <h2 className="text-[26px] font-semibold tracking-tight text-white">Welcome back</h2>
                             <p className="mt-1.5 text-sm text-slate-400">Sign in with your card number or mobile number.</p>
                         </div>
 
@@ -503,10 +511,11 @@ const Login = () => {
                                 <div>
                                     <label htmlFor="login-card-number" className="mb-2 block text-sm font-semibold text-slate-200">Card or mobile number</label>
                                     <div className="relative">
+                                        <CreditCard size={17} aria-hidden="true" className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-slate-500" />
                                         <input id="login-card-number" type="text" maxLength="20" inputMode="tel" autoComplete="username" value={cardNumber}
                                             onChange={e => { setCardNumber(e.target.value.replace(/[^0-9A-Za-z+()\s-]/g, '')); setScannedCard(false); setScannedName(''); setCardCheck(''); setCardCheckError(''); checkedNumberRef.current = ''; }}
                                             onBlur={checkTypedCard} aria-invalid={cardCheck === 'error'} aria-describedby={cardCheck === 'error' ? 'login-card-check' : undefined}
-                                            className={`block w-full appearance-none rounded-xl border bg-black/15 py-3.5 pr-14 pl-4 font-mono tracking-[0.12em] text-slate-100 shadow-sm placeholder:font-sans placeholder:tracking-normal placeholder-slate-500 transition duration-200 focus:border-transparent focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500 ${scannedCard ? 'border-emerald-400/40' : cardCheck === 'error' ? 'border-red-400/50' : 'border-white/10'}`}
+                                            className={`block w-full appearance-none rounded-xl border bg-[#1a1d30] py-3.5 pr-14 pl-11 font-mono tracking-[0.12em] text-slate-100 shadow-sm placeholder:font-sans placeholder:tracking-normal placeholder-slate-500 transition duration-200 focus:border-indigo-400/60 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 ${scannedCard ? 'border-emerald-400/40' : cardCheck === 'error' ? 'border-red-400/50' : 'border-white/10'}`}
                                             placeholder="Card number or mobile number" />
                                         {/* Scan, inside the field: the camera opens below and fills the number in. */}
                                         <button ref={scanButtonRef} type="button" disabled={loading}
@@ -527,7 +536,6 @@ const Login = () => {
                                             <button type="button" onClick={() => setShowHow(true)} className="inline-flex shrink-0 items-center gap-1 font-semibold text-indigo-300 hover:text-indigo-100"><PlayCircle size={13} /> How it works</button>
                                         </div>
                                     </div>
-                                    {!scanning && <p className="mt-2 text-xs text-slate-400">Teacher without a card? Use the mobile number your organization added you with.</p>}
                                 </div>
 
                             {scanError && (
@@ -545,6 +553,7 @@ const Login = () => {
                                     </button>
                                 </div>
                                 <div className="relative mt-2">
+                                    <Lock size={17} aria-hidden="true" className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-slate-500" />
                                     <input
                                         ref={passwordRef}
                                         id="login-password"
@@ -553,7 +562,7 @@ const Login = () => {
                                         autoComplete="current-password"
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
-                                        className="block w-full appearance-none rounded-xl border border-white/10 bg-white/5 focus:bg-white/[0.07] px-4 py-3.5 pr-12 text-slate-100 shadow-sm placeholder-slate-500 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="block w-full appearance-none rounded-xl border border-white/10 bg-[#1a1d30] py-3.5 pr-12 pl-11 text-slate-100 shadow-sm placeholder-slate-500 transition duration-200 focus:border-indigo-400/60 focus:outline-none focus:ring-4 focus:ring-indigo-500/20"
                                         placeholder="Enter your password"
                                     />
                                     <button type="button" onClick={() => setShowPassword(v => !v)}
@@ -565,23 +574,26 @@ const Login = () => {
                             </div>
 
                             <button type="submit" disabled={loading}
-                                className="group relative flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:translate-y-0">
+                                className="group relative flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.8),inset_0_1px_0_rgba(255,255,255,0.18)] transition-all duration-200 hover:bg-indigo-400 focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/30 disabled:opacity-60">
+                                {loading && <Loader2 size={16} className="animate-spin" />}
                                 {loading ? 'Authenticating…' : 'Access Platform'}
-                                {!loading && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
+                                {!loading && <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />}
                             </button>
                         </form>
 
-                        <button type="button" onClick={() => setShowContact(true)}
-                            className="lg-rise mt-4 flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm text-slate-300 transition-colors hover:border-indigo-200 hover:bg-indigo-500/15" style={{ animationDelay: '0.3s' }}>
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-300"><MessageCircleQuestion size={16} /></span>
-                            <span className="flex-1">Having trouble? <span className="font-bold text-indigo-300">Contact Admin</span></span>
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2a2f45] ring-1 ring-white/10"><ChevronRight size={15} className="text-slate-400" /></span>
-                        </button>
-
-                        <p className="mt-5 text-center text-xs text-slate-400">
-                            Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-300 hover:underline">Sign up here</Link>
+                        <p className="lg-rise mt-6 text-center text-sm text-slate-400" style={{ animationDelay: '0.3s' }}>
+                            Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} state={{ authSwapFrom: 'login' }} className="font-semibold text-indigo-300 hover:text-indigo-200 hover:underline">Sign up here</Link>
                         </p>
-                        <p className="mt-3 text-center text-[11px] text-slate-400">
+
+                        <div className="lg-rise mt-8 flex items-center gap-3 border-t border-white/[0.07] pt-5" style={{ animationDelay: '0.35s' }}>
+                            <button type="button" onClick={() => setShowContact(true)}
+                                className="group flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left text-sm text-slate-400 transition-colors hover:bg-white/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.05] text-indigo-300 ring-1 ring-white/10"><MessageCircleQuestion size={15} /></span>
+                                <span className="flex-1">Having trouble? <span className="font-semibold text-slate-200 group-hover:text-white">Contact Admin</span></span>
+                                <ChevronRight size={15} className="text-slate-500 transition-transform group-hover:translate-x-0.5" />
+                            </button>
+                        </div>
+                        <p className="mt-4 text-center text-[11px] text-slate-500">
                             <Link to="/terms" className="hover:text-indigo-200 hover:underline">Terms and Conditions</Link> · <Link to="/privacy" className="hover:text-indigo-200 hover:underline">Privacy Policy</Link>
                         </p>
                         {/* Inside the app the admin console travels in the same bundle, under

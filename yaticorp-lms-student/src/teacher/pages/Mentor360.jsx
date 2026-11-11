@@ -21,7 +21,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Orbit, Users, UserPlus, X, Search, Loader2, ClipboardCheck, FileText, CheckCircle2, XCircle, ChevronRight, Lock, BookOpen, Phone, Mail, GraduationCap, Landmark, Building2, PencilLine } from 'lucide-react';
+import { Orbit, Users, UserPlus, X, Search, Loader2, ClipboardCheck, Trophy, FileText, CheckCircle2, XCircle, ChevronRight, Lock, BookOpen, Phone, Mail, GraduationCap, Landmark, Building2, PencilLine } from 'lucide-react';
 import teacherApi, { messageOf } from '../teacherSession';
 import { useTeacher, hasResearch } from '../useTeacher';
 import { PageHeader, Card, CardTitle, StatTile, EmptyState, Loading, ErrorNote, OkNote, Modal, Badge, TeacherAvatar } from '../ui';
@@ -32,9 +32,14 @@ import { missingOf } from '../profileGate';
 import CompleteProfileFirst from '../CompleteProfileFirst';
 import Select from '../../components/Select';
 
+const RANKS = [
+    { card: 'border-amber-200 bg-amber-50/60', badge: 'bg-amber-400 text-amber-950' },
+    { card: 'border-slate-200 bg-slate-50/80', badge: 'bg-slate-300 text-slate-800' },
+    { card: 'border-orange-200 bg-orange-50/50', badge: 'bg-orange-300 text-orange-950' }
+];
 const plural = (n, word, words = `${word}s`) => `${n} ${n === 1 ? word : words}`;
 const fmt = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-IN');
-const markText = (a, mark) => (a.mode === 'each' ? `${fmt(a.got)} mark${a.got === 1 ? '' : 's'}`
+const markText = (a, mark) => (a.mode === 'each' ? (a.cap != null ? `${fmt(a.got)} / ${fmt(a.cap)}` : `${fmt(a.got)} mark${a.got === 1 ? '' : 's'}`)
     : a.got > 0 || mark || (a.proofs || []).some((p) => p.status === 'approved') ? `${fmt(a.got ?? mark?.marks ?? 0)} / ${fmt(a.marks)}` : 'Not marked yet');
 
 /** Pick the organization's students to track; those already on the list are ticked and fixed. */
@@ -209,15 +214,38 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
     const given = a.proofs.filter((p) => p.status === 'approved').reduce((n, p) => n + (Number(p.marks) || 0), 0);
     // What is left of the top for this proof: the top less the other accepted proofs' marks.
     const roomFor = (p) => Math.max(0, a.marks - (given - (p.status === 'approved' ? Number(p.marks) || 0 : 0)));
+    // "Per proof" with a most (2026-11-06): past it, proof is still accepted, for the record, with 0 marks.
+    const gets = each ? (a.cap != null ? Math.max(0, Math.min(a.marks || 0, a.cap - given)) : a.marks || 0) : 0;
+    const full = each && a.cap != null && gets < (a.marks || 0);
+    // Bonus (2026-11-06): the teacher may add up to bonusMax in all, on accepting proof.
+    const [bonusIn, setBonusIn] = useState(() => Object.fromEntries(a.proofs.map((p) => [p._id, p.bonusMarks ? String(p.bonusMarks) : ''])));
+    const bonusGiven = a.proofs.filter((p) => p.status === 'approved').reduce((n, p) => n + (Number(p.bonusMarks) || 0), 0);
+    const bonusRoomFor = (p) => Math.max(0, (a.bonusMax || 0) - (bonusGiven - (p.status === 'approved' ? Number(p.bonusMarks) || 0 : 0)));
+    const bonusBox = (p) => (a.bonusMax > 0 ? (
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+            Bonus
+            <input type="number" inputMode="decimal" min={0} max={bonusRoomFor(p)} step="any" value={bonusIn[p._id] ?? ''}
+                onChange={(e) => { setBonusIn((m) => ({ ...m, [p._id]: e.target.value })); setError(''); }}
+                placeholder={`0–${fmt(bonusRoomFor(p))}`} aria-label={`Bonus for ${p.fileName || 'this proof'}, up to ${fmt(bonusRoomFor(p))}`}
+                className={`${inputClass} !w-16 !py-1.5 tabular-nums`} />
+        </label>
+    ) : null);
     const decide = async (p, decision, note = '') => {
         if (decision === 'reject' && !note) { setError('Say why, so the student can upload the right proof.'); return; }
         let body = { decision, note };
+        if (decision === 'approve' && a.bonusMax > 0) {
+            const raw = bonusIn[p._id] ?? '';
+            const b = raw === '' ? 0 : Number(raw);
+            const room = bonusRoomFor(p);
+            if (!Number.isFinite(b) || b < 0 || b > room) { setError(`Bonus: 0 to ${fmt(room)}.`); return; }
+            body.bonus = b;
+        }
         if (decision === 'approve' && !each) {
             const raw = marks[p._id] ?? '';
             const n = Number(raw);
             const room = roomFor(p);
             if (raw === '' || !Number.isFinite(n) || n < 0 || n > room) { setError(`Give this proof 0 to ${fmt(room)} marks.`); return; }
-            body = { decision, marks: n, note: p.reviewNote || '' };
+            body = { ...body, decision, marks: n, note: p.reviewNote || '' };
         }
         setBusy(p._id); setError('');
         try {
@@ -232,7 +260,7 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-900">{a.name}</p>
-                    <p className="text-xs text-slate-500">{each ? `${fmt(a.marks)} for each accepted proof` : `Up to ${fmt(a.marks)} marks · each proof gets its own`}{a.mark?.byName ? ` · marked by ${a.mark.byName}` : ''}</p>
+                    <p className="text-xs text-slate-500">{each ? `${fmt(a.marks)} for each accepted proof${a.cap != null ? `, at most ${fmt(a.cap)}` : ''}` : `Up to ${fmt(a.marks)} marks · each proof gets its own`}{a.bonusMax > 0 ? ` · bonus up to ${fmt(a.bonusMax)} (${fmt(bonusGiven)} given)` : ''}{a.bonus ? ' · extra' : ''}{a.mark?.byName ? ` · marked by ${a.mark.byName}` : ''}</p>
                 </div>
                 <Badge tone={a.got ? 'bg-emerald-50 text-emerald-700 !text-xs' : 'bg-slate-100 text-slate-600 !text-xs'}>{markText(a, a.mark)}</Badge>
             </div>
@@ -248,16 +276,19 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
                                     {p.note && <p className="text-xs text-slate-600">“{p.note}”</p>}
                                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                         {p.status === 'pending' && <Badge tone="bg-amber-50 text-amber-700">Waiting</Badge>}
-                                        {p.status === 'approved' && <Badge tone="bg-emerald-50 text-emerald-700">Accepted{p.marks ? ` · +${fmt(p.marks)}` : ''}</Badge>}
+                                        {p.status === 'approved' && <Badge tone="bg-emerald-50 text-emerald-700">Accepted{p.marks ? ` · +${fmt(p.marks)}` : ' · no marks'}{p.bonusMarks ? ` · +${fmt(p.bonusMarks)} bonus` : ''}</Badge>}
                                         {p.status === 'rejected' && <Badge tone="bg-red-50 text-red-700">Sent back</Badge>}
                                         {p.status === 'rejected' && p.reviewNote && <span className="text-[11px] text-slate-500">“{p.reviewNote}”</span>}
                                     </div>
                                 </div>
                                 {p.status === 'pending' && sendingBack !== p._id && (
                                     <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
+                                        {each && bonusBox(p)}
                                         {each && (
-                                            <button type="button" onClick={() => decide(p, 'approve')} disabled={!!busy} className={`${btn.primary} !px-2.5 !py-1.5 !text-xs`}>
-                                                {busy === p._id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}Accept +{fmt(a.marks)}
+                                            <button type="button" onClick={() => decide(p, 'approve')} disabled={!!busy}
+                                                title={full ? `${a.name} already has its most, ${fmt(a.cap)} marks: accepted for the record` : undefined}
+                                                className={`${full ? btn.secondary : btn.primary} !px-2.5 !py-1.5 !text-xs`}>
+                                                {busy === p._id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}{gets > 0 ? `Accept +${fmt(gets)}` : 'Accept · no marks'}
                                             </button>
                                         )}
                                         <button type="button" onClick={() => { setSendingBack(p._id); setError(''); }} disabled={!!busy} className={`${btn.secondary} !px-2.5 !py-1.5 !text-xs`}>Send back</button>
@@ -274,6 +305,7 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
                                             className={`${inputClass} !w-20 !py-1.5 tabular-nums`} />
                                         <span className="font-normal text-slate-400">of {fmt(roomFor(p))} left</span>
                                     </label>
+                                    {bonusBox(p)}
                                     <button type="button" onClick={() => decide(p, 'approve')} disabled={!!busy} className={`${btn.primary} !px-2.5 !py-1.5 !text-xs`}>
                                         {busy === p._id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}{p.status === 'pending' ? 'Accept with marks' : 'Update marks'}
                                     </button>
@@ -292,6 +324,9 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
                 </p>
             )}
             {!each && !a.proofs.length && <p className="mt-2 text-xs text-slate-500">No proof to mark yet.</p>}
+            {full && a.proofs.some((p) => p.status === 'pending') && (
+                <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">{a.name} already has its most ({fmt(a.cap)} marks). More proof is accepted for the record with no marks{a.bonusMax > 0 ? ', but you can still add bonus' : ''}.</p>
+            )}
             <ErrorNote>{error}</ErrorNote>
         </li>
     );
@@ -378,6 +413,8 @@ export default function Mentor360() {
     const research = hasResearch(teacher);
     const missing = data ? missingOf(teacher, data.classes || [], data.courses) : [];
     const waiting = students.reduce((n, st) => n + (st.waiting || 0), 0);
+    // Their highest 360 marks (2026-11-05): the top three of their students with marks above 0.
+    const toppers = students.filter((st) => Number(st.marks) > 0).sort((a, b) => b.marks - a.marks || a.name.localeCompare(b.name)).slice(0, 3);
 
     return (
         <div className="space-y-6">
@@ -415,10 +452,39 @@ export default function Mentor360() {
                 </div>
             ) : data && (
                 <>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                         <StatTile icon={Users} label="My students" value={students.length} color="emerald" />
                         <StatTile icon={ClipboardCheck} label="Proofs to check" value={waiting} sub={waiting ? 'Tap a student below.' : 'All checked.'} color="amber" />
+                        <div className="col-span-2 lg:col-span-1">
+                            <StatTile icon={Trophy} label="Highest marks" value={toppers.length ? fmt(toppers[0].marks) : '—'}
+                                sub={toppers.length ? toppers[0].name : 'No marks given yet.'} color="violet" />
+                        </div>
                     </div>
+                    {toppers.length > 0 && (
+                        <Card>
+                            <CardTitle icon={Trophy} color="violet">Top scorers</CardTitle>
+                            <p className="-mt-1 mb-3 text-xs text-slate-500">Your students with the highest 360 marks so far. Tap one to open their proof.</p>
+                            <ol className="grid gap-2 sm:grid-cols-3">
+                                {toppers.map((st, i) => (
+                                    <li key={st._id}>
+                                        <button type="button" onClick={() => setOpening(st)} aria-label={`Rank ${i + 1}: ${st.name}, ${fmt(st.marks)} marks`}
+                                            className={`flex w-full min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${RANKS[i].card}`}>
+                                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${RANKS[i].badge}`}>{i + 1}</span>
+                                            <TeacherAvatar teacher={st} className="h-9 w-9 text-xs" />
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate text-sm font-semibold text-slate-900">{st.name}</span>
+                                                <span className="block truncate text-[11px] text-slate-500 tabular-nums">{st.cardNumber || st.email}</span>
+                                            </span>
+                                            <span className="shrink-0 text-right">
+                                                <span className="block text-lg font-bold leading-none text-slate-900 tabular-nums">{fmt(st.marks)}</span>
+                                                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">marks</span>
+                                            </span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ol>
+                        </Card>
+                    )}
                     <Card>
                         <CardTitle icon={Users} color="emerald" right={<button type="button" onClick={() => setAdding(true)} className={btn.primary}><UserPlus size={15} /> Add students</button>}>
                             My students

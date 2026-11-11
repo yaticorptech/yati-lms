@@ -1016,12 +1016,20 @@ const StudentLayout = () => {
 
                         <Marks360Chip user={user?.marks360 ? user : progressUser} />
                         {three60 && three60Points !== null && (
-                            <Link to="/360" aria-label={`360 points: ${three60Points}`} title="Your 360 points"
-                                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-bold text-indigo-700 tabular-nums transition-colors hover:bg-indigo-100">
-                                <Orbit size={16} aria-hidden="true" className="motion-safe:animate-[spin_6s_linear_infinite]" />
-                                <span className="text-xs font-black tracking-wide text-indigo-500">360</span>
-                                <span className="h-3.5 w-px bg-indigo-200" aria-hidden="true" />
-                                {three60Points.toLocaleString('en-IN')}
+                            /* The 360 chip (redesigned 2026-11-05, light, 2026-11-05): a small
+                               "360" medallion with an orbit turning round it, then the marks. */
+                            <Link to="/360" aria-label={`360 marks: ${three60Points}`} title="Your 360 marks"
+                                className="group inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#ffffff,#eef2ff)] py-1 pl-1 pr-3.5 text-indigo-950 shadow-sm shadow-indigo-200/60 ring-1 ring-indigo-200 transition-all hover:shadow-md hover:shadow-indigo-200/80 hover:ring-indigo-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                                <span className="relative flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
+                                    <svg viewBox="0 0 32 32" className="absolute inset-0 h-full w-full motion-safe:animate-[spin_8s_linear_infinite]">
+                                        <circle cx="16" cy="16" r="14.5" fill="none" stroke="#818cf8" strokeOpacity="0.6" strokeWidth="1" strokeDasharray="1.5 3" />
+                                        <circle cx="16" cy="1.5" r="1.8" fill="#38bdf8" />
+                                    </svg>
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-[8px] font-black tracking-tight text-white shadow-inner">360</span>
+                                </span>
+                                <span className="flex items-baseline gap-1 tabular-nums">
+                                    <span className="text-sm font-black leading-none">{three60Points.toLocaleString('en-IN')}</span>
+                                </span>
                             </Link>
                         )}
                         {renderWalletButton('desktop')}

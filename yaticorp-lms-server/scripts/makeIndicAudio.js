@@ -15,6 +15,7 @@
  *   node scripts/makeIndicAudio.js                    every course
  *   node scripts/makeIndicAudio.js --courses kn,ml    those courses first, then nothing else
  *   node scripts/makeIndicAudio.js --dry              only count what is left to make
+ *   node scripts/makeIndicAudio.js --recheck          also delete and make again clips longer than their text
  */
 require('dotenv').config();
 const path = require('path');
@@ -25,6 +26,7 @@ const STUDENT = path.join(__dirname, '..', '..', 'yaticorp-lms-student');
 const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : null; };
 const DRY = args.includes('--dry');
+const RECHECK = args.includes('--recheck');
 const ONLY = (opt('--courses') || '').split(',').map((c) => c.trim()).filter(Boolean);
 
 /** The student app's own lesson builder and speech list, as CommonJS. */
@@ -99,6 +101,20 @@ const mins = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Mat
     }
     await mongoose.disconnect();
 
+    // --recheck (2026-11-11): a clip longer than its text allows was made in a batch with a longer one and has
+    // made-up speech after the word; it is deleted, to be made again by the fixed voice service.
+    if (RECHECK) {
+        const fs = require('fs');
+        const capOf = (t) => { const n = [...t].length; return n <= 3 ? 1.4 : Math.min(30, 1.2 + 0.12 * n); };
+        let bad = 0;
+        for (const c of clips) {
+            if (!store.has(c)) continue;
+            const f = store.fileOf(c); const b = fs.readFileSync(f);
+            const secs = (b.length - 44) / (b.readUInt16LE(34) / 8) / b.readUInt32LE(24);
+            if (secs > capOf(c.text) + 0.1) { if (!DRY) fs.unlinkSync(f); bad++; }
+        }
+        console.log(`Recheck: ${bad} clip(s) too long${DRY ? '' : ', deleted'}.`);
+    }
     const todo = clips.filter((c) => !store.has(c));
     console.log(`Clips: ${clips.length} in all, ${clips.length - todo.length} already made, ${todo.length} to make.`);
     const per = {}; todo.forEach((c) => { per[c.lang] = (per[c.lang] || 0) + 1; });
