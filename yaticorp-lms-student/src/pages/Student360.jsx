@@ -30,7 +30,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import { Link } from 'react-router-dom';
-import { Orbit, Landmark, UserRound, BarChart3, RotateCcw, ChevronRight, Target, Upload, FileText, ImageIcon, CheckCircle2, Clock, XCircle, Trash2, X, Loader2, Plus, Camera, Search, MessageSquare, Paperclip } from 'lucide-react';
+import { Orbit, Landmark, UserRound, BarChart3, RotateCcw, ChevronRight, Upload, FileText, ImageIcon, CheckCircle2, Clock, XCircle, Trash2, X, Loader2, Plus, Camera, Search, MessageSquare, Paperclip } from 'lucide-react';
 import api from '../utils/api';
 import YatiLoader from '../components/YatiLoader';
 import Portal from '../components/Portal';
@@ -56,7 +56,6 @@ export default function Student360() {
     const [adding, setAdding] = useState(null);      // { activityId }: the Add proof popup
     const [notice, setNotice] = useState('');
     const [showAll, setShowAll] = useState(false);
-    const [teacherOpen, setTeacherOpen] = useState(false);   // the teacher card, opened to their contact
     const [confirm, confirmDialog] = useConfirmDialog();
 
     const load = () => api.get('/user/360').then((r) => { setData(r.data); setFailed(false); });
@@ -91,12 +90,13 @@ export default function Student360() {
     const byActivity = data.totals?.byActivity || {};
     const all = groups.flatMap((g) => g.activities);
     const activityOf = (id) => all.find((a) => String(a._id) === String(id));
-    const possible = all.reduce((n, a) => n + (a.mode === 'each' ? 0 : a.marks || 0), 0);
-    // Per-proof activities have no top: their marks come on top of `possible` (never "23 of 20").
+    // The organization's total across every category (2026-11-05): from the server since 2026-11-06,
+    // with "per proof" activities at their cap and extra (bonus, one-year) activities left out.
+    const possible = data.totals?.possible ?? all.filter((a) => !a.bonus).reduce((n, a) => n + (a.mode === 'each' && a.cap != null ? a.cap : (a.marks || 0)), 0);
+    // Per-proof activities can give more than once: beyond `possible`, the ring stays full.
     const perProof = all.some((a) => a.mode === 'each');
     const total = data.totals?.total || 0;
     const left = Math.max(possible - total, 0);
-    const pct = possible > 0 ? Math.round(Math.min(100, (total / possible) * 100)) : 0;
     const count = (status) => proofs.filter((p) => p.status === status).length;
     // Sent back first (they need a new upload), then the rest, newest first (2026-11-04).
     const newest = [...proofs].sort((a, b) => ((b.status === 'rejected') - (a.status === 'rejected')) || (new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
@@ -121,106 +121,69 @@ export default function Student360() {
 
     return (
         <div className="space-y-5 pb-10">
-            {/* Welcome, with the campus behind and Add proof on the right. */}
-            <header className="relative isolate overflow-hidden rounded-3xl bg-[linear-gradient(100deg,#ede9fe_0%,#eef2ff_45%,#e9e5ff_100%)] px-5 py-6 sm:px-8 sm:py-7">
-                <img src="/illustrations/360/campus.png" alt="" aria-hidden="true" loading="lazy"
-                    className="pointer-events-none absolute bottom-0 right-[14%] -z-10 hidden h-full w-auto max-w-[58%] object-cover object-bottom opacity-90 [mask-image:linear-gradient(90deg,transparent,black_18%,black_80%,transparent)] md:block" />
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-4">
-                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-indigo-100/80 text-indigo-600 shadow-inner shadow-indigo-200/50 sm:h-16 sm:w-16"><Landmark size={30} strokeWidth={2.25} aria-hidden="true" /></span>
-                        <div className="min-w-0">
-                            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{data.organization || '360'}</h1>
-                            <p className="mt-1 text-sm font-medium text-slate-600 sm:text-lg">Your activities, marks and teachers</p>
-                        </div>
-                    </div>
-                    {addButton('Add Proof', 'hidden rounded-2xl bg-indigo-600 px-6 py-3.5 text-base text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 sm:inline-flex')}
-                </div>
-            </header>
-
             {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800">{notice}</p>}
 
-            {/* The marks: the ring, the bar, the three counts, and the cap on the books. */}
-            <section aria-label="Your 360 marks" className="relative overflow-hidden rounded-3xl border border-white bg-white/80 p-5 shadow-[0_20px_50px_-28px_rgba(79,70,229,0.35)] ring-1 ring-indigo-100/70 backdrop-blur sm:p-7">
-                <div className="flex flex-col items-center gap-6 lg:flex-row lg:gap-8">
-                    <MarksRing total={total} possible={possible} />
-                    <div className="w-full min-w-0 flex-1">
-                        <div className="flex items-center gap-3">
-                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-indigo-600 shadow-md shadow-indigo-200/60 ring-1 ring-indigo-50"><BarChart3 size={22} strokeWidth={2.5} aria-hidden="true" /></span>
-                            <div className="min-w-0">
-                                <h2 className="text-xl font-black text-slate-900 sm:text-2xl">Your 360 Marks</h2>
-                                <p className="text-sm text-slate-500">{possible <= 0 ? 'Your marks add up here as your proofs are accepted.' : left > 0 ? `Earn ${fmt(left)} more marks to complete.` : 'Every mark earned. Well done!'}{perProof && possible > 0 ? ' Some activities give marks for each proof too.' : ''}</p>
-                            </div>
-                        </div>
-                        {possible > 0 && (
-                            <div className="mt-5 flex items-center gap-3">
-                                <div className="h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200/80" role="progressbar" aria-label="Marks earned" aria-valuemin={0} aria-valuemax={possible} aria-valuenow={Math.min(total, possible)}>
-                                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-sky-400 transition-[width] duration-700" style={{ width: `${pct}%` }} />
+            {/* One card (2026-11-05): the marks ring on the left; on the right the college (logo, name, mentor,
+                Add Proof) above the three counts. A faint 360° and slow orbit lines behind the right side. */}
+            <section aria-label="Your 360 marks" className="relative isolate overflow-hidden rounded-3xl bg-[radial-gradient(120%_140%_at_0%_0%,#4338ca_0%,#312e81_42%,#1e1b4b_100%)] p-5 text-white shadow-[0_24px_60px_-30px_rgba(49,46,129,0.8)] sm:p-7">
+                <span aria-hidden="true" className="pointer-events-none absolute -right-3 -top-10 -z-10 select-none text-[10rem] font-black leading-none tracking-tighter text-white/[0.06] sm:text-[13rem]">360°</span>
+                <svg aria-hidden="true" viewBox="0 0 400 400" className="pointer-events-none absolute -right-28 -top-36 -z-10 hidden h-[28rem] w-[28rem] md:block">
+                    <g className="s360-hdr" fill="none" strokeWidth="1">
+                        <circle cx="200" cy="200" r="130" stroke="rgba(165,180,252,0.25)" />
+                        <circle cx="200" cy="200" r="168" stroke="rgba(125,211,252,0.2)" strokeDasharray="2 8" />
+                        <circle cx="200" cy="32" r="4" fill="#7dd3fc" stroke="none" />
+                        <circle cx="70" cy="200" r="3" fill="#a5b4fc" stroke="none" />
+                    </g>
+                </svg>
+                <style>{'@keyframes s360-hdr{to{transform:rotate(360deg)}}.s360-hdr{transform-origin:200px 200px;animation:s360-hdr 40s linear infinite}@media (prefers-reduced-motion:reduce){.s360-hdr{animation:none}}'}</style>
+
+                <div className="flex flex-col items-center gap-6 lg:flex-row lg:items-stretch lg:gap-8">
+                    <div className="flex shrink-0 items-center"><MarksRing total={total} possible={possible} /></div>
+                    <div className="flex w-full min-w-0 flex-1 flex-col justify-center gap-6">
+                        {/* The college */}
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex min-w-0 items-center gap-4">
+                                <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg shadow-black/20 ring-4 ring-white/10 sm:h-[4.5rem] sm:w-[4.5rem]">
+                                    {data.organizationLogo
+                                        ? <img src={data.organizationLogo} alt={`${data.organization} logo`} className="h-full w-full object-contain p-2" />
+                                        : <Landmark size={30} strokeWidth={2.25} className="text-indigo-600" aria-hidden="true" />}
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-sky-200 ring-1 ring-white/15">
+                                        <Orbit size={12} aria-hidden="true" />360 Student Record
+                                    </p>
+                                    <h1 className="mt-1.5 text-xl font-black leading-tight tracking-tight text-white sm:text-2xl">{data.organization || '360'}</h1>
+                                    {teachers.length > 0 && (
+                                        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-indigo-100/80">
+                                            <UserRound size={14} className="shrink-0 text-sky-300" aria-hidden="true" />
+                                            <span className="truncate"><span className="font-semibold text-white/90">{teachers.length > 1 ? 'Mentors' : 'Mentor'}:</span> {teachers.map((t) => t.name).join(', ')}</span>
+                                        </p>
+                                    )}
                                 </div>
-                                <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-700 tabular-nums">{pct}%</span>
                             </div>
-                        )}
-                        <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-4">
+                            {addButton('Add Proof', 'hidden shrink-0 rounded-2xl bg-white px-6 py-3.5 text-base text-indigo-700 shadow-lg shadow-black/20 hover:bg-indigo-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/60 sm:inline-flex')}
+                        </div>
+
+                        {/* The three counts */}
+                        <div className="grid grid-cols-3 gap-2 sm:gap-4">
                             {[
-                                ['Accepted', count('approved'), CheckCircle2, 'bg-emerald-50/80', 'bg-emerald-100 text-emerald-600'],
-                                ['Waiting', count('pending'), Clock, 'bg-amber-50/80', 'bg-amber-100 text-amber-500'],
-                                ['Sent Back', count('rejected'), RotateCcw, 'bg-rose-50/80', 'bg-rose-100 text-rose-500']
+                                ['Accepted', count('approved'), CheckCircle2, 'bg-white/[0.07]', 'bg-emerald-400/15 text-emerald-300'],
+                                ['Waiting', count('pending'), Clock, 'bg-white/[0.07]', 'bg-amber-400/15 text-amber-300'],
+                                ['Sent Back', count('rejected'), RotateCcw, 'bg-white/[0.07]', 'bg-rose-400/15 text-rose-300']
                             ].map(([label, n, Icon, bg, chip]) => (
-                                <div key={label} className={`flex flex-col items-start gap-2 rounded-2xl p-3 sm:flex-row sm:items-center sm:gap-3 sm:p-4 ${bg}`}>
+                                <div key={label} className={`flex flex-col items-start gap-2 rounded-2xl p-3 ring-1 ring-white/10 backdrop-blur-sm sm:flex-row sm:items-center sm:gap-3 sm:p-4 ${bg}`}>
                                     <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-14 sm:w-14 ${chip}`}><Icon size={24} strokeWidth={2.25} aria-hidden="true" /></span>
                                     <div className="min-w-0">
-                                        <p className="text-2xl font-black leading-none text-slate-900 tabular-nums sm:text-3xl">{n}</p>
-                                        <p className="mt-1 truncate text-xs font-medium text-slate-600 sm:text-base">{label}</p>
+                                        <p className="text-2xl font-black leading-none text-white tabular-nums sm:text-3xl"><CountUp to={n} /></p>
+                                        <p className="mt-1 truncate text-xs font-medium text-indigo-100/80 sm:text-base">{label}</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
-                    <img src="/illustrations/360/books.png" alt="" aria-hidden="true" loading="lazy"
-                        className="hidden w-52 shrink-0 mix-blend-multiply xl:block 2xl:w-60" />
                 </div>
             </section>
 
-            {/* Who checks the proof, and what is left to earn. */}
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]">
-                {teachers.length > 0 && (
-                    <section className="relative overflow-hidden rounded-3xl border border-white bg-white/80 shadow-[0_20px_50px_-30px_rgba(79,70,229,0.35)] ring-1 ring-indigo-100/70">
-                        <svg aria-hidden="true" viewBox="0 0 400 80" preserveAspectRatio="none" className="pointer-events-none absolute inset-x-0 bottom-0 h-14 w-full text-indigo-100/70"><path d="M0 60 C 120 20, 260 90, 400 30 L400 80 L0 80 Z" fill="currentColor" /></svg>
-                        <button type="button" onClick={() => setTeacherOpen((v) => !v)} aria-expanded={teacherOpen}
-                            className="relative flex w-full items-center gap-4 p-5 text-left sm:p-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
-                            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 sm:h-[4.5rem] sm:w-[4.5rem]"><UserRound size={30} aria-hidden="true" /></span>
-                            <span className="min-w-0 flex-1">
-                                <span className="block text-sm text-slate-500 sm:text-base">{teachers.length === 1 ? 'Your 360 Teacher' : 'Your 360 Teachers'}</span>
-                                <span className="block truncate text-xl font-black text-slate-900 sm:text-2xl">{teachers.map((t) => t.name).join(', ')}</span>
-                            </span>
-                            <ChevronRight size={22} aria-hidden="true" className={`shrink-0 text-slate-500 transition-transform ${teacherOpen ? 'rotate-90' : ''}`} />
-                        </button>
-                        {teacherOpen && (
-                            <ul className="relative space-y-1.5 px-5 pb-5 sm:px-6">
-                                {teachers.map((t) => (
-                                    <li key={t.name} className="rounded-xl bg-white/90 px-3 py-2 text-sm ring-1 ring-slate-100">
-                                        <p className="font-semibold text-slate-800">{t.name}{t.subjects?.length ? <span className="font-normal text-slate-500"> · {t.subjects.join(', ')}</span> : null}</p>
-                                        <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs">
-                                            {t.email && <a href={`mailto:${t.email}`} className="font-semibold text-indigo-600 hover:underline">{t.email}</a>}
-                                            {t.phone && <a href={`tel:${t.phone}`} className="font-semibold text-indigo-600 hover:underline">{t.phone}</a>}
-                                            {!t.email && !t.phone && <span className="text-slate-400">No contact details shared.</span>}
-                                        </p>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </section>
-                )}
-                <section className={`relative flex items-center gap-4 overflow-hidden rounded-3xl border border-white bg-[linear-gradient(100deg,#ffffff_0%,#f5f3ff_55%,#ede9fe_100%)] p-5 shadow-[0_20px_50px_-30px_rgba(79,70,229,0.35)] ring-1 ring-indigo-100/70 sm:p-6 ${teachers.length ? '' : 'lg:col-span-2'}`}>
-                    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-indigo-600 sm:h-20 sm:w-20"><Target size={56} strokeWidth={2} aria-hidden="true" /></span>
-                    <div className="min-w-0 flex-1">
-                        {possible > 0 && left > 0 ? (
-                            <p className="text-xl font-black text-slate-900 sm:text-2xl">Earn <span className="text-indigo-600">{fmt(left)}</span> more marks!</p>
-                        ) : <p className="text-xl font-black text-slate-900 sm:text-2xl">{possible > 0 ? <>All <span className="text-indigo-600">{fmt(possible)}</span> marks earned!</> : 'Earn your 360 marks!'}</p>}
-                        <p className="mt-1 text-sm text-slate-600 sm:text-base">Submit activities and get them approved to reach your target.</p>
-                    </div>
-                    <img src="/illustrations/360/rosette.png" alt="" aria-hidden="true" loading="lazy" className="hidden h-24 w-auto shrink-0 mix-blend-multiply sm:block" />
-                </section>
-            </div>
             {addButton('Add Proof', 'flex w-full rounded-2xl bg-indigo-600 py-3.5 text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 sm:hidden')}
 
             {/* What has been uploaded: sent back first, then newest first. */}
@@ -249,9 +212,10 @@ export default function Student360() {
                                 // Each upload its own marks (2026-11-04); a mark given the old way on the whole activity shows as that.
                                 const perProof = a && proofs.some((x) => String(x.activityId) === String(a._id) && x.status === 'approved' && x.marks > 0);
                                 const score = p.status !== 'approved' ? null
-                                    : a?.mode === 'each' ? { got: p.marks || a.marks || 0, of: null }
+                                    // Out of the most it can give (2026-11-05, "show 4 out of 10").
+                                    : a?.mode === 'each' ? { got: (Number(p.marks) || 0) + (Number(p.bonusMarks) || 0), of: a.marks ?? null }
                                         : a && !perProof && byActivity[String(a._id)] ? { got: byActivity[String(a._id)], of: a.marks || 0 }
-                                            : { got: p.marks || 0, of: null };
+                                            : { got: p.marks || 0, of: a?.marks || null };
                                 return <UploadRow key={p._id} proof={p} score={score} onRemove={() => removeProof(p)} onAgain={() => openAdd(p.activityId)} />;
                             })}
                         </ul>
@@ -278,20 +242,72 @@ export default function Student360() {
 }
 
 /** The marks inside a ring that fills, indigo into sky, as they are earned. */
-function MarksRing({ total, possible }) {
+/*
+ * The marks count up, and the ring and bar fill, as the page opens and whenever new marks arrive (2026-11-05,
+ * "in marks side any animation can be added"): from what was shown before to the new number, easing out.
+ * At once for people who ask for reduced motion.
+ */
+const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+function useCountUp(target, ms = 1400) {
+    const [value, setValue] = useState(reduced() ? target : 0);
+    const from = useRef(reduced() ? target : 0);
+    useEffect(() => {
+        if (reduced()) { setValue(target); from.current = target; return undefined; }
+        const start = performance.now(), a = from.current, b = Number(target) || 0;
+        let raf;
+        const step = (now) => {
+            const t = Math.min(1, (now - start) / ms);
+            const v = a + (b - a) * (1 - Math.pow(1 - t, 3));
+            setValue(v); from.current = v;
+            if (t < 1) raf = requestAnimationFrame(step);
+        };
+        raf = requestAnimationFrame(step);
+        return () => cancelAnimationFrame(raf);
+    }, [target, ms]);
+    return value;
+}
+function CountUp({ to }) {
+    const v = useCountUp(to, 900);
+    return Number.isInteger(to) ? Math.round(v) : fmt(Math.round(v * 100) / 100);
+}
+function MarksRing({ total: target, possible }) {
+    const total = useCountUp(target);
     const share = possible > 0 ? Math.min(1, total / possible) : 0;
     const R = 44, C = 2 * Math.PI * R;
+    const angle = share * 2 * Math.PI; // where the filled arc ends (0 = top, the svg is turned -90°)
     return (
         <div className="relative h-48 w-48 shrink-0 rounded-full bg-white shadow-[0_18px_40px_-16px_rgba(79,70,229,0.45),inset_0_0_0_10px_#f1f5f9] sm:h-56 sm:w-56" aria-hidden="true">
+            {/* The 360 turn (2026-11-05): "360°" text running round the ring, and a dashed orbit with a dot the other way. */}
+            <svg viewBox="0 0 120 120" className="pointer-events-none absolute -inset-5 h-[calc(100%+2.5rem)] w-[calc(100%+2.5rem)] sm:-inset-6 sm:h-[calc(100%+3rem)] sm:w-[calc(100%+3rem)]">
+                <defs><path id="s360-text" d="M 60 60 m -55 0 a 55 55 0 1 1 110 0 a 55 55 0 1 1 -110 0" /></defs>
+                <g className="s360-spin">
+                    <text fontSize="5.2" fontWeight="800" fill="#c7d2fe" opacity="0.85">
+                        {/* Stretched to exactly one turn (2π·55), so the words close the circle with no gap. */}
+                        <textPath href="#s360-text" textLength="345.4" lengthAdjust="spacing">{'360° • ACADEMICS • 360° • SKILLS • 360° • CAMPUS • 360° • GROWTH • 360° • LEADERSHIP • '}</textPath>
+                    </text>
+                </g>
+                <g className="s360-spin-back">
+                    <circle cx="60" cy="60" r="50.5" fill="none" stroke="#38bdf8" strokeWidth="0.6" strokeDasharray="1.2 3" opacity="0.8" />
+                    <circle cx="60" cy="9.5" r="2.2" fill="#38bdf8" />
+                    <circle cx="60" cy="110.5" r="1.5" fill="#6366f1" />
+                </g>
+            </svg>
+            <style>{'@keyframes s360-turn{to{transform:rotate(360deg)}}.s360-spin,.s360-spin-back{transform-origin:60px 60px;transform-box:view-box}.s360-spin{animation:s360-turn 24s linear infinite}.s360-spin-back{animation:s360-turn 10s linear infinite reverse}@media (prefers-reduced-motion:reduce){.s360-spin,.s360-spin-back{animation:none}}'}</style>
             <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full -rotate-90">
                 <defs><linearGradient id="s360-ring" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#4f46e5" /><stop offset="1" stopColor="#38bdf8" /></linearGradient></defs>
                 <circle cx="50" cy="50" r={R} fill="none" stroke="#e2e8f0" strokeWidth="5" />
                 <circle cx="50" cy="50" r={R} fill="none" stroke="url(#s360-ring)" strokeWidth="5" strokeLinecap="round"
-                    strokeDasharray={`${Math.max(C * share, share > 0 ? 2 : 0)} ${C}`} className="transition-[stroke-dasharray] duration-700" />
+                    strokeDasharray={`${Math.max(C * share, share > 0 ? 2 : 0)} ${C}`} />
+                {/* A glowing tip at the end of the filled arc */}
+                {share > 0 && share < 1 && (
+                    <g>
+                        <circle cx={50 + R * Math.cos(angle)} cy={50 + R * Math.sin(angle)} r="4.5" fill="#38bdf8" opacity="0.35" className="motion-safe:animate-ping" style={{ transformOrigin: `${50 + R * Math.cos(angle)}px ${50 + R * Math.sin(angle)}px` }} />
+                        <circle cx={50 + R * Math.cos(angle)} cy={50 + R * Math.sin(angle)} r="3.2" fill="#fff" stroke="#38bdf8" strokeWidth="1.6" />
+                    </g>
+                )}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="flex items-baseline gap-1"><span className="text-5xl font-black leading-none text-slate-900 tabular-nums sm:text-6xl">{fmt(total)}</span>{possible > 0 && <span className="text-xl font-bold text-slate-500 sm:text-2xl">/ {fmt(possible)}</span>}</p>
-                <p className="mt-2 text-sm font-medium text-slate-600 sm:text-base">Marks</p>
+                <p className="flex items-baseline gap-1"><span className="text-5xl font-black leading-none text-slate-900 tabular-nums sm:text-6xl">{Number.isInteger(target) ? Math.round(total) : fmt(Math.round(total * 100) / 100)}</span>{possible > 0 && <span className="text-xl font-bold text-slate-500 sm:text-2xl">/ {fmt(possible)}</span>}</p>
             </div>
         </div>
     );
@@ -308,7 +324,7 @@ function UploadRow({ proof: p, score, onRemove, onAgain }) {
     // Accepted: the marks, large enough to see at a glance; "Marks to come" while the teacher has not given them.
     const marks = score && (score.got > 0 ? (
         <span className="inline-flex shrink-0 items-baseline gap-1 rounded-xl bg-indigo-600 px-2.5 py-1 text-white tabular-nums"
-            title={score.of ? 'Marks for this activity so far' : 'Marks for this proof'}>
+            title={score.of ? `${fmt(score.got)} out of ${fmt(score.of)} marks` : 'Marks for this proof'}>
             <span className="text-sm font-black">{score.of ? fmt(score.got) : `+${fmt(score.got)}`}</span>
             {score.of ? <span className="text-[11px] font-semibold opacity-75">/ {fmt(score.of)}</span> : null}
             <span className="text-[11px] font-semibold opacity-75">marks</span>

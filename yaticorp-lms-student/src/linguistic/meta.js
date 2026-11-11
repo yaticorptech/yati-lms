@@ -8,6 +8,7 @@ import { previousPage } from '../hooks/useGoBack';
 import { BookA, PenLine, BookOpen, Mic, Languages } from 'lucide-react';
 import { mediaUrl } from './api';
 import client from '../utils/api';
+import { kokoroBlob, kokoroSupported } from '../lib/kokoro';
 
 /** Bright flat colours: a face, the darker edge a button stands on, and a light tint. */
 export const COLORS = {
@@ -210,18 +211,98 @@ export const canSpeakIn = (lang) => usesServerVoice(lang) || (typeof window !== 
 const SERVER_LANGS = new Set(['as', 'bn', 'en', 'gu', 'hi', 'kn', 'ml', 'mr', 'ne', 'or', 'pa', 'sa', 'ta', 'te', 'ur']);
 const clips = new Map(); // key → Promise of the clip's object URL (made, or being made)
 let playing = null; let asked = 0;
-const usesServerVoice = (lang) => SERVER_LANGS.has(norm(lang).split('-')[0]);
+// On (2026-11-06, user: "use the tts inside this project"). Set false to fall back to the device voice.
+const SERVER_VOICE_ON = true;
+const usesServerVoice = (lang) => SERVER_VOICE_ON && SERVER_LANGS.has(norm(lang).split('-')[0]);
 const base = (lang) => norm(lang).split('-')[0];
-const clipKey = (text, lang) => `${base(lang)}|${String(text).trim()}`;
+/*
+ * English is spoken by Kokoro-82M in the browser itself (2026-11-07): the model is downloaded once, kept on the
+ * device, and makes each clip locally, with no call to the server. If it cannot load, the server voice reads it.
+ */
+const KOKORO_ON = true;
+const usesKokoro = (lang) => KOKORO_ON && base(lang) === 'en' && kokoroSupported();
+const clipKey = (text, lang) => `${usesKokoro(lang) ? 'kokoro:' : ''}${base(lang)}|${String(text).trim()}`;
+const fromServer = (text, lang) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2 }, responseType: 'blob', timeout: 600000 }).then((r) => r.data);
+const makeClip = (text, lang) => (usesKokoro(lang) ? kokoroBlob(text).catch((e) => { console.warn("[kokoro] falling back to server voice:", e); return fromServer(text, lang); }) : fromServer(text, lang));
+/*
+ * Clips are kept on the device too (2026-11-06, the audio pack): in the browser's Cache Storage, so a unit's
+ * audio downloaded once plays at once on every later visit, with no wait on the voice service.
+ */
+const VOICE_CACHE = 'lingo-voice-v2'; // v2 (2026-11-11): v1 held clips with made-up speech after short words
+const cacheReq = (key) => new Request(`/__lingo-voice/${encodeURIComponent(key)}`);
+// Device storage can hang (seen in Incognito, 2026-11-06): every call gives up after 2 s and the clip comes from the server.
+const within = (p, ms = 2000) => Promise.race([Promise.resolve(p).catch(() => null), new Promise((r) => setTimeout(() => r(null), ms))]);
+let cacheP = null;
+const openCache = () => {
+    if (typeof caches === 'undefined') return Promise.resolve(null);
+    if (!cacheP) cacheP = within(caches.open(VOICE_CACHE)).then((c) => { if (!c) cacheP = null; return c; });
+    return cacheP;
+};
+const fromDevice = async (key) => {
+    const c = await openCache();
+    const hit = c ? await within(c.match(cacheReq(key))) : null;
+    return hit ? within(hit.blob(), 5000) : null;
+};
+const toDevice = async (key, blob) => {
+    const c = await openCache();
+    if (c) await within(c.put(cacheReq(key), new Response(blob, { headers: { 'Content-Type': blob.type || 'audio/wav' } })), 5000);
+};
 const serverClip = (text, lang) => {
     const key = clipKey(text, lang);
     if (!clips.has(key)) {
-        const job = client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2 }, responseType: 'blob', timeout: 180000 })
-            .then((r) => URL.createObjectURL(r.data));
+        const job = fromDevice(key).then((kept) => kept || makeClip(text, lang)
+            .then((blob) => { toDevice(key, blob); return blob; }))
+            .then((blob) => URL.createObjectURL(blob));
         job.catch(() => clips.delete(key)); // a failed clip is asked for again next time
         clips.set(key, job);
     }
     return clips.get(key);
+};
+/** Whether lessons are read by the AI voice (and so need their audio downloaded first). */
+export const aiVoiceOn = () => SERVER_VOICE_ON;
+/** A clip the server has already made, or null (204) without waiting for the voice model. */
+const keptOnServer = (text, lang) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2, cached: 1 }, responseType: 'blob', timeout: 60000 })
+    .then((r) => (r.status === 204 || !r.data?.size ? null : r.data));
+/**
+ * Download clips to the device: `items` [[text, lang], …]; those already on the device are skipped.
+ * First every clip the server has already made is fetched (fast, eight at a time); then every clip still
+ * missing is made — by the voice service, eight at once so it makes them in one batch, and English by Kokoro
+ * on the device — and kept (2026-11-11, user: "before a lesson opens make sure the voices are ready").
+ * on: { onProgress(done, total), signal: { stopped } }. Resolves to { total, failed }.
+ */
+export const downloadClips = async (items, on = {}) => {
+    const seen = new Set(); const todo = [];
+    for (const [text, lang = 'en-IN'] of items || []) {
+        if (!text || !String(text).trim() || !usesServerVoice(lang)) continue;
+        const key = clipKey(text, lang);
+        if (!seen.has(key)) { seen.add(key); todo.push([text, lang, key]); }
+    }
+    let done = 0, failed = 0; const missing = [];
+    on.onProgress?.(0, todo.length);
+    const tick = () => { done++; on.onProgress?.(done, todo.length); };
+    const run = async (list, n, fn) => {
+        let next = 0;
+        const worker = async () => {
+            while (next < list.length && !on.signal?.stopped) {
+                const item = list[next++];
+                try { await fn(...item); } catch (e) { failed++; tick(); console.error("[voice] clip failed:", item[1], JSON.stringify(item[0]), e); }
+            }
+        };
+        await Promise.all(Array.from({ length: n }, worker));
+    };
+    // 1. Already made: on the device, or on the server.
+    await run(todo, 8, async (text, lang, key) => {
+        if (clips.has(key)) { await clips.get(key); return tick(); }
+        if (await fromDevice(key)) return tick();
+        const blob = usesKokoro(lang) ? null : await keptOnServer(text, lang);
+        if (!blob) { missing.push([text, lang, key]); return; }
+        await toDevice(key, blob);
+        if (!clips.has(key)) clips.set(key, Promise.resolve(URL.createObjectURL(blob)));
+        tick();
+    });
+    // 2. Not made yet: made now, and kept on the server and the device.
+    await run(missing, 8, async (text, lang) => { await serverClip(text, lang); tick(); });
+    return { total: todo.length, failed };
 };
 
 /*
@@ -254,7 +335,10 @@ export const prefetch = (items) => {
 };
 // What a lesson screen can read aloud: speechText.js (pure, so the server's audio script uses it too).
 export { stepSpeech, readingSpeech, comicWords } from './speechText';
-import { sentencesOf } from './speechText';
+import { sentencesOf, courseSpeech } from './speechText';
+/** The course being learnt ('kn', 'en', …): a course in an Indian language reads only its own language. */
+let voiceCourse = 'en';
+export const setVoiceCourse = (target) => { voiceCourse = target || 'en'; };
 /** In a component: make its clips ahead while it is open. `items` as prefetch; re-queued when `deps` change. */
 export const usePrefetch = (items, deps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,12 +358,18 @@ const stopAll = () => {
  */
 export const play = (src, text, lang = 'en-IN', on = {}) => {
     const me = ++asked;
-    if (src) {
+    // English text is read by Kokoro even when an older recording exists (2026-11-07).
+    if (src && !(text && usesKokoro(lang))) {
         stopAll();
         const a = new Audio(mediaUrl(src));
         playing = a;
         a.play().catch(() => {});
         return a;
+    }
+    if (text) {
+        const r = courseSpeech(text, lang, voiceCourse);
+        if (!r) return null; // English beside a Kannada word, say: not read
+        [text, lang] = r;
     }
     if (text && usesServerVoice(lang)) {
         stopAll();
@@ -292,7 +382,10 @@ export const play = (src, text, lang = 'en-IN', on = {}) => {
             a.play().catch(() => {});
         }).catch((e) => {
             on.onLoading?.(false);
-            if (me === asked) on.onError?.(e?.response?.status === 503 ? 'The voice service is not set up.' : 'The voice could not be made. Try again.');
+            if (me !== asked) return;
+            // The voice service is down or slow (2026-11-11): the device's voice reads it rather than nothing.
+            if (typeof window !== 'undefined' && window.speechSynthesis && readerFor(lang)) { deviceSay(text, lang); return; }
+            on.onError?.(e?.response?.status === 503 ? 'The voice service is not set up.' : 'The voice could not be made. Try again.');
         });
         return null;
     }
@@ -310,7 +403,7 @@ export const readAloud = (texts, lang = 'en-IN', on = {}) => {
     const me = ++asked;
     let stopped = false;
     const items = texts.map((t) => (Array.isArray(t) ? t : [t, lang]));
-    const parts = items.flatMap(([t, l], i) => sentencesOf(t).map((x) => ({ text: x, lang: l, line: i })));
+    const parts = items.flatMap(([t, l], i) => sentencesOf(t).map((x) => { const r = courseSpeech(x, l, voiceCourse); return r && { text: r[0], lang: r[1], line: i }; }).filter(Boolean));
     const done = () => on.onEnd?.();
     const drop = prefetch(parts.map((x) => [x.text, x.lang]));
     (async () => {
@@ -324,6 +417,7 @@ export const readAloud = (texts, lang = 'en-IN', on = {}) => {
                 on.onLoading?.(false);
                 if (stopped || me !== asked) return;
                 if (url) await new Promise((resolve) => { const a = new Audio(url); playing = a; a.onended = resolve; a.onerror = resolve; a.play().catch(resolve); });
+                else await new Promise((resolve) => deviceSay(part.text, part.lang, resolve)); // service down: the device reads it
             } else await new Promise((resolve) => deviceSay(part.text, part.lang, resolve));
         }
         if (!stopped && me === asked) done();
@@ -346,7 +440,7 @@ const deviceSay = (text, lang, onEnd) => {
     } else onEnd?.();
 };
 // The server's voice needs nothing on the device: any text can be read.
-export const canSpeak = (src) => !!src || typeof window !== 'undefined';
+export const canSpeak = (src) => !!src || (typeof window !== 'undefined' && (SERVER_VOICE_ON || !!window.speechSynthesis));
 
 /** Words of praise for a right answer, chosen by its place so they vary. */
 export const PRAISE = ['Nicely done!', 'Great job!', 'Excellent!', 'You got it!', 'Amazing!', 'Correct!', 'Well done!', 'Brilliant!'];

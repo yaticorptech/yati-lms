@@ -229,9 +229,21 @@ const organizationSchema = new mongoose.Schema({
             activities: [new mongoose.Schema({
                 name: { type: String, required: true, trim: true, maxlength: 120 },
                 mode: { type: String, enum: ['max', 'each'], default: 'max' },
-                marks: { type: Number, min: 0, max: 1000, default: 10 }
+                marks: { type: Number, min: 0, max: 1000, default: 10 },
+                // "Per proof" only (2026-11-06): the most the activity can give however
+                // many proofs are accepted (1 per presentation, at most 5). null: no limit.
+                cap: { type: Number, min: 0, max: 100000, default: null },
+                // Bonus (2026-11-06): on accepting proof the teacher may add up to this much more,
+                // in all, on top of the marks (the sheet's "Bonus" column). Not part of the total.
+                bonusMax: { type: Number, min: 0, max: 1000, default: 0 },
+                // Extra (2026-11-06): bonus or year-specific (Mock Interview, final year):
+                // adds to the student's score, but not to the organization's maximum.
+                bonus: { type: Boolean, default: false }
             })]
-        })]
+        })],
+        // The maximum the organization means its list to add up to, e.g. 360 (2026-11-06).
+        // Only a check: the 360 Activities page warns while the list does not add up to it.
+        targetTotal: { type: Number, min: 0, max: 100000, default: null }
     }
 }, { timestamps: true });
 
