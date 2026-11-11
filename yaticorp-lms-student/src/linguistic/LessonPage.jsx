@@ -8,7 +8,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Zap, Target, Timer, Award, Download, MessageSquareText } from 'lucide-react';
-import { saveBlob } from '../native/saveFile';
+import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
+const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi, announceRewards } from './api';
 import { COLORS, levelOf, backOr, setVoiceCourse } from './meta';
 import { Chunky, Loading, Problem } from './ui';
@@ -22,9 +23,10 @@ function CertificateBanner({ certificate, courseName = 'English' }) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const label = levelOf(certificate.level).label;
-    const download = () => {
+    const download = async () => {
+        if (!(await ensureDriveLinked(CERT_DRIVE_REASON))) return;
         setBusy(true); setError('');
-        linguisticApi.certificatePdf(certificate.level).then((blob) => saveBlob(blob, `${courseName}_${label}_Certificate.pdf`, { title: 'Certificate' }))
+        linguisticApi.certificatePdf(certificate.level).then((blob) => downloadWithDrive(blob, `${courseName}_${label}_Certificate.pdf`, { title: 'Certificate', reason: CERT_DRIVE_REASON }))
             .catch((e) => setError(e.message)).finally(() => setBusy(false));
     };
     return (

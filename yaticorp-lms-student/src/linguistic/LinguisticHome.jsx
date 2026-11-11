@@ -15,7 +15,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Check, Lock, Crown, Trophy, BookOpen, X, Download, Dumbbell, Star, Mic, Headphones, Gift, PackageOpen, Flag, LayoutList, Loader2, MessageSquareText, CalendarDays, PenLine, LayoutGrid, BookImage, NotebookText } from 'lucide-react';
-import { saveBlob } from '../native/saveFile';
+import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
+const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi, announceRewards } from './api';
 import { COLORS, MODULES, shortDirection, blurbOf, levelOf, hasAssessment } from './meta';
 import { Bar, Chunky, Loading, Mascot, Problem, Panel } from './ui';
@@ -180,9 +181,10 @@ function TrophyNode({ section, certificateMinAverage, courseName = 'English' }) 
     const [error, setError] = useState('');
     const got = !!section.certificate;
     const look = got ? COLORS.gold : section.complete ? { face: '#D7D7D7', edge: '#A0A0A0' } : { face: '#E5E5E5', edge: '#B7B7B7' };
-    const download = () => {
+    const download = async () => {
+        if (!(await ensureDriveLinked(CERT_DRIVE_REASON))) return;
         setBusy(true); setError('');
-        linguisticApi.certificatePdf(section.level).then((blob) => saveBlob(blob, `${courseName}_${section.label}_Certificate.pdf`, { title: 'Certificate' })).catch((e) => setError(e.message)).finally(() => setBusy(false));
+        linguisticApi.certificatePdf(section.level).then((blob) => downloadWithDrive(blob, `${courseName}_${section.label}_Certificate.pdf`, { title: 'Certificate', reason: CERT_DRIVE_REASON })).catch((e) => setError(e.message)).finally(() => setBusy(false));
     };
     return (
         <div className="flex flex-col items-center pt-4" data-trophy={section.level} data-earned={got}>

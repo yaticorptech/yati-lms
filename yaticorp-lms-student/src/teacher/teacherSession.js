@@ -12,6 +12,11 @@ export const TEACHER_DATA = 'teacherData';
 /** Which sign-in the person chose last on this device: 'student' | 'teacher'. */
 export const SIGNIN_AS = 'yati:signinAs';
 export const TEACHER_SESSION_ENDED = 'yati:teacherSessionEnded';
+/** A super admin working in this teacher's dashboard (2026-11-11): { by, name }. */
+export const TEACHER_ADMIN_VIEW = 'teacherAdminViewing';
+export const readTeacherAdminView = () => {
+    try { return JSON.parse(localStorage.getItem(TEACHER_ADMIN_VIEW) || 'null'); } catch { return null; }
+};
 
 export const readTeacher = () => {
     try {
@@ -26,7 +31,7 @@ export const hasTeacherSession = () => {
 };
 
 export const forgetTeacher = () => {
-    try { localStorage.removeItem(TEACHER_TOKEN); localStorage.removeItem(TEACHER_DATA); } catch { /* storage off */ }
+    try { localStorage.removeItem(TEACHER_TOKEN); localStorage.removeItem(TEACHER_DATA); localStorage.removeItem(TEACHER_ADMIN_VIEW); } catch { /* storage off */ }
 };
 
 export const rememberSigninAs = (role) => {
@@ -39,6 +44,7 @@ export const readSigninAs = () => {
 /** Signed in or registered: keep the session and open the teacher dashboard (a full load, as for students). */
 export const enterTeacher = (data) => {
     forgetStudent();
+    try { localStorage.removeItem(TEACHER_ADMIN_VIEW); } catch { /* storage off */ }
     localStorage.setItem(TEACHER_TOKEN, data.token);
     const { token: _token, ...rest } = data;
     localStorage.setItem(TEACHER_DATA, JSON.stringify(rest));

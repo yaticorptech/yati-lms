@@ -5,7 +5,8 @@
  */
 import { useEffect, useState } from 'react';
 import { Eye, Download, Loader2, X } from 'lucide-react';
-import { saveBlob } from '../native/saveFile';
+import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
+const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 
 export default function CertificateView({ load, fileName, compact = false, icons = false }) {
     const [blob, setBlob] = useState(null);
@@ -21,7 +22,8 @@ export default function CertificateView({ load, fileName, compact = false, icons
         get().then(then).catch((e) => setError(e.message || 'The certificate could not be loaded.')).finally(() => setBusy(''));
     };
     const view = () => run('view', () => setOpen(true));
-    const save = () => run('save', (b) => saveBlob(b, fileName, { title: 'Certificate' }));
+    // Drive first (2026-11-05): no download until it is linked.
+    const save = async () => { if (await ensureDriveLinked(CERT_DRIVE_REASON)) run('save', (b) => downloadWithDrive(b, fileName, { title: 'Certificate', reason: CERT_DRIVE_REASON })); };
     const btn = icons ? 'inline-flex h-10 w-10 items-center justify-center rounded-full font-bold shadow-sm disabled:opacity-60'
         : `inline-flex ${compact ? 'min-h-9 px-3 text-xs' : 'min-h-10 px-4 text-sm'} items-center gap-1.5 rounded-xl font-bold disabled:opacity-60`;
 

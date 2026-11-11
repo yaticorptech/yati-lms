@@ -1,5 +1,6 @@
 /** Linguistic Ability — the calls, on the LMS's axios client (as interview/api.js). */
 import client from '../utils/api';
+import { askIfDriveRequired } from '../integrations/google/driveGate';
 
 const unwrap = (err) => {
     const body = err.response?.data;
@@ -68,7 +69,8 @@ export const linguisticApi = {
     deleteNote: (id) => del(`/notes/${id}`),
     certificates: () => get('/certificates'),
     /** The certificate PDF, as a Blob. */
-    certificatePdf: (level, course = null) => client.get(`/linguistic/certificates/${level}/pdf${course ? `?course=${encodeURIComponent(course)}` : ''}`, { responseType: 'blob' }).then((r) => r.data).catch(unwrap),
+    certificatePdf: (level, course = null) => client.get(`/linguistic/certificates/${level}/pdf${course ? `?course=${encodeURIComponent(course)}` : ''}`, { responseType: 'blob' }).then((r) => r.data)
+        .catch((err) => { askIfDriveRequired(err, 'So the certificates you earn here are kept in your own Google Drive.'); return unwrap(err); }),
     hideCertificate: (level, course = null) => del(`/certificates/${level}${course ? `?course=${encodeURIComponent(course)}` : ''}`)
 };
 
