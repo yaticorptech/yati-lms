@@ -3,13 +3,15 @@
  * server: Competitions, Games and a game's own page, My Teams, Leaderboard, Results & Certificates,
  * Calendar and My Performance. Overview is in Overview.jsx.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
     Trophy, Gamepad2, Swords, UsersRound, BarChart3, Award, CalendarDays, TrendingUp, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight,
-    CheckCircle2, Clock, Medal, Crown, Info, Radio, Target, Flame, BookOpen, ClipboardList, CalendarClock
+    CheckCircle2, ClipboardCheck, Clock, Medal, Crown, Info, Radio, Target, Flame, BookOpen, ClipboardList, CalendarClock, Play, Bell, BellRing, Plus, X, Trash2, Loader2, CalendarPlus
 } from 'lucide-react';
 import HubLayout from './HubLayout';
+import Portal from '../../components/Portal';
+import { myEvents, whenOf, REMINDERS, CHANGED as MY_CHANGED } from '../myEvents';
 import useLoad from './useLoad';
 import { competitionsApi, GAMES, gameImage, fmtDateTime, ORDINAL } from '../api';
 import { arenaApi } from '../arena/api';
@@ -27,27 +29,69 @@ const BOX = 'rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5';
 const OPEN_PHASES = ['registration-open', 'closing-soon', 'registration-soon'];
 const SOON_PHASES = ['upcoming'];
 const STAGES = {
-    live: { title: 'Live now', icon: Radio, subtitle: 'Competitions being played right now.', comp: (c) => c.status === 'live', arena: (a) => a.state === 'live', empty: 'No competition is live right now.' },
-    open: { title: 'Open for registration', icon: ClipboardList, subtitle: 'Every competition the platform and colleges have opened for entries. Ask your college\'s coordinator to enter you.', comp: (c) => OPEN_PHASES.includes(c.phase), arena: (a) => a.state === 'registration', empty: 'No competition is taking entries right now.' },
-    upcoming: { title: 'Coming up', icon: CalendarClock, subtitle: 'Registration is over and they have not started yet.', comp: (c) => SOON_PHASES.includes(c.phase), arena: (a) => a.state === 'upcoming', empty: 'Nothing is coming up right now.' },
+    live: { title: 'Live Competitions', icon: Radio, subtitle: 'View and play ongoing competitions, track real-time progress, and see the latest updates until they finish.', emptyLine: 'There are no ongoing competitions at the moment. Check back soon for new live competitions.', comp: (c) => c.status === 'live', arena: (a) => a.state === 'live', empty: 'No live competitions right now.' },
+    open: { title: 'Open for registration', icon: ClipboardList, subtitle: 'Every current competition — the ones open for entries first. Ask your college\'s coordinator to enter you.', comp: (c) => !['completed', 'cancelled'].includes(c.status), arena: (a) => ['registration', 'upcoming', 'live'].includes(a.state), isOpen: (c, kind) => (kind === 'arena' ? c.state === 'registration' : OPEN_PHASES.includes(c.phase)), empty: 'No competition is taking entries right now.' },
+    // Registered (2026-11-06, was "Coming up"): the competitions I am entered in that are not over yet — my team in
+    // (approved, or waiting for approval), or my Quiz Arena entry.
+    upcoming: { title: 'Registered', icon: ClipboardCheck, subtitle: 'The competitions you are entered in that are not over yet.', comp: (c) => !!c.myTeam && !['withdrawn', 'rejected'].includes(c.myTeam.status) && !['completed', 'cancelled'].includes(c.status), arena: (a) => ['approved', 'pending'].includes(a.entryStatus) && !['ended', 'results'].includes(a.state), empty: 'You are not entered in any competition yet.', emptyLine: 'Ask your college\'s coordinator to enter you in one that is open for registration.' },
     completed: { title: 'Completed', icon: CheckCircle2, subtitle: 'Competitions that are over. Open one for its results.', comp: (c) => c.status === 'completed', arena: (a) => ['ended', 'results'].includes(a.state), empty: 'No competition has finished yet.', latest: true }
 };
 
+// Each stage in its tab's own colour (2026-11-04): the title's icon, and the card shown when there are none.
+const STAGE_LOOK = {
+    live: { icon: 'from-sky-400 to-blue-600 shadow-blue-500/40', card: 'border-blue-300/80 from-[#f4f8ff] to-[#e8f1ff]', wave: 'rgba(96,165,250,.35)', disc: 'bg-blue-100 text-blue-600', ink: 'text-[#0f2a6b]' },
+    open: { icon: 'from-emerald-400 to-green-600 shadow-emerald-500/40', card: 'border-emerald-300/80 from-[#f4fcf6] to-[#e9f8ee]', wave: 'rgba(74,222,128,.35)', disc: 'bg-emerald-100 text-emerald-700', ink: 'text-[#0f3d1f]' },
+    upcoming: { icon: 'from-amber-400 to-orange-500 shadow-orange-500/40', card: 'border-orange-300/80 from-[#fffaf3] to-[#fff0e0]', wave: 'rgba(251,146,60,.32)', disc: 'bg-orange-100 text-orange-600', ink: 'text-[#4a2106]' },
+    completed: { icon: 'from-indigo-400 to-violet-600 shadow-indigo-500/40', card: 'border-indigo-300/80 from-[#f7f6ff] to-[#eceaff]', wave: 'rgba(129,140,248,.32)', disc: 'bg-indigo-100 text-indigo-600', ink: 'text-[#1e1b4b]' }
+};
+
+/** None of this stage: a soft card in its colour, waves at two corners, its sign on a disc. */
+const StageEmpty = ({ st, look }) => (
+    <section className={`relative overflow-hidden rounded-[26px] border bg-gradient-to-b px-5 py-10 text-center shadow-[0_18px_40px_-26px_rgba(0,0,0,.25)] sm:py-12 ${look.card}`} data-stage-empty>
+        <span aria-hidden className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-[45%] rounded-[50%]" style={{ background: `radial-gradient(closest-side, ${look.wave}, transparent)` }} />
+        <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 h-40 w-[45%] rounded-[50%]" style={{ background: `radial-gradient(closest-side, ${look.wave}, transparent)` }} />
+        <span className={`relative mx-auto flex h-20 w-20 items-center justify-center rounded-full ${look.disc}`}><st.icon className="h-10 w-10" strokeWidth={2} aria-hidden /></span>
+        <p className={`relative mt-4 text-lg font-black sm:text-2xl ${look.ink}`}>{st.empty}</p>
+        <p className="relative mt-1 text-sm text-slate-600 sm:text-lg">{st.emptyLine || 'Competitions appear here as soon as they are published.'}</p>
+    </section>
+);
+
 const StagePage = ({ stage }) => {
+    const look = STAGE_LOOK[stage];
     const st = STAGES[stage];
     const list = useLoad(competitionsApi.list);
     const arena = useLoad(arenaApi.list);
     const error = list.error || arena.error;
-    const rows = [
-        ...(arena.data || []).filter(st.arena).map((a) => <ArenaGoldCard key={`a-${a.id}`} c={a} />),
-        ...(list.data?.competitions || []).filter(st.comp).sort((a, b) => (st.latest ? -1 : 1) * (new Date(a.startsAt) - new Date(b.startsAt))).map((c) => <CompetitionCard key={c.id} c={c} />)
+    // Newest first on every page (2026-11-06), competitions and Quiz Arenas sorted together by their date: what
+    // started (or starts) last at the top, the oldest at the bottom.
+    const when = (c) => new Date(c.startsAt || c.completedAt || c.createdAt || 0).getTime();
+    const newestFirst = (a, b) => when(b.c) - when(a.c);
+    const all = [
+        ...(arena.data || []).filter(st.arena).map((c) => ({ kind: 'arena', c })),
+        ...(list.data?.competitions || []).filter(st.comp).map((c) => ({ kind: 'comp', c }))
     ];
+    const card = (r) => (r.kind === 'arena' ? <ArenaGoldCard c={r.c} /> : <CompetitionCard c={r.c} />);
+    const rows = st.isOpen
+        // Registration (2026-11-06): every current competition — the open ones first, tagged Open in green; those whose
+        // registration is over still listed, tagged Closed. Newest first within each.
+        ? all.map((r) => ({ ...r, open: st.isOpen(r.c, r.kind) }))
+            .sort((a, b) => (b.open - a.open) || newestFirst(a, b))
+            .map((r) => (
+                <div key={`${r.kind}-${r.c.id}`} className="relative h-full" data-registration={r.open ? 'open' : 'closed'}>
+                    <span className={`pointer-events-none absolute top-3 right-3 z-20 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black tracking-wide uppercase shadow-sm ${r.open ? 'bg-emerald-500 text-white' : 'bg-white/90 text-slate-500 ring-1 ring-slate-200'}`}>
+                        {r.open && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden />}
+                        {r.open ? 'Open' : 'Closed'}
+                    </span>
+                    {card(r)}
+                </div>
+            ))
+        : [...all].sort(newestFirst).map((r) => <div key={`${r.kind}-${r.c.id}`} className="h-full">{card(r)}</div>);
     return (
-        <HubLayout title={st.title} icon={st.icon} subtitle={st.subtitle}>
+        <HubLayout title={st.title} icon={st.icon} subtitle={st.subtitle} tone={look?.icon}>
             {error ? <Failed error={error} onRetry={() => { list.reload(); arena.reload(); }} />
                 : !list.data || !arena.data ? <Loading />
                     : rows.length ? <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3" data-stage={stage}>{rows}</div>
-                        : <Empty icon={st.icon} title={st.empty}>Competitions appear here as soon as they are published.</Empty>}
+                        : look ? <StageEmpty st={st} look={look} /> : <Empty icon={st.icon} title={st.empty}>Competitions appear here as soon as they are published.</Empty>}
         </HubLayout>
     );
 };
@@ -55,47 +99,8 @@ export const OpenPage = () => <StagePage stage="open" />;
 export const UpcomingPage = () => <StagePage stage="upcoming" />;
 export const CompletedPage = () => <StagePage stage="completed" />;
 
-/**
- * Live now (2026-11-04), in blue as its reference: a banner — the title on a glass pill, what the page is for, a
- * silver trophy on a blue wave — and the live competitions under it, or a card saying there are none.
- */
-export const LivePage = () => {
-    const list = useLoad(competitionsApi.list);
-    const arena = useLoad(arenaApi.list);
-    const error = list.error || arena.error;
-    const rows = [
-        ...(arena.data || []).filter((a) => a.state === 'live').map((a) => <ArenaGoldCard key={`a-${a.id}`} c={a} />),
-        ...(list.data?.competitions || []).filter((c) => c.status === 'live').map((c) => <CompetitionCard key={c.id} c={c} />)
-    ];
-    const CARD = 'relative overflow-hidden rounded-[26px] border border-blue-100 bg-white shadow-[0_18px_40px_-20px_rgba(29,78,216,.45),inset_0_1px_0_#fff]';
-    return (
-        <HubLayout>
-            <section className={`${CARD} min-h-[11rem] bg-gradient-to-r from-[#f4f8ff] via-white to-white sm:min-h-[13.5rem]`} data-live-hero>
-                <img src="/competitions/hub/live-hero.png" alt="" aria-hidden="true" className="absolute inset-y-0 right-0 h-full w-auto max-w-[75%] object-cover object-right opacity-90 sm:max-w-[62%] sm:opacity-100"
-                    style={{ maskImage: 'linear-gradient(to right, transparent, black 30%)', WebkitMaskImage: 'linear-gradient(to right, transparent, black 30%)' }} />
-                <div className="relative flex max-w-xl flex-col gap-3 p-5 sm:p-8">
-                    <div className="flex items-center gap-3">
-                        <span aria-hidden="true" className="h-12 w-1.5 rounded-full bg-gradient-to-b from-[#3b82f6] to-[#1d4ed8] sm:h-14" />
-                        <h1 className="inline-flex items-center gap-3 rounded-2xl bg-gradient-to-b from-white/90 to-blue-50/80 px-4 py-2 text-3xl font-black tracking-tight text-[#1d4ed8] shadow-[0_10px_24px_-12px_rgba(29,78,216,.5),inset_0_1px_0_#fff] ring-1 ring-blue-100 backdrop-blur sm:text-5xl">
-                            <Radio className="h-8 w-8 sm:h-11 sm:w-11" strokeWidth={2.4} aria-hidden="true" /> Live Now
-                        </h1>
-                    </div>
-                    <p className="max-w-[26rem] pl-5 text-sm font-medium leading-relaxed text-slate-600 sm:max-w-md sm:text-lg">View and play ongoing competitions, track real-time progress, and see the latest updates until they finish.</p>
-                </div>
-            </section>
-            {error ? <Failed error={error} onRetry={() => { list.reload(); arena.reload(); }} />
-                : !list.data || !arena.data ? <Loading />
-                    : rows.length ? <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3" data-stage="live">{rows}</div>
-                        : (
-                            <section className={`${CARD} flex flex-col items-center px-5 py-8 text-center`} data-live-empty>
-                                <img src="/competitions/hub/live-empty.png" alt="" aria-hidden="true" className="h-28 w-auto mix-blend-multiply sm:h-32" />
-                                <p className="mt-3 text-lg font-black text-slate-900 sm:text-2xl">No competitions are live right now.</p>
-                                <p className="mt-1 text-sm text-slate-600 sm:text-base">Ongoing competitions will appear here once they are published.</p>
-                            </section>
-                        )}
-        </HubLayout>
-    );
-};
+/** Live now (2026-11-04), as the other stages: the title in blue, and a soft blue card when none is on. */
+export const LivePage = () => <StagePage stage="live" />;
 
 /* ── Games ────────────────────────────────────────────────────────────── */
 
@@ -115,12 +120,13 @@ export const GameDetailPage = () => {
         ? (arena.data || []).filter((c) => ['live', 'registration', 'upcoming'].includes(c.state)).map((c) => <ArenaGoldCard key={c.id} c={c} />)
         : (list.data?.competitions || []).filter((c) => c.game === game && ['live', 'registration', 'closed'].includes(c.status) && c.phase !== 'expired').map((c) => <CompetitionCard key={c.id} c={c} />);
     const loading = game === 'quizarena' ? !arena.data : !list.data;
+    const failed = game === 'quizarena' ? arena.error : list.error;
     return (
         <HubLayout title={g.label} icon={Gamepad2} subtitle={g.blurb}
             actions={<Link to="/competitions" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><ArrowLeft size={15} aria-hidden="true" /> Back</Link>}>
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
                 <div className="overflow-hidden rounded-3xl bg-slate-900 shadow-xl shadow-slate-900/20 [perspective:1000px]">
-                    <img src={game === 'quizarena' ? ARENA.image : gameImage(game)} alt="" className="aspect-[16/10] w-full object-cover" />
+                    <img src={gameImage(game)} alt="" className="aspect-[395/228] w-full object-cover" />
                 </div>
                 <Box className="flex flex-col">
                     <Heading icon={Info}>At a glance</Heading>
@@ -144,7 +150,7 @@ export const GameDetailPage = () => {
             </Box>
             <section>
                 <Heading icon={Radio}>{g.label} competitions now</Heading>
-                {loading ? <Loading /> : active.length ? <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">{active}</div>
+                {failed && loading ? <Failed error={failed} onRetry={game === 'quizarena' ? arena.reload : list.reload} /> : loading ? <Loading /> : active.length ? <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">{active}</div>
                     : <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">No {g.label} competition is live or open right now.</p>}
             </section>
         </HubLayout>
@@ -164,7 +170,7 @@ export const TeamsPage = () => {
                 <Empty icon={UsersRound} title="You are not in a team yet">When your coordinator puts you in a team, it appears here with its members and its matches.</Empty>
             ) : (
                 <div className="grid gap-4 lg:grid-cols-2">
-                    {data.competitions.map((c) => {
+                    {[...data.competitions].sort((a, b) => new Date(b.startsAt || 0) - new Date(a.startsAt || 0)).map((c) => {
                         const t = c.myTeam;
                         return (
                             <Box key={c.id} className="flex flex-col gap-3">
@@ -217,7 +223,22 @@ export const TeamsPage = () => {
 /* ── Leaderboard ──────────────────────────────────────────────────────── */
 
 export const LeaderboardPage = () => (
-    <HubLayout title="Leaderboard" icon={BarChart3} subtitle="College, team and individual rankings across every game. 3 points a win, 1 a match played, 10 / 6 / 4 for 1st / 2nd / 3rd.">
+    <HubLayout>
+        {/* The banner (2026-11-04), as the reference: RANKINGS, the title, how points are given, the trophy. */}
+        <section className="relative overflow-hidden rounded-[26px] border border-violet-100 bg-gradient-to-r from-[#f7f5ff] via-white to-[#f3efff] shadow-[0_18px_40px_-26px_rgba(109,40,217,.45)]" data-leaderboard-hero>
+            <img src="/competitions/hub/lb-hero.png" alt="" aria-hidden className="pointer-events-none absolute inset-y-0 right-0 h-full w-auto max-w-[62%] object-cover object-right opacity-40 sm:max-w-[55%] sm:opacity-100"
+                style={{ maskImage: 'linear-gradient(to right, transparent, black 25%)', WebkitMaskImage: 'linear-gradient(to right, transparent, black 25%)' }} />
+            <div className="relative px-5 py-6 sm:px-10 sm:py-7">
+                <p className="flex items-center gap-3 text-xs font-bold tracking-[0.15em] text-slate-500 uppercase sm:text-sm">Rankings <span aria-hidden className="h-1 w-12 rounded-full bg-violet-600" /></p>
+                <h1 className="mt-1 text-4xl font-black tracking-tight text-[#0e0f2b] sm:text-5xl">Leaderboard</h1>
+                <p className="mt-2 max-w-xl text-sm text-slate-600 sm:text-lg">College, team and individual rankings across every game.</p>
+                <div className="mt-4 flex flex-wrap gap-2 sm:gap-3">
+                    {[[Trophy, '3 points a win'], [Gamepad2, '1 per match played'], [Crown, 'Top 3 finish: +10 / +6 / +4']].map(([Icon, t]) => (
+                        <span key={t} className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 sm:px-5 sm:text-base"><Icon className="h-4 w-4 text-amber-500 sm:h-5 sm:w-5" aria-hidden="true" /> {t}</span>
+                    ))}
+                </div>
+            </div>
+        </section>
         <LeaderboardTab />
     </HubLayout>
 );
@@ -228,15 +249,27 @@ export const ResultsPage = () => {
     const [params, setParams] = useSearchParams();
     const show = params.get('show') === 'certificates' ? 'certificates' : 'results';
     return (
-        <HubLayout title="Results & Certificates" icon={Award} subtitle="Final rankings of finished competitions, and your certificates to view and download.">
-            <div className="flex w-fit gap-1 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200" role="tablist" aria-label="Show">
-                {[['results', 'Results', Medal], ['certificates', 'My certificates', Award]].map(([id, label, Icon]) => (
-                    <button key={id} type="button" role="tab" aria-selected={show === id} onClick={() => setParams(id === 'results' ? {} : { show: id }, { replace: true })}
-                        className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold transition-colors ${show === id ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-indigo-700'}`}>
-                        <Icon size={16} aria-hidden="true" /> {label}
-                    </button>
-                ))}
-            </div>
+        <HubLayout>
+            {/* The banner (2026-11-04), as the reference: COMPETITION CENTER, the title, Results / My Certificates, and the
+                certificate and trophy on navy behind a gold line. */}
+            <section className="relative overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-r from-[#f6f7fb] via-white to-[#eef1f7] shadow-[0_18px_40px_-26px_rgba(15,23,42,.45)]" data-results-hero>
+                {/* Desktop/tablet: the art on the right, beside the text. */}
+                <img src="/competitions/hub/res-hero.png" alt="" aria-hidden className="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-auto max-w-[52%] object-cover object-right sm:block" />
+                {/* Phone: the same art, full strength, as a strip across the top of the card. */}
+                <img src="/competitions/hub/res-hero.png" alt="" aria-hidden className="block h-36 w-full object-cover object-[82%_50%] min-[400px]:h-40 sm:hidden" />
+                <div className="relative px-4 py-5 sm:px-9 sm:py-7">
+                    <h1 className="text-[1.75rem] leading-tight font-black tracking-tight text-[#0f172a] sm:text-5xl">Results &amp; Certificates</h1>
+                    <p className="mt-2 max-w-xl text-sm text-slate-600 sm:text-lg">Final rankings of finished competitions, and your certificates to view and download.</p>
+                    <div className="mt-5 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-3" role="tablist" aria-label="Show">
+                        {[['results', 'Results', Trophy], ['certificates', 'My Certificates', Award]].map(([id, label, Icon]) => (
+                            <button key={id} type="button" role="tab" aria-selected={show === id} onClick={() => setParams(id === 'results' ? {} : { show: id }, { replace: true })}
+                                className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold whitespace-nowrap transition-colors sm:min-h-12 sm:justify-start sm:px-8 sm:text-base ${show === id ? 'bg-[#13213d] text-white shadow-[0_10px_22px_-10px_rgba(15,23,42,.8)]' : 'bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50'}`}>
+                                <Icon size={20} aria-hidden="true" /> {label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </section>
             {show === 'results' ? <ResultsTab /> : <HistoryTab />}
         </HubLayout>
     );
@@ -251,7 +284,85 @@ const KIND = {
     start: ['Starts', 'bg-indigo-500'],
     deadline: ['Registration closes', 'bg-amber-500'],
     opens: ['Registration opens', 'bg-emerald-500'],
-    ends: ['Closes', 'bg-slate-400']
+    ends: ['Closes', 'bg-slate-400'],
+    mine: ['My event', 'bg-red-500'],
+    // The Career Path calendar's own events (exams, classes, holidays…), shown as what they are (2026-11-06).
+    career: ['Career event', 'bg-teal-500']
+};
+const pad = (n) => String(n).padStart(2, '0');
+const isoDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+/**
+ * Add an event to a day (2026-11-04), as a phone's calendar does: a name — or a competition picked, which fills in
+ * its name, day, time and page — the day, the time, and a reminder. It pops up then (ReminderPopup.jsx).
+ */
+const AddEvent = ({ day, onClose }) => {
+    const [f, setF] = useState(() => ({ title: '', date: isoDay(day || new Date()), time: '10:00', remindBefore: '30', link: '', notes: '' }));
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const set = (patch) => setF((x) => ({ ...x, ...patch }));
+    const save = (e) => {
+        e.preventDefault();
+        if (!f.title.trim()) { setError('Give the event a name.'); return; }
+        if (f.remindBefore !== '' && whenOf(f.date, f.time).getTime() - Number(f.remindBefore) * 60000 < Date.now() - 60000) { setError('That reminder time has already passed. Pick a later time, or a shorter reminder.'); return; }
+        setBusy(true); setError('');
+        // The browser's leave to notify too, asked once, as the reminder is set.
+        if (f.remindBefore !== '' && typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+        myEvents.add({ title: f.title.trim(), date: f.date, time: f.time, remindBefore: f.remindBefore, link: f.link, notes: f.notes }).then(onClose)
+            .catch((err) => setError(err.response?.data?.message || err.message || 'Could not save it.')).finally(() => setBusy(false));
+    };
+    const FIELD = 'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100';
+    return (
+        <Portal>
+            <div className="fixed inset-0 z-[130] flex items-end justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:items-center" onClick={onClose}>
+                <form onSubmit={save} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add event" className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl" data-add-event>
+                    <div className="flex items-center justify-between gap-2">
+                        <p className="flex items-center gap-2 text-lg font-black text-slate-900"><CalendarPlus className="h-5 w-5 text-violet-600" /> Add event</p>
+                        <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><X size={18} /></button>
+                    </div>
+                    <label className="mt-4 block text-xs font-bold text-slate-600">Event name
+                        <input value={f.title} onChange={(e) => set({ title: e.target.value })} maxLength={120} placeholder="e.g. Chess quarter-final" className={FIELD} data-event-title />
+                    </label>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                        <label className="block text-xs font-bold text-slate-600">Date<input type="date" required value={f.date} onChange={(e) => set({ date: e.target.value })} className={FIELD} data-event-date /></label>
+                        {/* The time on a 12-hour clock: hour, minute, and AM / PM (2026-11-04). */}
+                        <div className="block text-xs font-bold text-slate-600">Time
+                            <div className="mt-1 flex items-stretch gap-1.5" data-event-time>
+                                {(() => {
+                                    const [h24, mi] = f.time.split(':').map(Number);
+                                    const pm = h24 >= 12; const h12 = h24 % 12 || 12;
+                                    const to24 = (h, m, p) => `${pad((h % 12) + (p ? 12 : 0))}:${pad(m)}`;
+                                    const SEL = 'min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-1.5 py-2.5 text-center text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100';
+                                    return (<>
+                                        <select aria-label="Hour" value={h12} onChange={(e) => set({ time: to24(Number(e.target.value), mi, pm) })} className={SEL}>{Array.from({ length: 12 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{h}</option>)}</select>
+                                        <select aria-label="Minute" value={mi} onChange={(e) => set({ time: to24(h12, Number(e.target.value), pm) })} className={SEL}>{Array.from({ length: 60 }, (_, i) => i).map((m) => <option key={m} value={m}>{pad(m)}</option>)}</select>
+                                        <span className="flex shrink-0 overflow-hidden rounded-xl ring-1 ring-slate-200" role="group" aria-label="AM or PM">
+                                            {['AM', 'PM'].map((x) => (
+                                                <button key={x} type="button" aria-pressed={(x === 'PM') === pm} onClick={() => set({ time: to24(h12, mi, x === 'PM') })}
+                                                    className={`px-2 text-xs font-black ${(x === 'PM') === pm ? 'bg-violet-600 text-white' : 'bg-white text-slate-500 hover:bg-violet-50'}`}>{x}</button>
+                                            ))}
+                                        </span>
+                                    </>);
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+                    <label className="mt-3 block text-xs font-bold text-slate-600">Reminder
+                        <select value={f.remindBefore} onChange={(e) => set({ remindBefore: e.target.value })} className={FIELD} data-event-reminder>
+                            {REMINDERS.map(([v, l]) => <option key={v || 'none'} value={v}>{l}</option>)}
+                        </select>
+                    </label>
+                    <label className="mt-3 block text-xs font-bold text-slate-600">Note (optional)
+                        <input value={f.notes} onChange={(e) => set({ notes: e.target.value })} maxLength={500} placeholder="e.g. Join 10 minutes early with my code" className={FIELD} />
+                    </label>
+                    {error && <p role="alert" className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
+                    <button type="submit" disabled={busy} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#8b5cf6] to-[#6d28d9] py-3 text-base font-black text-white shadow-md disabled:opacity-60" data-event-save>
+                        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <BellRing className="h-5 w-5" />} Save event
+                    </button>
+                </form>
+            </div>
+        </Portal>
+    );
 };
 
 /** The calendar itself; `compact`: the month and its list one under the other (the first page's). */
@@ -263,6 +374,17 @@ export const CalendarView = ({ compact = false }) => {
     const [picked, setPicked] = useState(null);
     // The list beside the month, a few at a time (2026-11-04): < and > page through it.
     const [page, setPage] = useState(0);
+    // My own events (2026-11-04), and the Add event form.
+    const [mine, setMine] = useState([]);
+    const [adding, setAdding] = useState(false);
+    const [removeError, setRemoveError] = useState('');
+    const removeMine = (id) => { setRemoveError(''); myEvents.remove(id).catch((err) => setRemoveError(err.response?.data?.message || err.message || 'Could not delete the event.')); };
+    useEffect(() => {
+        const load = () => myEvents.list().then(setMine).catch(() => {});
+        load();
+        window.addEventListener(MY_CHANGED, load);
+        return () => window.removeEventListener(MY_CHANGED, load);
+    }, []);
     // Every dated thing: a competition's start, its registration opening and closing, a quiz's or hackathon's close.
     const events = useMemo(() => {
         const out = [];
@@ -280,8 +402,13 @@ export const CalendarView = ({ compact = false }) => {
             if (c.startsAt) out.push({ at: c.startsAt, kind: 'start', title: c.title, sub: 'Quiz Arena', to });
             if (c.registrationDeadline) out.push({ at: c.registrationDeadline, kind: 'deadline', title: c.title, sub: 'Quiz Arena', to });
         }
+        for (const e of mine) {
+            // Only what was added here (type Competition) is "My event"; the rest are Career Path events, named by their type.
+            const own = (e.type || 'Competition') === 'Competition';
+            out.push({ at: whenOf(e.date, e.time), kind: own ? 'mine' : 'career', label: own ? null : e.type, title: e.title, sub: e.remindAt ? 'Reminder set' : own ? 'My event' : 'From your Career calendar', to: e.link || null, id: e._id });
+        }
         return out.sort((a, b) => new Date(a.at) - new Date(b.at));
-    }, [list.data, arena.data]);
+    }, [list.data, arena.data, mine]);
     const byDay = useMemo(() => events.reduce((m, e) => { (m[dayKey(e.at)] ||= []).push(e); return m; }, {}), [events]);
     // The month's grid, weeks starting on Monday.
     const first = new Date(month);
@@ -329,6 +456,7 @@ export const CalendarView = ({ compact = false }) => {
                     <section className={compact ? `${PANEL} flex flex-col p-4 sm:p-5` : BOX}>
                         <Heading icon={CalendarDays} aside={(
                             <span className="flex items-center gap-2">
+                                <button type="button" onClick={() => setAdding(true)} data-add-event-open className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-[#8b5cf6] to-[#6d28d9] px-3.5 py-1.5 text-xs font-black text-white shadow-md hover:brightness-110 sm:text-sm"><Plus size={15} /> Add event</button>
                                 {picked && <button type="button" onClick={() => pick(null)} className="text-sm font-bold text-indigo-700 hover:underline">Whole month</button>}
                                 {pages > 1 && (<>
                                     <span className="text-xs font-semibold tabular-nums text-slate-500" data-events-page>{at * PER + 1}–{Math.min(all.length, at * PER + PER)} of {all.length}</span>
@@ -339,15 +467,17 @@ export const CalendarView = ({ compact = false }) => {
                         )}>
                             {picked ? picked.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }) : 'This month'}
                         </Heading>
+                        {removeError && <p role="alert" className="mb-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{removeError}</p>}
                         {shown.length ? (
                             <ul className="space-y-2" data-calendar-events>
                                 {shown.map((e, i) => (
-                                    <li key={i}>
-                                        <Link to={e.to} className={`flex items-start gap-3 rounded-xl p-2.5 ring-1 ring-slate-100 hover:bg-slate-50 ${new Date(e.at).getTime() < Date.now() - DAY ? 'opacity-60' : ''}`}>
+                                    <li key={i} className="relative">
+                                        {e.kind === 'mine' && <button type="button" onClick={() => removeMine(e.id)} aria-label={`Delete ${e.title}`} className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={14} /></button>}
+                                        <Link to={e.to || '#'} onClick={(ev) => { if (!e.to) ev.preventDefault(); }} className={`flex items-start gap-3 rounded-xl p-2.5 ring-1 ring-slate-100 hover:bg-slate-50 ${new Date(e.at).getTime() < Date.now() - DAY ? 'opacity-60' : ''}`}>
                                             <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${KIND[e.kind][1]}`} />
                                             <span className="min-w-0 flex-1">
                                                 <span className="block truncate text-sm font-bold text-slate-900">{e.title}</span>
-                                                <span className="block text-xs text-slate-500">{KIND[e.kind][0]} · {e.sub} · {fmtDateTime(e.at)}</span>
+                                                <span className="block pr-6 text-xs text-slate-500">{e.label || KIND[e.kind][0]} · {e.sub} · {fmtDateTime(e.at)}</span>
                                             </span>
                                         </Link>
                                     </li>
@@ -362,6 +492,7 @@ export const CalendarView = ({ compact = false }) => {
                     </section>
                 </div>
             )}
+            {adding && <AddEvent day={picked} onClose={() => setAdding(false)} />}
         </>
     );
 };

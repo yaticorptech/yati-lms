@@ -46,10 +46,12 @@ router.get('/', wrap(async (req, res) => {
     }).sort({ startsAt: 1 }).lean();
     const allTeams = await Team.find({ competitionId: { $in: comps.map((c) => c._id) } }).lean();
     res.json({
-        competitions: comps.map((c) => views.competitionView(c, {
+        // Places and winners wait for the organizer to publish the results, as
+        // in the participants list below and the students' own pages.
+        competitions: comps.map((c) => views.studentCompetition(views.competitionView(c, {
             teams: allTeams.filter((t) => String(t.competitionId) === String(c._id)),
             myTeam: ours.find((t) => String(t.competitionId) === String(c._id)) || null
-        }))
+        })))
     });
 }));
 
@@ -106,10 +108,16 @@ router.get('/:id/participants', wrap(async (req, res) => {
 
 router.get('/:id', wrap(async (req, res) => {
     const c = await findCompetition(req.params.id, req);
-    const out = await views.detail(c._id, { organizationId: req.organization._id });
+    // Results (places, winners, match results) wait for publishing, as for students.
+    const out = views.studentDetail(await views.detail(c._id, { organizationId: req.organization._id }));
     const mine = await Team.findOne({ competitionId: c._id, organizationId: req.organization._id }).lean();
-    // The coordinator sees their own team in full, whatever its status.
-    out.myTeam = mine ? views.teamView(mine) : null;
+    // The coordinator sees their own team in full, whatever its status — with
+    // its coordinator's phone, which the team form needs to save a change.
+    out.myTeam = mine ? {
+        ...views.teamView(mine),
+        place: views.resultsHidden(c) ? null : mine.place || null,
+        coordinator: { name: mine.coordinator?.name || '', phone: mine.coordinator?.phone || '' }
+    } : null;
     res.json(out);
 }));
 
@@ -138,7 +146,16 @@ router.put('/:id/team', wrap(async (req, res) => {
         const taken = await Team.countDocuments({ competitionId: c._id, status: { $in: ['pending', 'approved'] }, ...(existing ? { _id: { $ne: existing._id } } : {}) });
         if (taken >= c.maxTeams) throw fail(409, `This competition is full (${c.maxTeams} teams).`);
     }
-    const players = ids.map((id) => ({ userId: id, name: students.find((s) => String(s._id) === id)?.name || 'Student' }));
+    // A player kept in the team keeps what is theirs on it — an entry fee
+    // already paid, a certificate they hid — rather than losing it on any edit.
+    const kept = new Map((existing?.players || []).map((p) => [String(p.userId), p]));
+    const players = ids.map((id) => {
+        const was = kept.get(id);
+        return {
+            userId: id, name: students.find((s) => String(s._id) === id)?.name || 'Student',
+            ...(was ? { paidAt: was.paidAt || null, paidAmount: was.paidAmount || 0, certificateHiddenAt: was.certificateHiddenAt || null } : {})
+        };
+    });
     const fields = {
         collegeName: req.organization.name,
         teamName,
@@ -156,7 +173,11 @@ router.put('/:id/team', wrap(async (req, res) => {
     };
     const team = existing
         ? await Team.findByIdAndUpdate(existing._id, { $set: fields }, { returnDocument: 'after' })
-        : await Team.create({ competitionId: c._id, organizationId: req.organization._id, ...fields });
+        : await Team.create({ competitionId: c._id, organizationId: req.organization._id, ...fields }).catch((err) => {
+            // Two registrations sent at once: the second finds the first's team.
+            if (err?.code === 11000) throw fail(409, 'Your team was just registered. Reload to see it.');
+            throw err;
+        });
     res.status(existing ? 200 : 201).json({ team: views.teamView(team) });
 }));
 
@@ -178,7 +199,8 @@ router.put('/:id/matches/:matchId/lineup', wrap(async (req, res) => {
     const side = match.sides.findIndex((s) => String(s.teamId) === String(team._id));
     if (side < 0) throw fail(403, 'Your team is not in this match.');
     if (match.status !== 'scheduled') throw fail(409, 'This match has already started.');
-    const ids = [...new Set((req.body?.players || []).map(String))];
+    if (!Array.isArray(req.body?.players)) throw fail(400, 'Choose the players for this match.');
+    const ids = [...new Set(req.body.players.map(String))];
     if (ids.length !== c.playersPerSide) throw fail(400, `Choose ${c.playersPerSide} player${c.playersPerSide === 1 ? '' : 's'} for this match.`);
     if (!ids.every((id) => team.players.some((p) => String(p.userId) === id))) throw fail(400, 'Choose players from your team.');
     match.sides[side].lineup = ids;

@@ -13,7 +13,7 @@
  */
 const { GameError } = require('./contract');
 const { makeStageEngine } = require('./stageCore');
-const { vaultStages, checkAnswer } = require('./banks/vault');
+const { vaultStages, checkAnswer, upgradeLock } = require('./banks/vault');
 
 const SECONDS = { easy: 480, medium: 480, hard: 480 };   // 8 minutes at every level (asked 2026-10-28)
 const PENALTY = { easy: 15, medium: 20, hard: 30 };   // seconds a wrong answer adds
@@ -30,6 +30,7 @@ module.exports = makeStageEngine({
     start: () => ({ stage: 0, penaltyMs: 0, jamUntil: 0 }),
     actions: {
         solve: (s, seat, action, ctx) => {
+            upgradeLock(s.shared);   // a door made by an older server: "Crack the Code" (banks/vault.js)
             const p = s.progress[seat];
             if (ctx.now < p.jamUntil) throw new GameError('The mechanism is still resetting — try again in a moment.');
             const st = s.shared.stages[p.stage];
@@ -45,6 +46,7 @@ module.exports = makeStageEngine({
         }
     },
     publicOf: (s, you, over) => {
+        upgradeLock(s.shared);
         const p = you != null ? s.progress[you] : null;
         const st = p && !over && p.stage < s.shared.stages.length ? s.shared.stages[p.stage] : null;
         return {

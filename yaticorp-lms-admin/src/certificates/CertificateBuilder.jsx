@@ -83,8 +83,16 @@ export default function CertificateBuilder({ side = 'platform' }) {
     const [saved, setSaved] = useState(null);             // { issued, issuedNow, resultsOut } after Save
     const templateFile = useRef(null);
 
-    const set = (patch) => { setDesign((d) => ({ ...d, ...patch })); setSaved(null); };
-    const setBrand = (patch) => { setDesign((d) => ({ ...d, branding: { ...d.branding, ...patch } })); setSaved(null); };
+    // Changes not yet issued: leaving the page (refresh, close) asks first.
+    const [dirty, setDirty] = useState(false);
+    useEffect(() => {
+        if (!dirty) return undefined;
+        const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', warn);
+        return () => window.removeEventListener('beforeunload', warn);
+    }, [dirty]);
+    const set = (patch) => { setDesign((d) => ({ ...d, ...patch })); setSaved(null); setDirty(true); };
+    const setBrand = (patch) => { setDesign((d) => ({ ...d, branding: { ...d.branding, ...patch } })); setSaved(null); setDirty(true); };
 
     useEffect(() => {
         api.get(`${S.apiBase}/defaults`).then((r) => {
@@ -154,7 +162,7 @@ export default function CertificateBuilder({ side = 'platform' }) {
         if (!design.places.length && !design.participation) { setError('Tick at least one: 1st, 2nd, 3rd or Participation.'); return; }
         setBusy('save');
         api.put(`${S.apiBase}/designs/for/${design.competition.kind}/${design.competition.id}`, { ...design, venue: '', competitionName: design.competition.name })
-            .then((r) => { setSaved(r.data); setStatus((st) => ({ ...st, design: r.data.design, issued: r.data.issued })); })
+            .then((r) => { setSaved(r.data); setDirty(false); setStatus((st) => ({ ...st, design: r.data.design, issued: r.data.issued })); })
             .catch((err) => setError(errorOf(err)))
             .finally(() => setBusy(''));
     };
@@ -184,9 +192,12 @@ export default function CertificateBuilder({ side = 'platform' }) {
                             <label className="sm:col-span-2"><span className={LABEL}>Competition</span>
                                 <Dropdown value={pick} onChange={(v) => choose(v)} options={(competitions || []).map((c) => [`${c.kind}:${c.id}`, c.name])} placeholder={competitions === null ? 'Loading…' : competitions.length ? '— Select competition —' : 'No competitions yet'} className={INPUT} data-cert-competition />
                             </label>
-                            <label className="sm:col-span-2"><span className={LABEL}>Competition name</span>
-                                <input value={design.competition.name} onChange={(e) => set({ competition: { ...design.competition, name: e.target.value } })} maxLength={160} placeholder="Inter College Competition" className={INPUT} data-cert-competition-name /></label>
-                            <label className="sm:col-span-2"><span className={LABEL}>Event date</span><input value={design.date} onChange={(e) => set({ date: asDate(e.target.value) })} inputMode="numeric" maxLength={10} placeholder="DD/MM/YYYY" className={INPUT} data-cert-date /></label>
+                            <label className="sm:col-span-2"><span className={LABEL}>Competition name (preview only)</span>
+                                <input value={design.competition.name} onChange={(e) => set({ competition: { ...design.competition, name: e.target.value } })} maxLength={160} placeholder="Inter College Competition" className={INPUT} data-cert-competition-name />
+                                <span className="mt-1 block text-[11px] text-slate-400">Each certificate prints its own competition&apos;s name.</span></label>
+                            {/* Both only fill the preview: the server prints each competition's own name and date (auto.js withCompetition). */}
+                            <label className="sm:col-span-2"><span className={LABEL}>Event date (preview only)</span><input value={design.date} onChange={(e) => set({ date: asDate(e.target.value) })} inputMode="numeric" maxLength={10} placeholder="DD/MM/YYYY" className={INPUT} data-cert-date />
+                                <span className="mt-1 block text-[11px] text-slate-400">Each certificate prints its own competition&apos;s date.</span></label>
                         </div>
                     </Section>
 

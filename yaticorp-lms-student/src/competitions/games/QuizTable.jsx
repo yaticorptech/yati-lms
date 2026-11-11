@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import usePhaseClock from './usePhaseClock';
-import { Check, X, Lock, Timer, Zap, Sparkles, ChevronDown, Crown, LogOut } from 'lucide-react';
+import useWrongBuzz from './useWrongBuzz';
+import { Check, X, Lock, Zap, Sparkles, ChevronDown, Crown, LogOut } from 'lucide-react';
 
 /**
  * The table for the brain games — Rapid Fire, Code Clash and Brain Sprint,
@@ -171,7 +172,7 @@ const Option = ({ index, text, mark, mono, disabled, onPick, square, dark }) => 
         || (dark ? 'bg-gradient-to-b from-white/25 to-white/5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.35)]' : 'bg-slate-100 text-slate-600');
     return (
         <button type="button" data-option={index} data-mark={mark} disabled={disabled} onClick={() => onPick(index)}
-            className={`group flex w-full rounded-2xl border font-semibold shadow-sm transition-[transform,box-shadow,border-color,background-color] duration-150 disabled:cursor-default motion-reduce:transition-none ${square ? 'min-h-[4.75rem] flex-col items-center justify-center gap-1.5 px-2 py-2.5 text-center text-sm sm:min-h-[5.5rem] sm:text-[15px]' : 'min-h-14 items-center gap-3 px-3 py-2.5 text-left text-sm sm:text-[15px]'} ${tone}`}>
+            className={`group flex w-full rounded-2xl border font-semibold shadow-sm transition-[transform,box-shadow,border-color,background-color] duration-150 disabled:cursor-default motion-reduce:transition-none ${mark === 'wrong' ? 'gs-wrong' : ''} ${square ? 'min-h-[4.75rem] flex-col items-center justify-center gap-1.5 px-2 py-2.5 text-center text-sm sm:min-h-[5.5rem] sm:text-[15px]' : 'min-h-14 items-center gap-3 px-3 py-2.5 text-left text-sm sm:text-[15px]'} ${tone}`}>
             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-black ${badge}`} aria-hidden="true">
                 {mark === 'right' ? <Check size={16} /> : mark === 'wrong' ? <X size={16} /> : LETTERS[index]}
             </span>
@@ -236,6 +237,9 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
     const q = view.question;
     const reveal = view.phase === 'reveal';
     const myAnswer = view.you != null ? view.answers[view.you] : null;
+    // A wrong answer buzzes as soon as this player is told (2026-11-06): at the reveal, when the pick goes red and
+    // the answer green for everyone; in a buzzer game at once (that seat is locked out of the question).
+    useWrongBuzz(view.status === 'active' && myAnswer?.correct === false ? view.number : null);
 
     const canPick = view.canAnswer && !busy && picked === null && left > 0;
     const pick = (i) => {
@@ -287,7 +291,6 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                 <section className={card} data-show>
                     <div className={`flex items-center justify-between gap-3 bg-gradient-to-r ${theme.from} ${theme.to} px-5 py-3 text-white`}>
                         <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/85">Question {view.number} of {view.total} · Remember this!</p>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-sm font-black tabular-nums"><Timer size={14} aria-hidden="true" /> {seconds}s</span>
                     </div>
                     <div className="flex min-h-52 flex-col items-center justify-center gap-4 p-6">
                         <Visual v={view.show.content} elapsed={(view.show.showMs || 0) - left} />
@@ -315,11 +318,6 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                                 {buzzer && <Zap size={13} className="mr-1 inline" aria-hidden="true" />}
                                 Question {view.number} of {view.total}{q.topic ? ` · ${q.topic}` : ''}
                             </p>
-                            {view.phase === 'question' && (
-                                <span data-timer={seconds} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-black tabular-nums ${seconds <= 5 ? 'bg-white text-rose-600 animate-pulse motion-reduce:animate-none' : 'bg-white/20'}`}>
-                                    <Timer size={14} aria-hidden="true" /> {seconds}s
-                                </span>
-                            )}
                             {reveal && <span className="rounded-full bg-white/20 px-2.5 py-1 text-xs font-bold">Answer</span>}
                         </div>
                         {/* Each question a segment: done, now, to come. */}
@@ -345,13 +343,14 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                             ))}
                         </div>
 
-                        {view.phase === 'question' && view.you != null && (
+                        {/* Only what has happened — no instructions before an answer (2026-11-05). */}
+                        {view.phase === 'question' && view.you != null && (view.out.includes(view.you) || myAnswer || picked !== null) && (
                             <p className={`rounded-2xl px-4 py-2.5 text-center text-sm font-semibold ${dark ? 'bg-white/[.06] text-indigo-200 ring-1 ring-white/10' : `${theme.soft} ${theme.text}`}`} data-status>
                                 {view.out.includes(view.you) ? 'You have left this game.'
                                     : buzzer && myAnswer?.correct === false ? 'Wrong — you are locked out of this one. −5'
                                     : myAnswer && Number.isFinite(myAnswer.points) && !buzzer ? (myAnswer.correct ? `Correct! +${myAnswer.points}` : `Wrong (${myAnswer.points}). Answer: ${view.answer ? (isPicture(q.options[view.answer.index]) ? `option ${LETTERS[view.answer.index]}` : q.options[view.answer.index]) : '—'}`)
                                     : myAnswer || picked !== null ? (hidden ? 'Answer saved. The next question opens soon.' : buzzer ? 'Buzzed in! Waiting for the result…' : 'Locked in. Waiting for the others…')
-                                    : <>{hidden ? 'Pick your answer.' : buzzer ? 'Buzz in with the right answer first.' : 'Pick your answer. Right +100, wrong −20.'}<span className="max-sm:hidden"> Keys 1–4 work too.</span></>}
+                                    : null}
                             </p>
                         )}
                         {reveal && view.answer && (

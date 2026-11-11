@@ -1,6 +1,6 @@
 /**
  * Group Brain "Play online": a seat at a table of the same game, size and
- * fee; the fee from the wallet; a full table starts at once; the winner
+ * fee; the fee from the student's XP (2026-10-31, was wallet rupees); a full table starts at once; the winner
  * takes 90% of the pot; leaving before the start, or nobody else coming,
  * gives the fee back.
  */
@@ -8,11 +8,13 @@ const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { connect, makeUser, unlockGroupGames, startApp, cleanup } = require('../helpers');
 const PlayGame = require('../../src/competitions/models/PlayGame');
-const { Wallet, WalletTransaction } = require('../../src/rewards/models');
-const walletService = require('../../src/rewards/services/walletService');
+const User = require('../../src/models/User');
+const { XpTransaction } = require('../../src/rewards/models');
 
 let app, p;
-const balance = async (u) => (await Wallet.findOne({ userId: u.user._id }).lean())?.available ?? 0;
+// The fees, refunds and prizes are XP (2026-10-31).
+const balance = async (u) => (await User.findById(u.user._id).select('xp').lean())?.xp ?? 0;
+const setXp = (u, xp) => User.updateOne({ _id: u.user._id }, { $set: { xp } });
 
 before(async () => {
     await connect();
@@ -22,7 +24,7 @@ before(async () => {
         const u = await makeUser(name);
         await unlockGroupGames(u.user._id);
         u.call = app.call(u.token);
-        await walletService.credit({ userId: u.user._id, amount: 100, source: 'admin_adjustment', description: 'test money' });
+        await setXp(u, 100);
         p.push(u);
     }
 });
@@ -30,8 +32,7 @@ after(async () => {
     const ids = p.map((x) => x.user._id);
     await PlayGame.deleteMany({ 'seats.userId': { $in: ids } });
     await PlayGame.deleteMany({ kind: 'room', hostId: { $in: ids } });
-    await WalletTransaction.deleteMany({ userId: { $in: ids } });
-    await Wallet.deleteMany({ userId: { $in: ids } });
+    await XpTransaction.deleteMany({ userId: { $in: ids } });
     await cleanup(p.map((x) => x.user), app.server);
 });
 
@@ -44,14 +45,14 @@ describe('Play online', () => {
 
     test('a fee not on offer, or more than the wallet holds, is refused', async () => {
         assert.equal((await p[0].call('POST', '/rooms/online', { game: 'numberlogic', players: 2, fee: 7 })).status, 400);
-        await Wallet.updateOne({ userId: p[2].user._id }, { $set: { available: 5 } });
+        await setXp(p[2], 5);
         const r = await p[2].call('POST', '/rooms/online', { game: 'numberlogic', players: 2, fee: 10 });
         assert.equal(r.status, 402);
-        assert.match(r.body.message, /less than ₹10/);
-        await Wallet.updateOne({ userId: p[2].user._id }, { $set: { available: 100 } });
+        assert.match(r.body.message, /less than 10 XP/);
+        await setXp(p[2], 100);
     });
 
-    test('two players at ₹10: seated together, charged, started; the winner gets ₹18', async () => {
+    test('two players at 10 XP: seated together, charged, started; the winner gets 18 XP', async () => {
         const a = (await p[0].call('POST', '/rooms/online', { game: 'numberlogic', players: 2, fee: 10 })).body.game;
         assert.equal(await balance(p[0]), 90, 'the fee, as I sit down');
         const waiting = (await p[0].call('GET', `/play/${a.id}`)).body.game;
@@ -69,11 +70,14 @@ describe('Play online', () => {
         await p[1].call('POST', `/play/${a.id}/action`, { action: { type: 'resign' } });
         const done = (await p[0].call('GET', `/play/${a.id}`)).body.game;
         assert.equal(done.status, 'finished');
-        assert.equal(await balance(p[0]), 108, '90 + 18');
-        assert.equal(await balance(p[1]), 90);
+        // The game's own XP for the result comes on top of the prize.
+        const earned = (mine) => done.standings.find((x) => !!x.you === mine)?.xp || 0;
+        const won = 90 + 18 + earned(true);
+        assert.equal(await balance(p[0]), won, '90 + 18, and the win');
+        assert.equal(await balance(p[1]), 90 + earned(false));
         // Paid once only.
         await require('../../src/competitions/services/onlineService').payOut(await PlayGame.findById(a.id));
-        assert.equal(await balance(p[0]), 108);
+        assert.equal(await balance(p[0]), won);
     });
 
     test('leaving the search gives the fee back', async () => {

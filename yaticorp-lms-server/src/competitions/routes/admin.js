@@ -52,9 +52,26 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const num = (v, lo, hi, dflt) => (v == null || v === '' || Number.isNaN(Number(v)) ? dflt : Math.max(lo, Math.min(hi, Math.round(Number(v)))));
 
-/** The competition fields from a form, checked and made to fit its game. */
-const fromBody = (body, current = null) => {
+/**
+ * A hosting college's reward limits (2026-11-06), lower than the platform admin's: each prize place at most
+ * 1000 XP and 500 reward points, participation at most 100 XP. Shared with the Quiz Arena (arena/admin.js).
+ */
+const HOST_CAPS = { xp: 1000, rewardPoints: 500, participationXp: 100 };
+const PLACE = { 1: '1st', 2: '2nd', 3: '3rd' };
+/** Refuse (400) any reward above a hosting college's limits, naming the limit. `prizes`, `participationXp`: from the form. */
+const checkHostCaps = (prizes, participationXp) => {
+    for (const p of Array.isArray(prizes) ? prizes : []) {
+        const place = PLACE[Number(p?.place)] || 'A';
+        if (Number(p?.xp) > HOST_CAPS.xp) throw fail(400, `${place} place prize XP can be at most ${HOST_CAPS.xp} XP for a college-hosted competition.`);
+        if (Number(p?.rewardPoints) > HOST_CAPS.rewardPoints) throw fail(400, `${place} place reward points can be at most ${HOST_CAPS.rewardPoints} for a college-hosted competition.`);
+    }
+    if (participationXp != null && participationXp !== '' && Number(participationXp) > HOST_CAPS.participationXp) throw fail(400, `Participation XP can be at most ${HOST_CAPS.participationXp} XP for a college-hosted competition.`);
+};
+
+/** The competition fields from a form, checked and made to fit its game. `host`: a hosting college's form (its lower reward limits). */
+const fromBody = (body, current = null, { host = false } = {}) => {
     const b = body || {};
+    if (host) checkHostCaps(b.prizes, b.participationXp);
     const game = String(b.game ?? current?.game ?? '');
     // UNO is no longer offered (2026-10-23), Ludo and Carrom since the brain games (2026-10-24); one made before then can still be edited.
     // Quiz and Hackathon were removed on 2026-10-28: none can be made; one made before can still be edited.
@@ -128,6 +145,20 @@ const feeFrom = (b, current = {}) => {
 /** The calendar day (India) a time falls on, as YYYY-MM-DD. */
 const dayOf = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
+/**
+ * The saved certificate a competition picks must belong to its host: the platform's (no organization) for a platform
+ * competition, the hosting college's own for a college's. Another organization's design (its logo, seal, signatures)
+ * is refused — certificates/auto.js would never draw it anyway.
+ */
+const checkDesign = async (designId, hostOrganizationId, name = '') => {
+    if (!designId) return;
+    // A test competition (name starting "test") may use any saved certificate (2026-11-06).
+    if (require('../certificates/auto').isTestCompetition(name)) return;
+    const { CertificateDesign } = require('../certificates/models');
+    const d = await CertificateDesign.findById(designId).select('organizationId').lean();
+    if (!d || String(d.organizationId || '') !== String(hostOrganizationId || '')) throw fail(400, 'Choose one of your own saved certificates.');
+};
+
 const manage = (scope = 'platform') => {
     const router = express.Router();
 
@@ -140,6 +171,32 @@ const manage = (scope = 'platform') => {
         if (!c) throw fail(404, 'Competition not found.');
         return c;
     };
+
+    /**
+     * The colleges taking part, and their students (2026-11-04): from every approved team, and every approved Quiz
+     * Arena entry, across this side's competitions — each college with its students and the competitions each is in.
+     */
+    router.get('/participants', wrap(async (req, res) => {
+        // Quiz Arena entries do not count here (decided 2026-11-06): only approved teams of the competitions.
+        const comps = await Competition.find({ ...filterFor(req), game: { $nin: challenge.CHALLENGES } }).select('name').lean();
+        const teams = await Team.find({ competitionId: { $in: comps.map((c) => c._id) }, status: 'approved' }).select('competitionId collegeName players').lean();
+        const compName = new Map(comps.map((c) => [String(c._id), c.name]));
+        const colleges = new Map();
+        const add = (college, userId, name, competition) => {
+            const key = (college || '').trim() || 'No college';
+            if (!colleges.has(key)) colleges.set(key, new Map());
+            const students = colleges.get(key);
+            const id = String(userId || name);
+            if (!students.has(id)) students.set(id, { id, name: name || 'Student', competitions: new Set() });
+            if (competition) students.get(id).competitions.add(competition);
+        };
+        for (const t of teams) for (const p of t.players || []) add(t.collegeName, p.userId, p.name, compName.get(String(t.competitionId)));
+        const out = [...colleges.entries()].map(([name, students]) => ({
+            name,
+            students: [...students.values()].map((st) => ({ id: st.id, name: st.name, competitions: [...st.competitions].sort() })).sort((a, b) => a.name.localeCompare(b.name))
+        })).sort((a, b) => b.students.length - a.students.length || a.name.localeCompare(b.name));
+        res.json({ colleges: out, students: out.reduce((n, c) => n + c.students.length, 0) });
+    }));
 
     router.get('/', wrap(async (req, res) => {
         await challenge.advanceDue();
@@ -166,7 +223,8 @@ const manage = (scope = 'platform') => {
     }));
 
     router.post('/', wrap(async (req, res) => {
-        const fields = fromBody(req.body);
+        const fields = fromBody(req.body, null, { host: scope === 'organization' });
+        await checkDesign(fields.certificateDesignId, scope === 'organization' ? req.organization._id : null, fields.name);
         // An organization hosts its own: it is named as the organizer unless it
         // says otherwise, and it alone (with the platform admin) can run it.
         const host = scope === 'organization'
@@ -193,12 +251,21 @@ const manage = (scope = 'platform') => {
     router.put('/:id', wrap(async (req, res) => {
         const c = await find(req.params.id, req);
         if (['completed', 'cancelled'].includes(c.status)) throw fail(409, 'A finished or cancelled competition cannot be edited.');
-        const fields = fromBody(req.body, c.toObject());
+        const fields = fromBody(req.body, c.toObject(), { host: scope === 'organization' });
+        // Once anyone has paid, the entry fee (on or off, and its amount) stays as it is.
+        const fee = (f) => (f?.enabled && f.amount > 0 ? `on:${f.amount}` : 'off');
+        const fees = require('../services/entryFee');
+        if (fee(fields.entryFee) !== fee(c.entryFee) && await fees.anyPaid('competition', c._id)) throw fail(409, fees.FEE_LOCKED);
+        if (String(fields.certificateDesignId || '') !== String(c.certificateDesignId || '')) await checkDesign(fields.certificateDesignId, c.hostOrganizationId, fields.name ?? c.name);
         // Once teams are in, who enters stays; once anyone has started the quiz, its questions stay.
         if (fields.entry !== (c.entry || 'team') && await Team.exists({ competitionId: c._id, status: { $ne: 'withdrawn' } })) throw fail(409, 'Entries have come in, so who enters can no longer change.');
         if (c.game === 'quiz' && fields.game === 'quiz' && await require('../models/QuizAttempt').exists({ competitionId: c._id })) {
             const plain = (qs) => JSON.stringify((qs || []).map((q) => [q.prompt, q.options, q.answer, q.points || 1]));
             if (plain(fields.quiz.questions) !== plain(c.quiz?.questions)) throw fail(409, 'Players have started the quiz, so its questions can no longer change.');
+        }
+        if (fields.maxTeams < c.maxTeams) {
+            const taken = await Team.countDocuments({ competitionId: c._id, status: { $in: c.entry === 'individual' ? ['pending', 'approved'] : ['approved'] } });
+            if (fields.maxTeams < taken) throw fail(409, `${taken} ${c.entry === 'individual' ? 'student' : 'team'}${taken === 1 ? ' is' : 's are'} already in: the limit cannot go below that.`);
         }
         const drawn = await Match.exists({ competitionId: c._id });
         if (drawn) {
@@ -244,6 +311,8 @@ const manage = (scope = 'platform') => {
         const PlayGame = require('../models/PlayGame');
         // Its players are told before the teams go; the notice opens the
         // Games page, since the competition's own page is gone.
+        // Paid entry fees: it is cancelled instead, so its paying students still see whom to contact.
+        if (await require('../services/entryFee').anyPaid('competition', c._id)) throw fail(409, 'Players have paid the entry fee, so this competition cannot be deleted. Cancel it instead — its players are then told to contact their college about the fee.');
         const entered = await Team.find({ competitionId: c._id, status: { $in: ['pending', 'approved'] } }).lean();
         await Competition.deleteOne({ _id: c._id });
         await require('../services/notices').tellTeams(entered, c, 'Competition removed', `${c.name} has been removed by the organizer.`, { link: '/competitions' });
@@ -463,6 +532,8 @@ const manage = (scope = 'platform') => {
         if (!c.resultsPublishedAt) { c.resultsPublishedAt = new Date(); await c.save(); }
         // Now the prizes, the XP and the students' notices.
         require('../services/bracketService').payOnPublish(c.toObject());
+        // Certificates issued now, so students see theirs the moment results are out (2026-11-06).
+        require('../certificates/auto').syncCompetition('competition', String(c._id)).catch((err) => console.error('[certificates] on publish:', err.message));
         res.json(await views.detail(c._id, { admin: true }));
     }));
 
@@ -491,3 +562,5 @@ const manage = (scope = 'platform') => {
 };
 
 module.exports = manage;
+module.exports.HOST_CAPS = HOST_CAPS;
+module.exports.checkHostCaps = checkHostCaps;

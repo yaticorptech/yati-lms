@@ -13,7 +13,7 @@ import CertificateInline from '../CertificateInline';
 import Confetti from '../Confetti';
 import { payOnline } from '../razorpay';
 import { DetailSkeleton, ListSkeleton } from '../Skeletons';
-import { GameHero, JoinCard, CollegesCard, PayCard } from '../GameInfo';
+import { GameHero, JoinCard, CollegesCard, PayCard, PaymentHoldCard } from '../GameInfo';
 import { arenaApi, STATE, fmt, duration } from './api';
 import useGoBack from '../../hooks/useGoBack';
 import useLive from '../../live/useLive';
@@ -137,7 +137,8 @@ export default function ArenaDetail() {
     const [c, setC] = useState(null);
     const [error, setError] = useState('');
     const now = useNow();
-    const load = useCallback(() => arenaApi.detail(id).then(setC).catch((e) => setError(e.message)), [id]);
+    // A good load clears an earlier failure's message (the page polls every 5 s).
+    const load = useCallback(() => arenaApi.detail(id).then((d) => { setC(d); setError(''); }).catch((e) => setError(e.message)), [id]);
     useEffect(() => { load(); }, [load]);
     // Refresh as the start comes and goes, so Join appears on its own.
     useEffect(() => { const t = setInterval(load, 5000); return () => clearInterval(t); }, [load]);
@@ -165,7 +166,8 @@ export default function ArenaDetail() {
             {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
 
             {/* The entry fee first: until it is paid, no code and no Join. */}
-            {c.entryFee && !c.entryFee.paid && c.entryStatus === 'approved' && !['ended', 'results', 'cancelled'].includes(c.state) ? (
+            {c.paymentOnHold ? <PaymentHoldCard hold={c.paymentOnHold} />
+                : c.entryFee && !c.entryFee.paid && c.entryStatus === 'approved' && !['ended', 'results', 'cancelled'].includes(c.state) ? (
                 <PayCard amount={c.entryFee.amount} pay={() => payOnline(() => arenaApi.pay(c.id), (r) => arenaApi.payVerify(c.id, r))} onPaid={load} />
             ) : c.state !== 'results' && c.state !== 'cancelled' && (
                 <JoinCard ok={c.entryStatus === 'approved'} label="Join the quiz"

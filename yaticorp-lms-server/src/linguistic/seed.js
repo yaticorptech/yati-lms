@@ -40,6 +40,12 @@ const seed = async () => {
     }
     // The Letters lessons' titles kept as alphabet.js names them (2026-10-31).
     for (const st of require('./alphabet').stubs()) await LinguisticLesson.updateOne({ seedKey: st.seedKey, title: { $ne: st.title } }, { $set: { title: st.title } });
+    // And the picture stories' (2026-11-07: story 2 became Meera's Kite; the courses still telling the old one keep its title).
+    const { LANGS: COMIC_LANGS } = require('./content/comicLangs');
+    for (const st of require('./comics').stubs()) {
+        const legacy = st.course && COMIC_LANGS[st.order]?.[st.course]?.legacy;
+        if (!legacy) await LinguisticLesson.updateOne({ seedKey: st.seedKey, title: { $ne: st.title } }, { $set: { title: st.title } });
+    }
     // A unit review no longer starts with matching pairs (2026-10-29, pairs once a unit): its stubs' summary says so.
     const { UNIT } = require('./reviews');
     await LinguisticLesson.updateMany({ review: 'unit', summary: 'This unit’s words again: match the pairs, then a quick quiz with listening.' }, { $set: { summary: UNIT.summary } });

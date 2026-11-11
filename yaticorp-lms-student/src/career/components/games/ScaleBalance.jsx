@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 /**
  * ⚖️ Logic & deduction: work out the order from the clues.
@@ -48,6 +49,7 @@ function Round({ progress, onExit }) {
   const [puzzle, setPuzzle] = useState(() => makePuzzle(config.items));
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -57,13 +59,17 @@ function Round({ progress, onExit }) {
   const choose = (shape) => {
     // The answer stays on screen for the flash, so a second tap in that
     // moment would score the same question again. Ignored, as DotCount does.
-    if (over || flash) return;
-    const right = shape === puzzle.answer;
-    if (right) setScore((s) => s + 1);
-    setFlash(right ? 'right' : 'wrong');
+    if (over || flash || busy) return;
+    const next = () => setPuzzle(makePuzzle(config.items));
+    if (shape !== puzzle.answer) {
+      showWrong(shape, puzzle.answer, next);
+      return;
+    }
+    setScore((s) => s + 1);
+    setFlash('right');
     setTimeout(() => {
       setFlash(null);
-      setPuzzle(makePuzzle(config.items));
+      next();
     }, 400);
   };
 
@@ -129,14 +135,12 @@ function Round({ progress, onExit }) {
                 key={s}
                 type="button"
                 onClick={() => choose(s)}
-                disabled={flash !== null}
+                disabled={flash !== null || busy}
                 className={`fp-press flex h-16 w-16 items-center justify-center rounded-2xl text-3xl ring-1 transition-all ring-inset ${
                   flash === 'right' && s === puzzle.answer
                     ? 'bg-emerald-50 ring-emerald-300'
-                    : flash === 'wrong' && s !== puzzle.answer
-                      ? 'bg-rose-50 ring-rose-300'
-                      : 'bg-surface-50 ring-line-200 hover:bg-sky-50 hover:ring-sky-300'
-                }`}
+                    : `bg-surface-50 ring-line-200 ${busy ? '' : 'hover:bg-sky-50 hover:ring-sky-300'}`
+                } ${toneOf(s)}`}
               >
                 {s}
               </button>

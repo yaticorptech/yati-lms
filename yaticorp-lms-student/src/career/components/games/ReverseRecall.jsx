@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import GameShell from './GameShell';
 import useGameProgress, { between, starsFor, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
+import RecallMistake from './RecallMistake';
+import { sfx } from './gameSfx';
 
 /**
  * 🔢 Memory & focus: hold a number, then say it backwards.
@@ -32,17 +34,21 @@ function Round({ progress, onExit }) {
   const [showing, setShowing] = useState(true);
   const [guess, setGuess] = useState('');
   const [dead, setDead] = useState(false);
+  const [mistake, setMistake] = useState(null);   // shown before the round ends (2026-11-06)
   const [reveal, setReveal] = useState(0);
   const inputRef = useRef(null);
 
   useEffect(() => {
     if (!started) return undefined;
-    const t = setTimeout(() => {
-      setShowing(false);
-      inputRef.current?.focus();
-    }, config.showMs);
+    const t = setTimeout(() => setShowing(false), config.showMs);
     return () => clearTimeout(t);
   }, [started, reveal, config.showMs]);
+
+  // Focused once the form has mounted: focusing in the timer above ran
+  // before the re-render, when the input did not exist yet.
+  useEffect(() => {
+    if (started && !showing) inputRef.current?.focus();
+  }, [started, showing]);
 
   const reached = dead ? digits.length - 1 : digits.length;
   const passed = reached >= config.target;
@@ -53,14 +59,15 @@ function Round({ progress, onExit }) {
 
   const submit = (event) => {
     event.preventDefault();
-    if (showing || dead) return;
+    if (showing || dead || mistake) return;
     if (guess.trim() === backwards) {
       setDigits(makeDigits(digits.length + 1));
       setGuess('');
       setShowing(true);
       setReveal((n) => n + 1);
     } else {
-      setDead(true);
+      sfx.wrong();
+      setMistake({ asked: backwards, typed: guess.trim(), shown: digits });
     }
   };
 
@@ -99,12 +106,16 @@ function Round({ progress, onExit }) {
       }
       footer={<p className="text-center text-sm text-ink-500">Type the digits in reverse order</p>}
     >
-      {started && !dead && (
+      {started && !dead && mistake && (
+        <RecallMistake {...mistake} askedLabel="Backwards it is" onContinue={() => setDead(true)} />
+      )}
+
+      {started && !dead && !mistake && (
         <div className="mx-auto flex max-w-md flex-col items-center gap-5">
           {showing ? (
             <>
               <p className="text-[0.7rem] font-black tracking-[0.14em] text-violet-600 uppercase">Memorise</p>
-              <p className="text-5xl font-black tracking-[0.2em] text-ink-900 tabular-nums sm:text-6xl">
+              <p className="text-5xl font-black tracking-[0.2em] break-all text-center text-ink-900 tabular-nums sm:text-6xl">
                 {digits}
               </p>
             </>

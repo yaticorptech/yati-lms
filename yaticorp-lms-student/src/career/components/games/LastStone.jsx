@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import GameShell from './GameShell';
 import useGameProgress, { between, ramp, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import { sfx } from './gameSfx';
 
 const rnd = (n) => Math.floor(Math.random() * n);
 
@@ -61,9 +62,14 @@ function Round({ progress, onExit }) {
   const passed = wins >= config.target;
   const stars = over ? starsFor(wins, config.target) : 0;
   useRecordStars(progress, over, stars);
+  // The computer replies on a timer; if the clock ran out meanwhile, its win must not buzz over the result.
+  const overRef = useRef(over);
+  useEffect(() => { overRef.current = over; }, [over]);
 
   const finish = (winner) => {
     setVerdict(winner);
+    // A lost game is the wrong answer here: the same buzz as every other game.
+    if (winner === 'cpu' && !overRef.current) sfx.wrong();
     if (winner === 'you') setWins((w) => w + 1);
     setPlayed((p) => p + 1);
     setTimeout(() => {

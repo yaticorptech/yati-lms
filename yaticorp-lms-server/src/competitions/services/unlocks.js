@@ -37,7 +37,8 @@ const SOLO = {
  * Accounts with every group game open at every size, whatever their solo levels (2026-10-31: Hari Kiran's card,
  * 240100018860). More can be added with GROUP_GAMES_UNLOCKED (card numbers, comma-separated).
  */
-const ALWAYS_OPEN = new Set(['240100018860', ...String(process.env.GROUP_GAMES_UNLOCKED || '').split(',').map((x) => x.trim()).filter(Boolean)]);
+// Bhagyashree's card (240100045056) added 2026-11-07.
+const ALWAYS_OPEN = new Set(['240100018860', '240100045056', ...String(process.env.GROUP_GAMES_UNLOCKED || '').split(',').map((x) => x.trim()).filter(Boolean)]);
 const alwaysOpen = async (userId) => {
     const u = await require('../../models/User').findById(userId).select('cardNumber').lean();
     return Boolean(u?.cardNumber && ALWAYS_OPEN.has(String(u.cardNumber)));

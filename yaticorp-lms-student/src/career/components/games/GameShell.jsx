@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, RotateCcw, Star, Timer, Trophy, Zap } from 'lucide-react';
+import { ArrowLeft, Brain, Layers, RotateCcw, Star, Target, Timer, Trophy, Zap } from 'lucide-react';
 import { LevelIntro, LevelResult } from './LevelPanels';
 import MissionArt from '../plan/MissionArt';
 import GameCelebration from '../../../components/GameCelebration';
 import { starsForGame, starsOn, gameXpTable, GAME_XP } from './levels';
-import { useReportPlaying, usePlayLeft, clock } from './playClock';
+import { useReportPlaying } from './playClock';
 
 /**
  * The frame every game sits in: who you are playing, how you are doing, which
@@ -78,16 +78,77 @@ function RailCard({ tint, icon: Icon, iconTint, label, value }) {
 }
 
 /** Three stars, filled as far as this level has been earned. */
-function StarRow({ earned }) {
+function StarRow({ earned, large = false }) {
   return (
     <span className="flex gap-0.5">
       {[1, 2, 3].map((n) => (
         <Star
           key={n}
-          className={`h-4 w-4 ${n <= earned ? 'fill-amber-400 text-amber-400' : 'fill-line-200 text-line-200'}`}
+          className={`${large ? 'h-5 w-5' : 'h-4 w-4'} ${n <= earned ? 'fill-amber-400 text-amber-400' : 'fill-line-200 text-line-200'}`}
         />
       ))}
     </span>
+  );
+}
+
+/* ── The premium variant ────────────────────────────────────────────────────
+   Opt-in (variant="premium"): separate metric cards in the header, a wider
+   central board, and reward cards that fold under the board on smaller
+   screens instead of disappearing. */
+
+const roundBtn =
+  'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#1b2456] shadow-[0_1px_2px_rgba(27,36,86,0.08),0_6px_16px_-6px_rgba(76,58,180,0.25)] ring-1 ring-[#e4e1f5] ring-inset transition hover:-translate-y-0.5 hover:text-violet-600 hover:ring-violet-200 active:translate-y-0 focus-visible:outline-2 focus-visible:outline-violet-500';
+
+/** One header metric: icon, small label, large figure; the clock adds a draining bar. */
+function Metric({ icon: Icon, label, value, iconTint, urgent = false, pct = null, animateKey }) {
+  return (
+    <div
+      className={`relative flex min-w-0 items-center justify-center gap-2 overflow-hidden rounded-2xl px-2 py-2 min-[400px]:gap-2.5 min-[400px]:px-3 min-[400px]:py-2.5 sm:justify-start ring-1 ring-inset transition-colors duration-300 sm:min-w-[7.25rem] sm:px-3.5 ${
+        urgent ? 'gs-urgent bg-rose-50 ring-rose-200' : 'bg-white ring-[#e4e1f5]'
+      } shadow-[0_1px_2px_rgba(27,36,86,0.06),0_6px_16px_-8px_rgba(27,36,86,0.14)]`}
+    >
+      <span
+        className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors min-[400px]:flex ${urgent ? 'bg-rose-100 text-rose-600' : iconTint}`}
+      >
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 leading-none">
+        <span className="block truncate text-[0.6rem] font-bold tracking-[0.12em] text-slate-500 uppercase">{label}</span>
+        <span
+          key={animateKey}
+          className={`mt-1 block text-lg font-extrabold tabular-nums sm:text-xl ${animateKey !== undefined ? 'gs-num' : ''} ${
+            urgent ? 'text-rose-600' : 'text-[#1b2456]'
+          }`}
+        >
+          {value}
+        </span>
+      </span>
+      {pct !== null && (
+        <span aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-slate-100">
+          <span
+            className={`block h-full rounded-r-full transition-[width,background-color] duration-1000 ease-linear ${urgent ? 'bg-rose-500' : 'bg-violet-500'}`}
+            style={{ width: `${pct}%` }}
+          />
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** A reward card in the premium rail. */
+function RewardCard({ tint, iconBox, icon: Icon, label, value }) {
+  return (
+    <div
+      className={`flex min-h-[4.25rem] items-center gap-3 rounded-2xl px-3.5 py-3 sm:min-h-[5.25rem] sm:gap-3.5 sm:px-4 sm:py-3.5 ring-1 ring-inset transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(27,36,86,0.3)] ${tint}`}
+    >
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm ring-1 ring-white/60 ring-inset ${iconBox}`}>
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[0.62rem] font-bold tracking-[0.12em] text-slate-500 uppercase">{label}</span>
+        <span className="mt-1 block text-xl leading-none font-extrabold text-[#1b2456] tabular-nums sm:text-2xl">{value}</span>
+      </span>
+    </div>
   );
 }
 
@@ -98,6 +159,7 @@ export default function GameShell({
   score,
   scoreLabel = 'Score',
   seconds,
+  totalSeconds,
   best,
   progress,
   onRestart,
@@ -105,12 +167,13 @@ export default function GameShell({
   intro,
   result,
   children,
-  footer
+  footer,
+  variant
 }) {
+  const premium = variant === 'premium';
   // Neither the briefing nor the result: the level is being played, and only
   // this counts against the day's play time (see playClock.js).
   useReportPlaying(!intro && !result);
-  const playLeft = usePlayLeft();
 
   /* A cleared level gets the full-screen celebration (GameCelebration), once
      each time a result arrives, until it is closed or Next level is pressed.
@@ -144,6 +207,147 @@ export default function GameShell({
   // so far has already paid.
   const xpTable = gameXpTable();
   const xpLeft = xpTable ? Math.max(0, (xpTable[3] || 0) - (xpTable[earnedHere] || 0)) : null;
+
+  if (premium) {
+    const playing = !intro && !result;
+    const levelLabel = progress?.tier === 'super hard' ? 'Super hard' : progress?.tier === 'hard' ? 'Hard level' : 'Level';
+    const timePct = seconds !== undefined && totalSeconds ? Math.max(0, Math.min(100, (seconds / totalSeconds) * 100)) : null;
+    const rewards = (
+      <>
+        <RewardCard
+          tint="bg-gradient-to-br from-amber-50 to-white ring-amber-100"
+          iconBox="bg-amber-400 text-white"
+          icon={Star}
+          label="Stars on offer"
+          value={<StarRow earned={earnedHere} large />}
+        />
+        {xpLeft !== null && (
+          <RewardCard
+            tint="bg-gradient-to-br from-violet-50 to-white ring-violet-100"
+            iconBox="bg-violet-500 text-white"
+            icon={Zap}
+            label="XP still on offer"
+            value={xpLeft ? <>{xpLeft} <span className="text-sm font-bold text-violet-500">XP</span></> : 'All earned'}
+          />
+        )}
+        <RewardCard
+          tint="bg-gradient-to-br from-sky-50 to-white ring-sky-100"
+          iconBox="bg-sky-500 text-white"
+          icon={Trophy}
+          label="Stars in this game"
+          value={bankedStars}
+        />
+      </>
+    );
+
+    return (
+      <section
+        data-mascot-target="game"
+        className="gs-premium overflow-hidden rounded-[28px] border border-[#e6e3f6] bg-gradient-to-br from-[#f5f2ff] via-[#f1f6ff] to-white shadow-[0_1px_2px_rgba(27,36,86,0.05),0_24px_60px_-32px_rgba(76,58,180,0.35)]"
+      >
+        {/* Header */}
+        <header className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-[#ebe8f7] bg-white/60 px-3 py-3 backdrop-blur min-[400px]:px-4 min-[400px]:py-4 sm:px-6">
+          <button type="button" onClick={onExit} aria-label="Back to all games" className={roundBtn}>
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.66rem] font-bold tracking-[0.18em] text-violet-600 uppercase">{title}</p>
+            <h2 className="mt-0.5 text-base leading-snug font-extrabold tracking-tight text-[#1b2456] sm:text-xl lg:text-[1.4rem]">
+              {blurb || title}
+            </h2>
+          </div>
+
+          {playing && (
+            <div className="order-last grid basis-full grid-cols-3 gap-2 sm:order-none sm:flex sm:basis-auto sm:gap-2.5">
+              {progress && (
+                <Metric
+                  icon={Layers}
+                  label={levelLabel}
+                  value={progress.level}
+                  iconTint="bg-violet-100 text-violet-600"
+                  urgent={progress.tier === 'super hard'}
+                />
+              )}
+              {score !== undefined && (
+                <Metric icon={Target} label={scoreLabel} value={score} iconTint="bg-emerald-100 text-emerald-600" animateKey={String(score)} />
+              )}
+              {seconds !== undefined && (
+                <Metric
+                  icon={Timer}
+                  label="Time"
+                  value={`${seconds}s`}
+                  iconTint="bg-sky-100 text-sky-600"
+                  urgent={seconds <= 10}
+                  pct={timePct}
+                />
+              )}
+              {best ? <Metric icon={Trophy} label="Best" value={best} iconTint="bg-amber-100 text-amber-600" /> : null}
+            </div>
+          )}
+
+          <button type="button" onClick={onRestart} aria-label="Start over" className={roundBtn}>
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </header>
+
+        {playing && meterFrom(score) !== null && (
+          <div className="h-1 w-full bg-[#ebe8f7]" role="presentation">
+            <div className="h-full rounded-r-full bg-violet-500 transition-[width] duration-500 ease-out" style={{ width: `${meterFrom(score)}%` }} />
+          </div>
+        )}
+
+        {!playing ? (
+          <div className="p-3 sm:p-6">
+            {intro ? <LevelIntro {...intro} tone={tone} /> : <LevelResult {...result} tone={tone} />}
+            {cheering && (
+              <GameCelebration
+                eyebrow={result.atEnd ? 'Every level cleared' : 'Level complete'}
+                title={result.headline}
+                subtitle={title}
+                detail={result.detail}
+                stars={typeof result.stars === 'number' ? result.stars : null}
+                xp={cheerXp}
+                primary={!result.atEnd && result.onNext ? { label: 'Next level', onClick: () => { setCheerClosed(true); result.onNext(); } } : null}
+                onClose={() => setCheerClosed(true)}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="p-3 min-[400px]:p-4 sm:p-6">
+            <div className="grid w-full items-start gap-3 sm:gap-5 xl:grid-cols-[14rem_minmax(0,1fr)_14rem]">
+              {/* Left: how to play */}
+              {footer && (
+                <aside className="order-2 xl:order-none">
+                  <div className="flex items-center gap-3 rounded-2xl bg-violet-50/90 px-4 py-3.5 ring-1 ring-violet-100 ring-inset xl:flex-col xl:items-start xl:gap-3 xl:px-5 xl:py-5">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm ring-1 ring-violet-100 ring-inset">
+                      <Brain className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[0.62rem] font-bold tracking-[0.14em] text-violet-500 uppercase">How to play</p>
+                      <div className="mt-1 text-sm leading-snug font-semibold text-[#1b2456] [&_p]:text-left [&_p]:text-sm [&_p]:text-[#1b2456]">
+                        {footer}
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+              )}
+
+              {/* Centre: the board */}
+              <div className="order-1 min-w-0 xl:order-none">
+                <div className="gs-rise flex min-h-[17rem] items-center justify-center rounded-[22px] bg-white px-3 py-5 min-[400px]:px-4 min-[400px]:py-6 sm:rounded-[26px] ring-1 ring-[#e6e3f6] ring-inset shadow-[0_1px_2px_rgba(27,36,86,0.05),0_28px_56px_-30px_rgba(76,58,180,0.4)] sm:min-h-[24rem] sm:px-8 sm:py-9">
+                  <div className="w-full">{children}</div>
+                </div>
+              </div>
+
+              {/* Right: rewards (a row of three under the board below xl) */}
+              <aside className="order-3 grid gap-2.5 sm:grid-cols-3 sm:gap-3 xl:order-none xl:grid-cols-1">{rewards}</aside>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section data-mascot-target="game" className="overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card">
@@ -251,7 +455,7 @@ export default function GameShell({
           at six per cent, which means every game is tinted its own shade
           without a single one of them having to say so. */}
       {intro || result ? (
-        <div className="p-5 sm:p-6">
+        <div className="p-3 sm:p-6">
           {intro ? <LevelIntro {...intro} tone={tone} /> : <LevelResult {...result} tone={tone} />}
           {cheering && (
             <GameCelebration
@@ -292,15 +496,6 @@ export default function GameShell({
                 <div className="rounded-2xl bg-violet-50 px-4 py-3.5 text-center text-sm leading-relaxed font-bold text-violet-900 ring-1 ring-violet-100 ring-inset [&_p]:text-sm [&_p]:text-violet-900">
                   {footer}
                 </div>
-              )}
-              {playLeft !== null && (
-                <RailCard
-                  tint={playLeft <= 60 ? 'bg-rose-50 ring-rose-200' : 'bg-surface ring-line-200'}
-                  icon={Timer}
-                  iconTint={playLeft <= 60 ? 'bg-rose-500 text-white' : 'bg-slate-700 text-white'}
-                  label="Play left today"
-                  value={clock(playLeft)}
-                />
               )}
             </aside>
 

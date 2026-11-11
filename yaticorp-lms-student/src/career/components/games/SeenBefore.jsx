@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 /**
  * 👀 Memory & focus: a set flashes up, then one question — which of these did
@@ -12,7 +13,7 @@ import useRecordStars from './useRecordStars';
  * taken away, so nothing can be compared side by side. The only way through is
  * to actually hold the group in mind for a few seconds.
  */
-const SYMBOLS = '🍎🍌🍇🍊🍓🥝🍑🍒🥥🍍🌶️🥕🌽🍄🧄🧅🥦🥑🍆🥔🐝🦋🐞🐢🦊🐼🐨🐧🦉🦆⚽🏀🏈🎾🎱🎯🎲🎸🎺🥁'.match(/./gu);
+const SYMBOLS = '🍎🍌🍇🍊🍓🥝🍑🍒🥥🍍🌶️🥕🌽🍄🧄🧅🥦🥑🍆🥔🐝🦋🐞🐢🦊🐼🐨🐧🦉🦆⚽🏀🏈🎾🎱🎯🎲🎸🎺🥁'.match(/\p{Extended_Pictographic}\uFE0F?/gu);
 
 const pick = (from, n) => {
   const pool = [...from];
@@ -50,6 +51,7 @@ function Round({ progress, onExit }) {
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
   const [reveal, setReveal] = useState(0);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   // The effect only ever hides the set. Showing it again is done where the
@@ -67,18 +69,21 @@ function Round({ progress, onExit }) {
   const choose = (symbol) => {
     // The answer stays on screen for the flash, so a second tap in that
     // moment would score the same question again. Ignored, as DotCount does.
-    if (over || showing || flash) return;
-    if (symbol === round.answer) {
-      setScore((s) => s + 1);
-      setFlash('right');
-    } else {
-      setFlash('wrong');
-    }
-    setTimeout(() => {
-      setFlash(null);
+    if (over || showing || flash || busy) return;
+    const next = () => {
       setRound(makeRound(config.setSize));
       setShowing(true);
       setReveal((n) => n + 1);
+    };
+    if (symbol !== round.answer) {
+      showWrong(symbol, round.answer, next);
+      return;
+    }
+    setScore((s) => s + 1);
+    setFlash('right');
+    setTimeout(() => {
+      setFlash(null);
+      next();
     }, 350);
   };
 
@@ -145,14 +150,12 @@ function Round({ progress, onExit }) {
                     key={s}
                     type="button"
                     onClick={() => choose(s)}
-                    disabled={flash !== null}
-                    className={`fp-press flex h-24 w-24 items-center justify-center rounded-3xl text-5xl shadow-card ring-2 transition-all ring-inset hover:-translate-y-1 ${
+                    disabled={flash !== null || busy}
+                    className={`fp-press flex h-24 w-24 items-center justify-center rounded-3xl text-5xl shadow-card ring-2 transition-all ring-inset ${busy ? '' : 'hover:-translate-y-1'} ${
                       flash === 'right' && s === round.answer
                         ? 'bg-emerald-50 ring-emerald-400'
-                        : flash === 'wrong' && s !== round.answer
-                          ? 'bg-rose-50 ring-rose-300'
-                          : 'bg-surface ring-line-200 hover:ring-indigo-400'
-                    }`}
+                        : `bg-surface ring-line-200 ${busy ? '' : 'hover:ring-indigo-400'}`
+                    } ${toneOf(s)}`}
                   >
                     {s}
                   </button>

@@ -68,47 +68,74 @@ const STORIES = [
         ]
     },
     {
-        order: 2, title: 'Three Silver Coins', theme: 'journey',
-        moral: 'Kindness is never lost. It comes back — often bigger than it left.',
+        // Story 2 since 2026-11-07 (second request): not a comic page but a short film — its scenes drawn and animated
+        // in 2D (parts/FilmStage.jsx) and played one into the next, the narration and dialogue spoken and subtitled
+        // (parts/StoryFilm.jsx). Each line's `at` says who stands where and how; `cam`, where the camera looks.
+        order: 2, title: 'The Stranger Who Changed Everything', film: true, theme: 'journey',
+        // Its recorded voices (public/linguistic/film/stranger/<lang>/<scene>-<line>.m4a, manifest.json; Arjun's pictures in film/arjun).
+        audio: 'film/stranger',
+        moral: 'Success is important, but never become so busy chasing your dreams that you forget to be human.',
         people: {
-            ravi: { name: 'Ravi', skin: '#b07a4f', shawl: '#2e86c1', hair: 'hair' },
-            ajji: { name: 'the old woman', woman: true, skin: '#c99a6e', cloth: '#7f8c8d', blouse: '#a9cce3', hair: 'greybun' },
-            boatman: { name: 'the boatman', skin: '#7b4a2a', shawl: '#e67e22', hair: 'turban', turban: '#f4d03f', beard: true },
-            somu: { name: 'Somu', child: true, skin: '#a0663c', shawl: '#58d68d', hair: 'hair' },
-            seller: { name: 'the thread seller', woman: true, skin: '#d4a373', cloth: '#c0392b', blouse: '#f5b041', hair: 'bun' }
+            narrator: { name: '' },
+            arjun: { name: 'Arjun', skin: '#b07a4f', shirt: '#eaf2fb', shawl: null, dhoti: '#2c3e50', hair: 'hair' },
+            ravi: { name: 'Ravi', skin: '#a9784f', shirt: '#d7ccc8', shawl: '#757575', dhoti: '#f5f5f0', hair: 'grey', beard: true },
+            interviewer: { name: 'the interviewer', skin: '#c68642', shirt: '#ffffff', shawl: '#1a237e', dhoti: '#263238', hair: 'hair', moustache: true }
         },
-        panels: [
-            { scene: 'road', wide: true, title: true,
-                cast: [{ who: 'ravi', x: 46, pose: 'stand', holds: 'bag' }],
-                narration: 'Ravi, a young weaver, set out for the town fair with three silver coins — all he had — to buy thread for his loom.' },
-            { scene: 'road',
-                cast: [{ who: 'ajji', x: 28, pose: 'sad' }, { who: 'ravi', x: 70, pose: 'give', face: 'left', holds: 'coin' }],
-                say: [{ who: 'ajji', text: 'Son, I have not eaten for two days.' }, { who: 'ravi', text: 'Take this coin, Grandmother.' }] },
-            { scene: 'river', props: [{ what: 'boat', x: 22 }],
-                cast: [{ who: 'boatman', x: 40, pose: 'sad' }, { who: 'ravi', x: 76, pose: 'give', face: 'left', holds: 'coin' }],
-                say: [{ who: 'boatman', text: 'My boat has a hole. I cannot work.' }, { who: 'ravi', text: 'Mend it with this.' }] },
-            { scene: 'village',
-                cast: [{ who: 'somu', x: 28, pose: 'sad' }, { who: 'ravi', x: 70, pose: 'give', face: 'left', holds: 'coin' }],
-                say: [{ who: 'somu', text: 'My school fee is due, and Father is ill.' }, { who: 'ravi', text: 'Then this last coin is yours!' }] },
-            { scene: 'market', zoom: true,
-                cast: [{ who: 'ravi', x: 50, pose: 'sad' }],
-                say: [{ who: 'ravi', text: 'No coins, no thread. What will I tell Mother?' }] },
-            { scene: 'market', props: [{ what: 'stall', x: 14 }],
-                cast: [{ who: 'seller', x: 34, pose: 'point' }, { who: 'ravi', x: 72, pose: 'surprise', face: 'left' }],
-                say: [{ who: 'seller', text: 'Are you the weaver who fed my mother?' }, { who: 'ravi', text: 'Yes… but how do you know?' }] },
-            { scene: 'market', props: [{ what: 'stall', x: 12 }],
-                cast: [{ who: 'seller', x: 32, pose: 'give', holds: 'thread' }, { who: 'ravi', x: 72, pose: 'cheer', face: 'left' }],
-                say: [{ who: 'seller', text: 'She told me everything. This thread is a gift!' }, { who: 'ravi', text: 'Thank you, sister!' }] },
-            { scene: 'market', wide: true, caption: 'At the next fair—', props: [{ what: 'stall', x: 90 }],
-                cast: [{ who: 'ajji', x: 22, pose: 'cheer' }, { who: 'boatman', x: 36, pose: 'cheer' }, { who: 'ravi', x: 52, pose: 'give', holds: 'cloth' }, { who: 'somu', x: 70, pose: 'cheer', face: 'left' }],
-                narration: 'Ravi’s cloth won the first prize. In its border he had woven three silver coins — and the three people they had helped came to cheer for him.' }
+        scenes: [
+            { id: 1, title: 'An important morning', place: 'home', light: 'morning',
+                lines: [
+                    { who: 'narrator', text: 'It was seven o’clock on a bright Monday morning in Bengaluru.', at: { arjun: { x: 38, pose: 'stand' } }, cam: 'wide' },
+                    { who: 'narrator', text: 'Arjun buttoned his best formal shirt and checked his watch for the third time.', at: { arjun: { x: 38, pose: 'talk' } }, cam: 'close' },
+                    { who: 'arjun', text: 'Certificates, résumé, photographs… everything is here.', at: { arjun: { x: 40, pose: 'give', holds: 'papers' } }, cam: 'close' },
+                    { who: 'narrator', text: 'For months he had waited for this interview at Horizon Technologies. Today, he promised himself, he would not be late.', at: { arjun: { x: 112, pose: 'stand', holds: 'papers', walk: true } }, cam: 'pan' }
+                ] },
+            { id: 2, title: 'The stranger', place: 'busstop', light: 'rain',
+                lines: [
+                    { who: 'narrator', text: 'Outside, the sky opened. Arjun hurried through the rain towards the bus stop.', at: { arjun: { x: 34, pose: 'stand', holds: 'papers', walk: true, from: -10 }, ravi: { x: 66, pose: 'sad', sit: true } }, cam: 'wide' },
+                    { who: 'narrator', text: 'Under a small shelter sat an elderly man, his clothes damp and his eyes full of worry.', at: { arjun: { x: 34, pose: 'stand', holds: 'papers' }, ravi: { x: 66, pose: 'sad', sit: true } }, cam: 'right' },
+                    { who: 'narrator', text: 'Arjun walked past him without slowing down.', at: { arjun: { x: 88, pose: 'stand', holds: 'papers', walk: true }, ravi: { x: 66, pose: 'sad', sit: true } }, cam: 'wide' },
+                    { who: 'ravi', text: 'Excuse me, young man. Could you please help me?', at: { arjun: { x: 88, pose: 'stand', holds: 'papers' }, ravi: { x: 66, pose: 'talk', sit: true } }, cam: 'right' },
+                    { who: 'narrator', text: 'Arjun stopped, and turned around.', at: { arjun: { x: 86, pose: 'surprise', face: 'left' }, ravi: { x: 66, pose: 'talk', sit: true } }, cam: 'right' }
+                ] },
+            { id: 3, title: 'The difficult decision', place: 'busstop', light: 'rain',
+                lines: [
+                    { who: 'ravi', text: 'I came to the city to see a doctor, and somewhere on the way I lost my wallet. I don’t have enough money to get home.', at: { ravi: { x: 40, pose: 'sad', sit: true }, arjun: { x: 66, pose: 'stand', face: 'left', holds: 'papers' } }, cam: 'left' },
+                    { who: 'arjun', text: 'I’m sorry, sir, but my interview starts in twenty minutes…', at: { ravi: { x: 40, pose: 'sad', sit: true }, arjun: { x: 66, pose: 'talk', face: 'left', holds: 'papers' } }, cam: 'right' },
+                    { who: 'narrator', text: 'He looked at his watch. If he stayed, he might lose the job he had dreamed of. If he left, the old man would be alone in the rain.', at: { ravi: { x: 40, pose: 'sad', sit: true }, arjun: { x: 66, pose: 'sad', face: 'left', holds: 'papers' } }, cam: 'close' },
+                    { who: 'ravi', text: 'I understand, son. Go. Your future is waiting.', at: { ravi: { x: 40, pose: 'give', sit: true }, arjun: { x: 66, pose: 'sad', face: 'left' } }, cam: 'left' },
+                    { who: 'narrator', text: 'But Arjun did not move.', at: { ravi: { x: 40, pose: 'stand', sit: true }, arjun: { x: 66, pose: 'stand', face: 'left' } }, cam: 'wide' }
+                ] },
+            { id: 4, title: 'The decision', place: 'busstop', light: 'rain',
+                lines: [
+                    { who: 'arjun', text: 'Sir, my interview can wait a few minutes. Your safety cannot.', at: { ravi: { x: 40, pose: 'surprise', sit: true }, arjun: { x: 62, pose: 'talk', face: 'left' } }, cam: 'right' },
+                    { who: 'narrator', text: 'He booked an auto-rickshaw, paid the driver in advance and lent the old man his phone.', at: { ravi: { x: 40, pose: 'stand', holds: 'phone' }, arjun: { x: 62, pose: 'give', face: 'left' } }, cam: 'wide', props: ['auto'] },
+                    { who: 'ravi', text: 'Son, I am at the bus stop. A kind young man is sending me home.', at: { ravi: { x: 40, pose: 'talk', holds: 'phone' }, arjun: { x: 62, pose: 'stand', face: 'left' } }, cam: 'left', props: ['auto'] },
+                    { who: 'ravi', text: 'Thank you. People like you are rare these days. What is your name?', at: { ravi: { x: 40, pose: 'give' }, arjun: { x: 62, pose: 'stand', face: 'left' } }, cam: 'left', props: ['auto'] },
+                    { who: 'arjun', text: 'Arjun, sir. Please take care of yourself.', at: { ravi: { x: 40, pose: 'cheer' }, arjun: { x: 62, pose: 'talk', face: 'left' } }, cam: 'right', props: ['auto'] },
+                    { who: 'narrator', text: 'As the auto-rickshaw drove away, Arjun checked the time. He was already late. He ran.', at: { arjun: { x: 118, pose: 'stand', holds: 'papers', walk: true, run: true } }, cam: 'pan' }
+                ] },
+            { id: 5, title: 'The unexpected twist', place: 'office', light: 'day',
+                lines: [
+                    { who: 'narrator', text: 'Twenty-five minutes late, soaked and out of breath, Arjun entered the interview room.', at: { arjun: { x: 30, pose: 'sad', holds: 'papers', walk: true, from: -10 }, interviewer: { x: 70, pose: 'stand', face: 'left', sit: true } }, cam: 'wide' },
+                    { who: 'arjun', text: 'I’m very sorry I’m late, sir. An elderly man at the bus stop had lost his wallet, and I could not leave him alone.', at: { arjun: { x: 34, pose: 'talk', holds: 'papers' }, interviewer: { x: 70, pose: 'stand', face: 'left', sit: true } }, cam: 'left' },
+                    { who: 'interviewer', text: 'Was he wearing a grey shawl? Did he say he had come to see a doctor?', at: { arjun: { x: 34, pose: 'stand', holds: 'papers' }, interviewer: { x: 70, pose: 'talk', face: 'left', sit: true } }, cam: 'right' },
+                    { who: 'arjun', text: 'Yes… but how do you know?', at: { arjun: { x: 34, pose: 'surprise' }, interviewer: { x: 70, pose: 'stand', face: 'left', sit: true } }, cam: 'left' },
+                    { who: 'interviewer', text: 'Because he is my father. He called me ten minutes ago and told me about a young man named Arjun, who helped him and asked for nothing in return.', at: { arjun: { x: 34, pose: 'surprise' }, interviewer: { x: 70, pose: 'talk', face: 'left', sit: true } }, cam: 'right' }
+                ] },
+            { id: 6, title: 'The ending', place: 'office', light: 'day',
+                lines: [
+                    { who: 'interviewer', text: 'Skills can be taught, but kindness and honesty come from within.', at: { arjun: { x: 34, pose: 'stand' }, interviewer: { x: 66, pose: 'talk', face: 'left' } }, cam: 'right' },
+                    { who: 'interviewer', text: 'Your results are good. Come in tomorrow morning, and show me what you can do.', at: { arjun: { x: 36, pose: 'cheer' }, interviewer: { x: 62, pose: 'give', face: 'left' } }, cam: 'wide' },
+                    { who: 'arjun', text: 'Thank you, sir. I won’t let you down.', at: { arjun: { x: 38, pose: 'give' }, interviewer: { x: 62, pose: 'give', face: 'left' } }, cam: 'left' },
+                    { who: 'narrator', text: 'That evening the rain had stopped. Arjun walked home slowly, the city lights shining in the puddles and a quiet hope in his heart.', place: 'street', light: 'evening', at: { arjun: { x: 70, pose: 'stand', walk: true, from: 10 } }, cam: 'pan' }
+                ] }
         ],
         questions: [
-            { prompt: 'Why was Ravi going to the fair?', answer: 'To buy thread for his loom', others: ['To sell the cloth he had woven', 'To look for a new job', 'To meet his mother'], explanation: 'He set out “to buy thread for his loom”.' },
-            { prompt: 'Who did Ravi give his last coin to?', answer: 'Somu, a boy whose school fee was due', others: ['The old woman', 'The boatman', 'The thread seller'], explanation: 'Ravi told Somu: “Then this last coin is yours!”' },
-            { prompt: 'How did the thread seller know about Ravi?', answer: 'Her mother, the old woman Ravi fed, told her', others: ['The boatman told her', 'She saw him on the road', 'Somu’s father told her'], explanation: 'She said: “She told me everything.”' },
-            { prompt: 'What did Ravi weave into the border of his prize cloth?', answer: 'Three silver coins', others: ['His mother’s name', 'A boat on a river', 'A banyan tree'], explanation: '“In its border he had woven three silver coins.”' },
-            { prompt: 'What is the moral of the story?', answer: 'Kindness comes back, often bigger than it left', others: ['Never spend all your money', 'Fairs are better than villages', 'Thread is more useful than coins'], explanation: 'Ravi gave away three coins and got back far more.' }
+            { prompt: 'Why was Arjun in a hurry that morning?', answer: 'He had an important job interview and did not want to be late', others: ['He had missed his bus to college', 'He was going to see a doctor', 'He wanted to reach the bus stop before the rain'], explanation: 'He had waited months for the interview, and “he would not be late”.' },
+            { prompt: 'What problem did the elderly man face?', answer: 'He had lost his wallet and could not pay to get home', others: ['He had lost his way in the city', 'He had hurt his leg in the rain', 'He had missed his doctor’s appointment'], explanation: 'Ravi said: “I lost my wallet. I don’t have enough money to get home.”' },
+            { prompt: 'What did Arjun decide to do?', answer: 'He arranged an auto-rickshaw and let the man call his family', others: ['He gave the man directions and left', 'He took the man to the doctor', 'He asked a policeman to help the man'], explanation: '“He booked an auto-rickshaw, paid the driver in advance and lent the old man his phone.”' },
+            { prompt: 'How was the interviewer connected to the elderly man?', answer: 'The elderly man was his father', others: ['He was the man’s doctor', 'He was the auto-rickshaw driver', 'He had found the man’s wallet'], explanation: 'The interviewer said: “Because he is my father.”' },
+            { prompt: 'What is the main lesson of the story?', answer: 'Never be so busy chasing success that you forget to be kind', others: ['Always arrive early for an interview', 'Never talk to strangers at a bus stop', 'Skills matter more than kindness'], explanation: '“Success is important, but never become so busy chasing your dreams that you forget to be human.”' }
         ]
     },
     {
@@ -204,6 +231,54 @@ const STORIES = [
     }
 ];
 
+// The story the courses not yet translated anew still tell in place of story 2 (Three Silver Coins, until 2026-11-07).
+const LEGACY = {
+    2: {
+        order: 2, title: 'Three Silver Coins', theme: 'journey',
+        moral: 'Kindness is never lost. It comes back — often bigger than it left.',
+        people: {
+            ravi: { name: 'Ravi', skin: '#b07a4f', shawl: '#2e86c1', hair: 'hair' },
+            ajji: { name: 'the old woman', woman: true, skin: '#c99a6e', cloth: '#7f8c8d', blouse: '#a9cce3', hair: 'greybun' },
+            boatman: { name: 'the boatman', skin: '#7b4a2a', shawl: '#e67e22', hair: 'turban', turban: '#f4d03f', beard: true },
+            somu: { name: 'Somu', child: true, skin: '#a0663c', shawl: '#58d68d', hair: 'hair' },
+            seller: { name: 'the thread seller', woman: true, skin: '#d4a373', cloth: '#c0392b', blouse: '#f5b041', hair: 'bun' }
+        },
+        panels: [
+            { scene: 'road', wide: true, title: true,
+                cast: [{ who: 'ravi', x: 46, pose: 'stand', holds: 'bag' }],
+                narration: 'Ravi, a young weaver, set out for the town fair with three silver coins — all he had — to buy thread for his loom.' },
+            { scene: 'road',
+                cast: [{ who: 'ajji', x: 28, pose: 'sad' }, { who: 'ravi', x: 70, pose: 'give', face: 'left', holds: 'coin' }],
+                say: [{ who: 'ajji', text: 'Son, I have not eaten for two days.' }, { who: 'ravi', text: 'Take this coin, Grandmother.' }] },
+            { scene: 'river', props: [{ what: 'boat', x: 22 }],
+                cast: [{ who: 'boatman', x: 40, pose: 'sad' }, { who: 'ravi', x: 76, pose: 'give', face: 'left', holds: 'coin' }],
+                say: [{ who: 'boatman', text: 'My boat has a hole. I cannot work.' }, { who: 'ravi', text: 'Mend it with this.' }] },
+            { scene: 'village',
+                cast: [{ who: 'somu', x: 28, pose: 'sad' }, { who: 'ravi', x: 70, pose: 'give', face: 'left', holds: 'coin' }],
+                say: [{ who: 'somu', text: 'My school fee is due, and Father is ill.' }, { who: 'ravi', text: 'Then this last coin is yours!' }] },
+            { scene: 'market', zoom: true,
+                cast: [{ who: 'ravi', x: 50, pose: 'sad' }],
+                say: [{ who: 'ravi', text: 'No coins, no thread. What will I tell Mother?' }] },
+            { scene: 'market', props: [{ what: 'stall', x: 14 }],
+                cast: [{ who: 'seller', x: 34, pose: 'point' }, { who: 'ravi', x: 72, pose: 'surprise', face: 'left' }],
+                say: [{ who: 'seller', text: 'Are you the weaver who fed my mother?' }, { who: 'ravi', text: 'Yes… but how do you know?' }] },
+            { scene: 'market', props: [{ what: 'stall', x: 12 }],
+                cast: [{ who: 'seller', x: 32, pose: 'give', holds: 'thread' }, { who: 'ravi', x: 72, pose: 'cheer', face: 'left' }],
+                say: [{ who: 'seller', text: 'She told me everything. This thread is a gift!' }, { who: 'ravi', text: 'Thank you, sister!' }] },
+            { scene: 'market', wide: true, caption: 'At the next fair—', props: [{ what: 'stall', x: 90 }],
+                cast: [{ who: 'ajji', x: 22, pose: 'cheer' }, { who: 'boatman', x: 36, pose: 'cheer' }, { who: 'ravi', x: 52, pose: 'give', holds: 'cloth' }, { who: 'somu', x: 70, pose: 'cheer', face: 'left' }],
+                narration: 'Ravi’s cloth won the first prize. In its border he had woven three silver coins — and the three people they had helped came to cheer for him.' }
+        ],
+        questions: [
+            { prompt: 'Why was Ravi going to the fair?', answer: 'To buy thread for his loom', others: ['To sell the cloth he had woven', 'To look for a new job', 'To meet his mother'], explanation: 'He set out “to buy thread for his loom”.' },
+            { prompt: 'Who did Ravi give his last coin to?', answer: 'Somu, a boy whose school fee was due', others: ['The old woman', 'The boatman', 'The thread seller'], explanation: 'Ravi told Somu: “Then this last coin is yours!”' },
+            { prompt: 'How did the thread seller know about Ravi?', answer: 'Her mother, the old woman Ravi fed, told her', others: ['The boatman told her', 'She saw him on the road', 'Somu’s father told her'], explanation: 'She said: “She told me everything.”' },
+            { prompt: 'What did Ravi weave into the border of his prize cloth?', answer: 'Three silver coins', others: ['His mother’s name', 'A boat on a river', 'A banyan tree'], explanation: '“In its border he had woven three silver coins.”' },
+            { prompt: 'What is the moral of the story?', answer: 'Kindness comes back, often bigger than it left', others: ['Never spend all your money', 'Fairs are better than villages', 'Thread is more useful than coins'], explanation: 'Ravi gave away three coins and got back far more.' }
+        ]
+    }
+};
+
 // The stories in other languages, for those courses (content/comicLangs.js, 2026-11-02: Kannada and Hindi first).
 const { LANGS } = require('./content/comicLangs');
 const courses = require('./courses');
@@ -213,7 +288,7 @@ const storyOf = (stub) => STORIES.find((s) => s.order === Number(stub.order)) ||
 
 /** The stubs, one per story: in the English course's Advanced topics, and in each course the story is written for. */
 const stubs = () => STORIES.flatMap((s) => [
-    { seedKey: seedKeyOf(s), course: null, title: `Picture story: ${s.title}` },
+    { seedKey: seedKeyOf(s), course: null, title: `${s.film ? 'Story film' : 'Picture story'}: ${s.title}` },
     ...Object.entries(LANGS[s.order] || {}).map(([code, L]) => ({ seedKey: seedKeyOf(s, code), course: code, title: `${L.label}: ${L.title}` }))
 ].map((x) => ({ ...x, review: 'comic', module: 'reading', level: 'advanced', order: s.order, summary: SUMMARY, status: 'published', updatedBy: 'Course content', direction: null, learn: {} })));
 
@@ -229,6 +304,15 @@ const inLanguage = (s, L) => s.panels.map((p, i) => {
     };
 });
 
+/** A story told as a film (story 2 since 2026-11-07): its scenes, each line's words in the course's language (L.scenes). */
+const filmOf = (s, L, locale) => ({
+    film: true, audio: s.audio, title: L ? L.title : s.title, moral: L ? L.moral : s.moral, moralLabel: L ? L.moralLabel : undefined, locale, panels: [],
+    people: s.people,
+    scenes: s.scenes.map((sc, i) => ({
+        ...sc, title: L ? L.scenes[i].title : sc.title,
+        lines: sc.lines.map((ln, k) => ({ ...ln, text: L ? L.scenes[i].lines[k] : ln.text, name: L?.names?.[ln.who] ?? s.people[ln.who]?.name ?? '' }))
+    }))
+});
 /*
  * The people's names in each language (2026-11-05, "mention the names of the persons — the quiz asks about them"):
  * shown under them in every panel. As each language's story writes them (its quiz, its words); Kitti, never named in
@@ -254,15 +338,18 @@ const named = (people, code) => Object.fromEntries(Object.entries(people || {}).
 
 /** The stub made whole: the story's panels (each speaker's name with what they say) and its questions. */
 const build = (stub, helper) => {
-    const s = storyOf(stub);
-    const L = stub.course ? LANGS[s?.order]?.[stub.course] : null;
-    if (!s || (stub.course && !L)) return { ...stub, comic: null, quiz: [] };
+    const found = storyOf(stub);
+    const L = stub.course ? LANGS[found?.order]?.[stub.course] : null;
+    if (!found || (stub.course && !L)) return { ...stub, comic: null, quiz: [] };
+    // A course whose translation is of the story told before (LEGACY): its pictures, with its words.
+    const s = L?.legacy ? LEGACY[found.order] : found;
     const info = stub.course ? courses.courseInfo(stub.course) : null;
     return {
         ...stub, language: helper, languageName: require('./languages').infoOf(helper).name,
         ...(info ? { target: info.code, targetName: info.name, targetLocale: info.locale } : {}),
         learn: { intro: INTRO },
-        comic: L
+        comic: s.film ? filmOf(s, L, L ? info.locale : 'en-IN')
+            : L
             ? { title: L.title, titleEn: s.title, theme: s.theme, moral: L.moral, moralLabel: L.moralLabel, locale: info.locale, people: named(s.people, stub.course), panels: inLanguage(s, L) }
             : {
                 title: s.title, theme: s.theme, moral: s.moral, locale: 'en-IN',

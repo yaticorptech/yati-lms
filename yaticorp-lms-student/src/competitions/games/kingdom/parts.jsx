@@ -38,7 +38,7 @@ export const RoundIcon = ({ icon: Icon, label, onClick, size = 4.2, active = fal
             style={{ width: `clamp(32px, ${size}cqw, 80px)`, height: `clamp(32px, ${size}cqw, 80px)` }}>
             <Icon style={{ width: '48%', height: '48%' }} />
         </span>
-        <span className="hidden font-semibold text-[#f3e6c8] [text-shadow:0_1px_3px_#000] md:block" style={{ ...serif, fontSize: fs(9, 1, 17) }}>{label}</span>
+        <span className="hidden font-semibold text-[#f3e6c8] [text-shadow:0_1px_3px_#000] @min-[560px]:block" style={{ ...serif, fontSize: fs(9, 1, 17) }}>{label}</span>
     </button>
 );
 
@@ -111,7 +111,7 @@ export const Symbol = ({ name, className = 'h-full w-full' }) => (
 /** A menu over the game (Map, Clues, Inventory, Pause). */
 export const Sheet = ({ title, onClose, children, wide = false }) => (
     <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/65 p-3 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
-        <div onClick={(e) => e.stopPropagation()} className={`max-h-[88vh] w-full overflow-y-auto rounded-2xl p-5 ${wide ? 'max-w-2xl' : 'max-w-md'} ${darkPanel}`}>
+        <div onClick={(e) => e.stopPropagation()} className={`max-h-[88%] w-full overflow-y-auto rounded-2xl p-5 ${wide ? 'max-w-2xl' : 'max-w-md'} ${darkPanel}`}>
             <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-[#e7c477]" style={serif}>{title}</h2>
                 <button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-1.5 text-[#e9dcc0] hover:bg-white/10"><X size={20} /></button>

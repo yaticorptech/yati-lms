@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { X, Save, Loader2, Rocket, ImagePlus, Trash2, ChessKnight, Dices, Target, Spade, Gamepad2, Zap, CodeXml, Puzzle, Brain, Pencil, CheckCircle2, AlertCircle, Library, Code2, Plus, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { INPUT, LABEL, BTN, BTN2 } from '../components/orgUi';
-import { GAMES, RETIRED_GAMES, CHALLENGES, STATUS, ORDINAL, ARENA_NOTE, notePoints, toLocalInput, errorOf, scheduleProblems, addDays, today } from './constants';
+import { GAMES, RETIRED_GAMES, CHALLENGES, STATUS, ORDINAL, ARENA_NOTE, notePoints, toLocalInput, errorOf, scheduleProblems, addDays, today, datesRelaxed } from './constants';
 import api from '../utils/api';
 import { arenaApi, arenaPath, ROUND_NAMES } from '../arena/shared';
 import QuestionBankDialog from '../arena/QuestionBankDialog';
@@ -52,22 +52,24 @@ export const Chip = ({ status }) => {
  * The entry fee: off, or an amount in ₹ each approved student pays
  * online (Razorpay) before they can join. The same for every game and Quiz Arena.
  */
-export const EntryFeeField = ({ value = { enabled: false, amount: 100 }, onChange }) => (
-    <fieldset className="space-y-3 rounded-2xl border border-slate-200 p-4" data-entry-fee>
+export const EntryFeeField = ({ value = { enabled: false, amount: 100 }, onChange, locked = false }) => (
+    <fieldset disabled={locked} className={`space-y-3 rounded-2xl border border-slate-200 p-4 ${locked ? 'bg-slate-50' : ''}`} data-entry-fee data-fee-locked={locked || undefined}>
         <legend className="px-1 text-sm font-bold text-slate-700">Entry fee</legend>
+        {/* Once anyone has paid, the server refuses a change (409): fixed here too. */}
+        {locked && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">Players have already paid — the fee can&apos;t be changed.</p>}
         <label className="flex items-center justify-between gap-3">
             <span>
                 <span className="block text-sm font-semibold text-slate-800">Take an entry fee</span>
                 <span className="block text-xs text-slate-500">Each approved student pays it online (Razorpay: UPI, card or net banking) before they can join. Until then they get no joining code.</span>
             </span>
-            <button type="button" role="switch" aria-checked={!!value.enabled} onClick={() => onChange({ ...value, enabled: !value.enabled, amount: value.amount || 100 })}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${value.enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+            <button type="button" role="switch" aria-checked={!!value.enabled} disabled={locked} onClick={() => onChange({ ...value, enabled: !value.enabled, amount: value.amount || 100 })}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${value.enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}>
                 <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${value.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
         </label>
         {value.enabled && (
             <label className="block sm:w-1/2"><span className={LABEL}>Amount (₹ per student)</span>
-                <input type="number" min={1} max={100000} required value={value.amount} onChange={(e) => onChange({ ...value, amount: e.target.value })} className={INPUT} /></label>
+                <input type="number" min={1} max={100000} required disabled={locked} value={value.amount} onChange={(e) => onChange({ ...value, amount: e.target.value })} className={`${INPUT} disabled:bg-slate-100 disabled:text-slate-500`} /></label>
         )}
     </fieldset>
 );
@@ -80,8 +82,16 @@ const useSavedCertificates = () => {
     return list;
 };
 
-export const RewardsFields = ({ value, onChange, team = true }) => {
+/**
+ * A hosting college's reward limits (the server's routes/admin.js HOST_CAPS): each prize place at most 1000 XP and
+ * 500 reward points, taking part at most 100 XP. The platform admin keeps the higher limits.
+ */
+const HOST_CAPS = { xp: 1000, rewardPoints: 500, participationXp: 100 };
+const hostingCollege = () => window.location.pathname.startsWith('/organization');
+
+export const RewardsFields = ({ value, onChange, team = true, capped = hostingCollege() }) => {
     const saved = useSavedCertificates();
+    const cap = capped ? HOST_CAPS : { xp: 100000, rewardPoints: 100000, participationXp: 10000 };
     const setPrize = (place, patch) => onChange({ prizes: value.prizes.map((p) => (p.place === place ? { ...p, ...patch } : p)) });
     return (
         <>
@@ -92,13 +102,15 @@ export const RewardsFields = ({ value, onChange, team = true }) => {
                                     <div key={p.place} className="grid items-end gap-2 sm:grid-cols-[3rem_1fr_7rem_8rem]">
                                         <span className="pb-2.5 text-sm font-black text-slate-700">{ORDINAL[p.place]}</span>
                                         <label><span className={LABEL}>Title</span><input value={p.title} maxLength={120} onChange={(e) => setPrize(p.place, { title: e.target.value })} className={INPUT} /></label>
-                                        <label><span className={LABEL}>XP</span><input type="number" min={0} value={p.xp} onChange={(e) => setPrize(p.place, { xp: e.target.value })} className={INPUT} /></label>
-                                        <label><span className={LABEL}>Reward points</span><input type="number" min={0} value={p.rewardPoints} onChange={(e) => setPrize(p.place, { rewardPoints: e.target.value })} className={INPUT} /></label>
+                                        <label><span className={LABEL}>XP</span><input type="number" min={0} max={cap.xp} value={p.xp} onChange={(e) => setPrize(p.place, { xp: e.target.value })} className={INPUT} /></label>
+                                        <label><span className={LABEL}>Reward points</span><input type="number" min={0} max={cap.rewardPoints} value={p.rewardPoints} onChange={(e) => setPrize(p.place, { rewardPoints: e.target.value })} className={INPUT} /></label>
                                     </div>
                                 ))}
                             </div>
+                            {capped && <p className="mt-2 text-xs text-slate-500" data-host-caps>As a hosting college: up to {HOST_CAPS.xp} XP and {HOST_CAPS.rewardPoints} reward points per place.</p>}
                             <label className="mt-4 block sm:w-1/2"><span className={LABEL}>XP for taking part {team ? '(every player)' : '(every student who answers)'}</span>
-                                <input type="number" min={0} max={10000} value={value.participationXp} onChange={(e) => onChange({ participationXp: e.target.value })} className={INPUT} /></label>
+                                <input type="number" min={0} max={cap.participationXp} value={value.participationXp} onChange={(e) => onChange({ participationXp: e.target.value })} className={INPUT} />
+                                {capped && <span className="mt-1 block text-xs text-slate-500">Up to {HOST_CAPS.participationXp} XP.</span>}</label>
                         </fieldset>
 
                         <fieldset className="space-y-2 rounded-2xl border border-slate-200 p-4">
@@ -329,7 +341,7 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                             <DateTimeInput required value={f.registrationDeadline} onChange={(v) => set({ registrationDeadline: v })} label="Registration end" min={(f.registrationOpensAt || '').slice(0, 10) || (competition ? undefined : today())} invalid={!!bad.registrationDeadline} />
                             {bad.registrationDeadline && <span className="mt-1 block text-xs font-semibold text-rose-600" data-date-error>{bad.registrationDeadline}</span>}</label>
                         <label><span className={LABEL}>{f.game === 'quiz' ? 'Quiz opens on' : 'Competition date'}</span>
-                            <input type="date" required value={f.startDate} min={addDays((f.registrationDeadline || '').slice(0, 10), 1) || undefined} onChange={(e) => set({ startDate: e.target.value })} className={`${INPUT} ${bad.startsAt ? '!border-rose-400' : ''}`} />
+                            <input type="date" required value={f.startDate} min={datesRelaxed() ? undefined : addDays((f.registrationDeadline || '').slice(0, 10), 1) || undefined} onChange={(e) => set({ startDate: e.target.value })} className={`${INPUT} ${bad.startsAt ? '!border-rose-400' : ''}`} />
                             {bad.startsAt && <span className="mt-1 block text-xs font-semibold text-rose-600" data-date-error>{bad.startsAt}</span>}</label>
                         <label><span className={LABEL}>Start time</span>
                             <TimeInput required value={f.startTime} onChange={(v) => set({ startTime: v })} label="Start time" /></label>
@@ -506,7 +518,7 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
 
                     </>)}
 
-                    <EntryFeeField value={f.entryFee} onChange={(entryFee) => set({ entryFee })} />
+                    <EntryFeeField value={f.entryFee} onChange={(entryFee) => set({ entryFee })} locked={!!competition?.feeLocked} />
 
                     <RewardsFields team={!isArena} value={{ prizes: f.prizes, participationXp: f.participationXp, winnersCert: f.certificates, participantsCert: f.participationCertificates, designId: f.certificateDesignId }}
                         onChange={(p) => set({ ...('prizes' in p && { prizes: p.prizes }), ...('participationXp' in p && { participationXp: p.participationXp }), ...('winnersCert' in p && { certificates: p.winnersCert }), ...('participantsCert' in p && { participationCertificates: p.participantsCert }), ...('designId' in p && { certificateDesignId: p.designId }) })} />
