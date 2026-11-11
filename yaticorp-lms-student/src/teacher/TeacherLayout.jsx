@@ -14,7 +14,7 @@ import useBackClose from '../native/useBackClose';
 import TeacherBottomNav from './TeacherBottomNav';
 import { colorOf } from './kit';
 import { TeacherAvatar } from './ui';
-import teacherApi, { isEmbedded } from './teacherSession';
+import teacherApi, { isEmbedded, readTeacherAdminView } from './teacherSession';
 
 const NAV = [
     { items: [{ to: '/teacher', label: 'Dashboard', icon: LayoutDashboard, end: true, color: 'emerald' }] },
@@ -139,6 +139,7 @@ const SignOut = ({ onClick }) => (
 
 export default function TeacherLayout() {
     const { teacher, signOut } = useTeacher();
+    const [adminView] = useState(readTeacherAdminView);
     const hasClubs = useHasClubs(teacher?._id);
     const research = hasResearch(teacher);
     const mentor = Boolean(teacher?.mentor360);
@@ -198,6 +199,18 @@ export default function TeacherLayout() {
             )}
 
             <main className="px-4 pb-28 pt-20 sidebar:ml-64 sidebar:px-8 sidebar:pb-10 sidebar:pt-8">
+                {/* A super admin working in this teacher's dashboard: said plainly, with the way out. */}
+                {adminView && (
+                    <div role="status" className="mx-auto mb-4 flex w-full max-w-[100rem] items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+                        <p className="min-w-0 flex-1">
+                            <span className="font-semibold">Viewing {teacher?.name || adminView.name}</span>
+                            <span className="hidden sm:inline"> as the platform administrator ({adminView.by})</span> · actions count as the teacher's
+                        </p>
+                        <button type="button" onClick={() => { window.close(); signOut(); }} className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100">
+                            Exit
+                        </button>
+                    </div>
+                )}
                 {/* Every page fills the space beside the sidebar: a 72rem cap
                     left wide empty margins on a laptop (2026-10-28). The cap
                     that is left only stops lines stretching on a very wide

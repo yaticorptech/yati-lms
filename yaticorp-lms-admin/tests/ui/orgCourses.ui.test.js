@@ -141,7 +141,7 @@ const reply = (data) => Promise.resolve({ data });
 export default {
   get: (url) => { window.__calls.push(['GET', url]);
     if (url === '/organizations/admin/o1') return reply({ organization: ${JSON.stringify(ORG)}, admins: [], studentCount: 3, pendingRequests: 0, courseCount: 4 });
-    return reply({ organizations: [${JSON.stringify(ORG)}], totals: { all: 1, active: 1 }, types: [{ value: 'college', label: 'College' }] }); },
+    return reply({ organizations: [${JSON.stringify({ ...ORG, courseCount: 4 })}], totals: { all: 1, active: 1 }, types: [{ value: 'college', label: 'College' }] }); },
   put: (url, body) => { window.__calls.push(['PUT', url, body]);
     return reply({ message: 'ABC College can now have up to ' + body.limit + ' courses.', courseAccess: { enabled: body.enabled, limit: body.limit }, courseCount: 4 }); },
   post: () => reply({}), delete: () => reply({})
@@ -152,7 +152,7 @@ describe("the super admin's Course access card", { skip: skipWithoutChrome }, ()
     test('switches courses on with a limit, and says what it did', async () => {
         const { result, errors } = await screen({ entry: superEntry, api: superApi, script: `
             await sleep(700);
-            click(/^\\s*(Review|View)\\s*$/); await sleep(500);
+            $('button[aria-label="Course access for ABC College"]').click(); await sleep(500);
             const card = $('section[aria-label="Course access"]');
             const before = { on: card.querySelector('[role=switch]').getAttribute('aria-checked'), made: text(card) };
             card.querySelector('[role=switch]').click(); await sleep(100);

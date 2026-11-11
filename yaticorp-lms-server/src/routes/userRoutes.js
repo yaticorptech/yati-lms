@@ -132,7 +132,8 @@ router.get('/resume', protectUser, getResume);
 router.post('/resume', protectUser, require('../integrations/google/driveStore').requireDriveFor, chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () => 'resume'), uploadResume);
 router.delete('/resume', protectUser, deleteResume);
 router.get('/resume/ats/data', protectUser, getAtsData);
-router.get('/resume/ats', protectUser, chargeWallet('download_resume'), downloadAts);
+// Drive linked first (2026-11-05), before the charge.
+router.get('/resume/ats', protectUser, require('../integrations/google/driveStore').requireDriveForDownload, chargeWallet('download_resume'), downloadAts);
 
 // Announcements Route (read-only for students)
 router.get('/announcements', protectUser, getAnnouncementsForUser);

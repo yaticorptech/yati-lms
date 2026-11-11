@@ -61,6 +61,20 @@ const requireDriveFor = async (req, res, next) => {
   catch (error) { if (!sendDriveError(res, error)) next(error); }
 };
 
+/**
+ * Express middleware for a download route (2026-11-05): files a student
+ * downloads are kept in their Drive too, so no download until it is linked.
+ * Placed before chargeWallet, so nothing is charged for a refused download.
+ */
+const DOWNLOAD_MESSAGE = 'Link your Google Drive first: the files you download are kept in your own Drive.';
+const requireDriveForDownload = async (req, res, next) => {
+  try { await assertDriveLinked(req.user._id); next(); }
+  catch (error) {
+    if (error instanceof DriveRequired) return sendDriveError(res, new DriveRequired(DOWNLOAD_MESSAGE));
+    next(error);
+  }
+};
+
 /** Stream a stored file back through our server (downloads, framing): nothing is kept. */
 const sendFromDrive = async (res, userId, fileId, fileName = 'file') => {
   const file = await drive.readFile(userId, fileId);
@@ -76,4 +90,4 @@ const sendFromDrive = async (res, userId, fileId, fileName = 'file') => {
 /** Remove one stored file from their Drive (the student deleted it here). Never throws. */
 const removeFile = (userId, fileId) => drive.removeFile(userId, fileId).catch(() => ({ ok: false }));
 
-module.exports = { DriveRequired, driveRequired, assertDriveLinked, storeInDrive, previewUrlOf, sendDriveError, requireDriveFor, sendFromDrive, removeFile };
+module.exports = { DriveRequired, driveRequired, assertDriveLinked, storeInDrive, previewUrlOf, sendDriveError, requireDriveFor, requireDriveForDownload, sendFromDrive, removeFile };

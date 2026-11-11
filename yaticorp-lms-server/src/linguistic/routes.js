@@ -480,7 +480,8 @@ router.get('/certificates', async (req, res, next) => {
         res.json({ certificates: progress.certificates.filter((c) => !c.hiddenAt).map((c) => ({ level: c.level, label: svc.LEVEL_LABEL[c.level], course: c.course || 'en', courseName: courseInfo(c.course || 'en').name, number: c.number, issuedAt: c.issuedAt, average: c.average })) });
     } catch (err) { next(err); }
 });
-router.get('/certificates/:level/pdf', async (req, res, next) => {
+// Drive linked first (2026-11-05).
+router.get('/certificates/:level/pdf', require('../integrations/google/driveStore').requireDriveForDownload, async (req, res, next) => {
     try {
         if (!LEVELS.includes(req.params.level)) return bad(res, 'That certificate was not found.', 404);
         const progress = await svc.progressOf(req.user._id);

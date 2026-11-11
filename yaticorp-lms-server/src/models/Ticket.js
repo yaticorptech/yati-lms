@@ -18,6 +18,13 @@ const ticketSchema = new mongoose.Schema({
     // The address the student wrote from (/learn/…, /career/planner), which
     // `page` is too coarse to say: support needs to know where they were stuck.
     path: { type: String, maxlength: 300 },
+    // Who wrote in: the admin Tickets page filters on it. Tickets from before
+    // 2026-11-04 were all students', which is the default.
+    from: {
+        type: String,
+        enum: ['student', 'teacher', 'organization'],
+        default: 'student'
+    },
     status: {
         type: String,
         enum: ['open', 'in-progress', 'resolved'],

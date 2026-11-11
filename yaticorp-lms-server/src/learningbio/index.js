@@ -140,7 +140,8 @@ router.get('/', async (req, res, next) => {
     try { const out = await build(req.user._id); if (!out) return res.status(404).json({ message: 'Account not found.' }); res.json(out); } catch (err) { next(err); }
 });
 
-router.get('/pdf', chargeWallet('download_bio'), async (req, res, next) => {
+// Drive linked first (2026-11-05), before the charge.
+router.get('/pdf', require('../integrations/google/driveStore').requireDriveForDownload, chargeWallet('download_bio'), async (req, res, next) => {
     try {
         const full = await build(req.user._id);
         if (!full) return res.status(404).json({ message: 'Account not found.' });

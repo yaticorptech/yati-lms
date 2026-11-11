@@ -27,7 +27,9 @@ const createTicket = async (req, res) => {
         // than refusing the ticket over it.
         const path = typeof req.body.path === 'string' && /^\/(?!\/)/.test(req.body.path) ? req.body.path.slice(0, 300) : undefined;
 
-        const ticket = await Ticket.create({ name, email, cardNumber, subject, message, page, path });
+        const from = ['student', 'teacher', 'organization'].includes(req.body.from) ? req.body.from : 'student';
+
+        const ticket = await Ticket.create({ name, email, cardNumber, subject, message, page, path, from });
 
         // Email the admin
         const adminEmail = process.env.ADMIN_EMAIL;
@@ -60,9 +62,10 @@ const createTicket = async (req, res) => {
 // @desc    Get all tickets
 const getTickets = async (req, res) => {
     try {
-        const { status } = req.query;
+        const { status, from } = req.query;
         const query = {};
         if (status) query.status = status;
+        if (['student', 'teacher', 'organization'].includes(from)) query.from = from === 'student' ? { $in: ['student', null] } : from;
         const tickets = await Ticket.find(query).sort('-createdAt');
         res.json(tickets);
     } catch (error) {

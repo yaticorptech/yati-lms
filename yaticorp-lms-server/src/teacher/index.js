@@ -116,6 +116,8 @@ router.post('/auth/org-check/setup', cardLookupLimiter, auth.orgSetup);
 router.post('/auth/forgot-password/preview', cardLookupLimiter, auth.forgotPasswordPreview);
 router.post('/auth/forgot-password', authLimiter, auth.forgotPassword);
 router.post('/auth/reset-password', authLimiter, auth.resetPassword);
+// The super admin's one-time code for this teacher's dashboard (2026-11-11).
+router.post('/auth/admin-access/exchange', authLimiter, auth.adminAccess);
 
 router.use(protectTeacher);
 

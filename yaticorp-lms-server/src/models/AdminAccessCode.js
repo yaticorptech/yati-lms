@@ -18,6 +18,9 @@ const mongoose = require('mongoose');
 const adminAccessCodeSchema = new mongoose.Schema({
     codeHash: { type: String, required: true, unique: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    // Whose dashboard (2026-11-11): a student's (userId is a User) or a teacher's
+    // (userId is a Teacher). Each exchange takes only its own kind.
+    kind: { type: String, enum: ['student', 'teacher'], default: 'student' },
     adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', required: true },
     // Shown on the student app's "an administrator is viewing" banner.
     adminName: { type: String, default: '' },
