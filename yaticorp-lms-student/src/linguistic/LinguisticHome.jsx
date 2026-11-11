@@ -18,7 +18,7 @@ import { Check, Lock, Crown, Trophy, BookOpen, X, Download, Dumbbell, Star, Mic,
 import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
 const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi, announceRewards } from './api';
-import { COLORS, MODULES, shortDirection, blurbOf, levelOf, hasAssessment } from './meta';
+import { COLORS, MODULES, shortDirection, blurbOf, levelOf, hasAssessment, lastLesson } from './meta';
 import { Bar, Chunky, Loading, Mascot, Problem, Panel } from './ui';
 import JumpTest from './parts/JumpTest';
 
@@ -234,13 +234,38 @@ function SectionHead({ section, si, path, small = false }) {
     );
 }
 
+/**
+ * Where the path opens after a lesson (`id`, 2026-11-05: "where the user is: the unit finished, the next; else stay on
+ * it"): its unit's next lesson to do; that unit finished, the next unit's first lesson to do; the lesson itself if
+ * none is left. Null for a lesson not on this path.
+ */
+/*
+ * Where the student goes on from a lesson (2026-11-07, the user: "after one lesson of a unit, End session goes straight to
+ * that unit's next one — not to another unit or another lesson"; chose: the next lesson, its START showing): left
+ * half-way or not passed, that lesson, to finish; done, the next one after it on the path still to do and open — its
+ * unit's next, not the first lesson left anywhere in the unit (one who can open every lesson may have skipped one
+ * before it); the unit done, the next unit's. The same rule as the result's "Next up" (server service.js nextOnPath), so
+ * the two never name different lessons (2026-11-07, the user: "Next up said The Kind Shopkeeper, the path another").
+ */
+const placeAfter = (path, id) => {
+    if (!id) return null;
+    const all = path.levels.flatMap((s) => s.units.flatMap((u) => u.lessons)).filter((l) => !l.stop);
+    const i = all.findIndex((l) => l.id === id);
+    if (i === -1) return null;
+    if (all[i].status !== 'completed') return id;
+    return all.slice(i + 1).find((l) => l.open && l.status !== 'completed')?.id || id;
+};
+/** Back from a lesson: the one its result named "Next up" (`next`), where it is on this path; else by the same rule. */
+const onward = (path, from, next) => (next && path.levels.some((s) => s.units.some((u) => u.lessons.some((l) => l.id === next))) ? next : placeAfter(path, from));
+
 export default function LinguisticHome() {
     const { dash } = useOutletContext();
     const [params] = useSearchParams();
     const [path, setPath] = useState(undefined);
     const [error, setError] = useState(null);
     // From the dashboard's "Continue where you stopped" (2026-10-26): that lesson, its START card open.
-    const [tapped, setTapped] = useState(() => params.get('lesson'));
+    // `undefined` until a lesson is tapped: back from a lesson (`?from=`), the next one's card is open (2026-11-07).
+    const [tapped, setTapped] = useState(() => params.get('lesson') || undefined);
     const [guide, setGuide] = useState(null);
     const scrolled = useRef(false);
 
@@ -251,9 +276,15 @@ export default function LinguisticHome() {
     const unit = params.get('unit');
     const sectionAsked = params.get('section');
     const lessonAsked = params.get('lesson');
+    const fromAsked = params.get('from');
+    // The lesson the result named "Next up" (`?next=`), where it is on this path.
+    const nextAsked = params.get('next');
     useEffect(() => {
         if (!path || scrolled.current) return;
         scrolled.current = true;
+        // Back from a lesson (`?from=`), the mistakes, the daily challenge, or in from the dashboard: the unit of the last
+        // lesson the student was in — the next unit once it is finished (2026-11-05) — before the first lesson left.
+        const from = fromAsked ? onward(path, fromAsked, nextAsked) : placeAfter(path, !unit && !sectionAsked && !lessonAsked ? lastLesson() : null);
         const at = path.levels.find((l) => l.level === path.level) || path.levels[0];
         // From the Sections page: the section asked for, at its first lesson still to do.
         const inSection = sectionAsked && path.levels.find((l) => l.level === sectionAsked);
@@ -263,12 +294,14 @@ export default function LinguisticHome() {
             || (inSection && document.querySelector(`[data-section="${inSection.level}"]`))
             || unit && document.querySelector(`[data-unit="${unit}"]`)
             || (unit && MODULES[unit] && document.querySelector(`[data-section="${at.level}"] [data-kind="${unit}"]`))
+            || (from && document.querySelector(`[data-node="${from}"]`))
             || (path.current && document.querySelector(`[data-node="${path.current}"]`));
         target?.scrollIntoView({ block: unit && !sectionAsked ? 'start' : 'center' });
-    }, [path, unit, sectionAsked, lessonAsked]);
+    }, [path, unit, sectionAsked, lessonAsked, fromAsked, nextAsked]);
 
     if (path === undefined) return <Loading label="Drawing your path…" />;
     if (!path) return <Problem error={error} onRetry={load} />;
+    const shown = tapped === undefined ? (fromAsked ? onward(path, fromAsked, nextAsked) : null) : tapped;
 
     const starts = unitStarts(path.levels);
     const finished = path.levels.flatMap((x) => x.units.flatMap((u) => u.lessons)).filter((x) => !x.stop && x.status === 'completed').length;
@@ -335,8 +368,8 @@ export default function LinguisticHome() {
                                     <Mascot pose={pose} className={`pointer-events-none absolute top-1/2 h-28 w-28 -translate-y-1/2 sm:h-36 sm:w-36 ${mascotLeft ? 'left-0' : 'right-0'} ${u.open ? '' : 'opacity-40 grayscale'}`} />
                                     {u.lessons.map((l, i) => (
                                         <div key={l.id} className="w-full">
-                                            <Node lesson={l} color={color} offset={offsets[i]} current={l.id === path.current} open={tapped === l.id} onTap={() => setTapped((t) => (t === l.id ? null : l.id))} />
-                                            {tapped === l.id && <LessonCard lesson={l} unit={u} number={i + 1} offset={offsets[i]} color={color} language={path.language?.code} target={path.course?.code || 'en'} onClose={() => setTapped(null)} mistakes={dash.mistakes || 0} onOpened={load} shutSection={section.open ? null : section} sectionNumber={si + 1} />}
+                                            <Node lesson={l} color={color} offset={offsets[i]} current={l.id === path.current} open={shown === l.id} onTap={() => setTapped(shown === l.id ? null : l.id)} />
+                                            {shown === l.id && <LessonCard lesson={l} unit={u} number={i + 1} offset={offsets[i]} color={color} language={path.language?.code} target={path.course?.code || 'en'} onClose={() => setTapped(null)} mistakes={dash.mistakes || 0} onOpened={load} shutSection={section.open ? null : section} sectionNumber={si + 1} />}
                                         </div>
                                     ))}
                                 </div>

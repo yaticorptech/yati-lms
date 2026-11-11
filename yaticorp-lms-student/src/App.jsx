@@ -387,7 +387,9 @@ function App() {
   // Yati is the students' companion: not on the teacher dashboard either.
   const showLoop = !LOOP_HIDDEN_ON.includes(here) && !here.startsWith('/teacher');
   // A game in play hides Loop without unmounting it (components/loopVisibility).
-  const loopHidden = useLoopHidden() || LOOP_QUIET_ON.includes(here);
+  // Not in Language Learning (2026-11-07, the user: "remove the side standing mascot from the multilingo section"): its own
+  // mascot is in the lessons. Kept loaded, so it is back at once on the next page.
+  const loopHidden = useLoopHidden() || LOOP_QUIET_ON.includes(here) || here === '/linguistic' || here.startsWith('/linguistic/');
   return (
     <>
     {/* At most 120px on a laptop (the package's 170 filled too much of the

@@ -87,10 +87,19 @@ describe('translations', () => {
         assert.equal(checkTranslation(item, 'ನಿಮ್ಮ ಹೆಸರೇನು', 'en-kn').verdict, 'exact');
         assert.equal(checkTranslation(item, 'ನಾನು ವಿದ್ಯಾರ್ಥಿ', 'en-kn').correct, false);
     });
-    test('a passage is never marked wrong by the machine: it is compared and sent for review', () => {
-        const r = checkTranslation({ model: 'I completed my degree last year. Now I am looking for a job.', open: true }, 'I finished my degree last year. Now I search a job.', 'kn-en');
-        assert.equal(r.verdict, 'review'); assert.equal(r.correct, null);
-        assert.ok(r.closeness > 40 && r.closeness < 100);
+    test('a passage close enough to the model is right, to compare with it; far off — letters at random, half of it — wrong, to try again (2026-11-05)', () => {
+        const item = { model: 'I completed my degree last year. Now I am looking for a job in a software company. I am very interested in learning new things.', open: true };
+        const r = checkTranslation(item, 'I completed my degree last year.Now I am searching the job in software company.I am interested to learn a new things.', 'kn-en');
+        assert.equal(r.verdict, 'review'); assert.equal(r.correct, true);
+        assert.ok(r.closeness > 50 && r.closeness < 100);
+        assert.equal(checkTranslation(item, 'Last year I finished my degree. I am now searching for work at a software firm. I really want to learn new things.', 'kn-en').correct, true, 'in other words');
+        for (const given of ['bvhg', 'I completed my degree last year.', 'My brother opened a small shop with a bank loan.']) {
+            const w = checkTranslation(item, given, 'kn-en');
+            assert.deepEqual([w.verdict, w.correct], ['wrong', false], `"${given}"`);
+        }
+        const kn = { model: 'ನಮ್ಮ ಕಾಲೇಜು ಕಳೆದ ವಾರ ರಕ್ತದಾನ ಶಿಬಿರವನ್ನು ಆಯೋಜಿಸಿತ್ತು. ಅನೇಕ ವಿದ್ಯಾರ್ಥಿಗಳು ಮತ್ತು ಶಿಕ್ಷಕರು ಭಾಗವಹಿಸಿದರು.', open: true };
+        assert.equal(checkTranslation(kn, 'ನಮ ಕಾಲೇಜು ರಕ', 'en-kn').correct, false, 'a Kannada passage begun, not done');
+        assert.equal(checkTranslation(kn, 'ನಮ್ಮ ಕಾಲೇಜು ಕಳೆದ ವಾರ ರಕ್ತದಾನ ಶಿಬಿರ ಆಯೋಜಿಸಿತು. ಹಲವು ವಿದ್ಯಾರ್ಥಿಗಳು ಮತ್ತು ಶಿಕ್ಷಕರು ಭಾಗವಹಿಸಿದರು.', 'en-kn').correct, true);
     });
 });
 

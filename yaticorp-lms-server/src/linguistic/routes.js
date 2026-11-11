@@ -21,7 +21,7 @@
  *   POST /lessons/:id/quiz              { answers } the quiz → score, feedback, next lesson
  *   POST /lessons/:id/writing/:taskId   { answer } a writing task → feedback, model answer, review
  *   POST /lessons/:id/speaking          { said, seconds, recorded } a speaking task, ticked from what was said
- *   GET  /plan · POST /plan { days }     the learning plan and its roadmap, day by day; making or changing it
+ *   GET  /plan · POST /plan              the learning plan and its roadmap, day by day; POST makes it, its days set by itself
  *   GET  /plan/options                  ?course&language&level  the plans to choose from (the start screens)
  *   POST /lessons/:id/talk              { text } a talk on a topic (Advanced) → each sentence corrected, and why
  *   GET  /daily · POST /daily           today's vocabulary challenge
@@ -145,12 +145,9 @@ router.get('/plan/options', async (req, res, next) => {
         res.json({ options: await svc.planChoices(req.user, { course: String(q.course || ''), language: q.language ? String(q.language) : null, level: String(q.level || '') }) });
     } catch (err) { next(err); }
 });
+// The days are set by itself (2026-11-04): 90 for a Beginner, 60 after the Advanced entry test; any days sent are not used.
 router.post('/plan', async (req, res, next) => {
-    try {
-        const out = await svc.setPlan(req.user, req.body?.days ?? null);
-        if (out.error) return bad(res, out.error);
-        res.json(out);
-    } catch (err) { next(err); }
+    try { res.json(await svc.autoPlan(req.user)); } catch (err) { next(err); }
 });
 
 router.post('/chest/:unitId', async (req, res, next) => {
@@ -255,7 +252,7 @@ router.post('/lessons/:id/step', async (req, res, next) => {
 router.post('/lessons/:id/check', async (req, res, next) => {
     try {
         const section = String(req.body?.section || '');
-        if (!['practice', 'items', 'spell'].includes(section)) return bad(res, 'Unknown practice section.');
+        if (!['practice', 'items', 'spell', 'blanks', 'hear', 'chat'].includes(section)) return bad(res, 'Unknown practice section.');
         const given = String(req.body?.given ?? '').slice(0, 1500);
         if (!given.trim()) return bad(res, 'Type or choose an answer first.');
         const lesson = await openLesson(req, res);
@@ -402,7 +399,9 @@ router.get('/review', async (req, res, next) => {
             out.push({
                 id: idOf(m._id), module: lesson.module, moduleLabel: svc.MODULE_LABEL[lesson.module], level: lesson.level, lessonTitle: lesson.title,
                 kind: m.kind, count: m.count, given: m.given, lastAt: m.lastAt,
-                question: translation ? { type: 'translation', source: q.source, direction: q.direction || lesson.direction, language: lesson.language, languageName: lesson.languageName, ...(lesson.course ? { target: lesson.target, targetLocale: lesson.targetLocale } : {}) } : svc.withSays(svc.soundsIn(lesson), svc.publicQuestion(q, idOf(lesson._id)))
+                question: translation ? { type: 'translation', source: q.source, direction: q.direction || lesson.direction, language: lesson.language, languageName: lesson.languageName, ...(lesson.course ? { target: lesson.target, targetLocale: lesson.targetLocale } : {}) }
+                    // A fill-in-the-blanks sentence is in the language learnt: its tiles are read in it (2026-11-06).
+                    : { ...svc.withSays(svc.soundsIn(lesson), svc.publicQuestion(q, idOf(lesson._id))), ...(['blanks', 'chat'].includes(m.section) && lesson.course ? { target: lesson.target, targetLocale: lesson.targetLocale } : {}) }
             });
         }
         res.json({ mistakes: out, fixed: progress.mistakes.filter((m) => m.resolvedAt).length, language: svc.languageOf(progress) });
@@ -418,7 +417,8 @@ router.post('/review/:id', async (req, res, next) => {
         const found = await mistakeQuestion(m, progress);
         if (!found?.q) return bad(res, 'That question has been removed from its lesson.', 404);
         const section = found.section || (m.section === 'daily' ? 'daily' : m.section);
-        const out = found.lesson.module === 'translation' ? svc.judge(found.lesson, found.q, given, section) : { ...gradeQuestion(found.q, given), answer: found.q.answer, explanation: found.q.explanation || '' };
+        // Fill in the blanks is judged by its own rule in a Words lesson too (2026-11-06).
+        const out = found.lesson.module === 'translation' || ['blanks', 'hear', 'chat'].includes(section) ? svc.judge(found.lesson, found.q, given, section) : { ...gradeQuestion(found.q, given), answer: found.q.answer, explanation: found.q.explanation || '' };
         if (out.correct) m.resolvedAt = new Date(); else { m.count += 1; m.given = given.slice(0, 500); m.lastAt = new Date(); }
         progress.lastActiveAt = new Date();
         await progress.save();

@@ -96,7 +96,8 @@ const localizeOwn = (lesson, code) => {
             if (!p) return null;
             // Into English: the English stays, plus any the language's sentence also means
             // (a pronoun for both he and she, like Bengali সে, accepts "She…" beside "He…").
-            return lesson.direction === 'kn-en'
+            // A question may go the other way from its lesson (2026-11-04: a short one to read in an English → Kannada lesson).
+            return (it.direction || lesson.direction) === 'kn-en'
                 ? { ...it, source: p.source, explanation: p.explanation ?? it.explanation, accepted: [...(it.accepted || []), ...(p.alsoAccept || [])] }
                 : { ...it, model: p.model, accepted: p.accepted || [], explanation: p.explanation ?? it.explanation, ...(p.tiles ? { tiles: p.tiles } : {}) };
         };

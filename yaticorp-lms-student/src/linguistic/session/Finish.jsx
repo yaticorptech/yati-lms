@@ -9,16 +9,17 @@ import { Check, X, ChevronDown } from 'lucide-react';
 import { Celebration } from '../../interview/ui';
 import { COLORS } from '../meta';
 import { Chunky, Mascot } from '../ui';
+import { tr, trf } from '../say';
 
 /** The student's words against the closest correct answer: missing ones in green, extra ones struck through. */
-export function Diff({ diff }) {
+export function Diff({ diff, lang, T = tr(lang) }) {
     if (!diff?.length) return null;
     return (
         <p className="flex flex-wrap gap-x-1.5 gap-y-1 text-[15px] font-bold leading-relaxed" dir="auto" aria-label="Your answer compared word by word" translate="no" data-diff>
             {diff.map((d, i) => (
                 <span key={i} className={d.t === 'same' ? 'text-[#4b4b4b]' : d.t === 'missing' ? 'rounded px-1' : 'rounded px-1 line-through'}
                     style={d.t === 'missing' ? { background: COLORS.green.light, color: COLORS.green.ink } : d.t === 'extra' ? { background: COLORS.red.light, color: COLORS.red.ink } : undefined}
-                    title={d.t === 'missing' ? 'Missing from your answer' : d.t === 'extra' ? 'Not in the model answer' : undefined}>{d.w}</span>
+                    title={d.t === 'missing' ? T('Missing from your answer') : d.t === 'extra' ? T('Not in the model answer') : undefined}>{d.w}</span>
             ))}
         </p>
     );
@@ -38,10 +39,24 @@ export const StatCard = ({ label, value, color = 'gold', icon: Icon }) => {
 };
 
 /** Every answer given, right or wrong, with the right one and why. */
-export function AnswerList({ results }) {
+export function AnswerList({ results, lang }) {
+    const T = tr(lang);
     return (
         <ol className="space-y-2.5 text-left" data-answers>
-            {results.map((r, i) => (
+            {results.map((r, i) => (r.kind === 'pairs' ? (
+                // A matching round before the quiz (2026-11-04): each word with its match, and any wrong picks.
+                <li key={r.id || i} className="rounded-2xl border-2 px-4 py-3" style={{ borderColor: r.correct ? COLORS.green.light : COLORS.red.light }} data-review-item={r.correct ? 'right' : 'wrong'}>
+                    <p className="text-[15px] font-extrabold text-[#4b4b4b]">{T('Matching pairs')}</p>
+                    <ul className="mt-1 space-y-0.5 text-sm font-semibold" translate="no">
+                        {r.rows.map((p) => (
+                            <li key={p.word} className="break-words text-[#777]">
+                                <span className="font-extrabold text-[#4b4b4b]">{p.word}</span> — <span style={{ color: COLORS.green.ink }}>{p.right}</span>
+                                {p.chosen.length > 0 && <span style={{ color: COLORS.red.ink }}> {trf(lang)('(you chose {0})', p.chosen.join(', '))}</span>}
+                            </li>
+                        ))}
+                    </ul>
+                </li>
+            ) : (
                 <li key={r.id || i} className="rounded-2xl border-2 px-4 py-3" style={{ borderColor: r.correct ? COLORS.green.light : COLORS.red.light }} data-review-item={r.correct ? 'right' : 'wrong'}>
                     <p className="flex items-start gap-2 text-[15px] font-extrabold text-[#4b4b4b]">
                         <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full" style={{ background: r.correct ? COLORS.green.face : COLORS.red.face }}>
@@ -49,13 +64,27 @@ export function AnswerList({ results }) {
                         </span>
                         <span className="min-w-0 break-words" translate="no">{r.prompt}</span>
                     </p>
-                    <p className="mt-1 break-words pl-7 text-sm font-semibold text-[#777]">You: <span style={{ color: r.correct ? COLORS.green.ink : COLORS.red.ink }} translate="no">{r.given || '— not answered'}</span></p>
-                    {!r.correct && r.answer && <p className="break-words pl-7 text-sm font-semibold text-[#777]">Answer: <span className="font-extrabold" style={{ color: COLORS.green.ink }} translate="no">{r.answer}</span></p>}
-                    {r.verdict && r.verdict !== 'exact' && r.diff?.length > 0 && r.given && <div className="mt-1 pl-7"><Diff diff={r.diff} /></div>}
+                    <p className="mt-1 break-words pl-7 text-sm font-semibold text-[#777]">{T('You: ')}<span style={{ color: r.correct ? COLORS.green.ink : COLORS.red.ink }} translate="no">{r.given || T('— not answered')}</span></p>
+                    {!r.correct && r.answer && <p className="break-words pl-7 text-sm font-semibold text-[#777]">{T('Answer: ')}<span className="font-extrabold" style={{ color: COLORS.green.ink }} translate="no">{r.answer}</span></p>}
+                    {r.verdict && r.verdict !== 'exact' && r.diff?.length > 0 && r.given && <div className="mt-1 pl-7"><Diff diff={r.diff} lang={lang} /></div>}
                     {r.explanation && <p className="mt-1 pl-7 text-sm font-semibold text-[#777]">{r.explanation}</p>}
                 </li>
-            ))}
+            )))}
         </ol>
+    );
+}
+
+/** What each XP was for (2026-11-06, the user, of "ಒಟ್ಟು XP 51": "what does that mean?"): "+20 for finishing the lesson", …; or, none new, that this lesson's were earned before. */
+const XP_FOR = { linguistic_translation: 'for right answers', linguistic_lesson: 'for finishing the lesson', linguistic_perfect: 'for a perfect score' };
+export function XpParts({ by = {}, before = false, lang }) {
+    const T = tr(lang);
+    const rows = Object.entries(by).filter(([, n]) => n > 0)
+        .sort(([a], [b]) => (Object.keys(XP_FOR).indexOf(a) + 1 || 9) - (Object.keys(XP_FOR).indexOf(b) + 1 || 9));
+    if (!rows.length) return before && <p className="-mt-1 text-sm font-bold text-[#AFAFAF]" data-xp-parts="none">{T('XP already earned for this lesson')}</p>;
+    return (
+        <ul className="-mt-1 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm font-bold text-[#777]" data-xp-parts>
+            {rows.map(([k, n]) => <li key={k} data-xp-part={k}><span style={{ color: COLORS.gold.ink }}>+{n} XP</span> {XP_FOR[k] ? T(XP_FOR[k]) : T('Bonus')}</li>)}
+        </ul>
     );
 }
 
@@ -67,8 +96,9 @@ export function AnswerList({ results }) {
  * @param props.primary    { label, onClick }
  * @param props.secondary  { label, onClick } — beside the main button
  */
-export function Finish({ pose = 'star-celebrate', tone = 'pass', title, text, stats = [], banner = null, results = null, primary, secondary, children }) {
+export function Finish({ pose = 'star-celebrate', tone = 'pass', title, text, stats = [], banner = null, results = null, practice = null, primary, secondary, children, lang }) {
     const [review, setReview] = useState(false);
+    const T = tr(lang);
     const color = tone === 'pass' ? COLORS.gold.ink : tone === 'fail' ? COLORS.red.ink : COLORS.blue.ink;
     return (
         <>
@@ -81,14 +111,28 @@ export function Finish({ pose = 'star-celebrate', tone = 'pass', title, text, st
                         {text && <p className="mx-auto mt-2 max-w-md text-[17px] font-semibold text-[#777]">{text}</p>}
                     </div>
                     {stats.length > 0 && <div className={`grid w-full gap-3 ${stats.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>{stats.map((s) => <StatCard key={s.label} {...s} />)}</div>}
-                    {banner}
                     {children}
-                    {results?.length > 0 && (
+                    {banner}
+                    {(results?.length > 0 || practice?.length > 0) && (
                         <div className="w-full">
                             <button type="button" onClick={() => setReview((r) => !r)} aria-expanded={review} className="mx-auto mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-[15px] font-extrabold uppercase tracking-wide hover:bg-[#F7F7F7]" style={{ color: COLORS.blue.ink }} data-review-answers>
-                                {review ? 'Hide answers' : 'Review answers'} <ChevronDown size={18} className={`transition-transform ${review ? 'rotate-180' : ''}`} />
+                                {review ? T('Hide answers') : T('Review answers')} <ChevronDown size={18} className={`transition-transform ${review ? 'rotate-180' : ''}`} />
                             </button>
-                            {review && <AnswerList results={results} />}
+                            {/* The practice questions asked before the quiz too (2026-11-04), then the quiz's. */}
+                            {review && (practice?.length ? (
+                                <div className="space-y-5 text-left" data-review-groups>
+                                    <section data-review-group="practice">
+                                        <h2 className="mb-2 text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('Before the quiz')}</h2>
+                                        <AnswerList results={practice} lang={lang} />
+                                    </section>
+                                    {results?.length > 0 && (
+                                        <section data-review-group="quiz">
+                                            <h2 className="mb-2 text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('Quiz')}</h2>
+                                            <AnswerList results={results} lang={lang} />
+                                        </section>
+                                    )}
+                                </div>
+                            ) : <AnswerList results={results} lang={lang} />)}
                         </div>
                     )}
                 </div>
