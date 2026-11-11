@@ -7,7 +7,7 @@
  */
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { Trophy, Building2, Play, CheckCircle2, CreditCard, Loader2, Copy } from 'lucide-react';
+import { Trophy, Building2, Play, CheckCircle2, CreditCard, Loader2, Copy, PauseCircle, UserRound, Mail, Phone, School } from 'lucide-react';
 import { HERO } from './gameRules';
 import { markCopied, wasCopied } from './copiedCode';
 
@@ -17,7 +17,7 @@ export const GameHero = ({ game, bannerUrl, title, subtitle, description, meta }
         {bannerUrl && <img src={bannerUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />}
         {/* No badges on the banner (asked 2026-10-28): each page shows them below Back. */}
         <div className="relative">
-            <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">{title}</h1>
+            <h1 className="mt-3 break-words text-3xl font-black leading-tight sm:text-5xl">{title}</h1>
             {subtitle && <p className="mt-1 text-base font-semibold text-white/80">{subtitle}</p>}
             {description && <p className="mt-2 max-w-2xl text-sm text-white/90 sm:text-base">{description}</p>}
             <p className="mt-5 flex flex-wrap gap-x-6 gap-y-1.5 text-sm font-semibold text-white/90 sm:text-base">
@@ -35,7 +35,13 @@ export const JoinCard = ({ ok, title, note, started, code, joined, to, showJoin,
     // Join shows only once the code is copied (here or in the pop-up).
     const [copiedNow, setCopiedNow] = useState(false);
     const copied = copiedNow || (code && wasCopied(code));
-    const copy = () => navigator.clipboard?.writeText(code).then(() => { markCopied(code); setCopiedNow(true); }).catch(() => {});
+    // No clipboard (an http page, an older browser) or a refused write: Join still turns on — the code is in the
+    // start pop-up — rather than staying hidden for good.
+    const copy = () => {
+        const done = () => { markCopied(code); setCopiedNow(true); };
+        if (!navigator.clipboard?.writeText) { done(); return; }
+        navigator.clipboard.writeText(code).then(done, done);
+    };
     const needCopy = started && code && !joined && !copied;
     return (
     <section className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" data-join-card>
@@ -85,6 +91,60 @@ export const PayCard = ({ amount, pay, onPaid }) => {
             <button type="button" onClick={go} disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-500 px-5 text-sm font-black text-white shadow-md hover:bg-amber-600 disabled:opacity-60">
                 {busy ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CreditCard size={16} aria-hidden="true" />} Pay ₹{amount} online
             </button>
+        </section>
+    );
+};
+
+/**
+ * Paid, but not playing (2026-11-06): the team was turned down, taken back or removed, the student was taken off
+ * a team, or the competition was cancelled. No refund is made in the app: the college handles the fee, so this says
+ * what happened, what was paid, and whom to contact. `hold`: the server's paymentOnHold. `compact`: in the pop-up.
+ */
+const HOLD_WHY = {
+    rejected: ['Your team was not approved', 'The organizer did not approve your team for this competition.'],
+    withdrawn: ['Your team was withdrawn', 'Your college withdrew its team from this competition.'],
+    removed: ['You are no longer in a team', 'You were taken off your team, or your team was removed from this competition.'],
+    cancelled: ['This competition was cancelled', 'The organizer cancelled this competition.']
+};
+const fmtPaidOn = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+export const PaymentHoldCard = ({ hold, compact = false }) => {
+    if (!hold) return null;
+    const [title, what] = HOLD_WHY[hold.reason] || HOLD_WHY.removed;
+    const { contact = {}, organization = {} } = hold;
+    const rows = [
+        [UserRound, 'Coordinator', contact.name],
+        [Mail, 'Email', contact.email, contact.email && `mailto:${contact.email}`],
+        [Phone, 'Phone', contact.phone, contact.phone && `tel:${contact.phone.replace(/[^\d+]/g, '')}`],
+        [School, 'Organisation', organization.name]
+    ].filter((r) => r[2]);
+    return (
+        <section className={`text-left ${compact ? '' : 'rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6'}`} data-payment-hold={hold.reason}>
+            <div className="flex flex-wrap items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-600"><PauseCircle size={22} aria-hidden="true" /></span>
+                <div className="min-w-0 flex-1 basis-52">
+                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-800 ring-1 ring-amber-200">Payment on hold</span>
+                    <p className="mt-1.5 font-black text-slate-900">{title}</p>
+                    <p className="text-sm text-slate-600">{what}{hold.note ? <> Note from the organizer: <span className="italic">{hold.note}</span></> : null}</p>
+                </div>
+            </div>
+            <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700 ring-1 ring-slate-100">
+                You paid <strong className="text-slate-900">₹{hold.amount}</strong>{hold.paidAt ? <> on <strong className="text-slate-900">{fmtPaidOn(hold.paidAt)}</strong></> : null}.
+                {' '}This fee will be handled by your organisation — please contact your competition coordinator about it.
+            </p>
+            {rows.length > 0 ? (
+                <ul className={`mt-4 grid gap-2.5 ${compact ? '' : 'sm:grid-cols-2'}`}>
+                    {rows.map(([Icon, label, value, href]) => (
+                        <li key={label} className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 px-3 py-2.5">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Icon size={17} aria-hidden="true" /></span>
+                            <span className="min-w-0">
+                                <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+                                {href ? <a href={href} className="block truncate text-sm font-semibold text-indigo-700 hover:underline">{value}</a>
+                                    : <span className="block truncate text-sm font-semibold text-slate-800">{value}</span>}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            ) : <p className="mt-3 text-sm text-slate-500">Contact your college&apos;s office about the fee.</p>}
         </section>
     );
 };

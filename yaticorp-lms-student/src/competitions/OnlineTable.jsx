@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Globe, Loader2, X, Clock, LogOut } from 'lucide-react';
+import { Globe, Loader2, X, LogOut } from 'lucide-react';
 import { roomsApi, GROUP_GAMES } from './api';
+import PhoneStage from './games/adventure/PhoneStage';
 
 /**
  * Group Brain "Play online" (asked 2026-10-28, "like online Ludo"):
@@ -31,7 +32,6 @@ const useSecondsTo = (deadline) => {
     }, [deadline]);
     return deadline ? Math.max(0, Math.ceil((new Date(deadline).getTime() - now) / 1000)) : null;
 };
-const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 /** A player with no picture of their own (or one that will not load) gets one of the 3D players, the same one each time. */
 const characterOf = (name = '') => `/games/lobby/face-${([...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % 3) + 1}.png`;
@@ -149,7 +149,9 @@ export function OnlineSearch({ game, onLeft }) {
     const cropBottom = S.cards[0][1] - 6;
     const me = game.you ?? 0;
     const filled = game.seats.length;
+    // On a phone, the search fills the screen (2026-11-05).
     return (
+        <PhoneStage on={narrow} tone="#0b0e2a" back={false} center>
         <section className="relative mx-auto select-none" style={{ width: narrow ? '100%' : `min(100%, 860px, max(320px, calc((100dvh - ${n > 6 ? 21 : 17}rem) * ${S.w} / ${S.h})))`, containerType: 'inline-size' }} data-online-search data-scene={n >= 6 ? 6 : 4}>
             {narrow && (
                 <div className="mb-2 text-center text-white">
@@ -262,6 +264,7 @@ export function OnlineSearch({ game, onLeft }) {
             )}
             {error && <p role="alert" className="mx-auto mt-3 max-w-md rounded-xl bg-rose-500/90 px-3 py-2 text-center text-sm font-semibold text-white">{error}</p>}
         </section>
+        </PhoneStage>
     );
 }
 
@@ -352,7 +355,6 @@ const tallyOf = (view, i) => {
  * time left. Up to twenty players.
  */
 export function PlayersBoard({ game, view, dark = false }) {
-    const left = useSecondsTo(view?.phaseEndsAt || view?.deadline || view?.endsAt || null);
     if (!view?.seats?.length) return null;
     const secret = !view.scores;
     const rows = game.seats.map((s, i) => ({ s, i, score: view.scores?.[i] ?? 0, out: (view.out || []).includes(i), ...tallyOf(view, i) }));
@@ -360,11 +362,8 @@ export function PlayersBoard({ game, view, dark = false }) {
     return (
         <section aria-label="Live scores" className={`rounded-3xl p-3 sm:p-4 ${dark ? 'border border-[#4b46b8]/60 bg-[#141845]/85 shadow-[0_0_30px_rgba(99,102,241,.15)]' : 'bg-white shadow-sm ring-1 ring-slate-200'}`} data-players-board>
             <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
-                <p className={`text-xs font-black tracking-[0.18em] uppercase ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>Live scores · {rows.length} players</p>
-                <span className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-br from-[#1e1b4b] to-[#4c1d95] px-3 py-1 text-sm font-black text-white tabular-nums ${left != null && left <= 10 ? 'text-rose-300' : ''}`} data-board-timer>
-                    <Clock size={13} aria-hidden="true" /> {left != null ? clock(left) : '—'}
-                    {game.online?.fee > 0 && <span className="rounded-full bg-amber-400 px-1.5 text-[10px] text-amber-950">{game.online.prize} XP</span>}
-                </span>
+                <p className={`text-xs font-black tracking-[0.18em] uppercase ${dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>Live scores</p>
+                {game.online?.fee > 0 && <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-amber-950">{game.online.prize} XP</span>}
             </div>
             <ol className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
                 {order.map((r, k) => {

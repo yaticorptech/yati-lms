@@ -16,7 +16,12 @@ const quiz = (id, label, emoji, summary, pick, seconds = 20) => makeEngine({
 });
 
 const GAMES = {
-    synonymmatch: ['Synonym Match', '🔤', 'Pick the word that means the same.', fromBank('synonym')],
+    // One game, taking turns (2026-11-05): a synonym, then an antonym, and so on.
+    synonymmatch: ['Synonyms & Antonyms', '🔤', 'Same meaning, then the opposite — in turn.', (count, rng, level, met) => {
+        const same = fromBank('synonym')(Math.ceil(count / 2), rng, level, met);
+        const opposite = fromBank('antonym')(Math.floor(count / 2), rng, level, met);
+        return same.flatMap((q, i) => (opposite[i] ? [q, opposite[i]] : [q]));
+    }],
     antonymmatch: ['Antonym Match', '↔️', 'Pick the word that means the opposite.', fromBank('antonym')],
     idiomsense: ['Idiom Sense', '💬', 'What does the phrase really mean?', fromBank('idiom')],
     sentencegap: ['Sentence Gap', '✏️', 'Choose the word that fits the sentence.', fromBank('sentencegap')],

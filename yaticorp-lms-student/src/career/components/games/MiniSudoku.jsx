@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import { sfx } from './gameSfx';
 
 const shuffle = (list) => {
   const out = [...list];
@@ -35,6 +36,23 @@ const makePuzzle = (hidden) => {
   return { solution, given };
 };
 
+/**
+ * Whether a grid is full and every row, column and 2×2 box holds 1 to 4 once.
+ * Judged by the rules rather than against the generated solution: with up to
+ * twelve cells hidden a grid can have more than one valid fill, and a correct
+ * one that differed from the stored solution used to be left unaccepted.
+ */
+const isSolved = (grid) => {
+  const ok = (cells) => cells.every(Boolean) && new Set(cells).size === 4;
+  for (let i = 0; i < 4; i++) {
+    const br = Math.floor(i / 2) * 2;
+    const bc = (i % 2) * 2;
+    if (!ok(grid[i]) || !ok(grid.map((row) => row[i]))) return false;
+    if (!ok([grid[br][bc], grid[br][bc + 1], grid[br + 1][bc], grid[br + 1][bc + 1]])) return false;
+  }
+  return true;
+};
+
 const configFor = (difficulty, levelNo) => ({
   hidden: between(5, 8, levelNo) + (difficulty - 1) * 2,
   puzzles: between(2, 4, levelNo),
@@ -55,13 +73,16 @@ function Round({ progress, onExit }) {
   const [selected, setSelected] = useState(null);
   const [solved, setSolved] = useState(0);
   const [started, setStarted] = useState(false);
-  const { seconds, over: timedOut } = useTimedRound(config.seconds, started);
-
   const complete = solved >= config.puzzles;
+  // The clock stops once every grid is solved, so the time to spare (and the
+  // stars read off it) cannot keep draining while the result is on screen.
+  const { seconds, over: timedOut } = useTimedRound(config.seconds, started, complete);
+
   const over = started && (timedOut || complete);
   const passed = complete;
-  // Stars by time left, so a fast solve is worth more than a scrape.
-  const stars = over ? (passed ? starsFor(seconds + 1, Math.max(1, Math.round(config.seconds * 0.15))) : 0) : 0;
+  // Stars by time left, so a fast solve is worth more than a scrape — but a
+  // solve in time is always at least one: it clears the level.
+  const stars = over ? (passed ? Math.max(1, starsFor(seconds + 1, Math.max(1, Math.round(config.seconds * 0.15)))) : 0) : 0;
   useRecordStars(progress, over, stars);
 
   const conflicts = useMemo(() => {
@@ -93,7 +114,19 @@ function Round({ progress, onExit }) {
     const next = grid.map((row) => [...row]);
     next[r][c] = digit;
     setGrid(next);
-    const done = next.every((row, i) => row.every((v, j) => v === puzzle.solution[i][j]));
+    // A digit that clashes in its row, column or box: the buzz (the cell already turns red).
+    if (digit) {
+      const br = Math.floor(r / 2) * 2;
+      const bc = Math.floor(c / 2) * 2;
+      const clash = [0, 1, 2, 3].some(
+        (k) =>
+          (k !== c && next[r][k] === digit) ||
+          (k !== r && next[k][c] === digit) ||
+          ((br + (k >> 1) !== r || bc + (k & 1) !== c) && next[br + (k >> 1)][bc + (k & 1)] === digit)
+      );
+      if (clash) sfx.wrong();
+    }
+    const done = isSolved(next);
     if (done) {
       const count = solved + 1;
       setSolved(count);

@@ -42,7 +42,8 @@
     "react-easy-crop": "^5.5.7",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.30.3",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.2",

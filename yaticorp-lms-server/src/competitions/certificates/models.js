@@ -93,7 +93,10 @@ const certificateSchema = new mongoose.Schema({
     // The competition's own name and date, for a design that leaves them to it.
     competitionName: { type: String, default: '' },
     date: { type: String, default: '' },
-    revokedAt: { type: Date, default: null }
+    revokedAt: { type: Date, default: null },
+    // 'auto': revoked by the automatic issue (auto.js), its holder never having played — given back by it should the
+    // results show they did. '': revoked by an admin (or never), and left to them.
+    revokedBy: { type: String, default: '' }
 }, { timestamps: true });
 certificateSchema.index({ createdAt: -1 });
 // One certificate per player per competition per design: an automatic issue run twice cannot make two.

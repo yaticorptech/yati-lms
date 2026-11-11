@@ -33,8 +33,9 @@ export default function ArenaPlay() {
     const [picked, setPicked] = useState(null);
     const [code, setCode] = useState('');
     const [error, setError] = useState('');
-    const [now, setNow] = useState(Date.now());
-    const skew = useRef(0);
+    const [joining, setJoining] = useState(false);
+    const [now, setNow] = useState(() => Date.now());
+    const [skew, setSkew] = useState(0);
     // The question's picture, fetched through the server (signed in): its real
     // address can name the answer, so the browser never sees it.
     // Loaded once each, and the next one ahead of time, so a picture question
@@ -53,7 +54,7 @@ export default function ArenaPlay() {
     useEffect(() => { fetchPicture(imagePath); }, [imagePath, fetchPicture]);
     const key = s ? `${s.stage}:${s.index ?? s.round ?? ''}` : '';
 
-    const accept = useCallback((data) => { skew.current = data.serverNow - Date.now(); setS(data); setOffline(false); }, []);
+    const accept = useCallback((data) => { setSkew(data.serverNow - Date.now()); setS(data); setOffline(false); }, []);
 
     // Ask the server again the moment the current stage ends (so the next
     // question appears right away), and at least once a second. A single
@@ -81,9 +82,11 @@ export default function ArenaPlay() {
     }, [id, accept]);
 
     useEffect(() => { const t = setInterval(() => setNow(Date.now()), 100); return () => clearInterval(t); }, []);
-    useEffect(() => { setPicked(null); setError(''); }, [key]);
+    // A new stage or question: no pick and no error carried over (reset while rendering, as React advises).
+    const [shownKey, setShownKey] = useState(key);
+    if (shownKey !== key) { setShownKey(key); setPicked(null); setError(''); }
 
-    const serverNow = now + skew.current;
+    const serverNow = now + skew;
     const leftMs = s?.endsAt ? Math.max(0, s.endsAt - serverNow) : 0;
     const share = s?.endsAt ? leftMs / Math.max(1, s.endsAt - s.startedAt) : 0;
     const mineChoice = s?.mine?.choice ?? picked;
@@ -94,13 +97,14 @@ export default function ArenaPlay() {
     const soon = leftMs > 0 && leftMs <= 3500;
     useEffect(() => { if (soon) fetchPicture(nextPath); }, [soon, nextPath, fetchPicture]);
 
+    const index = s?.index;
     const answer = useCallback((choice) => {
         if (!canAnswer) return;
         setPicked(choice); setError('');
-        arenaApi.answer(id, s.index, choice).catch((e) => { setError(e.message); if (e.status !== 409) setPicked(null); });
-    }, [canAnswer, id, s?.index]);
+        arenaApi.answer(id, index, choice).catch((e) => { setError(e.message); if (e.status !== 409) setPicked(null); });
+    }, [canAnswer, id, index]);
     const answerRef = useRef(answer);
-    answerRef.current = answer;
+    useEffect(() => { answerRef.current = answer; }, [answer]);
     useEffect(() => {
         const onKey = (e) => {
             if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -138,8 +142,9 @@ export default function ArenaPlay() {
     if (s.needsCode) {
         const submit = (e) => {
             e.preventDefault();
-            setError('');
-            arenaApi.join(id, code).then(() => arenaApi.live(id)).then(accept).catch((err) => setError(err.message));
+            if (joining) return;
+            setError(''); setJoining(true);
+            arenaApi.join(id, code).then(() => arenaApi.live(id)).then(accept).catch((err) => setError(err.message)).finally(() => setJoining(false));
         };
         return (
             <div className="mx-auto max-w-md space-y-4 pb-10 -mt-4 sidebar:-mt-8" data-arena-code>
@@ -151,7 +156,7 @@ export default function ArenaPlay() {
                     <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} autoFocus aria-label="Joining code" placeholder="______"
                         className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-center font-mono text-2xl font-black tracking-[0.4em] text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
                     {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
-                    <button type="submit" disabled={code.length !== 6} className="w-full rounded-2xl bg-indigo-600 py-3 text-sm font-black text-white hover:bg-indigo-700 disabled:opacity-50">Join the quiz</button>
+                    <button type="submit" disabled={code.length !== 6 || joining} className="w-full rounded-2xl bg-indigo-600 py-3 text-sm font-black text-white hover:bg-indigo-700 disabled:opacity-50">Join the quiz</button>
                 </form>
             </div>
         );

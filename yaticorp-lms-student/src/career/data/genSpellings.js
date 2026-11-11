@@ -254,6 +254,11 @@ export const misspell = (word, real = new Set()) => {
     const w = word.slice(0, i) + word[i + 1] + word[i] + word.slice(i + 2);
     if (usable(w)) wrong.add(w);
   }
+  // Still short ("quiet" had only two): drop one inner letter at a time.
+  for (let i = 1; wrong.size < 3 && i < word.length - 1; i += 1) {
+    const w = word.slice(0, i) + word.slice(i + 1);
+    if (usable(w)) wrong.add(w);
+  }
   return [...wrong].slice(0, 3);
 };
 

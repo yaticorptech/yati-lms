@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 /*
  * Shapes as cells on a grid. Every one is chiral — its mirror image cannot
@@ -120,6 +121,7 @@ function Round({ progress, onExit }) {
   const [round, setRound] = useState(() => makeRound(progress.difficulty));
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
+  const { busy, showWrong, toneOf, state: revealOf } = useAnswerReveal();
   const [started, setStarted] = useState(false);
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
@@ -128,12 +130,17 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const choose = (i) => {
-    if (over || picked !== null) return;
+    if (over || picked !== null || busy) return;
+    const next = () => setRound(makeRound(progress.difficulty));
+    if (!round.options[i].right) {
+      showWrong(i, round.options.findIndex((o) => o.right), next);
+      return;
+    }
     setPicked(i);
-    if (round.options[i].right) setScore((s) => s + 1);
+    setScore((s) => s + 1);
     setTimeout(() => {
       setPicked(null);
-      setRound(makeRound(progress.difficulty));
+      next();
     }, 420);
   };
 
@@ -191,18 +198,18 @@ function Round({ progress, onExit }) {
               const state =
                 show && option.right
                   ? 'bg-emerald-50 ring-emerald-400'
-                  : show && picked === i
-                    ? 'bg-rose-50 ring-rose-300'
-                    : 'bg-surface-50 ring-line-200 hover:bg-journey-50 hover:ring-journey-300';
+                  : `bg-surface-50 ring-line-200 ${busy || show ? '' : 'hover:bg-journey-50 hover:ring-journey-300'}`;
+              const marked = revealOf(i) === 'right' || revealOf(i) === 'wrong';
               return (
                 <button
                   key={i}
                   type="button"
                   onClick={() => choose(i)}
+                  disabled={busy}
                   aria-label={`Option ${i + 1}`}
-                  className={`fp-press aspect-square rounded-2xl p-2 ring-1 transition-colors ring-inset ${state}`}
+                  className={`fp-press aspect-square rounded-2xl p-2 ring-1 transition-colors ring-inset ${state} ${toneOf(i)}`}
                 >
-                  <Shape cells={option.cells} fill={show && option.right ? '#059669' : '#334155'} />
+                  <Shape cells={option.cells} fill={marked ? '#ffffff' : show && option.right ? '#059669' : '#334155'} />
                 </button>
               );
             })}

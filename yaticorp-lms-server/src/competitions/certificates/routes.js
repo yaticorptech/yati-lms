@@ -65,7 +65,7 @@ const cleanElements = (raw) => {
         if (!/^[A-Za-z0-9]{1,20}$/.test(key) || !v || typeof v !== 'object') continue;
         const n = (x, lo, hi) => (x === undefined || x === null || x === '' || !Number.isFinite(Number(x)) ? undefined : Math.min(hi, Math.max(lo, Number(x))));
         const e = { dx: n(v.dx, -4000, 4000), dy: n(v.dy, -4000, 4000), s: n(v.s, 0.1, 8), rot: n(v.rot, -360, 360), z: n(v.z, -100, 100) };
-        if (typeof v.text === 'string') e.text = v.text.slice(0, 400);
+        if (typeof v.text === 'string') e.text = v.text.slice(0, 1000);   // the whole sentence may be typed over (2026-11-07)
         if (['serif', 'sans', 'mono'].includes(v.family)) e.family = v.family;
         if (typeof v.bold === 'boolean') e.bold = v.bold;
         if (typeof v.italic === 'boolean') e.italic = v.italic;
@@ -86,7 +86,9 @@ const verify = async (certId) => {
     const id = String(certId || '').toUpperCase().trim();
     const cert = /^YC-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(id) ? await IssuedCertificate.findOne({ certId: id }).lean() : null;
     if (!cert) return { found: false };
-    const design = await CertificateDesign.findById(cert.designId).select('competition date venue branding.name scope organizationId').lean();
+    const saved = await CertificateDesign.findById(cert.designId).select('competition date venue branding.name scope organizationId').lean();
+    // A type's or a saved certificate leaves the competition's name and date to each competition: the certificate's own.
+    const design = saved ? auto.withCompetition(saved, cert) : null;
     let issuer = design?.branding?.name || '';
     if (!issuer && design?.organizationId) issuer = (await require('../../organizations/models/Organization').findById(design.organizationId).select('name').lean())?.name || '';
     const award = T.awardOf(cert.award);
@@ -177,10 +179,13 @@ const certificateRoutes = (scope = 'platform') => {
      * The organisation's defaults (2026-10-31): what it saved once — logo, seal, signatures, the college's lines, the
      * template, the element edits — loaded into every new certificate. Kept on its record (no new collection).
      */
-    if (scope === 'organization') {
+    // Both sides since 2026-11-07 (the platform admin's builder is the organisations' page): on the organization's
+    // record, or on the platform settings.
+    {
         router.get('/org-defaults', wrap(async (req, res) => {
-            const org = await Organization.findById(req.organization._id).select('+certificateDefaults').lean();
-            res.json({ defaults: org?.certificateDefaults || null });
+            const h = await holder(req);
+            const doc = await h.Model.findById(h._id).select('+certificateDefaults').lean();
+            res.json({ defaults: doc?.certificateDefaults || null });
         }));
         router.put('/org-defaults', wrap(async (req, res) => {
             const b = req.body || {};
@@ -190,14 +195,15 @@ const certificateRoutes = (scope = 'platform') => {
                 details: { type: b.details?.type === 'inter' ? 'inter' : 'intra', college: str(b.details?.college, 160), department: str(b.details?.department, 160), address: str(b.details?.address, 120), affiliation: str(b.details?.affiliation, 120), tagline: str(b.details?.tagline, 80), title: str(b.details?.title, 80), intro: str(b.details?.intro, 80) },
                 description: str(b.description, 600),
                 signatories: (Array.isArray(b.signatories) ? b.signatories : []).slice(0, 3).map((x, i) => ({ name: str(x?.name, 80), designation: str(x?.designation, 80), signature: picture(x?.signature, `Signature ${i + 1}`) })),
-                branding: { logo: picture(br.logo, 'The logo'), seal: picture(br.seal, 'The seal'), background: picture(br.background, 'The template', 3 * 1024 * 1024), logoShape: ['circle', 'square'].includes(br.logoShape) ? br.logoShape : 'original', org: str(br.org, 100) },
+                branding: { yaticorp: scope === 'platform' && br.yaticorp === true, logo: picture(br.logo, 'The logo'), seal: picture(br.seal, 'The seal'), background: picture(br.background, 'The template', 3 * 1024 * 1024), logoShape: ['circle', 'square'].includes(br.logoShape) ? br.logoShape : 'original', org: str(br.org, 100) },
                 elements: cleanElements(b.elements),
                 showQr: Boolean(b.showQr),
                 participation: b.participation !== false,
                 places: [1, 2, 3].filter((n) => (Array.isArray(b.places) ? b.places.map(Number) : [1, 2, 3]).includes(n)),
                 savedAt: new Date()
             };
-            await Organization.updateOne({ _id: req.organization._id }, { $set: { certificateDefaults: defaults } });
+            const h = await holder(req);
+            await h.Model.updateOne({ _id: h._id }, { $set: { certificateDefaults: defaults } });
             res.json({ ok: true, savedAt: defaults.savedAt });
         }));
     }
@@ -392,7 +398,13 @@ const certificateRoutes = (scope = 'platform') => {
      * The saved certificates (2026-11-03): Certificate 1, 2, 3 … — each a template a competition picks when it is
      * created; its winners (and participants) get it, with their own name, place, and the competition's name and date.
      */
-    const savedDesigns = (req) => CertificateDesign.find({ ...mine(req), auto: true, 'competition.kind': 'template' });
+    // The saved designs a competition can use (2026-11-06): only this side's own — the platform's (no organization)
+    // or the organization's. `mine` is {} for the platform, which listed every college's designs too, and the
+    // competition form then refused the pick ("Choose one of your own saved certificates").
+    // Until the end of 6 Nov 2026 (India time) the platform also lists every college's designs, for testing (a
+    // competition named "test…" may use any); from 7 Nov only the admin's own.
+    const ALL_DESIGNS_UNTIL = Date.parse('2026-11-07T00:00:00+05:30');
+    const savedDesigns = (req) => CertificateDesign.find({ ...(scope === 'organization' ? mine(req) : Date.now() < ALL_DESIGNS_UNTIL ? {} : { organizationId: null }), auto: true, 'competition.kind': 'template' });
     router.get('/designs', wrap(async (req, res) => {
         const designs = await savedDesigns(req).select('competition label template places participation updatedAt createdAt').sort({ createdAt: 1 }).lean();
         for (const d of designs) await auto.syncDesign(d).catch(() => {});

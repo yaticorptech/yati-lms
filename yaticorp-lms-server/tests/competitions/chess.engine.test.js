@@ -72,7 +72,7 @@ describe('the chess engine', () => {
         assert.deepEqual(next.history, ['e4']);
         assert.deepEqual(next.lastMove, { from: 'e2', to: 'e4' });
         assert.match(next.fen, /^rnbqkbnr\/pppppppp\/8\/8\/4P3\/8\/PPPP1PPP\/RNBQKBNR b /);
-        assert.equal(next.message, 'White played e4.');
+        assert.equal(next.message, 'Black to move.');
         const view = chess.view(next, 1, ctxAt(3000));
         assert.equal(view.turn, 1);
         assert.equal(view.board[4][4].type, 'p');

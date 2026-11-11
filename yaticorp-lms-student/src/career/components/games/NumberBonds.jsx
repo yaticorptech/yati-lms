@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import { sfx } from './gameSfx';
 
 /**
  * ➕ Math & speed: find the two tiles that make the target.
@@ -70,6 +71,7 @@ function Round({ progress, onExit }) {
     const sum = grid.values[next[0]] + grid.values[next[1]];
     const right = sum === grid.goal;
     if (right) setScore((s) => s + 1);
+    else sfx.wrong();
     setPicked(next);
     setFlash(right ? 'right' : 'wrong');
     setTimeout(() => {

@@ -10,6 +10,11 @@
  * white bubbles edged in purple, and each line of narration in a cream bar with its own speaker. Close-ups
  * (`zoom`), evenings, nights and rain vary the panels inside a story. (From 2026-10-31 each story had its own
  * look — summer, journey, monsoon, dusk; the story's `theme` is still sent, and marked on the page.)
+ *
+ * Alive since 2026-11-07 ("make it interactive — the characters should move while talking, walking and all"): a
+ * panel plays as it scrolls into view — people marked `walk` walk in, everyone breathes and blinks, whoever speaks
+ * nods, gestures and moves their mouth, clouds and birds drift, kites flutter, water ripples and rain falls. Tap a
+ * person: they hop and say their line aloud. All of it still, for those who ask for less motion.
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Headphones, Loader2, Square, Volume2 } from 'lucide-react';
@@ -30,6 +35,47 @@ const LOOK = {
     trees: ['#5cbf3a', '#3f9a2c', '#8fdb5f'], hut: ['#f3dcaa', '#d9a441'], clouds: '#ffffff', flowers: ['#ff6fa3', '#ffd23f', '#ff8a5c'],
     page: '#F3EFFF', purple: '#7C5CD6', ink: '#2A1F4D', narration: '#FFF8E6'
 };
+
+/* The movement (2026-11-07), only while a panel is in view (.cm-on) and only for those who do not ask for less motion. */
+const MOTION = `
+@media (prefers-reduced-motion: no-preference) {
+  .cm-on .cm-walk { animation: cm-walk 1.7s cubic-bezier(.3,.7,.4,1) both; }
+  .cm-on .cm-walk .cm-step { animation: cm-step .34s ease-in-out 5 alternate; }
+  .cm-on .cm-walk .cm-foot-a { animation: cm-foot .34s ease-in-out 5 alternate; }
+  .cm-on .cm-walk .cm-foot-b { animation: cm-foot .34s ease-in-out 5 alternate-reverse; }
+  .cm-on .cm-breathe { animation: cm-breathe 3.2s ease-in-out infinite; }
+  .cm-on .cm-nod { animation: cm-nod 1.1s ease-in-out infinite; }
+  .cm-on .cm-mouth { transform-box: fill-box; transform-origin: center; animation: cm-mouth .28s ease-in-out infinite alternate; }
+  .cm-on .cm-gesture { animation: cm-gesture 1.3s ease-in-out infinite; }
+  .cm-on .cm-cheer { animation: cm-cheer .9s ease-in-out infinite; }
+  .cm-on .cm-eyes { transform-box: fill-box; transform-origin: center; animation: cm-blink 4.6s infinite; }
+  .cm-hop { animation: cm-hop .55s cubic-bezier(.3,.7,.4,1); }
+  .cm-on .cm-cloud { animation: cm-drift 16s ease-in-out infinite alternate; }
+  .cm-on .cm-kite { transform-box: fill-box; transform-origin: 50% 0; animation: cm-flutter 2.4s ease-in-out infinite; }
+  .cm-on .cm-wave { animation: cm-wave 2.6s ease-in-out infinite alternate; }
+  .cm-on .cm-rain { animation: cm-rain .6s linear infinite; }
+  .cm-on .cm-bird { animation: cm-fly 18s linear infinite; }
+  .cm-on .cm-wing { transform-box: fill-box; transform-origin: center; animation: cm-flap .5s ease-in-out infinite alternate; }
+  .cm-panel { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+  .cm-panel.cm-on { opacity: 1; transform: none; }
+}
+@keyframes cm-walk { from { transform: translateX(var(--from, -140px)); } to { transform: none; } }
+@keyframes cm-step { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+@keyframes cm-foot { from { transform: translateY(0); } to { transform: translateY(-5px); } }
+@keyframes cm-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.4px); } }
+@keyframes cm-nod { 0%, 100% { transform: rotate(0deg); } 30% { transform: rotate(-5deg); } 65% { transform: rotate(3deg); } }
+@keyframes cm-mouth { from { transform: scaleY(1); } to { transform: scaleY(.25); } }
+@keyframes cm-gesture { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-14deg); } }
+@keyframes cm-cheer { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-7px); } }
+@keyframes cm-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
+@keyframes cm-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-22px); } 70% { transform: translateY(0); } 85% { transform: translateY(-6px); } }
+@keyframes cm-drift { from { transform: translateX(-14px); } to { transform: translateX(18px); } }
+@keyframes cm-flutter { 0%, 100% { transform: rotate(-7deg) translateY(0); } 50% { transform: rotate(8deg) translateY(-6px); } }
+@keyframes cm-wave { from { transform: translateX(-8px); } to { transform: translateX(8px); } }
+@keyframes cm-rain { from { transform: translateY(-14px); } to { transform: translateY(14px); } }
+@keyframes cm-fly { from { transform: translateX(-60px); } to { transform: translateX(var(--to, 700px)); } }
+@keyframes cm-flap { from { transform: scaleY(1); } to { transform: scaleY(-.6); } }
+`;
 
 /* ── The scenery ──────────────────────────────────────────────────────── */
 
@@ -223,7 +269,13 @@ function Scene({ panel, W, theme, gid }) {
             {sky && <rect x="0" y="0" width={W} height={HORIZON + 2} fill={`url(#${gid})`} />}
             {/* The evening's low sun; the clouds. */}
             {sky && panel.evening && <circle cx={W * 0.8} cy="74" r="18" fill="#f9e79f" opacity=".9" />}
-            {sky && !panel.night && theme.clouds && [[0.62, 34, 0.9], [0.84, 60, 0.7], [0.36, 70, 0.6]].map(([f, y, s2]) => <Cloud key={f} x={W * f} y={y} s={s2} fill={theme.clouds} />)}
+            {sky && !panel.night && theme.clouds && [[0.62, 34, 0.9], [0.84, 60, 0.7], [0.36, 70, 0.6]].map(([f, y, s2], i) => <g key={f} className="cm-cloud" style={{ animationDelay: `${-i * 5}s` }}><Cloud x={W * f} y={y} s={s2} fill={theme.clouds} /></g>)}
+            {/* Birds crossing a day sky. */}
+            {sky && !panel.night && !panel.rain && scene !== 'house' && [[0, 46], [-7, 62]].map(([d, y]) => (
+                <g key={y} className="cm-bird" style={{ '--to': `${W + 60}px`, animationDelay: `${d}s` }}>
+                    <g transform={`translate(0 ${y})`}><path className="cm-wing" d="M -8 0 Q -4 -6 0 0 Q 4 -6 8 0" stroke="#2c3e50" strokeWidth="1.8" fill="none" strokeLinecap="round" /></g>
+                </g>
+            ))}
             {scene === 'village' && (
                 <>
                     {hills()}
@@ -258,7 +310,7 @@ function Scene({ panel, W, theme, gid }) {
                     <Tree x={W * 0.7} y={HORIZON - 2} s={0.46} tone={theme.trees} />
                     <Hut x={W * 0.46} y={HORIZON - 2} s={0.4} tone={theme.hut} />
                     <rect x="0" y={HORIZON} width={W} height="58" fill={water} />
-                    {[0.1, 0.32, 0.58, 0.8].map((f, i) => <path key={f} d={`M ${W * f} ${HORIZON + 14 + (i % 2) * 22} q 8 -5 16 0 t 16 0`} stroke="rgba(255,255,255,.7)" strokeWidth="2" fill="none" />)}
+                    {[0.1, 0.32, 0.58, 0.8, 0.22, 0.7].map((f, i) => <path key={f} className="cm-wave" style={{ animationDelay: `${-i * 0.7}s` }} d={`M ${W * f} ${HORIZON + 12 + (i % 3) * 16} q 8 -5 16 0 t 16 0`} stroke="rgba(255,255,255,.7)" strokeWidth="2" fill="none" />)}
                     <rect x="0" y={HORIZON + 58} width={W} height={H - HORIZON - 58} fill="#e6c88e" />
                     <path d={`M ${W * 0.03} ${H} l 3 -26 M ${W * 0.05} ${H} l -2 -22 M ${W * 0.97} ${H} l -3 -24`} stroke="#4c7a2a" strokeWidth="3" />
                 </>
@@ -329,15 +381,54 @@ function Weather({ panel, W }) {
                 </>
             )}
             {panel.rain && Array.from({ length: Math.round(W / 14) }, (_, i) => (
-                <path key={i} d={`M ${(i * 14 + (i % 3) * 5) % W} ${(i * 37) % 200} l -6 14`} stroke="#d6e6f2" strokeWidth="1.6" strokeLinecap="round" opacity=".85" />
+                <path key={i} className="cm-rain" style={{ animationDelay: `${-(i % 5) * 0.12}s` }} d={`M ${(i * 14 + (i % 3) * 5) % W} ${(i * 37) % 200} l -6 14`} stroke="#d6e6f2" strokeWidth="1.6" strokeLinecap="round" opacity=".85" />
             ))}
         </>
     );
 }
 
-/** A thing in the scene: a well, a boat, a stall, the banyan tree, a bag of coins, a price board. */
+/** A kite (a diamond with a bow-tied tail), fluttering; its string down to `to` ([% across, y]) when someone flies it. */
+function Kite({ x, y, color = '#e91e63', small, to, W }) {
+    const k = small ? 0.62 : 1;
+    return (
+        <g>
+            {to && <path d={`M ${x} ${y + 26 * k} Q ${(x + (to[0] / 100) * W) / 2} ${(y + to[1]) / 2 + 30} ${(to[0] / 100) * W} ${to[1]}`} stroke="#5d4037" strokeWidth="1.2" fill="none" />}
+            <g transform={`translate(${x} ${y}) scale(${k})`}>
+                <g className="cm-kite">
+                    <path d="M 0 -26 L 18 0 L 0 26 L -18 0 Z" fill={color} {...line} />
+                    <path d="M 0 -26 L 0 26 M -18 0 L 18 0" stroke="rgba(0,0,0,.35)" strokeWidth="1.3" />
+                    <path d="M 0 -26 L 18 0 L 0 0 Z" fill="rgba(255,255,255,.28)" />
+                    <path d="M 0 26 q 8 10 0 18 q -8 8 0 18" stroke="#5d4037" strokeWidth="1.3" fill="none" />
+                    {[34, 50].map((ty) => <path key={ty} d={`M -5 ${ty - 3} L 5 ${ty + 3} M 5 ${ty - 3} L -5 ${ty + 3}`} stroke="#ffca28" strokeWidth="3" strokeLinecap="round" />)}
+                </g>
+            </g>
+        </g>
+    );
+}
+/** A rope across from (x, y) to (x2, y2), sagging a little. */
+function Rope({ x, y, x2, y2 }) {
+    const d = `M ${x} ${y} Q ${(x + x2) / 2} ${Math.max(y, y2) + 14} ${x2} ${y2}`;
+    return <g><path d={d} stroke="#4e342e" strokeWidth="4" fill="none" strokeLinecap="round" /><path d={d} stroke="#a1887f" strokeWidth="1.6" strokeDasharray="4 4" fill="none" /></g>;
+}
+/** The broken bridge over the river: the near half on its posts, the far half fallen into the water. */
+function Bridge({ x }) {
+    return (
+        <g>
+            <path d={`M ${x - 130} ${HORIZON - 4} L ${x - 24} ${HORIZON - 4}`} stroke="#6d4c41" strokeWidth="7" />
+            {[-118, -78, -38].map((dx) => <path key={dx} d={`M ${x + dx} ${HORIZON - 2} L ${x + dx} ${HORIZON + 40}`} stroke="#5d4037" strokeWidth="5" />)}
+            <path d={`M ${x + 30} ${HORIZON + 30} L ${x + 136} ${HORIZON - 4}`} stroke="#6d4c41" strokeWidth="7" />
+            <path d={`M ${x + 96} ${HORIZON + 6} L ${x + 96} ${HORIZON + 40}`} stroke="#5d4037" strokeWidth="5" />
+            <path d={`M ${x - 26} ${HORIZON - 4} l 8 6 M ${x + 30} ${HORIZON + 30} l -6 -8`} {...line} />
+        </g>
+    );
+}
+
+/** A thing in the scene: a well, a boat, a stall, the banyan tree, a bag of coins, a price board, a kite, a rope, a bridge. */
 function Prop({ prop, W, theme }) {
     const x = (prop.x / 100) * W;
+    if (prop.what === 'kite') return <Kite x={x} y={prop.y ?? 40} color={prop.color} small={prop.small} to={prop.to} W={W} />;
+    if (prop.what === 'rope') return <Rope x={x} y={prop.y} x2={(prop.x2 / 100) * W} y2={prop.y2} />;
+    if (prop.what === 'bridge') return <Bridge x={x} />;
     if (prop.what === 'well') return <Well x={x} />;
     if (prop.what === 'boat') return <Boat x={x} />;
     if (prop.what === 'stall') return <Stall x={x} y={GROUND} s={0.9} />;
@@ -358,6 +449,7 @@ function Held({ what }) {
     if (what === 'basket') return <g><path d="M -15 -7 L 15 -7 L 11 6 L -11 6 Z" fill="#c49a52" {...line} strokeWidth="1.6" /><path d="M -10 -1 L 10 -1 M -5 -7 L -4 6 M 4 -7 L 4 6" stroke="#8a6a32" strokeWidth="1.2" /><path d="M -6 -7 Q 0 -3 6 -7" fill="#7a5230" /></g>;
     if (what === 'bundle') return <g><ellipse rx="17" ry="9" fill="#d7bde2" {...line} strokeWidth="1.6" /><path d="M -4 -9 L 0 -15 L 4 -9" fill="#d7bde2" {...line} strokeWidth="1.4" /></g>;
     if (what === 'thread') return <g>{['#e74c3c', '#2e86c1', '#f4d03f'].map((c, i) => <rect key={c} x={-12 + i * 8} y="-8" width="7" height="14" rx="2" fill={c} {...line} strokeWidth="1.2" />)}</g>;
+    if (what === 'kite') return <g transform="translate(4 -20) scale(.55)"><g className="cm-kite"><path d="M 0 -26 L 18 0 L 0 26 L -18 0 Z" fill="#e91e63" {...line} /><path d="M 0 -26 L 0 26 M -18 0 L 18 0" stroke="rgba(0,0,0,.35)" strokeWidth="1.3" /><path d="M 0 26 q 8 10 0 18" stroke="#5d4037" strokeWidth="1.3" fill="none" /></g></g>;
     if (what === 'papers') return <g transform="rotate(-20)"><rect x="-4" y="-14" width="8" height="26" rx="3" fill="#fdfefe" {...line} strokeWidth="1.4" /></g>;
     // The prize cloth, three silver coins woven in its border.
     if (what === 'cloth') return <g><rect x="-4" y="-24" width="40" height="34" fill="#c0392b" {...line} strokeWidth="1.6" /><rect x="-4" y="2" width="40" height="8" fill="#f5cba7" />{[4, 16, 28].map((cx) => <circle key={cx} cx={cx} cy="6" r="3" fill="#d5d8dc" stroke={INK} strokeWidth="1" />)}</g>;
@@ -396,7 +488,7 @@ function Arm({ pts, skin }) {
  * a happy face — eyes with a shine, eyebrows, pink cheeks — clothes with gold borders, a soft shadow at their feet.
  * Their look (skin, clothes, hair), how they stand, which way they face, what they hold; `size` for a close-up.
  */
-function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, speaking, size = 1 }) {
+function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, speaking, size = 1, walkFrom = null, hop = 0, onTap, delay = 0 }) {
     const s = (look.child ? 0.58 : 0.75) * size;
     const w = look.big ? 1.15 : 1;
     const skin = look.skin || '#c68642';
@@ -406,9 +498,20 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
     const mouth = MOUTH[pose] || (speaking ? 'talk' : 'calm');
     const hand = front.slice(-2);
     const long = look.woman;
+    // Moving (2026-11-07): walking in from `walkFrom` (px across), breathing — or bouncing, cheering — and, while
+    // speaking, nodding, talking and gesturing with the front arm. A tap makes them hop (`hop` changes).
+    const body = pose === 'cheer' ? 'cm-cheer' : 'cm-breathe';
     return (
+        <g className={walkFrom != null ? 'cm-walk' : undefined} style={walkFrom != null ? { '--from': `${walkFrom}px` } : undefined}
+            onClick={onTap} cursor={onTap ? 'pointer' : undefined} data-comic-person={look.name}>
+        <g key={hop} className={hop ? 'cm-hop' : undefined}>
         <g transform={`translate(${x} ${y}) scale(${face === 'left' ? -s : s} ${s})`}>
             <ellipse cx="2" cy="0" rx={24 * w} ry="4.5" fill="rgba(40,60,20,.18)" />
+        <g className="cm-step">
+            {/* The feet stay on the ground while the rest breathes; they step while walking. */}
+            <ellipse className="cm-foot-a" cx="-8" cy="-3" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.4" />
+            <ellipse className="cm-foot-b" cx="11" cy="-3" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.4" />
+        <g className={body} style={{ animationDelay: `${delay}s` }}>
             {/* Long hair down the back; a braid with a flower at its end. */}
             {long && !['bun', 'greybun', 'braid'].includes(look.hair) && look.hair !== 'cap' && look.hair !== 'turban' && <path d="M -18 -132 C -24 -112 -20 -98 -12 -92 L -6 -104 C -12 -112 -12 -124 -10 -134 Z" fill={hairColor} {...line} strokeWidth="1.4" />}
             {look.hair === 'braid' && (
@@ -433,19 +536,19 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
                     <path d={`M -8 -60 L -10 -14 M 8 -60 L 11 -14`} stroke="rgba(0,0,0,.12)" strokeWidth="1.4" />
                 </>
             )}
-            <ellipse cx="-8" cy="-3" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.4" />
-            <ellipse cx="11" cy="-3" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.4" />
             {/* The body: bare with a shawl across it, a shirt, or a blouse under the sari's end — gold along their edges. */}
             <path d={`M ${-14 * w} -102 Q ${-17 * w} -84 ${-14 * w} -64 L ${14 * w} -64 Q ${17 * w} -84 ${14 * w} -102 Q 0 -106 ${-14 * w} -102 Z`} fill={look.woman ? look.blouse : look.shirt || skin} {...line} />
             {look.woman
                 ? <><path d={`M ${14 * w} -102 L ${4 * w} -105 L ${-16 * w} -74 L ${-15 * w} -64 L ${-5 * w} -64 Z`} fill={look.cloth} {...line} /><path d={`M ${4 * w} -104 L ${-15 * w} -72`} stroke={GOLD} strokeWidth="2.6" /></>
                 : look.shawl && <><path d={`M ${-14 * w} -102 L ${-4 * w} -105 L ${16 * w} -76 L ${15 * w} -64 L ${6 * w} -64 Z M ${-14 * w} -102 L ${-20 * w} -96 L ${-21 * w} -78 L ${-15 * w} -78 Z`} fill={look.shawl} {...line} /><path d={`M ${-4 * w} -104 L ${16 * w} -74`} stroke={GOLD} strokeWidth="2.4" /></>}
             <rect x="-4.5" y="-111" width="9" height="10" fill={skin} {...line} strokeWidth="1.4" />
+            <g className={speaking ? 'cm-nod' : undefined} style={{ transformOrigin: '2px -108px', animationDelay: `${delay}s` }}>
             <g transform={pose === 'sad' ? 'rotate(10 0 -110)' : undefined}>
                 {['bun', 'greybun'].includes(look.hair) && <circle cx="-18" cy="-138" r="8.5" fill={hairColor} {...line} strokeWidth="1.5" />}
                 <circle cx="2" cy="-128" r="21" fill={skin} {...line} data-head />
                 <ellipse cx="-12" cy="-127" rx="4" ry="5.5" fill={skin} {...line} strokeWidth="1.3" />
                 {/* The face, turned the way they look: eyes with a shine, eyebrows, pink cheeks, the mouth. */}
+                <g className="cm-eyes" style={{ animationDelay: `${delay * 2}s` }}>
                 {[6.5, 15.5].map((ex) => (
                     <g key={ex}>
                         <ellipse cx={ex} cy="-131" rx="3.4" ry="4.2" fill="#fff" stroke={INK} strokeWidth="1" />
@@ -453,14 +556,16 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
                         <circle cx={ex + 1.6} cy="-131.6" r="0.8" fill="#fff" />
                     </g>
                 ))}
+                </g>
                 <path d={pose === 'sad' ? 'M 3 -138.5 L 9 -136.5 M 13 -136.5 L 19 -138.5' : 'M 3 -137 Q 6.5 -139.8 10 -137.6 M 12 -137.6 Q 15.5 -139.8 19 -137'} stroke={grey ? '#9a9a9a' : '#2b211c'} strokeWidth="1.5" fill="none" strokeLinecap="round" />
                 <circle cx="3" cy="-121.5" r="3.2" fill="#f28b82" opacity=".45" />
                 <circle cx="19" cy="-121.5" r="3.2" fill="#f28b82" opacity=".45" />
                 <path d="M 21.5 -128 Q 24 -125 21 -123.5" stroke={INK} strokeWidth="1.3" fill="none" strokeLinecap="round" />
                 {look.moustache && <path d="M 7 -119.6 Q 12 -123 17.5 -119.6 Q 12 -117.6 7 -119.6 Z" fill={hairColor} stroke={INK} strokeWidth=".8" />}
-                {mouth === 'talk' && <ellipse cx="12.5" cy="-115.5" rx="3.2" ry="2.6" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
-                {mouth === 'oh' && <ellipse cx="12.5" cy="-115.5" rx="2.4" ry="3.2" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
-                {mouth === 'happy' && <g><path d="M 7.5 -118 Q 12.5 -109.5 18 -118 Z" fill="#8a2f25" stroke={INK} strokeWidth="1.1" /><path d="M 10 -113.6 Q 12.6 -112 15.4 -113.6" stroke="#e8736a" strokeWidth="1.6" fill="none" /></g>}
+                {mouth === 'talk' && <ellipse className={speaking ? 'cm-mouth' : undefined} cx="12.5" cy="-115.5" rx="3.2" ry="2.6" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
+                {mouth === 'oh' && <ellipse className={speaking ? 'cm-mouth' : undefined} cx="12.5" cy="-115.5" rx="2.4" ry="3.2" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
+                {mouth === 'happy' && <g className={speaking ? 'cm-mouth' : undefined}><path d="M 7.5 -118 Q 12.5 -109.5 18 -118 Z" fill="#8a2f25" stroke={INK} strokeWidth="1.1" /><path d="M 10 -113.6 Q 12.6 -112 15.4 -113.6" stroke="#e8736a" strokeWidth="1.6" fill="none" /></g>}
+                {mouth === 'sad' && speaking && <ellipse className="cm-mouth" cx="12.5" cy="-114.5" rx="2.2" ry="1.6" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
                 {mouth === 'sad' && <path d="M 8.5 -113.5 Q 12.5 -117.5 16.5 -113.5" stroke={INK} strokeWidth="1.5" fill="none" strokeLinecap="round" />}
                 {mouth === 'calm' && <path d="M 8 -117 Q 12.5 -112.8 17 -117" stroke={INK} strokeWidth="1.5" fill="none" strokeLinecap="round" />}
                 {look.beard && <path d="M -9 -122 C -8 -98 10 -94 22 -108 C 24 -112 23 -117 22 -119 C 19 -112 6 -112 -1 -116 C -4 -118 -7 -120 -9 -122 Z" fill={hairColor} {...line} strokeWidth="1.3" />}
@@ -474,9 +579,17 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
                 )}
                 {look.hair === 'cap' && <path d="M -19 -138 L 24 -140 L 19 -156 C 6 -160 -9 -159 -17 -150 Z" fill="#fdfefe" {...line} strokeWidth="1.5" />}
             </g>
-            <Arm pts={front} skin={skin} />
-            {holds && <g transform={`translate(${pose === 'carry' ? 2 : hand[0] + 3} ${pose === 'carry' ? -160 : hand[1]})`}><Held what={holds} /></g>}
+            </g>
+            <g className={speaking && !['cheer', 'carry', 'dig'].includes(pose) ? 'cm-gesture' : undefined} style={{ transformOrigin: `${14 * w}px -100px` }}>
+                <Arm pts={front} skin={skin} />
+                {holds && pose !== 'carry' && <g transform={`translate(${hand[0] + 3} ${hand[1]})`}><Held what={holds} /></g>}
+            </g>
+            {holds && pose === 'carry' && <g transform="translate(2 -160)"><Held what={holds} /></g>}
             {pose === 'dig' && <path d="M 30 -88 L 50 -10 M 42 -14 L 58 -6 L 54 6 L 40 -2 Z" fill="#95a5a6" {...line} />}
+        </g>
+        </g>
+        </g>
+        </g>
         </g>
     );
 }
@@ -569,6 +682,30 @@ function Panel({ panel, comic, theme, wide, index }) {
         });
         return () => cancelAnimationFrame(id);
     });
+    // Playing once it is on screen (2026-11-07): the people walk in then, and keep moving while it is in view.
+    const [on, setOn] = useState(() => typeof IntersectionObserver === 'undefined');
+    useEffect(() => {
+        const el = box.current;
+        if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+        const io = new IntersectionObserver(([e]) => setOn(e.isIntersecting), { threshold: 0.25 });
+        io.observe(el);
+        return () => io.disconnect();
+    }, []);
+    // A tap on someone: they hop, their bubble lights up, and their words are said aloud.
+    const [hops, setHops] = useState({});
+    const [said, setSaid] = useState(null);
+    useEffect(() => { if (!said) return undefined; const t = setTimeout(() => setSaid(null), 2400); return () => clearTimeout(t); }, [said]);
+    const tap = (who) => {
+        setHops((h) => ({ ...h, [who]: (h[who] || 0) + 1 }));
+        const words = (panel.say || []).find((b) => b.who === who)?.text;
+        if (!words) return;
+        setSaid(who);
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            const u = new SpeechSynthesisUtterance(words);
+            u.lang = comic.locale || 'en-IN'; u.rate = 0.95;
+            window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+        }
+    };
     const sized = (k) => (wide ? `clamp(${10 * k}px, ${2.05 * k}cqw, ${15 * k}px)` : `clamp(${10 * k}px, ${3.1 * k}cqw, ${15 * k}px)`);
     const fontSize = sized(1);
     const wordsSize = sized(fit);
@@ -584,15 +721,21 @@ function Panel({ panel, comic, theme, wide, index }) {
         return [...out, { ...b, top: Math.max(own, out.at(-1)?.top ?? 0) }];
     }, []);
     return (
-        <figure className="overflow-hidden rounded-[18px] border-[3px] border-white bg-white shadow-[0_6px_16px_rgba(76,53,160,.16)] [container-type:inline-size]" style={{ fontFamily: FONT, gridColumn: wide ? `span ${wide} / span ${wide}` : undefined }}
+        <figure className={`cm-panel overflow-hidden rounded-[18px] border-[3px] border-white bg-white shadow-[0_6px_16px_rgba(76,53,160,.16)] [container-type:inline-size] ${on ? 'cm-on' : ''}`} style={{ fontFamily: FONT, gridColumn: wide ? `span ${wide} / span ${wide}` : undefined }}
             data-comic-panel={index} data-zoom={panel.zoom || undefined}>
             <div ref={box} className="relative" style={{ aspectRatio: `${W} / ${H}` }}>
-                <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" aria-hidden="true">
+                <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full overflow-hidden" aria-hidden="true">
                     <Scene panel={panel} W={W} theme={theme} gid={gid} />
                     {!panel.zoom && (panel.props || []).filter((p) => !p.front).map((p, i) => <Prop key={i} prop={p} W={W} theme={theme} />)}
-                    {panel.cast.map((c) => people[c.who] && (
-                        <Person key={c.who} look={people[c.who]} pose={c.pose} face={c.face} x={(c.x / 100) * W} y={panel.zoom ? (people[c.who].child ? 292 : 332) : c.y} holds={c.holds} speaking={speakers.has(c.who)} size={zoom} />
-                    ))}
+                    {panel.cast.map((c, k) => {
+                        const px = (c.x / 100) * W;
+                        // Walking in from the side behind them: from the left when they face right, else from the right.
+                        const walkFrom = c.walk && !panel.zoom ? (c.face === 'left' ? W - px + 70 : -(px + 70)) : null;
+                        return people[c.who] && (
+                            <Person key={c.who} look={people[c.who]} pose={c.pose} face={c.face} x={px} y={panel.zoom ? (people[c.who].child ? 292 : 332) : c.y} holds={c.holds} speaking={speakers.has(c.who)} size={zoom}
+                                walkFrom={walkFrom} hop={hops[c.who] || 0} onTap={() => tap(c.who)} delay={k * 0.45} />
+                        );
+                    })}
                     {!panel.zoom && (panel.props || []).filter((p) => p.front).map((p, i) => <Prop key={i} prop={p} W={W} theme={theme} />)}
                     <Weather panel={panel} W={W} />
                 </svg>
@@ -607,7 +750,7 @@ function Panel({ panel, comic, theme, wide, index }) {
                 )}
                 {placed.map((b) => (
                     <div key={b.who} className="absolute" style={{ left: `${b.left}%`, top: `${b.top}%`, width: `${b.w}%` }} data-bubble={b.who}>
-                        <p className="relative border-[2.5px] bg-white text-center font-extrabold leading-snug" style={{ fontSize: wordsSize, color: LOOK.ink, borderColor: LOOK.purple, borderRadius: '50%', padding: '0.85em 1.4em', boxShadow: '0 0.2em 0.5em rgba(60,40,140,.12)' }} data-bubble-style="oval">
+                        <p className="relative border-[2.5px] bg-white text-center font-extrabold leading-snug" style={{ fontSize: wordsSize, color: LOOK.ink, borderColor: LOOK.purple, borderRadius: '50%', padding: '0.85em 1.4em', transition: 'transform .3s', transform: said === b.who ? 'scale(1.06)' : undefined, boxShadow: said === b.who ? '0 0 0 3px #ffca28' : '0 0.2em 0.5em rgba(60,40,140,.12)' }} data-bubble-style="oval">
                             <span className="sr-only">{b.name ? `${b.name} says: ` : ''}</span>{b.text}
                             <svg className="absolute" style={{ left: `calc(${b.tail}% - 9px)`, top: 'calc(100% - 3.5px)' }} width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
                                 <path d="M1 1 L7 17 L17 1" fill="#fff" stroke={LOOK.purple} strokeWidth="2.5" strokeLinejoin="round" />
@@ -676,8 +819,10 @@ export default function Comic({ comic }) {
     };
     return (
         <div ref={page} className="space-y-3" data-comic data-comic-theme={comic.theme || 'summer'} lang={(comic.locale || 'en-IN').split('-')[0]}>
+            <style>{MOTION}</style>
             {canRead && (
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold text-slate-500" data-comic-hint>Tap a character to hear them speak.</p>
                     <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#DCD3FA', color: LOOK.purple }} data-comic-read>
                         {reading ? <>{loading ? <Loader2 size={15} className="animate-spin" /> : <Square size={15} />} Stop</> : <><Headphones size={17} /> Read aloud</>}
                     </button>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Timer, Check, RotateCcw, Delete, Sparkles } from 'lucide-react';
+import { Check, RotateCcw, Delete, Sparkles } from 'lucide-react';
 import usePhaseClock from './usePhaseClock';
+import useWrongBuzz from './useWrongBuzz';
 import { GROUP_GAMES } from '../api';
 
 /**
@@ -54,16 +55,16 @@ function CodeBreaker({ c, send, dark }) {
 }
 
 /** A word or a sum, typed; Enter sends. */
-function Typed({ big, numeric, send, dark }) {
+function Typed({ big, numeric, send, dark, paused }) {
     const [value, setValue] = useState('');
     const ref = useRef(null);
     useEffect(() => { ref.current?.focus(); }, []);
     return (
-        <form className="mx-auto flex max-w-sm flex-col items-center gap-4" onSubmit={(e) => { e.preventDefault(); if (value.trim()) { send({ value }); setValue(''); } }}>
+        <form className="mx-auto flex max-w-sm flex-col items-center gap-4" onSubmit={(e) => { e.preventDefault(); if (value.trim() && !paused) { send({ value }); setValue(''); } }}>
             <p className="rounded-2xl bg-slate-900 px-6 py-3 text-center text-3xl font-black tracking-wide text-white sm:text-4xl" data-prompt>{big}</p>
             <input ref={ref} value={value} onChange={(e) => setValue(e.target.value)} inputMode={numeric ? 'numeric' : 'text'} autoComplete="off" autoCapitalize="off" spellCheck="false"
                 aria-label={numeric ? 'Your answer' : 'Type the word'} className={`w-full rounded-2xl border-2 px-4 py-3 text-center text-2xl font-bold outline-none focus:border-indigo-500 ${dark ? 'border-white/20 bg-white/10 text-white placeholder:text-white/30' : 'border-slate-200'}`} />
-            <button type="submit" disabled={!value.trim()} className={`${btn} w-full bg-indigo-600 text-white hover:bg-indigo-700`}>Enter</button>
+            <button type="submit" disabled={!value.trim() || paused} className={`${btn} w-full bg-indigo-600 text-white hover:bg-indigo-700`}>Enter</button>
         </form>
     );
 }
@@ -112,14 +113,18 @@ function NumberBonds({ c, send, dark }) {
     );
 }
 
-function MemoryMatch({ c, send }) {
+function MemoryMatch({ c, send, wrong }) {
     const cols = c.deck.length > 16 ? 5 : 4;
+    // A wrong pair turns back as soon as its red flash is over (2026-11-07, as in the solo Memory Match), not at the
+    // next tap: the server keeps it open until then, so here it is drawn face down (a tap on it still turns it).
+    const turnedBack = !wrong && c.open.length === 2;
+    const deck = turnedBack ? c.deck.map((f, i) => (c.open.includes(i) ? null : f)) : c.deck;
     return (
         <div className="mx-auto grid w-full max-w-sm gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }} data-memory>
-            {c.deck.map((face, i) => (
+            {deck.map((face, i) => (
                 <button key={i} type="button" onClick={() => face === null && send({ card: i })} disabled={face !== null && !c.open.includes(i)}
                     aria-label={face ? `Card ${i + 1}: ${face}` : `Card ${i + 1}, face down`}
-                    className={`flex aspect-square items-center justify-center rounded-xl text-3xl transition-transform ${face ? (c.open.includes(i) ? 'bg-white ring-2 ring-indigo-400' : 'bg-emerald-50 opacity-70 ring-1 ring-emerald-200') : 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md hover:-translate-y-0.5'}`}>
+                    className={`flex aspect-square items-center justify-center rounded-xl text-3xl transition-transform ${face ? (c.open.includes(i) ? (wrong ? 'gs-wrong bg-rose-50 ring-2 ring-rose-500' : 'bg-white ring-2 ring-indigo-400') : 'bg-emerald-50 opacity-70 ring-1 ring-emerald-200') : 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md hover:-translate-y-0.5'}`}>
                     {face || <Sparkles size={18} className="text-white/60" />}
                 </button>
             ))}
@@ -141,16 +146,26 @@ export default function RaceTable({ view, onAction, busy }) {
     const [seen, setSeen] = useState({ mistakes, at: null });
     if (mistakes !== seen.mistakes) setSeen({ mistakes, at: mistakes > seen.mistakes ? left : null });
     const flash = seen.at !== null && seen.at - left < 700;
-    const send = (extra) => { if (!busy && c) onAction({ type: ACTION[view.kind], stage: c.index, ...extra }).catch(() => {}); };
+    // The wrong answer (2026-11-06): the buzz, the try in red, and a moment's pause before the next. The same
+    // puzzle stays open to try again, so the right answer is never shown here (only in the review at the end).
+    // Memory Match: no buzz (2026-11-07) — the red flash and the cards turning back are enough.
+    useWrongBuzz(flash && view.kind !== 'memorymatch' ? mistakes : null);
+    const [lastTry, setLastTry] = useState(null);
+    const send = (extra) => {
+        if (busy || flash || !c) return;
+        setLastTry(extra);
+        onAction({ type: ACTION[view.kind], stage: c.index, ...extra }).catch(() => {});
+    };
+    const triedText = flash && typeof lastTry?.value === 'string' ? lastTry.value.trim() : '';
     const key = `${c?.index}:${me?.mistakes}`;
     const body = !c ? null
         : view.kind === 'lightsout' ? <LightsOut c={c} send={send} dark={dark} />
             : view.kind === 'codebreaker' ? <CodeBreaker key={c.index} c={c} send={send} dark={dark} />
-                : view.kind === 'typingsprint' ? <Typed key={key} big={c.word} send={send} dark={dark} />
-                    : view.kind === 'mathsprint' ? <Typed key={key} big={`${c.text} = ?`} numeric send={send} dark={dark} />
+                : view.kind === 'typingsprint' ? <Typed key={key} big={c.word} send={send} dark={dark} paused={flash} />
+                    : view.kind === 'mathsprint' ? <Typed key={key} big={`${c.text} = ?`} numeric send={send} dark={dark} paused={flash} />
                         : view.kind === 'speedsort' ? <SpeedSort key={key} c={c} send={send} dark={dark} />
                             : view.kind === 'numberbonds' ? <NumberBonds key={key} c={c} send={send} dark={dark} />
-                                : view.kind === 'memorymatch' ? <MemoryMatch c={c} send={send} /> : null;
+                                : view.kind === 'memorymatch' ? <MemoryMatch c={c} send={send} wrong={flash && c.open?.length === 2} /> : null;
     return (
         <div className="mx-auto w-full max-w-3xl space-y-4" data-race-table={view.game} data-phase={view.phase}>
             {view.phase === 'ready' && view.status === 'active' && (
@@ -166,7 +181,6 @@ export default function RaceTable({ view, onAction, busy }) {
                     <div className={`bg-gradient-to-r ${info.tone || 'from-indigo-500 to-violet-600'} px-5 py-3 text-white`}>
                         <div className="flex items-center justify-between gap-3">
                             <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/90">{me?.done ? 'All done!' : `${view.kind === 'memorymatch' ? 'Pairs' : 'Puzzle'} ${Math.min((me?.stage || 0) + 1, view.total)} of ${view.total}`}</p>
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-black tabular-nums ${seconds <= 10 ? 'bg-white text-rose-600' : 'bg-white/20'}`}><Timer size={14} /> {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</span>
                         </div>
                         <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/25"><div className="h-full bg-white transition-[width] duration-300" style={{ width: `${(Math.min(me?.stage || 0, view.total) / view.total) * 100}%` }} /></div>
                     </div>
@@ -174,8 +188,12 @@ export default function RaceTable({ view, onAction, busy }) {
                     <div className="p-5 sm:p-7">
                         {me?.done
                             ? <p className={`flex flex-col items-center gap-2 py-6 text-center text-lg font-black ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}><Check size={36} className={`rounded-full p-1.5 ${dark ? 'bg-emerald-500/20' : 'bg-emerald-100'}`} /> Finished! Waiting for the others…</p>
-                            : body}
-                        {flash && <p className={`mt-3 text-center text-sm font-black ${dark ? 'text-rose-300' : 'text-rose-600'}`} role="status">Not quite — try again.</p>}
+                            : <div className={flash ? 'pointer-events-none' : ''} aria-busy={flash || undefined}>{body}</div>}
+                        {/* Memory Match: the buzz alone (2026-11-07), no words under the cards. */}
+                        {flash && view.kind !== 'memorymatch' && <p className={`mt-3 text-center text-sm font-black ${dark ? 'text-rose-300' : 'text-rose-600'}`} role="status">
+                            {triedText && <span className="gs-wrong mr-2 inline-block rounded-lg bg-rose-500 px-2.5 py-0.5 text-white line-through decoration-white/70">{triedText}</span>}
+                            Not quite — try again.
+                        </p>}
                     </div>
                 </section>
             )}

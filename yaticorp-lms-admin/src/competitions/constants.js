@@ -83,8 +83,14 @@ export const addDays = (day, n) => {
  * hackathon closes after it opens. Values are the forms' own: "YYYY-MM-DDTHH:mm"
  * for the registration dates, `startsAt` either that or a "YYYY-MM-DD" day.
  */
+// Testing window (asked 2026-11-06): no date rules until 5 pm India time today, as on the server
+// (services/dates.js RULES_FROM); after that they apply again by themselves.
+export const RULES_FROM = Date.parse('2026-11-06T17:00:00+05:30');
+/** True while the testing window is open (no date rules). */
+export const datesRelaxed = () => Date.now() < RULES_FROM;
 export const scheduleProblems = ({ registrationOpensAt, registrationDeadline, startsAt, endsAt, isNew }) => {
     const out = {};
+    if (Date.now() < RULES_FROM) return out;
     const now = toLocalInput(new Date());
     const startDay = (startsAt || '').slice(0, 10);
     const endDay = (registrationDeadline || '').slice(0, 10);

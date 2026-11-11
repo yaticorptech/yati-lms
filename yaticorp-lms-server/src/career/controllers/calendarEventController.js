@@ -29,7 +29,7 @@ const clearEveOfExam = async (userId, date, type) => {
   });
   return deletedCount || 0;
 };
-const TYPES = ['Exam', 'Assignment', 'Class', 'Holiday', 'Other'];
+const TYPES = ['Exam', 'Assignment', 'Class', 'Holiday', 'Competition', 'Other'];
 
 /**
  * Copy an event onto the student's Google Calendar, if they have linked one.
@@ -113,6 +113,23 @@ const readEventBody = (body, { requireDate = true } = {}) => {
 
   const fields = { title, type, notes };
 
+  // A time, a reminder and a link (2026-11-04), each only when sent: the Career Path form sends none, and keeps them.
+  if (body.time !== undefined) {
+    if (body.time !== '' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(body.time))) return { error: 'Pick a valid time.' };
+    fields.time = String(body.time);
+  }
+  if (body.remindAt !== undefined) {
+    const at = body.remindAt ? new Date(body.remindAt) : null;
+    if (at && Number.isNaN(at.getTime())) return { error: 'Pick a valid reminder.' };
+    fields.remindAt = at;
+    fields.reminderShownAt = null;
+  }
+  if (body.link !== undefined) {
+    const link = String(body.link || '');
+    if (link && !/^\/competitions\/[\w/-]{1,200}$/.test(link)) return { error: 'That link is not one of the app\'s pages.' };
+    fields.link = link;
+  }
+
   if (requireDate || body.date !== undefined) {
     if (typeof body.date !== 'string' || !DATE_PATTERN.test(body.date)) {
       return { error: 'Pick a valid date.' };
@@ -121,6 +138,19 @@ const readEventBody = (body, { requireDate = true } = {}) => {
   }
 
   return { fields };
+};
+
+// @desc    A reminder has popped up: shown once, on any device
+// @route   POST /api/career/events/:id/reminded
+// @access  Private
+const markReminded = async (req, res) => {
+  try {
+    const event = await CalendarEvent.findOneAndUpdate({ _id: req.params.id, userId: req.user._id }, { $set: { reminderShownAt: new Date() } }, { new: true });
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+    res.status(200).json(event);
+  } catch (error) {
+    res.status(statusFor(error)).json(aiAwareBody(error));
+  }
 };
 
 // @desc    Every event this student has put on their calendar
@@ -233,4 +263,4 @@ const syncToGoogle = async (req, res) => {
   }
 };
 
-module.exports = { getEvents, createEvent, updateEvent, deleteEvent, syncToGoogle, TYPES };
+module.exports = { getEvents, createEvent, updateEvent, deleteEvent, syncToGoogle, markReminded, TYPES };

@@ -3,6 +3,8 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useFresh from './useFresh';
+import useAnswerReveal from './useAnswerReveal';
 
 const rnd = (n) => Math.floor(Math.random() * n);
 
@@ -48,6 +50,12 @@ const makeRound = (difficulty) => {
     [answer[0], answer[1] - 1],
     [answer[0] + 1, answer[1] + 1],
     [answer[0] - 1, answer[1] + 1]
+  ]).concat([
+    // Spares, tried last: for a small answer such as 1/2 most of the near
+    // misses above are improper or zero, which left only two wrong options.
+    [answer[0], answer[1] + 2],
+    [answer[0] + 1, answer[1] + 2],
+    [answer[0] + 2, answer[1] + 3]
   ]);
   for (const c of candidates) {
     if (wrongs.length >= 3) break;
@@ -93,10 +101,12 @@ export default function FractionMatch({ onExit }) {
 
 function Round({ progress, onExit }) {
   const config = configFor(progress.difficulty, progress.levelNo);
-  const [round, setRound] = useState(() => makeRound(progress.difficulty));
+  const fresh = useFresh();
+  const [round, setRound] = useState(() => fresh(() => makeRound(progress.difficulty)));
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
   const [started, setStarted] = useState(false);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -104,12 +114,18 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const choose = (i) => {
-    if (over || picked !== null) return;
+    if (over || busy || picked !== null) return;
+    const nextRound = () => setRound(fresh(() => makeRound(progress.difficulty)));
+    if (!same(round.options[i], round.answer)) {
+      // The buzz, the pick red and the equal fraction green, then the next one. By index: options are [top, bottom] pairs.
+      showWrong(i, round.options.findIndex((o) => same(o, round.answer)), nextRound);
+      return;
+    }
     setPicked(i);
-    if (same(round.options[i], round.answer)) setScore((s) => s + 1);
+    setScore((s) => s + 1);
     setTimeout(() => {
       setPicked(null);
-      setRound(makeRound(progress.difficulty));
+      setRound(fresh(() => makeRound(progress.difficulty)));
     }, 380);
   };
 
@@ -165,19 +181,16 @@ function Round({ progress, onExit }) {
 
           <div className="mt-6 grid grid-cols-4 gap-2.5">
             {round.options.map((option, i) => {
-              const show = picked !== null;
-              const right = same(option, round.answer);
               const state =
-                show && right
+                picked !== null && same(option, round.answer)
                   ? 'bg-emerald-50 text-emerald-800 ring-emerald-400'
-                  : show && picked === i
-                    ? 'bg-rose-50 text-rose-700 ring-rose-300'
-                    : 'bg-surface-50 text-ink-900 ring-line-200 hover:bg-journey-50 hover:ring-journey-300';
+                  : `bg-surface-50 text-ink-900 ring-line-200 ${busy || picked !== null ? '' : 'hover:bg-journey-50 hover:ring-journey-300'} ${toneOf(i)}`;
               return (
                 <button
                   key={`${option[0]}/${option[1]}`}
                   type="button"
                   onClick={() => choose(i)}
+                  disabled={busy}
                   aria-label={`${option[0]} over ${option[1]}`}
                   className={`fp-press flex min-h-20 items-center justify-center rounded-2xl ring-1 transition-colors ring-inset ${state}`}
                 >

@@ -99,6 +99,7 @@ router.get('/', wrap(async (req, res) => {
 router.get('/me', wrap(async (req, res) => {
     await challenge.advanceDue();
     let built = new Set();      // competitions with a Builder certificate for me (filled in with the results)
+    let certOk = new Set();     // competitions whose standard certificate is mine (filled in with the results)
     const myTeams = await Team.find({ 'players.userId': req.user._id, status: { $in: ['pending', 'approved'] } }).lean();
     const comps = await Competition.find({ _id: { $in: myTeams.map((t) => t.competitionId) }, status: { $ne: 'draft' } , ...NO_CHALLENGES }).lean();
     for (const c of comps.filter((x) => x.status === 'live')) await openDue(c._id);
@@ -144,6 +145,13 @@ router.get('/me', wrap(async (req, res) => {
             const done = comps.filter((c) => c.status === 'completed' && !views.resultsHidden(c));
             // A Builder certificate counts too (2026-10-31): the results pop-up and Download show it.
             built = await require('../certificates/auto').issuedIds(req.user._id, 'competition', done.map((c) => String(c._id))).catch(() => new Set());
+            // The standard certificate: only for a player who actually took part (services/certificate.js eligibleFor).
+            const { eligibleFor } = require('../services/certificate');
+            const ok = await Promise.all(done.map((c) => {
+                const team = myTeams.find((t) => String(t.competitionId) === String(c._id));
+                return team?.status === 'approved' ? eligibleFor(c, team, req.user._id) : false;
+            }));
+            certOk = new Set(done.filter((c, i) => ok[i]).map((c) => String(c._id)));
             return done;
         })()).map((c) => {
             const team = myTeams.find((t) => String(t.competitionId) === String(c._id));
@@ -155,7 +163,7 @@ router.get('/me', wrap(async (req, res) => {
                 collegeName: team?.collegeName || '',
                 place: team?.place || null,
                 score: { won: decided.filter((m) => String(m.winnerTeamId) === String(team?._id)).length, played: decided.length },
-                certificate: built.has(String(c._id)) || (team?.status === 'approved' && require('../services/certificate').eligible(c, team))
+                certificate: built.has(String(c._id)) || certOk.has(String(c._id))
             };
         })
     });
@@ -181,12 +189,17 @@ router.get('/history', wrap(async (req, res) => {
 // deleted from the frame. Each is drawn as a PDF on request by
 // GET /:id/certificate, as from the History tab.
 router.get('/certificates', wrap(async (req, res) => {
-    const { eligible, winnerWords, TITLE, GAME } = require('../services/certificate');
+    const { eligibleFor, winnerWords, TITLE, GAME } = require('../services/certificate');
     const teams = await Team.find({ 'players.userId': req.user._id, status: 'approved' }).lean();
     const comps = await Competition.find({ _id: { $in: teams.map((t) => t.competitionId) }, status: 'completed', resultsPublishedAt: { $ne: null }, ...NO_CHALLENGES }).lean();
-    const certificates = comps.map((c) => {
+    // Only players who actually took part (services/certificate.js eligibleFor).
+    const ok = await Promise.all(comps.map((c) => {
         const team = teams.find((t) => String(t.competitionId) === String(c._id));
-        if (!team || !eligible(c, team)) return null;
+        return team ? eligibleFor(c, team, req.user._id) : false;
+    }));
+    const certificates = comps.map((c, i) => {
+        const team = teams.find((t) => String(t.competitionId) === String(c._id));
+        if (!team || !ok[i]) return null;
         const player = team.players.find((p) => String(p.userId) === String(req.user._id));
         if (player?.certificateHiddenAt) return null;
         return {
@@ -239,7 +252,7 @@ const issuedView = (cert, design) => ({
         date: design.date, venue: design.venue, certId: cert.certId,
         signatories: (design.signatories || []).map((s) => ({ name: s.name, designation: s.designation, signature: Boolean(s.signature) })),
         brand: { name: design.branding?.name || '', tagline: design.branding?.tagline || '', org: design.branding?.org || '' },
-        hasLogo: Boolean(design.branding?.logo || design.branding?.yaticorp), ownLogo: Boolean(design.branding?.logo), hasSeal: Boolean(design.branding?.seal), noQr: design.scope === 'organization' && !design.showQr, plain: design.scope === 'organization', elements: design.elements || null, logoAt: design.branding?.logoAt || null, logoShape: design.branding?.logoShape || 'original', sealAt: design.branding?.sealAt || null
+        hasLogo: Boolean(design.branding?.logo || design.branding?.yaticorp), hasBg: Boolean(design.branding?.background), ownLogo: Boolean(design.branding?.logo), hasSeal: Boolean(design.branding?.seal), noQr: design.scope === 'organization' && !design.showQr, plain: design.scope === 'organization', elements: design.elements || null, logoAt: design.branding?.logoAt || null, logoShape: design.branding?.logoShape || 'original', sealAt: design.branding?.sealAt || null
     },
     images: {
         logo: design.branding?.logo || (design.branding?.yaticorp ? 'yaticorp' : ''), seal: design.branding?.seal || '', background: design.branding?.background || '',
@@ -333,6 +346,13 @@ router.get('/alerts', wrap(async (req, res) => {
         if (me && !me.paidAt) shown.push({ id: `pay:${c._id}`, kind: 'payment', competitionId: String(c._id), title: c.name, subtitle: `Pay ₹${c.entryFee.amount} to enroll`, amount: c.entryFee.amount });
     }
     shown.push(...await require('../arena/student').alertsFor(req.user));
+    // Paid, but no longer playing: once, to say whom to contact about the fee (the page says it in full).
+    for (const kind of ['competition', 'arena']) {
+        for (const id of await fees.paidIds(req.user._id, kind)) {
+            const held = await fees.onHold(req.user, kind, id).catch(() => null);
+            if (held) shown.push({ id: `hold-${kind}:${id}:${held.reason}`, kind: 'payment-hold', ...(kind === 'arena' ? { arenaId: id } : { competitionId: id }), title: held.competitionName, subtitle: 'Payment on hold', hold: held });
+        }
+    }
     res.json({ alerts: shown });
 }));
 router.get('/play/:gameId', wrap(async (req, res) => {
@@ -388,22 +408,32 @@ router.post('/play/:gameId/action', wrap(async (req, res) => res.json(await game
 
 /* ── One competition ─────────────────────────────────────────────────── */
 
-const visible = async (id, user) => {
+/**
+ * `cancelled`: a cancelled one too, for its own page only, and only to a student who was in one of its teams — My
+ * Teams lists it (GET /me), and its link led to "Competition not found". Paying, certificates and the rest stay off.
+ */
+const visible = async (id, user, { cancelled = false } = {}) => {
     if (!require('mongoose').isValidObjectId(id)) return null;
     const c = await Competition.findById(id).select('status hostOrganizationId').lean();
+    // A student who paid its entry fee always reaches its page (2026-11-06): if they no longer play — team turned
+    // down, taken back or removed, or the competition cancelled — it says whom to contact about the fee.
+    const paid = async () => !!(await fees.EntryPayment.exists({ userId: user._id, kind: 'competition', competitionId: c._id, status: 'paid' }));
+    if (c?.status === 'cancelled' && cancelled) {
+        return (await Team.exists({ competitionId: c._id, 'players.userId': user._id, status: { $ne: 'withdrawn' } })) || await paid() ? c : null;
+    }
     if (!c || !VISIBLE.includes(c.status)) return null;
     if (!c.hostOrganizationId) return c;
-    return seenBy(user, c, await Team.find({ competitionId: c._id, 'players.userId': user._id }).lean()) ? c : null;
+    return seenBy(user, c, await Team.find({ competitionId: c._id, 'players.userId': user._id }).lean()) || await paid() ? c : null;
 };
 
 router.get('/:id', wrap(async (req, res) => {
     await challenge.advanceDue();
-    const c = await visible(req.params.id, req.user);
+    const c = await visible(req.params.id, req.user, { cancelled: true });
     if (!c) return res.status(404).json({ message: 'Competition not found.' });
     if (c.status === 'live') await require('../services/bracketService').openDueReplays();
     const d = views.studentDetail(await views.detail(c._id, { userId: req.user._id }));
     // My team's current match: whether it has been started, and only then my own code.
-    const team = d.competition.myTeam?.status === 'approved' ? d.competition.myTeam : null;
+    const team = d.competition.myTeam?.status === 'approved' && c.status !== 'cancelled' ? d.competition.myTeam : null;
     if (team) {
         const m = (await Match.find({ competitionId: c._id, 'sides.teamId': team.id, status: { $in: ['live', 'scheduled'] } }).sort({ round: 1 }).lean())
             .sort((x, y) => (x.status === 'live' ? -1 : 0) - (y.status === 'live' ? -1 : 0))[0];
@@ -427,6 +457,11 @@ router.get('/:id', wrap(async (req, res) => {
             d.myPayment = { amount, paid: !!me?.paid };
             if (!me?.paid && d.myMatch) d.myMatch.code = null;
         }
+    }
+    // Paid, but not playing: whom to contact about the fee (services/entryFee.js onHold). Only my own payment.
+    if (!team) {
+        const held = await fees.onHold(req.user, 'competition', c._id);
+        if (held) d.paymentOnHold = held;
     }
     res.json(d);
 }));
@@ -474,9 +509,11 @@ router.get('/:id/certificate', wrap(async (req, res) => {
     if (built) return require('../certificates/render').pdf(res, built.design, [built.cert], `Certificate_${competition.name}.pdf`);
     const team = await Team.findOne({ competitionId: c._id, status: 'approved', 'players.userId': req.user._id }).lean();
     if (!team) return res.status(403).json({ message: 'Only players of a team that took part get a certificate.' });
-    if (!require('../services/certificate').eligible(competition, team)) {
+    const cert = require('../services/certificate');
+    if (!cert.eligible(competition, team)) {
         return res.status(404).json({ message: team.place ? 'This competition does not give winners\' certificates.' : 'This competition gives certificates only to its winners.' });
     }
+    if (!await cert.tookPart(competition, req.user._id)) return res.status(403).json({ message: 'Certificates are only for players who took part in a match.' });
     const playerName = team.players.find((p) => String(p.userId) === String(req.user._id))?.name || req.user.name;
     // Downloaded again: back in My Profile's frame if it was deleted from there.
     await Team.updateOne({ _id: team._id, 'players.userId': req.user._id }, { $set: { 'players.$.certificateHiddenAt': null } });

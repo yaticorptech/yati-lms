@@ -2,12 +2,12 @@
  * The five competition games as the Competitions page shows them (2026-11-04): each one's picture, icon, colour,
  * what it is and its rules — for its card, its rules pop-up (GamePopup.jsx) and its own page.
  */
-import { GAMES, gameImage, gameIcon } from '../api';
+import { GAMES, gameIcon } from '../api';
 import { ROUND_NAMES, ROUND_BLURBS } from '../arena/api';
 import { gameRules } from '../gameRules';
 
 export const ARENA = {
-    label: 'Quiz Arena', image: '/games/quizarena-card.jpg?v=3', players: 'Individual', format: 'Three rounds · everyone at once',
+    label: 'Quiz Arena', image: '/competitions/hub/game-art-quizarena.jpg', players: 'Individual', format: 'Three rounds · everyone at once',
     blurb: 'A live quiz for every student at the same moment, in three rounds. Your college enters you.',
     rules: [
         ...[1, 2, 3].map((r) => `Round ${r}, ${ROUND_NAMES[r]}: ${ROUND_BLURBS[r]}`),
@@ -30,11 +30,12 @@ export const GAME_IDS = [...Object.keys(GAMES), 'quizarena'];
 
 /** One game: { id, label, image, icon, bar, players, format, blurb, rules }. */
 export const gameCard = (id) => {
-    if (id === 'quizarena') return { id, ...ARENA, icon: '/games/quizarena-icon.png', bar: LOOK.quizarena };
+    // `image`: the picture its card on the Competitions page shows (2026-11-04, public/competitions/hub/game-art-<id>).
+    if (id === 'quizarena') return { id, ...ARENA, image: '/competitions/hub/game-art-quizarena.jpg', icon: '/games/quizarena-icon.png', bar: LOOK.quizarena };
     const g = GAMES[id];
     if (!g) return null;
     return {
-        id, label: g.label, image: gameImage(id), icon: gameIcon(id), bar: LOOK[id] || LOOK.quizarena,
+        id, label: g.label, image: `/competitions/hub/game-art-${id}.jpg`, icon: gameIcon(id), bar: LOOK[id] || LOOK.quizarena,
         players: g.players, format: g.format || 'Knockout, match by match', blurb: g.blurb,
         rules: gameRules({ game: id, teamsPerMatch: 2, playersPerTeam: 2, playersPerSide: 1 })
     };

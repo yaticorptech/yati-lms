@@ -150,7 +150,7 @@ const engine = {
     seatsPerSide: { min: 1, max: 1 },
 
     create(seats, options, ctx) {
-        if (!Array.isArray(seats) || seats.length < 2 || seats.length > 6) throw new GameError('Sudoku Challenge needs 2 to 6 players.');
+        if (!Array.isArray(seats) || seats.length < 2 || seats.length > engine.maxSeats) throw new GameError(`Sudoku Challenge needs 2 to ${engine.maxSeats} players.`);
         const level = LEVELS.includes(options?.difficulty) ? options.difficulty : 'medium';
         const { puzzle, solution } = makePuzzle(ctx.rng, CLUES[level]);
         return {

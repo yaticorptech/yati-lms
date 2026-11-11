@@ -131,7 +131,7 @@ describe('dashboard, leaderboards, achievements and certificates', () => {
     test('the dashboard comes from the records: totals, games, Brain Performance Score, rating, achievements', async () => {
         const d = (await p[0].call('GET', '/rooms/profile')).body;
         assert.ok(d.played >= 2 && d.wins >= 2);
-        assert.equal(d.games.length, 11);
+        assert.equal(d.games.length, require('../../src/competitions/games').ROOM_GAMES.length);
         assert.equal(d.chess.rating, 1216);
         assert.ok(d.brain.bps >= 0 && d.brain.bps <= 100);
         assert.match(d.brain.note, /not an IQ score/);

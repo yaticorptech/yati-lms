@@ -99,11 +99,11 @@ const FEATURES = {
         icon: Trophy, title: 'Competitions', tone: 'bg-amber-50 text-amber-800 ring-amber-200', iconTone: 'bg-amber-50 text-amber-600',
         field: 'canHostCompetitions', endpoint: 'competition-hosting', onLabel: 'Can host',
         aria: (org) => `${org.name} can host competitions`,
-        what: 'Lets the organization host its own inter-college competitions, not only enter teams in other colleges’ ones.',
+        what: 'Lets the organization host its own competitions for its own students, not only enter teams in the platform’s inter-college ones. Its rewards are capped: up to 1000 XP and 500 reward points per prize place, and 100 XP for taking part.',
         gets: [
             'Create and publish its own competitions from its dashboard (Host competitions).',
-            'Teams from other colleges can enter them.',
-            'Without it, it can still enter its own teams in competitions others host.'
+            'Only its own students take part: other colleges do not see or enter them.',
+            'Without it, it can still enter its own teams in the platform’s competitions.'
         ],
         offNote: 'Turning it off keeps the competitions it already made; you run them from Competitions.'
     },

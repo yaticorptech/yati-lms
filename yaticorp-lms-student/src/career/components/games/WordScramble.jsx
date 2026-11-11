@@ -5,6 +5,8 @@ import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels'
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 import BRAIN_WORDS from '../../data/brainWords';
+import useFresh from './useFresh';
+import useAnswerReveal from './useAnswerReveal';
 
 /** Shuffle the letters, and never hand back the word itself. */
 const scramble = (word) => {
@@ -21,9 +23,18 @@ const scramble = (word) => {
   return letters.join('');
 };
 
+/*
+ * Words whose letters also spell another everyday word (ASSET/SEATS,
+ * DEFER/FREED, SCOPE/COPSE, ETHICS/ITCHES, TENURE/TUREEN, PRECISE/RECIPES,
+ * BRIEF/FIBER, MILESTONE/LIMESTONE): a right unscramble would be marked
+ * wrong. Left to Typing Sprint, which shares the list.
+ */
+const AMBIGUOUS = new Set(['ASSET', 'DEFER', 'SCOPE', 'ETHICS', 'TENURE', 'PRECISE', 'BRIEF', 'MILESTONE']);
+const WORDS = BRAIN_WORDS.filter((w) => !AMBIGUOUS.has(w.word));
+
 const pick = (exclude, maxLength) => {
-  const sized = BRAIN_WORDS.filter((w) => w.word.length <= maxLength && w.word !== exclude);
-  const pool = sized.length ? sized : BRAIN_WORDS.filter((w) => w.word !== exclude);
+  const sized = WORDS.filter((w) => w.word.length <= maxLength && w.word !== exclude);
+  const pool = sized.length ? sized : WORDS.filter((w) => w.word !== exclude);
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
@@ -47,11 +58,13 @@ export default function WordScramble({ onExit }) {
 
 function Round({ progress, onExit }) {
   const config = configFor(progress.difficulty, progress.levelNo);
-  const [entry, setEntry] = useState(() => pick(null, config.maxLength));
+  const fresh = useFresh((w) => w.word);
+  const [entry, setEntry] = useState(() => fresh(() => pick(null, config.maxLength)));
   const [letters, setLetters] = useState(() => scramble(entry.word));
   const [guess, setGuess] = useState('');
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
+  const { busy, showWrong } = useAnswerReveal();
   const [started, setStarted] = useState(false);
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
   const inputRef = useRef(null);
@@ -61,7 +74,7 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const nextWord = (current) => {
-    const chosen = pick(current, config.maxLength);
+    const chosen = fresh(() => pick(current, config.maxLength));
     setEntry(chosen);
     setLetters(scramble(chosen.word));
     setGuess('');
@@ -69,15 +82,18 @@ function Round({ progress, onExit }) {
 
   const check = (event) => {
     event.preventDefault();
-    if (over) return;
+    if (over || busy || !guess.trim()) return;
     if (guess.trim().toUpperCase() === entry.word) {
       setScore((s) => s + 1);
       setFlash('right');
       nextWord(entry.word);
+      setTimeout(() => setFlash(null), 450);
     } else {
-      setFlash('wrong');
+      // The buzz and the word in green under the box, a pause, then a new word: once the answer
+      // has been shown, staying on the same word would hand over a free point.
+      const word = entry.word;
+      showWrong(guess, word, () => nextWord(word));
     }
-    setTimeout(() => setFlash(null), 450);
     inputRef.current?.focus();
   };
 
@@ -142,16 +158,21 @@ function Round({ progress, onExit }) {
             <input
               ref={inputRef}
               value={guess}
-              onChange={(e) => setGuess(e.target.value)}
+              onChange={(e) => !busy && setGuess(e.target.value)}
+              readOnly={busy}
               placeholder="Your answer"
               aria-label="Your answer"
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="characters"
+              spellCheck={false}
               className={`min-h-11 min-w-0 flex-1 basis-48 rounded-xl border bg-surface px-4 text-center text-base font-black tracking-widest text-ink-900 uppercase transition-colors placeholder:font-semibold placeholder:tracking-normal placeholder:normal-case focus:outline-none ${
-                flash === 'wrong' ? 'border-rose-400' : 'border-line-200 focus:border-journey-400'
+                busy ? 'border-rose-400 text-rose-600' : 'border-line-200 focus:border-journey-400'
               }`}
             />
             <button
               type="submit"
+              disabled={busy}
               className="fp-press min-h-11 shrink-0 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-600 px-5 text-sm font-black text-white"
             >
               Check
@@ -159,12 +180,18 @@ function Round({ progress, onExit }) {
             <button
               type="button"
               onClick={() => nextWord(entry.word)}
+              disabled={busy}
               className="min-h-11 shrink-0 rounded-xl bg-surface-100 px-4 text-sm font-black text-ink-600"
             >
               <SkipForward className="mr-1 inline h-3.5 w-3.5" />
               Skip
             </button>
           </form>
+          {busy && (
+            <p className="mt-3 text-sm font-bold text-ink-500" role="status">
+              It was <span className="font-black tracking-widest text-emerald-600">{entry.word}</span>
+            </p>
+          )}
         </div>
       )}
     </GameShell>

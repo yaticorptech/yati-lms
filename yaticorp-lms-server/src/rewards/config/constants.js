@@ -141,7 +141,8 @@ const DEFAULT_STARTING_CREDIT = 150000;
 // Brain games: minutes of play a day (0 = no limit) and the XP a level pays
 // for its best result. Paid once per level per star reached, so replaying an
 // easy level pays nothing; 0 stars pays nothing.
-const DEFAULT_GAMES = { dailyMinutes: 15, xpOneStar: 2, xpTwoStars: 5, xpThreeStars: 10 };
+// `groupDailyMinutes` (2026-11-04): the Group games' own daily allowance (0 = no limit).
+const DEFAULT_GAMES = { dailyMinutes: 15, xpOneStar: 2, xpTwoStars: 5, xpThreeStars: 10, groupDailyMinutes: 30 };
 
 const DEFAULT_LIMITS = {
   monthlyCashCap: 500,  // ₹ of reward redemptions per student per month; 0 = no cap

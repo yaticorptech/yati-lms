@@ -23,6 +23,7 @@ export const inputOf = (design, recipient, certId) => ({
     signatories: (design.signatories || []).map((s) => ({ name: s.name, designation: s.designation, signature: Boolean(s.signature) })),
     brand: { name: design.branding?.name || '', tagline: design.branding?.tagline || '', org: design.branding?.org || '' },
     hasLogo: Boolean(design.branding?.logo || design.branding?.yaticorp),
+    hasBg: Boolean(design.branding?.background),
     ownLogo: Boolean(design.branding?.logo),
     logoAt: design.branding?.logoAt || null,
     logoShape: design.branding?.logoShape || 'original',

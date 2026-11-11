@@ -208,7 +208,12 @@ const myRoom = async (userId) => {
     const game = await games.catchUp(await games.load(open._id));
     if (!OPEN.includes(game.status)) return { room: null };
     const e = engine(game.game);
-    return { room: { id: String(game._id), code: game.code, game: game.game, label: e.label, emoji: e.emoji, status: game.status, players: game.seats.length, maxSeats: sizeOf(game) } };
+    // Whether my own run is over while the others play on (Final Vault, Lost Kingdom and the races: all puzzles
+    // done, or out of tries), 2026-11-06 — the Games page says so on its "you are in a game" card.
+    const seat = game.seats.findIndex((s) => String(s.userId) === String(userId));
+    const mine = seat >= 0 ? (game.state?.progress?.[seat] || game.state?.players?.[seat] || null) : null;
+    const runDone = game.status === 'active' && !!(mine && (mine.done || mine.failed || mine.finished));
+    return { room: { id: String(game._id), code: game.code, game: game.game, label: e.label, emoji: e.emoji, status: game.status, players: game.seats.length, maxSeats: sizeOf(game), runDone } };
 };
 
 /** My finished rooms, newest first. */

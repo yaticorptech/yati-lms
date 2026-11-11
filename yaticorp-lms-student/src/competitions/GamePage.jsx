@@ -29,7 +29,7 @@ import KingdomTable from './games/kingdom/KingdomTable';
 import RoomLobby from './RoomLobby';
 import { OnlineSearch, PlayersBoard, MatchIntro } from './OnlineTable';
 import useGroupTime from './useGroupTime';
-import { clock as playClock, limitWords } from '../career/components/games/playClock';
+import { limitWords } from '../career/components/games/playClock';
 import CompetitionGuard from './CompetitionGuard';
 import useLiveGame from './useLiveGame';
 import Portal from '../components/Portal';
@@ -143,24 +143,24 @@ const RoomFinish = ({ game, onAgain, back, busy }) => {
     return (
         <section className="space-y-4" data-outcome data-room-finish>
             {/* The winner, on gold. */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-300 via-yellow-400 to-orange-400 p-6 text-center shadow-[0_18px_40px_rgba(245,158,11,0.35)] sm:p-8" data-winner-card>
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-300 via-yellow-400 to-orange-400 p-4 text-center shadow-[0_18px_40px_rgba(245,158,11,0.35)] sm:p-5" data-winner-card>
                 <span aria-hidden="true" className="pointer-events-none absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/25 blur-2xl" />
                 <span aria-hidden="true" className="pointer-events-none absolute -bottom-12 -right-8 h-48 w-48 rounded-full bg-orange-300/50 blur-2xl" />
                 <p className="relative text-xs font-black uppercase tracking-[0.3em] text-amber-900/80">{winners.length > 1 ? 'Shared victory' : 'Winner'}</p>
-                <div className="relative mt-4 flex flex-wrap items-end justify-center gap-8">
+                <div className="relative mt-2 flex flex-wrap items-end justify-center gap-6">
                     {winners.map((w) => (
                         <div key={w.seat} className="flex flex-col items-center">
-                            <Crown size={34} className="-mb-1 fill-amber-100 text-amber-800 drop-shadow" aria-hidden="true" />
-                            <Face src={avatars[w.seat]} name={w.name} className="h-24 w-24 rounded-full text-3xl ring-4 ring-white shadow-xl sm:h-28 sm:w-28" />
-                            <p className="mt-3 text-2xl font-black text-amber-950 sm:text-3xl">{w.you ? 'You won!' : w.name}</p>
+                            <Crown size={24} className="-mb-1 fill-amber-100 text-amber-800 drop-shadow" aria-hidden="true" />
+                            <Face src={avatars[w.seat]} name={w.name} className="h-16 w-16 rounded-full text-2xl ring-[3px] ring-white shadow-xl sm:h-20 sm:w-20" />
+                            <p className="mt-2 text-xl font-black text-amber-950 sm:text-2xl">{w.you ? 'You won!' : w.name}</p>
                             <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-                                <span className="rounded-full bg-white px-3 py-1 text-sm font-black text-violet-700 shadow">+{w.xp} XP</span>
+                                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-black text-violet-700 shadow">+{w.xp} XP</span>
                                 {w.score > 0 && <span className="rounded-full bg-amber-900/15 px-3 py-1 text-sm font-black text-amber-950">{w.score} pts</span>}
                             </div>
                         </div>
                     ))}
                 </div>
-                {game.outcome?.reason && <p className="relative mt-4 text-sm font-semibold text-amber-950/80">{game.outcome.reason}</p>}
+                {game.outcome?.reason && <p className="relative mt-2 text-xs font-semibold text-amber-950/80">{game.outcome.reason}</p>}
             </div>
 
             {/* Everyone, 1st to last. */}
@@ -189,7 +189,7 @@ const RoomFinish = ({ game, onAgain, back, busy }) => {
                             {busy ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <RotateCcw size={15} aria-hidden="true" />} Play again
                         </button>
                     )}
-                    <Link to={back} className="inline-flex min-h-11 items-center rounded-xl bg-slate-900 px-5 text-sm font-bold text-white hover:bg-slate-800">Back to Group games</Link>
+                    <Link to={back} className="inline-flex min-h-11 items-center rounded-xl bg-[#1e3a8a] px-5 text-sm font-bold text-white hover:bg-[#1e40af]">Back to Group games</Link>
                 </div>
             </div>
         </section>
@@ -326,10 +326,17 @@ export default function GamePage() {
     // Out: left, or (Sudoku, the stage games) left or closed / finished as their own view says it (2026-11-02:
     // a Sudoku board closed by mistakes kept the guard up, and Back asked to leave a game already left).
     const meOut = (v, you) => (v?.out || []).includes(you) || !!(v?.players?.[you] && (v.players[you].left || v.players[you].closed || v.players[you].finished || v.players[you].done || v.players[you].failed));
-    const playingNow = game?.kind === 'room' && game?.status === 'active' && game?.you != null && !meOut(view, game.you);
+    // Lost Kingdom and the races say "my own run is over" on `view.me` (2026-11-06: all trials done, the others still
+    // racing, and Back still asked to leave). The Final Vault keeps asking once done (waitingDone, below).
+    const myRunOver = game?.game !== 'finalvault' && !!(view?.me && (view.me.done || view.me.failed));
+    const playingNow = game?.kind === 'room' && game?.status === 'active' && game?.you != null && !meOut(view, game.you) && !myRunOver;
+    // The Final Vault opened, the others still playing (2026-11-05): leaving now still asks — it gives up the win.
+    const waitingDone = game?.game === 'finalvault' && game?.kind === 'room' && game?.status === 'active' && game?.you != null
+        && !!view?.players?.[game.you]?.done && !(view?.out || []).includes(game.you);
+    const guarded = playingNow || waitingDone;
     const [leaving, setLeaving] = useState(null);       // { to } once a way out was taken
     useEffect(() => {
-        if (!playingNow) return undefined;
+        if (!guarded) return undefined;
         const onUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
         window.history.pushState({ groupGameGuard: true }, '');
         const onPop = () => { window.history.pushState({ groupGameGuard: true }, ''); setLeaving({ to: null }); };
@@ -352,7 +359,21 @@ export default function GamePage() {
             // browser's Back would land on this same page.
             if (window.history.state?.groupGameGuard) window.history.back();
         };
-    }, [playingNow]);
+    }, [guarded]);
+    // A group room not being played (its lobby, or the game over), 2026-11-06: the phone's own back goes to Games ›
+    // Group games, where the room was started — the page before could be this room's own table, or the guard's step.
+    const roomHere = game?.kind === 'room';
+    useEffect(() => {
+        if (!roomHere || guarded) return undefined;
+        // Set a moment later: when a game ends, the play guard takes its own history step back first, and that
+        // step must not count as the player pressing back.
+        const onPop = () => navigate(GROUP_HOME, { replace: true });
+        const t = setTimeout(() => {
+            window.history.pushState({ groupRoomBack: true }, '');
+            window.addEventListener('popstate', onPop);
+        }, 400);
+        return () => { clearTimeout(t); window.removeEventListener('popstate', onPop); };
+    }, [roomHere, guarded, navigate]);
     // Leaving stays on this page: the result shows at once (2 players), or a
     // "you left" card with the live scores until the others finish, then the
     // final results. The student goes on from there, unasked.
@@ -367,7 +388,7 @@ export default function GamePage() {
     // Only while still playing (2026-11-02): left, a board closed or finished, the game over — the clock stops at once
     // (it used to run on until everyone else had finished).
     const groupPlaying = playingNow && !leftGame && !timesUp;
-    const { left: groupLeft, limit: groupLimit } = useGroupTime(groupPlaying, () => {
+    const { limit: groupLimit } = useGroupTime(groupPlaying, () => {
         if (!groupPlaying) return;
         setTimesUp(true);
         onAction({ type: 'resign' }).catch(() => {});
@@ -418,14 +439,17 @@ export default function GamePage() {
     const groupDark = room && game.status === 'active' && !!GROUP_GAMES[game.game]
         && !['chess', 'wordlogic', 'finalvault', 'lostkingdom'].includes(game.game);
     const dark = searching || chessDark || groupDark;
+    // Chess shows just its name and the last-move line (no Online/time-left badges); once finished, only the name.
+    const chessDone = chessDark && game.status !== 'active' && game.status !== 'waiting';
     return (
         <div className={`relative space-y-4 pb-10 -mt-4 sidebar:-mt-8 ${searching || groupDark ? '-mx-4 min-h-[calc(100vh-4rem)] bg-[radial-gradient(ellipse_at_50%_35%,#1b1f5c_0%,#0d0f2e_55%,#080a1f_100%)] px-4 pt-4 sidebar:-mx-8 sidebar:px-8 sidebar:pt-8 shadow-[0_0_0_100vmax_#0a0c24] [clip-path:inset(0_-100vmax_-100vmax)]' : chessDark ? '-mx-4 min-h-[calc(100vh-4rem)] overflow-hidden bg-[radial-gradient(ellipse_at_50%_40%,#2a1a17_0%,#150e12_55%,#0b080b_100%)] px-4 pt-4 sidebar:-mx-8 sidebar:px-8 sidebar:pt-8 shadow-[0_0_0_100vmax_#0b080b] [clip-path:inset(0_-100vmax_-100vmax)]' : ''}`} data-game-page={game.game} data-searching={searching || undefined}>
             {chessDark && (
                 // The room's pieces, from the design: a knight at the left, a king at the right, a fallen king above.
-                <div aria-hidden="true" className="pointer-events-none absolute inset-0 hidden xl:block">
-                    <img src="/games/chess/chess-knight.png" alt="" className="absolute bottom-0 left-0 w-[17%] max-w-[300px]" />
-                    <img src="/games/chess/chess-king.png" alt="" className="absolute right-0 bottom-0 w-[14%] max-w-[240px]" />
-                    <img src="/games/chess/chess-top.png" alt="" className="absolute top-0 right-[10%] w-[15%] max-w-[260px]" />
+                // Below xl there is no side gutter, so they sit behind the table (-z-10, inside the clip-path stacking context), smaller and faded.
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 opacity-40 xl:opacity-100">
+                    <img src="/games/chess/chess-knight.png" alt="" className="absolute bottom-0 left-0 w-[34%] max-w-[300px] xl:w-[17%]" />
+                    <img src="/games/chess/chess-king.png" alt="" className="absolute right-0 bottom-0 w-[28%] max-w-[240px] xl:w-[14%]" />
+                    <img src="/games/chess/chess-top.png" alt="" className="absolute top-0 right-[4%] w-[30%] max-w-[260px] xl:right-[10%] xl:w-[15%]" />
                 </div>
             )}
             {timesUp && (
@@ -440,15 +464,20 @@ export default function GamePage() {
             )}
             {/* A competition match, on for me: no copying, no screenshots, no leaving until it is over. */}
             <CompetitionGuard active={game.kind === 'match' && game.you != null && (game.status === 'active' || (game.status === 'waiting' && !!game.joined))} />
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* One Back at the top for every game (2026-11-06): a group room goes to Games › Group games (where it was
+                started), asking first while the game is on; a competition match goes back as before. */}
+            <div className={`flex-wrap items-center justify-between gap-3 ${room ? 'hidden sm:flex' : 'flex'}`}>
                 <Link data-game-back to={back} onClick={(e) => {
                     // A group game left, lost or over (2026-11-02): Back always goes to Group games — the page before
                     // could be this game's own table, or the guard's extra history step, and Back did nothing.
-                    if (room && !playingNow) { e.preventDefault(); navigate(GROUP_HOME, { replace: true }); return; }
+                    if (room && !guarded) { e.preventDefault(); navigate(GROUP_HOME, { replace: true }); return; }
                     goBack(e);
                 }} className={`-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold ${chessDark ? 'relative rounded-full bg-white/5 px-3.5 text-white/90 ring-1 ring-white/15 hover:bg-white/10' : searching || groupDark ? 'text-[#a5a9da] hover:text-white' : 'text-slate-500 hover:text-indigo-700'}`}><ArrowLeft size={16} aria-hidden="true" /> Back</Link>
                 {game.you == null && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><Eye size={13} aria-hidden="true" /> Watching</span>}
             </div>
+
+            {/* Group games: no name card (2026-11-06); competition matches keep it (round name, sides, turn clock). */}
+            {!room && (<>
 
             {/* The game's name with what kind of game it is as a small badge
                 beside it, not a phrase after it: "Ludo · friendly game" broke
@@ -459,16 +488,11 @@ export default function GamePage() {
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <h1 className={`leading-tight ${chessDark ? 'text-2xl font-bold text-[#f3e3c3] sm:text-4xl' : `text-lg font-black sm:text-xl ${searching || groupDark ? 'text-white' : 'text-slate-900'}`}`} style={chessDark ? { fontFamily: '"Playfair Display",Georgia,"Times New Roman",serif' } : undefined}>{game.label}</h1>
                         {game.match && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">{game.match.roundName}</span>}
-                        {room && (game.online
+                        {room && !chessDark && (game.online
                             ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset ${dark ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/60' : 'bg-emerald-50 text-emerald-700 ring-emerald-200'}`}>Online · {game.online.fee ? `${game.online.fee} XP entry` : 'Free'}</span>
                             : <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-indigo-700 ring-1 ring-inset ring-indigo-200">Group Brain</span>)}
-                        {room && groupLeft != null && (
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ring-1 ring-inset ${groupLeft <= 60 ? 'bg-rose-50 text-rose-700 ring-rose-200' : dark ? 'bg-white/5 text-white ring-white/40' : 'bg-sky-50 text-sky-800 ring-sky-200'}`} title="Group games play left today (it runs only while you play)" data-group-time>
-                                <Clock size={12} aria-hidden="true" /> {playClock(groupLeft)} left today
-                            </span>
-                        )}
                     </div>
-                    <p className={`break-words text-sm ${chessDark ? 'text-[#d9cbb4]' : searching || groupDark ? 'text-[#c7c9e4]' : 'text-slate-500'}`}>{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
+                    {!chessDone && <p className={`break-words text-sm ${chessDark ? 'text-[#d9cbb4]' : searching || groupDark ? 'text-[#c7c9e4]' : 'text-slate-500'}`}>{(chessDark && view?.turn != null && view.seats?.[view.turn]?.label ? `${view.seats[view.turn].label} to move.` : chessDark ? view?.message : null) || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>}
                 </div>
                 {game.status === 'active' && turnLeft != null && (
                     <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-black tabular-nums ${turnLeft <= 10 ? 'bg-rose-50 text-rose-700' : dark ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-700'}`} aria-label="Time left this turn">
@@ -476,6 +500,7 @@ export default function GamePage() {
                     </span>
                 )}
             </header>
+            </>)}
 
             {/* ── A competition match: which colleges are playing ──── */}
             {game.kind === 'match' && game.sides?.length > 0 && (
@@ -525,9 +550,6 @@ export default function GamePage() {
                 ? <OnlineSearch game={game} onLeft={() => navigate(GROUP_HOME, { replace: true })} />
                 : <RoomLobby game={game} live={live} onUpdate={accept} onLeft={() => navigate(GROUP_HOME, { replace: true })} />)}
             {room && game.online && game.status === 'active' && (matched || view?.phase === 'ready') && <MatchIntro game={game} view={view} />}
-            {/* A room's game on: every player at a corner, the time left between them (Chess draws its own two). */}
-            {/* The live scores (2026-10-29): your own game below, the others only as names, ✓ right, ✗ wrong and points. */}
-            {liveBoard && game.game !== 'wordlogic' && <PlayersBoard game={game} view={view} dark={groupDark} />}
 
             {/* ── Waiting room ──────────────────────────────────────── */}
             {!room && game.status === 'waiting' && (
@@ -566,12 +588,12 @@ export default function GamePage() {
                 congratulations, and for the others who won — each with their own place and XP. */}
             {leaving && game && (
                 <Portal>
-                    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setLeaving(null)}>
+                    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setLeaving(null)}>
                         <div onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true" aria-labelledby="leave-title" className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl" data-leave-confirm>
                             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-rose-600"><Flag size={26} aria-hidden="true" /></span>
                             <h2 id="leave-title" className="mt-3 text-xl font-black text-slate-900">Leave the game?</h2>
                             <p className="mt-1.5 text-sm text-slate-600">
-                                {(() => {
+                                {waitingDone ? <>You opened the vault! The others are still playing. If you leave now, <b>you lose</b> — your result will not count.</> : (() => {
                                     const others = (view?.seats || []).map((s, i) => ({ ...s, i })).filter((s) => s.i !== game.you && !(view?.out || []).includes(s.i));
                                     return others.length === 1
                                         ? <>Are you sure? If you leave, you lose and <b>{others[0].name}</b> wins.</>
@@ -579,7 +601,7 @@ export default function GamePage() {
                                 })()}
                             </p>
                             <div className="mt-5 flex gap-2">
-                                <button type="button" onClick={() => setLeaving(null)} autoFocus className="flex-1 rounded-full py-2.5 text-sm font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Stay and play</button>
+                                <button type="button" onClick={() => setLeaving(null)} autoFocus className="flex-1 rounded-full py-2.5 text-sm font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">{waitingDone ? 'Stay and wait' : 'Stay and play'}</button>
                                 <button type="button" onClick={leaveNow} data-leave-yes className="flex-1 rounded-full bg-rose-600 py-2.5 text-sm font-black text-white shadow-md shadow-rose-600/30 hover:bg-rose-700">Leave and lose</button>
                             </div>
                         </div>
@@ -635,7 +657,7 @@ export default function GamePage() {
                                 {busy === 'again' ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <RotateCcw size={15} aria-hidden="true" />} New room
                             </button>
                         )}
-                        <Link to={back} className="inline-flex min-h-10 items-center rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800">{backLabel}</Link>
+                        <Link to={back} className="inline-flex min-h-10 items-center rounded-xl bg-[#1e3a8a] px-4 text-sm font-bold text-white hover:bg-[#1e40af]">{backLabel}</Link>
                     </div>
                     {game.kind === 'match' && tie && game.competition && <Rematch competitionId={game.competition.id} gameId={game.id || gameId} />}
                     {/* Each place may shrink and wrap: a long team and college
@@ -764,6 +786,9 @@ export default function GamePage() {
             {view && Table && !leftGame && !(room && game.status === 'finished' && ['memorymatrix', 'sequence'].includes(game.game)) && (
                 <Table view={{ ...view, you: game.you, avatars: game.avatars, liveBoard, dark: groupDark }} onAction={onAction} busy={!!busy || game.status !== 'active'} recapOnly={room && game.status === 'finished'} />
             )}
+            {/* The live scores (2026-10-29), under your own game since 2026-11-05 ("the game card on top, the players below"):
+                the others only as names, ✓ right, ✗ wrong and points. */}
+            {liveBoard && game.game !== 'wordlogic' && <PlayersBoard game={game} view={view} dark={groupDark} />}
 
             {error && <p role="alert" className="sticky bottom-24 z-10 mx-auto max-w-xl rounded-xl bg-rose-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-lg sidebar:bottom-6">{error}</p>}
         </div>

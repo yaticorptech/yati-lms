@@ -187,14 +187,14 @@ describe('The Final Vault, raced to the end', () => {
         assert.equal(g.state.phase, 'play');
         const stages = g.state.shared.stages;
         assert.equal(stages.length, 5);
-        assert.deepEqual(stages.map((x) => x.kind), ['sequence', 'rings', 'code', 'mirrors', 'final']);
+        assert.deepEqual(stages.map((x) => x.kind), ['lockcode', 'mathlogic', 'code', 'mirrors', 'final']);
         // Everyone sees the same first chamber, and never its answer.
         const [va, vb, vc] = [(await poll(A, id)).view, (await poll(B, id)).view, (await poll(C, id)).view];
         assert.deepEqual(va.current, vb.current); assert.deepEqual(vb.current, vc.current);
         assert.equal(va.current.answer, undefined);
         assert.ok(!JSON.stringify(va).includes('"solution"'), 'no solution while it is on');
-        // B: a wrong symbol — a penalty, and the lock jams; then right; a second click for that chamber is refused.
-        const wrong = ['star', 'moon', 'sun', 'triangle'].find((x) => x !== stages[0].answer);
+        // B: a wrong code — a penalty, and the lock jams; then right; a second click for that chamber is refused.
+        const wrong = stages[0].answer === '123' ? '124' : '123';
         assert.equal((await act(B, id, { type: 'solve', stage: 0, value: wrong })).status, 200);
         const jammed = await act(B, id, { type: 'solve', stage: 0, value: stages[0].answer });
         assert.equal(jammed.status, 400); assert.match(jammed.body.message, /resetting/);
@@ -232,7 +232,7 @@ describe('The Lost Kingdom, raced to the treasure', () => {
         await poll(A, id);
         const g = await load(id);
         const stages = g.state.shared.stages;
-        assert.deepEqual(stages.map((x) => x.title), ['The Broken Path', 'The Temple of Knowledge', 'The Bridge of Logic', 'The Code Mechanism', 'The Final Combination']);
+        assert.deepEqual(stages.map((x) => x.title), ['The Broken Path', 'The Sun Temple', 'The Forgotten Palace', 'The Haunted Castle', 'The Final Combination']);
         const [va, vb] = [(await poll(A, id)).view, (await poll(B, id)).view];
         assert.deepEqual(va.current, vb.current, 'the same first trial for everyone');
         assert.ok(!JSON.stringify(va).includes('"answer"'), 'no answers sent');
