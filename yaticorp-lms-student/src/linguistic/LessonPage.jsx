@@ -8,14 +8,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Zap, Target, Timer, Award, Download, MessageSquareText } from 'lucide-react';
-import { saveBlob } from '../native/saveFile';
+import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
+const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi, announceRewards } from './api';
-import { COLORS, levelOf, backToPath, rememberLesson } from './meta';
+import { COLORS, levelOf, backToPath, rememberLesson, setVoiceCourse } from './meta';
 import { Chunky, Loading, Problem } from './ui';
 import Session, { SessionFrame } from './session/Session';
 import { Finish, XpParts } from './session/Finish';
 import { buildLesson, heartsFor, clock, xpIn, xpBy } from './session/logic';
 import { tr, trf } from './say';
+import AudioPack, { needsPack } from './AudioPack';
 
 /** The certificate earned with this lesson, to download at once. */
 function CertificateBanner({ certificate, courseName = 'English', lang }) {
@@ -23,9 +25,10 @@ function CertificateBanner({ certificate, courseName = 'English', lang }) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const label = levelOf(certificate.level).label;
-    const download = () => {
+    const download = async () => {
+        if (!(await ensureDriveLinked(CERT_DRIVE_REASON))) return;
         setBusy(true); setError('');
-        linguisticApi.certificatePdf(certificate.level).then((blob) => saveBlob(blob, `${courseName}_${label}_Certificate.pdf`, { title: 'Certificate' }))
+        linguisticApi.certificatePdf(certificate.level).then((blob) => downloadWithDrive(blob, `${courseName}_${label}_Certificate.pdf`, { title: 'Certificate', reason: CERT_DRIVE_REASON }))
             .catch((e) => setError(e.message)).finally(() => setBusy(false));
     };
     return (
@@ -45,6 +48,7 @@ function LessonPage() {
     const [run, setRun] = useState({ n: 0, from: 'start' });
     const [done, setDone] = useState(null);           // { r, summary }
     const talked = useRef(null);                      // a talk's last result (Speak on a topic)
+    const [packed, setPacked] = useState(() => !needsPack(lessonId)); // the unit's audio is on the device
 
     const load = useCallback(() => linguisticApi.lesson(lessonId).then((l) => { setLesson(l); setError(null); }).catch((e) => { setError(e); setLesson(null); }), [lessonId]);
     useEffect(() => { load(); }, [load]);
@@ -52,6 +56,7 @@ function LessonPage() {
     useEffect(() => { if (lesson?.id) rememberLesson(lesson.id); }, [lesson]);
 
     const steps = useMemo(() => (lesson ? buildLesson(lesson) : []), [lesson]);
+    setVoiceCourse(lesson?.target); // only the course's language is read aloud
     // Out of the lesson — Continue, Back, the ✕ and its End session — the learning path at this lesson's unit, or the next
     // once the unit is finished (2026-11-05: "not Section 1, Unit 1"; 2026-10-31, "not the dashboard"). Opened from
     // another page (the roadmap, the notes), back there.
@@ -72,6 +77,9 @@ function LessonPage() {
             </SessionFrame>
         );
     }
+
+    // The unit's audio first (2026-11-06): downloaded once, then every lesson in the unit opens straight away.
+    if (!packed) return <SessionFrame label={lesson.title}><AudioPack lessonId={lessonId} onReady={() => setPacked(true)} onCancel={endSession} /></SessionFrame>;
 
     const id = lesson.id;
     // The result's words in the student's language too (2026-11-05, "like Duolingo"): Kannada for a Kannada speaker.

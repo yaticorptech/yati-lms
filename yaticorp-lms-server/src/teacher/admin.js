@@ -224,6 +224,32 @@ router.patch('/:id/status', async (req, res) => {
     }
 });
 
+/**
+ * A teacher's own dashboard for the super admin (2026-11-11), as students'
+ * already open: a one-time code, two minutes, used once. The student app's
+ * /teacher/admin-access trades it (POST /api/teacher/auth/admin-access/exchange)
+ * for a two-hour teacher session that names the admin.
+ */
+router.post('/:id/dashboard-access', async (req, res) => {
+    try {
+        if (!isSuper(req)) return res.status(403).json({ message: 'Only a super admin can open a teacher\'s dashboard.' });
+        const t = await findTeacher(req.params.id);
+        if (!t) return res.status(404).json({ message: 'Teacher not found.' });
+        if (t.status !== 'active') return res.status(400).json({ message: 'This teacher is not active. Unblock or approve them to open their dashboard.' });
+        const { hashAccessCode, ACCESS_CODE_TTL_MS } = require('../controllers/adminUserController');
+        const code = crypto.randomBytes(24).toString('base64url');
+        await require('../models/AdminAccessCode').create({
+            codeHash: hashAccessCode(code), userId: t._id, kind: 'teacher',
+            adminId: req.admin._id, adminName: req.admin.name || 'Super Admin',
+            expiresAt: new Date(Date.now() + ACCESS_CODE_TTL_MS)
+        });
+        res.json({ code, expiresInSeconds: ACCESS_CODE_TTL_MS / 1000, name: t.name });
+    } catch (error) {
+        console.error('[teacher-admin] dashboard access failed:', error.message);
+        res.status(500).json({ message: 'Could not open this teacher\'s dashboard just now.' });
+    }
+});
+
 router.post('/:id/send-password-reset', async (req, res) => {
     try {
         const t = await findTeacher(req.params.id);

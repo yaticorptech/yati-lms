@@ -6,8 +6,8 @@
  */
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MoodContext, poseFor } from './mood';
-import { Check, ChevronLeft, ChevronRight, Keyboard, LayoutGrid, Lightbulb, BookOpen, Headphones, ChevronDown, Square, Volume2, Eye, Turtle, Mic } from 'lucide-react';
-import { COLORS, directionLabel, langOf, langFor, isRtl, play, chime, soundOn, canSpeak, tileVoice } from '../meta';
+import { Check, ChevronLeft, ChevronRight, Keyboard, LayoutGrid, Lightbulb, BookOpen, Headphones, ChevronDown, Square, Volume2, Eye, Turtle, Mic, Loader2 } from 'lucide-react';
+import { COLORS, directionLabel, langOf, langFor, isRtl, play, chime, soundOn, canSpeak, tileVoice, usePrefetch, readAloud, readingSpeech } from '../meta';
 import { Mascot, Speaker } from '../ui';
 import { tilesOf, usesTiles, OPEN_WRITING, LEAST_SENTENCES, sentenceCount, saidRight } from './logic';
 import { tr, line, writeWord } from '../say';
@@ -196,25 +196,24 @@ export function WordsStep({ step }) {
 export function PassageStep({ step }) {
     const T = tr(step.language);
     const [reading, setReading] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const stopper = useRef(null);
     const p = step.passage;
-    useEffect(() => () => { if (window.speechSynthesis) window.speechSynthesis.cancel(); }, []);
+    useEffect(() => () => stopper.current?.(), []);
+    usePrefetch(readingSpeech([p.text]), [p.text]);
     const toggle = () => {
-        if (!window.speechSynthesis) return;
-        if (reading) { window.speechSynthesis.cancel(); setReading(false); return; }
-        const u = new SpeechSynthesisUtterance(p.text);
-        u.lang = 'en-IN'; u.rate = 0.95; u.onend = () => setReading(false); u.onerror = () => setReading(false);
-        window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); setReading(true);
+        if (reading) { stopper.current?.(); stopper.current = null; setReading(false); return; }
+        setReading(true);
+        stopper.current = readAloud([p.text], 'en-IN', { onLoading: setLoading, onEnd: () => { stopper.current = null; setReading(false); } });
     };
     return (
         <div className="lingo-in space-y-4">
             <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.blue.ink }}>{T('Read')}</p>
             <div className="flex items-start justify-between gap-3">
                 <Title>{p.title}</Title>
-                {typeof window !== 'undefined' && window.speechSynthesis && (
-                    <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 shrink-0 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.blue.ink }}>
-                        {reading ? <><Square size={15} /> {T('Stop')}</> : <><Headphones size={17} /> {T('Read aloud')}</>}
-                    </button>
-                )}
+                <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 shrink-0 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.blue.ink }}>
+                    {reading ? <>{loading ? <Loader2 size={15} className="animate-spin" /> : <Square size={15} />} {T('Stop')}</> : <><Headphones size={17} /> {T('Read aloud')}</>}
+                </button>
             </div>
             <div className="space-y-3 rounded-2xl border-2 border-[#E5E5E5] p-4 text-[17px] font-semibold leading-8 text-[#4b4b4b] sm:p-5" data-passage>
                 {String(p.text).split(/\n+/).map((x, i) => <p key={i}>{x}</p>)}
@@ -251,7 +250,9 @@ function InWord({ text, mark }) {
 
 export function LetterWordsStep({ step }) {
     const [heard, setHeard] = useState('');
-    const hear = (w) => { setHeard(w.word); play(null, [w.forSay || `${w.word} for ${w.for}`, w.sentence].filter(Boolean).join('. '), w.locale || 'en-IN'); };
+    const said = (w) => [w.forSay || `${w.word} for ${w.for}`, w.sentence].filter(Boolean).join('. ');
+    usePrefetch(step.words.map((w) => [said(w), w.locale || 'en-IN']), [step]);
+    const hear = (w) => { setHeard(w.word); play(null, said(w), w.locale || 'en-IN'); };
     // English says "A for apple"; another language shows its word with how it sounds (ಅ — ಅಮ್ಮ, amma).
     const english = (step.words[0]?.locale || 'en').startsWith('en');
     const first = step.words[0];
@@ -561,6 +562,7 @@ const splitPrompt = (prompt) => {
  */
 function ListenPrompt({ q }) {
     const [shown, setShown] = useState(false);
+    usePrefetch(q.audio ? [] : [[q.say, q.sayLang || 'en-IN']], [q.id, q.audio, q.say, q.sayLang]);
     const hear = () => play(q.audio, q.say, q.sayLang || 'en-IN');
     useEffect(() => {
         if (soundOn()) play(q.audio, q.say, q.sayLang || 'en-IN');
@@ -1230,6 +1232,7 @@ export function PairsStep({ step, done, onDone }) {
     const [misses, setMisses] = useState([]);
     const flash = useRef(null);
     useEffect(() => () => clearTimeout(flash.current), []);
+    usePrefetch(words.filter((w) => !w.audio).map((w) => [w.speak || w.word, w.locale || step.targetLocale || 'en-IN']), [step]);
 
     const tap = (side, i) => {
         if (done || matched.includes(i)) return;

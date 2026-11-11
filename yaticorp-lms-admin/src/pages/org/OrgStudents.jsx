@@ -35,6 +35,7 @@ import { relativeDay, formatDate } from '../../utils/dates';
 import { saveBlob } from '../../native/saveFile';
 
 const PAGE_SIZE = 25;
+const fmtScore = (n) => (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 const FILTERS = [
     ['all', 'All'],
@@ -103,6 +104,8 @@ const StudentList = ({ tabs }) => {
     }, [searchText]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const [list, setList] = useState({ rows: [], total: 0 });
+    // 360 is open for this organization and has activities: the 360 score column shows (2026-11-05).
+    const [on360, setOn360] = useState(false);
     const [loading, setLoading] = useState(true);
     // Whether the list has ever arrived. A failed first load has no rows to
     // fall back on and must not read as "no students yet".
@@ -126,6 +129,7 @@ const StudentList = ({ tabs }) => {
             const res = await api.get('/organizations/me/students', { params: query, signal });
             if (!isCurrent()) return;
             const students = res.data.students || [];
+            setOn360(Boolean(res.data.three60));
             if (typeof res.data.total === 'number') {
                 // The server paged it.
                 setList({ rows: students, total: res.data.total });
@@ -190,11 +194,12 @@ const StudentList = ({ tabs }) => {
             const res = await api.get('/organizations/me/students', { params: query });
             const rows = arrange(res.data.students || [], { q, filter });
 
-            const header = ['Name', 'Email', 'Status', 'Courses enrolled', 'Courses completed', 'Overall progress % (all enrolled courses)', 'Lessons completed', 'Quizzes passed', 'Certificates', 'XP', 'Level', 'Joined organization', 'Last active'];
+            const with360 = Boolean(res.data.three60);
+            const header = ['Name', 'Email', 'Status', 'Courses enrolled', 'Courses completed', 'Overall progress % (all enrolled courses)', 'Lessons completed', 'Quizzes passed', 'Certificates', 'XP', 'Level', ...(with360 ? ['360 score'] : []), 'Joined organization', 'Last active'];
             const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
             const body = rows.map((s) => [
                 s.name, s.email, s.status, s.coursesEnrolled, s.coursesCompleted, s.progressPercent,
-                s.lessonsCompleted, s.quizzesPassed, s.certificates, s.xp, s.level,
+                s.lessonsCompleted, s.quizzesPassed, s.certificates, s.xp, s.level, ...(with360 ? [s.score360 ?? 0] : []),
                 s.joinedOrganizationAt ? formatDate(s.joinedOrganizationAt) : '',
                 s.lastActive ? formatDate(s.lastActive) : 'Never'
             ].map(escape).join(','));
@@ -281,6 +286,7 @@ const StudentList = ({ tabs }) => {
                                         open, platform and bundle courses included. */}
                                     <th className="px-6 py-4 font-semibold" title="Average across all the student's enrolled courses, not only yours">Overall progress</th>
                                     <th className="px-6 py-4 font-semibold">XP</th>
+                                    {on360 && <th className="px-6 py-4 font-semibold" title="Marks from approved 360 activity proofs">360 score</th>}
                                     <th className="px-6 py-4 font-semibold">Last active</th>
                                     <th className="px-6 py-4 font-semibold">Account status</th>
                                     <th className="sticky right-0 bg-slate-50 px-6 py-4 font-semibold text-right">Details</th>
@@ -316,6 +322,13 @@ const StudentList = ({ tabs }) => {
                                             {s.xp}
                                             <span className="ml-1 text-xs text-slate-400">L{s.level}</span>
                                         </td>
+                                        {on360 && (
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex min-w-[3rem] items-center justify-center rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ${s.score360 > 0 ? 'bg-teal-50 text-teal-700' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {fmtScore(s.score360)}
+                                                </span>
+                                            </td>
+                                        )}
                                         <td className="px-6 py-4 text-sm text-slate-500">{relativeDay(s.lastActive)}</td>
                                         <td className="px-6 py-4"><Pill status={s.status} /></td>
                                         <td className="sticky right-0 bg-white px-4 py-2 text-right whitespace-nowrap shadow-[-8px_0_8px_-8px_rgba(15,23,42,0.12)] group-hover:bg-slate-50">
@@ -361,6 +374,7 @@ const StudentList = ({ tabs }) => {
                                     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                                         <span title="Account status"><Pill status={s.status} /></span>
                                         <span className="tabular-nums">{s.xp} XP</span>
+                                        {on360 && <span className="rounded-md bg-teal-50 px-1.5 py-0.5 font-semibold text-teal-700 tabular-nums" title="360 score">360: {fmtScore(s.score360)}</span>}
                                         {s.certificates > 0 && (
                                             <span className="inline-flex items-center gap-1 font-semibold text-amber-600" title="Certificates issued"><Award size={12} />{s.certificates}</span>
                                         )}

@@ -74,15 +74,17 @@ const lessonProgressSchema = new Schema({
     updatedAt: { type: Date, default: Date.now }
 }, { _id: false });
 
+// 'blanks' (2026-11-06), 'hear' (tap what you hear) and 'chat' (complete the conversation): questions asked again too — kept, not dropped.
+const MISTAKE_SECTIONS = ['practice', 'quiz', 'items', 'vocab', 'spell', 'daily', 'blanks', 'hear', 'chat'];
+const MISTAKE_KINDS = ['question', 'word', 'translation'];
 const mistakeSchema = new Schema({
     // What to ask again: the lesson and the question in it (or a daily word).
     lessonId: { type: Schema.Types.ObjectId, ref: 'LinguisticLesson' },
-    // 'blanks' (2026-11-06): a fill-in-the-blanks question got wrong — it was missing, so saving one failed ("Something went wrong").
-    section: { type: String, enum: ['practice', 'quiz', 'items', 'vocab', 'spell', 'daily', 'blanks', 'hear', 'chat'], required: true },
+    section: { type: String, enum: MISTAKE_SECTIONS, required: true },
     qid: { type: String, required: true },
     module: String,
     level: String,
-    kind: { type: String, enum: ['question', 'word', 'translation'], default: 'question' },
+    kind: { type: String, enum: MISTAKE_KINDS, default: 'question' },
     prompt: { type: String, default: '' },          // shown in the list
     given: { type: String, default: '' },
     count: { type: Number, default: 1 },
@@ -186,6 +188,14 @@ const noteSchema = new Schema({
     title: { type: String, default: '', maxlength: 120 },
     html: { type: String, default: '', maxlength: 100000 }
 }, { timestamps: true });
+
+// A mistake saved by an older version (e.g. section 'blanks') failed validation
+// and made every save of that student's progress a 500. Such entries are dropped.
+progressSchema.pre('validate', function () {
+    if (!Array.isArray(this.mistakes) || !this.mistakes.length) return;
+    const bad = this.mistakes.filter((m) => !MISTAKE_SECTIONS.includes(m.section) || !m.qid || (m.kind && !MISTAKE_KINDS.includes(m.kind)));
+    bad.forEach((m) => this.mistakes.pull(m));
+});
 
 module.exports = {
     LinguisticNote: mongoose.model('LinguisticNote', noteSchema, 'linguistic_notes'),

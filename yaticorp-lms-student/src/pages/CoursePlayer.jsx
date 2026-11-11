@@ -5,7 +5,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
-import saveToDrive from '../integrations/google/saveToDrive';
+import { ensureDriveLinked, downloadWithDrive, askIfDriveRequired } from '../integrations/google/driveGate';
+const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { AuthContext } from '../context/AuthContext';
 import { PlayCircle, FileText, CheckCircle2, ChevronDown, ChevronRight, CheckSquare, Briefcase, Award, Download, HelpCircle, Lock, Paperclip, ArrowLeft, ArrowRight, Eye, Loader2 } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
@@ -18,7 +19,6 @@ import { useCoursePlayer } from '../shared/hooks/useCoursePlayer';
 import { unlockedLessonIds, nextLessonAfter, hasWatched, markWatched } from '../shared/playback/resume';
 import { useMascot } from '../mascot/useMascot';
 import { REACTIONS } from '../mascot/reactions';
-import { saveBlob } from '../native/saveFile';
 import { isShortOfFunds, serverMessage, isWalletCancel } from '../utils/walletCharge';
 
 const CoursePlayer = () => {
@@ -106,12 +106,14 @@ const CoursePlayer = () => {
 
     const handleDownloadPdf = async (url, filename) => {
         if (!url) return;
+        // Drive first (2026-11-05): a downloaded PDF is kept in their Drive too.
+        if (!(await ensureDriveLinked('So the course files you download are kept in your own Google Drive.'))) return;
         try {
             // Fetch the file as a complete blob (this works because Cloudinary free tier sends proper CORS headers for raw GETs, its just the Content-Disposition that fails)
             const response = await fetch(url);
             const blob = await response.blob();
             // The browser's download on the web; the share sheet in the app.
-            await saveBlob(blob, filename || 'document.pdf');
+            await downloadWithDrive(blob, filename || 'document.pdf', { description: 'A course file from YATICORP.', reason: 'So the course files you download are kept in your own Google Drive.' });
         } catch (error) {
             console.error('Failed to download PDF directly:', error);
             // Fallback: Just open the URL normally if blob fetching fails (e.g. strict CORS proxy)
@@ -154,22 +156,16 @@ const CoursePlayer = () => {
 
     const generateCertificate = async () => {
         setCertError('');
+        // Drive first (2026-11-05), before the certificate is made or charged for.
+        if (!(await ensureDriveLinked(CERT_DRIVE_REASON))) return;
         try {
             const blob = await sharedGenerateCertificate();
             const fileName = `Certificate_${courseData.course.title.replace(/\s+/g, '_')}.pdf`;
             // A browser download on the web; in the app, where a web view
             // cannot download, the phone's save/share sheet (native/saveFile).
-            await saveBlob(blob, fileName, { title: 'Certificate' });
-            setCertResult({ downloaded: true });
-
-            // The best moment there is to offer this: they have just finished
-            // the course. Not awaited — the file is already downloaded.
-            saveToDrive(blob, {
-                name: fileName,
-                description: `Your certificate for ${courseData.course.title}, issued by YATICORP.`,
-                reason: 'So the certificates you earn here are kept in your own Google Drive.'
-            });
+            if (await downloadWithDrive(blob, fileName, { title: 'Certificate', description: `Your certificate for ${courseData.course.title}, issued by YATICORP.`, reason: CERT_DRIVE_REASON })) setCertResult({ downloaded: true });
         } catch (e) {
+            if (askIfDriveRequired(e, CERT_DRIVE_REASON)) return;
             // A short wallet balance says what the certificate costs (Wallet rules).
             if (!isWalletCancel(e)) setCertError(isShortOfFunds(e) ? serverMessage(e) : 'Your certificate could not be made. Please try again.');
         }

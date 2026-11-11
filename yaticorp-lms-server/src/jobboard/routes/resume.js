@@ -20,7 +20,7 @@ const { localParse, DOCX_MIME } = require('../services/localResumeParse');
 const { hasFullAccess } = require('../../services/fullAccess');
 const { normalizeSkillList } = require('../services/matchService');
 const { isConnected } = require('../config/db');
-const { requireDriveFor, driveRequired, storeInDrive, removeFile } = require('../../integrations/google/driveStore');
+const { requireDriveFor, usesDrive, storeInDrive, removeFile } = require('../../integrations/google/driveStore');
 
 // A student re-parsing in a loop is either fighting the parser or spending
 // the shared allowance for sport; five a day is generous for both.
@@ -118,7 +118,7 @@ router.post('/', requireDriveFor, chargeWallet('upload_resume'), xpOnSuccess('re
             const filename = String(req.file.originalname || 'resume.pdf').slice(0, 120);
             // The file itself into their Drive, shared by link, once it has been read; the one it replaces goes.
             const keepFile = async () => {
-                if (!driveRequired()) return {};
+                if (!(await usesDrive(userId))) return {};
                 const before = await ResumeProfile.findOne({ userId }).select('driveFileId').lean();
                 const d = await storeInDrive(userId, req.file.buffer, { name: filename, mimeType: mime, description: 'The resume you uploaded to YATICORP.' });
                 if (before?.driveFileId && before.driveFileId !== d.driveFileId) removeFile(userId, before.driveFileId);

@@ -12,9 +12,9 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import saveToDrive from '../../../integrations/google/saveToDrive';
+import { ensureDriveLinked, downloadWithDrive } from '../../../integrations/google/driveGate';
 import { Linkedin, MessageCircle, Link2, Download, X, Check, Share2 } from 'lucide-react';
-import { openExternal, saveBlob } from '../../../native/saveFile';
+import { openExternal } from '../../../native/saveFile';
 import useBackClose from '../../../native/useBackClose';
 
 /**
@@ -116,21 +116,17 @@ export default function ShareBadgeDialog({ badge, onClose }) {
     }
   };
 
+  const BADGE_REASON = 'So the badges you earn here are kept in your own Google Drive.';
   const downloadImage = async () => {
+    // Drive first (2026-11-05): no download until it is linked.
+    if (!(await ensureDriveLinked(BADGE_REASON))) return;
     try {
       const res = await fetch(badge.imageUrl);
       // An error page is a blob too; saved, it would be a broken "PNG".
       if (!res.ok) throw new Error(`Badge image request failed (${res.status})`);
       const blob = await res.blob();
       const name = `career-path-milestone-${badge.phaseIndex + 1}.png`;
-      await saveBlob(blob, name, { title: 'Career Path milestone' });
-
-      // And a copy in their own Drive, where it will still be years from now.
-      saveToDrive(blob, {
-        name,
-        description: 'A CareerPath milestone badge you earned.',
-        reason: 'So the badges you earn here are kept in your own Google Drive.'
-      });
+      await downloadWithDrive(blob, name, { title: 'Career Path milestone', description: 'A CareerPath milestone badge you earned.', reason: BADGE_REASON });
     } catch {
       // Fall back to simply opening it, which every browser can do.
       openExternal(badge.imageUrl);

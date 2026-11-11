@@ -12,7 +12,7 @@
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, makeAdmin, startApp, cleanup, fakeDrive } = require('../helpers');
 const { LinguisticLesson, LinguisticSubmission, LinguisticProgress } = require('../../src/linguistic/models');
 const svc = require('../../src/linguistic/service');
 const Setting = require('../../src/models/Setting');
@@ -403,10 +403,13 @@ describe('a whole level: completion and its certificate', () => {
         assert.equal(d.achievements.find((a) => a.key === 'level_beginner').earned, true);
         const certs = (await raviApi('GET', '/certificates')).body.certificates;
         assert.deepEqual(certs.map((c) => c.level), ['beginner']);
+        // A download needs Drive linked (2026-11-05).
+        const drive = fakeDrive(); drive.link(ravi.user._id);
         const pdf = await fetch(`http://127.0.0.1:${app.server.address().port}/api/linguistic/certificates/beginner/pdf`, { headers: { Authorization: `Bearer ${ravi.token}` } });
         assert.equal(pdf.headers.get('content-type'), 'application/pdf');
         assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0, 4).toString(), '%PDF');
         assert.equal((await raviApi('GET', '/certificates/advanced/pdf')).status, 404, 'not one not earned');
+        drive.restore();
         assert.equal(await LearningActivity().countDocuments({ userId: ravi.user._id, type: 'linguistic_level' }), 1);
         assert.equal((await raviApi('DELETE', '/certificates/beginner')).body.hidden, true);
         assert.equal((await raviApi('GET', '/certificates')).body.certificates.length, 0);

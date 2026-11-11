@@ -9,7 +9,19 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { screen, srcFile, skipWithoutStyles, DEVICES } from './harness.js';
+import { screen as onScreen, srcFile, skipWithoutStyles, DEVICES } from './harness.js';
+// English read by Kokoro in the browser (lib/kokoro.js, merged from test 2026-11-11) would download its model from the
+// internet in every test (a story took 2 minutes): stood in for as not available here, so English falls back as it does
+// on a device without it (the server voice, here stubbed, then the device's own voice).
+const NO_KOKORO = `export const KOKORO_VOICE = 'af_heart';
+export const kokoroSupported = () => false;
+export const loadKokoro = () => Promise.reject(new Error('Kokoro is not loaded in the tests'));
+export const kokoroBlob = () => Promise.reject(new Error('Kokoro is not loaded in the tests'));`;
+// The AI voice (meta.js, merged from test 2026-11-11): no clips kept on this browser (no Cache Storage, which can keep a
+// clip waiting 2 s) and no voice service (the stub's /tts answers with nothing) — so, as on a device whose voice service
+// is down, the device's own voice reads at once, after the voice was asked for.
+const NO_AI_VOICE = `Object.defineProperty(window, 'caches', { configurable: true, value: undefined });\n`;
+const screen = (o) => onScreen({ ...o, entry: NO_AI_VOICE + o.entry, modules: { 'lib/kokoro': NO_KOKORO, ...(o.modules || {}) } });
 import { apiModule } from './fixtures.js';
 import { createRequire } from 'node:module';
 // The picture stories as the server builds them (comics.js, 2026-10-31).
@@ -89,6 +101,9 @@ import Letters from '${srcFile('linguistic/LettersChart.jsx')}';
 import Notes from '${srcFile('linguistic/Learnt.jsx')}';
 const Where = () => <p data-where>{useLocation().pathname}</p>;
 ${device ? `Object.defineProperty(navigator, 'languages', { get: () => ['${device}'] });` : ''}
+// The unit's audio pack (AudioPack.jsx, 2026-11-06, merged from test 2026-11-11): every unit's audio already on the device,
+// as for a student back for another lesson — so a lesson opens at once, not at the download screen.
+{ const get = Storage.prototype.getItem; Storage.prototype.getItem = function (k) { return /^lingo-pack\\d*:/.test(String(k)) ? 'downloaded' : get.call(this, k); }; }
 createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['${route}']}>
     <div className="flex h-dvh"><main className="relative flex-1 overflow-auto"><div className="mx-auto p-4 pb-[7.5rem]">
@@ -1088,9 +1103,10 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         // A phone with a Telugu voice: that one first (its letters are closest).
         const telugu = await screen({ entry: entryWith([{ lang: 'te-IN', name: 'Telugu' }, { lang: 'hi-IN', name: 'Hindi' }]), api: apiModule({}), styles: true, script: tapBoth });
         assert.deepEqual(telugu.result.spoken[0], ['కుటుంబ', 'te-IN', 'Telugu']);
-        // No Kannada, Telugu, Hindi or Marathi voice: it says so.
+        // No Kannada, Telugu, Hindi or Marathi voice: it says so. Since the AI voice (merged from test 2026-11-11) the
+        // server's voice is tried first; here it does not answer either, so the note is that the voice could not be made.
         const none = await screen({ entry: entryWith([{ lang: 'en-US', name: 'Samantha' }]), api: apiModule({}), styles: true, script: tapBoth });
-        assert.match(none.result.note, /This device has no Kannada voice/);
+        assert.match(none.result.note, /This device has no Kannada voice|The voice could not be made/);
     });
 
     // Since 2026-10-29 (94d3d01): a page inside has "← Back" (was an ✕) to the dashboard; the dashboard has none (the sidebar's menu leaves the section).

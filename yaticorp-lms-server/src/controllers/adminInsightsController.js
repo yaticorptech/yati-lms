@@ -216,4 +216,72 @@ const getAuditLog = async (req, res) => {
     }
 };
 
-module.exports = { getOverallAnalytics, getAuditLog };
+let homeCache = null; // { at, key, data }
+
+// @desc    The admin home: what is waiting on an admin, then how this week compares with last
+// @route   GET /api/admin/home
+// @access  Private/Admin (the organization and card queues: super admins only)
+const getAdminHome = async (req, res) => {
+    try {
+        const superAdmin = req.admin?.role === 'superadmin';
+        const key = superAdmin ? 'super' : 'admin';
+        if (homeCache && homeCache.key === key && !req.query.fresh && Date.now() - homeCache.at < 30000) return res.json(homeCache.data);
+        const db = mongoose.connection.db;
+        const c = (name) => db.collection(name);
+        const count = (name, q = {}) => c(name).countDocuments(q).catch(() => 0);
+        const now = Date.now();
+        const since7 = new Date(now - 7 * DAY);
+        const since14 = new Date(now - 14 * DAY);
+        const since30 = new Date(now - 30 * DAY);
+        const prev7 = { $gte: since14, $lt: since7 };
+
+        // Students with any recorded activity between two dates.
+        const activeBetween = async (from, to) => {
+            const ids = new Set();
+            await Promise.all(ACTIVITY.map(([name, field]) => c(name).distinct('userId', { [field]: { $gte: from, $lt: to }, userId: { $ne: null } })
+                .then((rows) => rows.forEach((id) => ids.add(String(id)))).catch(() => {})));
+            return ids.size;
+        };
+
+        const [
+            orgsPending, orgsStale, cardsWaiting, ticketsOpen, ticketsStale, ticketsInProgress,
+            students, new7, newPrev7, active7, activePrev7,
+            enrol7, enrolPrev7, done7, donePrev7,
+            pendingOrgRows, topCourseRows
+        ] = await Promise.all([
+            superAdmin ? count('organizations', { status: 'pending' }) : null,
+            superAdmin ? count('organizations', { status: 'pending', createdAt: { $lt: new Date(now - 3 * DAY) } }) : null,
+            superAdmin ? count('cards', { status: { $in: ['unactivated', 'activated'] }, verified: { $ne: true } }) : null,
+            count('tickets', { status: 'open' }),
+            count('tickets', { status: 'open', createdAt: { $lt: new Date(now - 2 * DAY) } }),
+            count('tickets', { status: 'in-progress' }),
+            count('users'), count('users', { createdAt: { $gte: since7 } }), count('users', { createdAt: prev7 }),
+            activeBetween(since7, new Date(now)), activeBetween(since14, since7),
+            count('enrollments', { createdAt: { $gte: since7 } }), count('enrollments', { createdAt: prev7 }),
+            count('progresses', { percentage: { $gte: 100 }, updatedAt: { $gte: since7 } }), count('progresses', { percentage: { $gte: 100 }, updatedAt: prev7 }),
+            superAdmin ? c('organizations').find({ status: 'pending' }, { projection: { name: 1, organizationType: 1, createdAt: 1 } }).sort({ createdAt: 1 }).limit(4).toArray().catch(() => []) : [],
+            c('enrollments').aggregate([{ $match: { createdAt: { $gte: since30 } } }, { $group: { _id: '$courseId', n: { $sum: 1 } } }, { $sort: { n: -1 } }, { $limit: 5 }]).toArray().catch(() => [])
+        ]);
+
+        const courseNames = Object.fromEntries((await c('courses').find({ _id: { $in: topCourseRows.map((r) => r._id) } }, { projection: { title: 1 } }).toArray().catch(() => [])).map((x) => [String(x._id), x.title]));
+        const data = {
+            superAdmin,
+            attention: { orgsPending, orgsStale, cardsWaiting, ticketsOpen, ticketsStale, ticketsInProgress },
+            pendingOrgs: pendingOrgRows.map((o) => ({ _id: o._id, name: o.name, type: o.organizationType || '', createdAt: o.createdAt || null })),
+            week: {
+                students: { total: students, now: new7, before: newPrev7 },
+                active: { now: active7, before: activePrev7 },
+                enrollments: { now: enrol7, before: enrolPrev7 },
+                completions: { now: done7, before: donePrev7 }
+            },
+            topCourses: topCourseRows.filter((r) => courseNames[String(r._id)]).map((r) => ({ _id: r._id, title: courseNames[String(r._id)], enrolled: r.n }))
+        };
+        homeCache = { at: Date.now(), key, data };
+        res.json(data);
+    } catch (error) {
+        console.error('Admin home error:', error);
+        res.status(500).json({ message: 'The dashboard could not be loaded just now.' });
+    }
+};
+
+module.exports = { getOverallAnalytics, getAuditLog, getAdminHome };

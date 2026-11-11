@@ -207,9 +207,18 @@ const organizationSchema = new mongoose.Schema({
                 // Who teaches this section, and what — each teacher adds their own.
                 teachers: [new mongoose.Schema({
                     teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true },
-                    subject: { type: String, trim: true, maxlength: 80, default: '' }
+                    subject: { type: String, trim: true, maxlength: 80, default: '' },
+                    // Which years of the course they teach it to (1st, 2nd, 3rd), one or more.
+                    years: { type: [Number], default: [] }
                 })]
-            })]
+            })],
+            // The subjects of each semester of the course (Settings → Institution, 2026-11-04):
+            // { year: 1–3, semester: 1–6, name }. Teachers pick theirs from these.
+            subjects: [new mongoose.Schema({
+                year: { type: Number, required: true, min: 1, max: 3 },
+                semester: { type: Number, min: 1, max: 6 },
+                name: { type: String, required: true, trim: true, maxlength: 80 }
+            }, { _id: false })]
         }, { timestamps: true })],
         // The activities of 360 (the 360 Activities page, 2026-10-31): in
         // categories, each worth "up to N marks" (mode max) or "N points per
@@ -220,9 +229,21 @@ const organizationSchema = new mongoose.Schema({
             activities: [new mongoose.Schema({
                 name: { type: String, required: true, trim: true, maxlength: 120 },
                 mode: { type: String, enum: ['max', 'each'], default: 'max' },
-                marks: { type: Number, min: 0, max: 1000, default: 10 }
+                marks: { type: Number, min: 0, max: 1000, default: 10 },
+                // "Per proof" only (2026-11-06): the most the activity can give however
+                // many proofs are accepted (1 per presentation, at most 5). null: no limit.
+                cap: { type: Number, min: 0, max: 100000, default: null },
+                // Bonus (2026-11-06): on accepting proof the teacher may add up to this much more,
+                // in all, on top of the marks (the sheet's "Bonus" column). Not part of the total.
+                bonusMax: { type: Number, min: 0, max: 1000, default: 0 },
+                // Extra (2026-11-06): bonus or year-specific (Mock Interview, final year):
+                // adds to the student's score, but not to the organization's maximum.
+                bonus: { type: Boolean, default: false }
             })]
-        })]
+        })],
+        // The maximum the organization means its list to add up to, e.g. 360 (2026-11-06).
+        // Only a check: the 360 Activities page warns while the list does not add up to it.
+        targetTotal: { type: Number, min: 0, max: 100000, default: null }
     }
 }, { timestamps: true });
 

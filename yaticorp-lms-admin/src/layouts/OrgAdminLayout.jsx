@@ -16,7 +16,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical, UserCog, Megaphone, Orbit
+    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical, UserCog, Megaphone, Orbit, LifeBuoy, MessageCircleQuestion
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
@@ -28,6 +28,9 @@ import { getViewedOrganization, stopViewingOrganization } from '../utils/viewOrg
 import useCenterTabs from '../hooks/useCenterTabs';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { Dialog, DialogTitle } from '../components/orgUi';
+import OrgProfileLock from '../components/OrgProfileLock';
+import OrgSupportDialog from '../components/OrgSupportDialog';
+import { useOrgProfile } from '../utils/orgProfile';
 
 // `short` is the bottom bar's label on a phone. The bar scrolls (2026-11-02), so
 // every section is in it, the sidebar-only ones too.
@@ -188,6 +191,7 @@ const OrgAdminLayout = () => {
     const leave = viewing ? exitView : logout;
 
     const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+    const [supportOpen, setSupportOpen] = useState(false);   // the Contact support popup
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const profileDropdownRef = useRef(null);
 
@@ -197,6 +201,13 @@ const OrgAdminLayout = () => {
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState('');
     const [counts, setCounts] = useState({ pendingRequests: 0, pendingTeacherRequests: 0 });
+
+    // The profile is complete with every Settings field, the logo, and the courses (utils/orgProfile).
+    // Until then every page but the dashboard and Settings is locked (components/OrgProfileLock).
+    // Asked again on each page change, so finishing it unlocks the rest at once.
+    const profile = useOrgProfile(location.pathname);
+    const openPaths = ['/organization', '/organization/settings'];
+    const profileLocked = profile.missing.length > 0 && !openPaths.includes(location.pathname.replace(/\/$/, ''));
 
     const isActive = (path, exact) => (exact ? location.pathname === path : location.pathname === path || location.pathname.startsWith(path + '/'));
 
@@ -422,8 +433,16 @@ const OrgAdminLayout = () => {
                         );
                     })}
                 </nav>
+                {/* Support, at the foot of the sidebar: a popup over the page, as for students (components/OrgSupportDialog). */}
+                <div className="shrink-0 border-t border-slate-100 p-4">
+                    <button type="button" onClick={() => setSupportOpen(true)} aria-haspopup="dialog"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-600 transition-colors hover:border-indigo-200 hover:bg-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                        <MessageCircleQuestion size={18} aria-hidden="true" /> Contact Support
+                    </button>
+                </div>
 
             </aside>
+            {supportOpen && <OrgSupportDialog organization={organization} onClose={() => setSupportOpen(false)} />}
 
             <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
                 {viewing && (
@@ -485,6 +504,9 @@ const OrgAdminLayout = () => {
                                         </div>
                                     </div>
                                     <div className="p-2">
+                                        <button type="button" onClick={() => { setProfileDropdownOpen(false); setSupportOpen(true); }} className={`${MENU_ITEM} w-full`}>
+                                            <LifeBuoy size={16} /> Contact support
+                                        </button>
                                         <Link to="/organization/settings" onClick={() => setProfileDropdownOpen(false)} className={MENU_ITEM}>
                                             <Settings size={16} className="text-slate-400" /> Organization settings
                                         </Link>
@@ -512,7 +534,7 @@ const OrgAdminLayout = () => {
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 pb-28 custom-scrollbar lg:p-8">
                     {/* Every organisation page uses the full width (asked 2026-10-28). */}
                     <div className="w-full">
-                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} context={{ staff, pendingRequests: counts.pendingRequests, organization }} /></Suspense></ErrorBoundary>
+                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}>{profileLocked ? <OrgProfileLock missing={profile.missing} /> : <Outlet key={pageKey} context={{ staff, pendingRequests: counts.pendingRequests, organization }} />}</Suspense></ErrorBoundary>
                     </div>
                 </div>
                 <PullToRefresh scrollerRef={scrollerRef} onRefresh={refreshPage} className={viewing ? 'top-28 lg:top-32' : 'top-16 lg:top-20'} />

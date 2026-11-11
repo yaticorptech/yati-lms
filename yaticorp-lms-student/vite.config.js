@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => ({
               globPatterns: ['**/*.{js,css,html,woff2}'],
               // three.min.js and the walker are only needed on the screens that
               // show the 3D mascot; fetched (and cached) on first use instead.
-              globIgnores: ['loop-walker/**'],
+              globIgnores: ['loop-walker/**', 'assets/kokoro-*.js'],
               maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
               // No runtime route touches the API (api.learn.yaticorp.in) or the
               // Bunny video CDN: those requests pass straight through to the

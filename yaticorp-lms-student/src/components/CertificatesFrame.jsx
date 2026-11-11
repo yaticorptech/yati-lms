@@ -8,7 +8,7 @@
  *              rest hang in the gallery beneath.
  */
 import { useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ensureDriveLinked, askIfDriveRequired } from '../integrations/google/driveGate';
+import { ensureDriveLinked, askIfDriveRequired, downloadWithDrive } from '../integrations/google/driveGate';
 import { Link } from 'react-router-dom';
 import {
     Award, Download, Loader2, Upload, Trash2, Eye, Sparkles, BadgeCheck, CalendarDays, ShieldCheck, Briefcase, ArrowRight, ChevronRight, BookOpen, Lightbulb, FileText, X, Image as ImageIcon, Lock, RefreshCw, Frame, Check, Info
@@ -20,7 +20,7 @@ import CertificatePreview from './CertificatePreview';
 import CompetitionCertificatePreview from './CompetitionCertificatePreview';
 import { competitionsApi } from '../competitions/api';
 import { arenaApi } from '../competitions/arena/api';
-import { saveBlob, openExternal } from '../native/saveFile';
+import { openExternal } from '../native/saveFile';
 import { AuthContext } from '../context/AuthContext';
 import { pdfPageOne } from '../utils/pdfPageOne';
 import useConfirmDialog from './useConfirmDialog';
@@ -331,12 +331,13 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
         .finally(() => setLoadingCompetitions(false));
     useEffect(() => { loadCompetitions(); }, []);
 
-    const downloadCompetition = (c) => {
+    const downloadCompetition = async (c) => {
+        if (!(await ensureDriveLinked(DRIVE_REASON))) return;
         setDownloadingCompetition(c.competitionId || c.arenaId);
         setError('');
         // A Quiz Arena certificate (the organiser's own, 2026-10-31) comes from the arena's route.
         (c.arenaId ? arenaApi.certificate(c.arenaId) : competitionsApi.certificate(c.competitionId))
-            .then((blob) => saveBlob(blob, `Certificate_${c.name.replace(/\s+/g, '_')}.pdf`, { title: c.name }))
+            .then((blob) => downloadWithDrive(blob, `Certificate_${c.name.replace(/\s+/g, '_')}.pdf`, { title: c.name, reason: DRIVE_REASON }))
             .catch((err) => setError(err.message || 'Could not download that certificate.'))
             .finally(() => setDownloadingCompetition(null));
     };
@@ -401,6 +402,7 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
         return () => window.removeEventListener('keydown', onKey);
     }, [viewing]);
     const downloadUpload = async (item) => {
+        if (!(await ensureDriveLinked(DRIVE_REASON))) return;
         setDownloadingUpload(item.id); setError('');
         try {
             // In their Drive: the file comes through our server from it (nothing is kept here).
@@ -410,8 +412,8 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
             const name = String(item.title || 'Certificate').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || 'Certificate';
             // A picture comes down in YATICORP's frame, its number on it; a PDF as it was uploaded.
             const framed = item.fileType !== 'pdf' ? await framedPicture(blob, numberOf(item)).catch(() => null) : null;
-            if (framed) await saveBlob(framed, `${name}_${numberOf(item) || 'certificate'}.png`, { title: item.title });
-            else await saveBlob(blob, `${name}.${item.fileType === 'pdf' ? 'pdf' : (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')}`, { title: item.title });
+            if (framed) await downloadWithDrive(framed, `${name}_${numberOf(item) || 'certificate'}.png`, { title: item.title, reason: DRIVE_REASON });
+            else await downloadWithDrive(blob, `${name}.${item.fileType === 'pdf' ? 'pdf' : (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')}`, { title: item.title, reason: DRIVE_REASON });
         } catch { openExternal(item.fileUrl); }
         finally { setDownloadingUpload(null); }
     };

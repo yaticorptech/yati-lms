@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ShieldCheck, Loader2, FileText, PenLine, ClipboardPaste, Trash2, Info, Quote, History, FileDown } from 'lucide-react';
+import { ShieldCheck, Loader2, FileText, PenLine, ClipboardPaste, Trash2, Info, Quote, History, FileDown, ExternalLink } from 'lucide-react';
 import teacherApi, { messageOf } from '../teacherSession';
 import { PageHeader, Card, CardTitle, ErrorNote, Badge } from '../ui';
 import { btn, inputClass, selectClass, countWords, fmtDate, fmtNum, fileStem } from '../kit';
@@ -20,6 +20,7 @@ import useConfirmDialog from '../../components/useConfirmDialog';
 import { saveBlob } from '../../native/saveFile';
 import StepGuide from '../StepGuide';
 import PlagiarismSources from '../PlagiarismSources';
+import PlagiarismPlans from '../PlagiarismPlans';
 import { PLAGIARISM_STEPS } from '../content/plagiarism';
 import Select from '../../components/Select';
 
@@ -74,10 +75,10 @@ const Report = ({ report }) => {
                     <div className="hidden md:block"><Badge tone={t.chip}>{t.label}</Badge></div>
                     <p className="text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{report.title}</p>
                     <ul className="grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
-                        <li><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-300 align-middle" aria-hidden="true" /> Found in others&apos; work (YATICORP and your uploaded papers): <strong>{others}%</strong></li>
+                        <li><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-300 align-middle" aria-hidden="true" /> Found in others&apos; work{report.outside?.checked ? ' (YATICORP, your papers, open research, Wikipedia)' : ' (YATICORP and your uploaded papers)'}: <strong>{others}%</strong></li>
                         <li><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-300 align-middle" aria-hidden="true" /> Found in your own documents: <strong>{report.ownScore}%</strong></li>
                         <li>Words checked: <strong>{fmtNum(report.words)}</strong></li>
-                        <li>Documents compared: <strong>{fmtNum(report.documentsCompared)}</strong></li>
+                        <li>Documents compared: <strong>{fmtNum(report.documentsCompared)}</strong>{report.outside?.checked ? <span className="text-slate-400"> (incl. {fmtNum(report.outside.found || 0)} from open research and Wikipedia{report.outside.fullText ? `, ${report.outside.fullText} read in full` : ''})</span> : null}</li>
                         <li>Citations found: <strong>{report.citations?.found ?? 0}</strong></li>
                         <li>Quotations without a citation: <strong>{report.flags?.length || 0}</strong></li>
                     </ul>
@@ -88,7 +89,17 @@ const Report = ({ report }) => {
                 <div>
                     <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Where the matches are</h3>
                     <ul className="space-y-1">
-                        {report.sources.map((s, i) => <li key={`${s.label}-${i}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm"><span className={`min-w-0 truncate ${s.own ? 'text-amber-800' : 'text-rose-800'}`}>{s.label}</span><span className="shrink-0 font-semibold text-slate-600">{fmtNum(s.words)} words</span></li>)}
+                        {report.sources.map((s, i) => (
+                            <li key={`${s.label}-${i}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm">
+                                {/* An outside source opens where it is: the paper or the Wikipedia article. */}
+                                {s.url ? (
+                                    <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-1 truncate font-medium text-rose-800 hover:underline" title={s.url}>
+                                        <span className="truncate">{s.label}</span><ExternalLink size={13} aria-hidden="true" className="shrink-0" />
+                                    </a>
+                                ) : <span className={`min-w-0 truncate ${s.own ? 'text-amber-800' : 'text-rose-800'}`}>{s.label}</span>}
+                                <span className="shrink-0 font-semibold text-slate-600">{fmtNum(s.words)} words</span>
+                            </li>
+                        ))}
                     </ul>
                 </div>
             )}
@@ -119,6 +130,7 @@ export default function Plagiarism() {
     const [pieces, setPieces] = useState([]);
     const [pieceId, setPieceId] = useState(params.get('writing') || '');
     const [checking, setChecking] = useState(false);
+    const [outside, setOutside] = useState(true);   // also open research and Wikipedia
     const [error, setError] = useState('');
     const [report, setReport] = useState(null);
     const [history, setHistory] = useState([]);
@@ -162,15 +174,18 @@ export default function Plagiarism() {
     const check = useCallback(async () => {
         setError(''); setChecking(true);
         try {
-            const body = mode === 'paste' ? { text, title: title.trim() || undefined }
-                : mode === 'thesis' ? { source: { kind: 'thesis', id: thesisId, chapterId } }
-                    : { source: { kind: 'writing', id: pieceId } };
+            const body = {
+                ...(mode === 'paste' ? { text, title: title.trim() || undefined }
+                    : mode === 'thesis' ? { source: { kind: 'thesis', id: thesisId, chapterId } }
+                        : { source: { kind: 'writing', id: pieceId } }),
+                outside
+            };
             const r = await teacherApi.post('/plagiarism/check', body);
             setReport(r.data);
             loadHistory();
             setTimeout(() => document.getElementById('plagiarism-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
         } catch (e) { setError(messageOf(e, 'The check could not be run just now.')); } finally { setChecking(false); }
-    }, [mode, text, title, thesisId, chapterId, pieceId, loadHistory]);
+    }, [mode, text, title, thesisId, chapterId, pieceId, loadHistory, outside]);
 
     // Opened from a chapter or a piece ("Check this chapter"): run straight away, once.
     const autoRan = useRef(false);
@@ -204,9 +219,11 @@ export default function Plagiarism() {
             <StepGuide id="plagiarism-guide" tone="indigo" icon={ShieldCheck} steps={PLAGIARISM_STEPS} open={isGuideOpen} onToggle={() => setGuideOpen(!isGuideOpen)} step={guideStep} onStep={setGuideStep}
                 title="Understanding and avoiding plagiarism" subtitle="What counts, paraphrasing and citing, citation styles, self-plagiarism, UGC rules and a checklist." />
 
+            <PlagiarismPlans />
+
             <p className="flex items-start gap-2 text-sm text-slate-500">
                 <Info size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
-                <span>Compares with writing on YATICORP and with {sourceCount ? <strong className="text-slate-700">the {sourceCount} {sourceCount === 1 ? 'paper' : 'papers'} you uploaded</strong> : 'papers you upload below'}. It does not search the internet, so use your university&apos;s checker (such as Turnitin) before submitting.</span>
+                <span>Compares with writing on YATICORP and with {sourceCount ? <strong className="text-slate-700">the {sourceCount} {sourceCount === 1 ? 'paper' : 'papers'} you uploaded</strong> : 'papers you upload below'}, and, for free, with open research papers (whole open-access papers, abstracts of the rest) and Wikipedia. It does not see the whole internet or paywalled journals: until Pro arrives, use your university&apos;s checker (such as Turnitin) before submitting.</span>
             </p>
 
             <Card>
@@ -243,7 +260,12 @@ export default function Plagiarism() {
                 ) : <p className="text-sm text-slate-500">You have no writing pieces yet. Paste text instead.</p>)}
 
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <button type="button" onClick={check} disabled={checking || !ready} className={btn.primary}>{checking ? <><Loader2 size={15} className="animate-spin" /> Checking…</> : <><ShieldCheck size={15} /> Check now</>}</button>
+                    <button type="button" onClick={check} disabled={checking || !ready} className={btn.primary}>{checking ? <><Loader2 size={15} className="animate-spin" /> {outside ? 'Checking, searching open research…' : 'Checking…'}</> : <><ShieldCheck size={15} /> Check now</>}</button>
+                    {/* Free outside sources (server: openSources.js): on by default, a few seconds more. */}
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" checked={outside} onChange={(e) => setOutside(e.target.checked)} disabled={checking} className="h-4 w-4 accent-indigo-600" />
+                        Also search open research papers and Wikipedia <span className="text-xs text-slate-400">(free, up to 20 seconds more)</span>
+                    </label>
                 </div>
                 <div className="mt-3"><ErrorNote>{error}</ErrorNote></div>
             </Card>

@@ -76,8 +76,13 @@ const AdminLayout = () => {
     const [pageKey, setPageKey] = useState(0);
     const refreshPage = () => setPageKey((k) => k + 1);
 
+    // The open-ticket badge: on each page change, every 15s while on screen, and when the tickets page sees new ones.
     useEffect(() => {
-        api.get('/admin/tickets?status=open').then(r => setOpenTickets(r.data.length)).catch(() => { });
+        const ask = () => api.get('/admin/tickets?status=open').then(r => setOpenTickets(r.data.length)).catch(() => { });
+        ask();
+        const timer = setInterval(() => { if (!document.hidden) ask(); }, 15000);
+        window.addEventListener('admin-tickets-changed', ask);
+        return () => { clearInterval(timer); window.removeEventListener('admin-tickets-changed', ask); };
     }, [location.pathname, pageKey]);
 
     // Collapse the mobile sidebar on navigation. Adjusting during render (the

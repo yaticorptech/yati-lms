@@ -209,6 +209,33 @@ router.get('/lessons/:id', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
+/*
+ * The audio pack (2026-11-06, user: "before a unit starts, download all its audio, then they can start"):
+ * every lesson of the unit this lesson is in, as the student will have it, so the app can make each text's
+ * voice clip ahead. Nothing is saved: opening the pack does not start a lesson.
+ */
+router.get('/lessons/:id/pack', async (req, res, next) => {
+    try {
+        const lesson = await openLesson(req, res);
+        if (!lesson) return;
+        const progress = await svc.progressOf(req.user._id);
+        const [lessons, config] = await Promise.all([svc.lessonsFor(progress), getConfig()]);
+        const { unitsOf } = require('./units');
+        const unit = unitsOf(lessons.filter((x) => x.level === lesson.level)).find((u) => u.lessons.some((x) => idOf(x._id) === idOf(lesson._id)));
+        const docs = unit ? unit.lessons : [lessons.find((x) => idOf(x._id) === idOf(lesson._id)) || lesson];
+        const out = [];
+        for (const doc of docs) {
+            try { const served = svc.serve(doc, progress); if (served) out.push(svc.publicLesson(served, null, config)); } catch { /* a lesson that cannot be built: left out */ }
+        }
+        const key = unit ? `${lesson.level}-${unit.kind === 'track' ? unit.track : `${unit.order}-${unit.part || 1}`}` : `lesson-${idOf(lesson._id)}`;
+        res.json({
+            key: `${courseOf(progress)}:${svc.languageOf(progress)}:${key}`,
+            title: unit?.title || lesson.title, letters: lesson.review === 'letters',
+            lessonIds: docs.map((x) => idOf(x._id)), lessons: out
+        });
+    } catch (err) { next(err); }
+});
+
 router.post('/lessons/:id/step', async (req, res, next) => {
     try {
         const step = String(req.body?.step || '');
@@ -480,7 +507,8 @@ router.get('/certificates', async (req, res, next) => {
         res.json({ certificates: progress.certificates.filter((c) => !c.hiddenAt).map((c) => ({ level: c.level, label: svc.LEVEL_LABEL[c.level], course: c.course || 'en', courseName: courseInfo(c.course || 'en').name, number: c.number, issuedAt: c.issuedAt, average: c.average })) });
     } catch (err) { next(err); }
 });
-router.get('/certificates/:level/pdf', async (req, res, next) => {
+// Drive linked first (2026-11-05).
+router.get('/certificates/:level/pdf', require('../integrations/google/driveStore').requireDriveForDownload, async (req, res, next) => {
     try {
         if (!LEVELS.includes(req.params.level)) return bad(res, 'That certificate was not found.', 404);
         const progress = await svc.progressOf(req.user._id);

@@ -11,7 +11,8 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 're
 import { Link, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Target, ChevronRight, Download, Play, Mic, PenLine, BookOpen, X, BarChart3, Check, ArrowRight, Zap, Gift } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { saveBlob } from '../native/saveFile';
+import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
+const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi } from './api';
 import { COLORS, MODULES, MODULE_ORDER, levelOf, langOf } from './meta';
 import { Chunky, Mascot, Loading } from './ui';
@@ -437,9 +438,10 @@ const MEDALS = ['m-gold', 'm-silver', 'm-bronze'];
 function Levels({ dash }) {
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
-    const download = (level) => {
+    const download = async (level) => {
+        if (!(await ensureDriveLinked(CERT_DRIVE_REASON))) return;
         setBusy(level); setError('');
-        linguisticApi.certificatePdf(level).then((blob) => saveBlob(blob, `${dash.course?.name || 'English'}_${levelOf(level).label}_Certificate.pdf`, { title: 'Certificate' })).catch((e) => setError(e.message)).finally(() => setBusy(''));
+        linguisticApi.certificatePdf(level).then((blob) => downloadWithDrive(blob, `${dash.course?.name || 'English'}_${levelOf(level).label}_Certificate.pdf`, { title: 'Certificate', reason: CERT_DRIVE_REASON })).catch((e) => setError(e.message)).finally(() => setBusy(''));
     };
     return (
         <section className={CARD2} data-lingo-levels>

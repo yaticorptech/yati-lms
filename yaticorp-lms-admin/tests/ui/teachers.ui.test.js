@@ -302,9 +302,9 @@ describe('an organization’s Teachers page', { skip: skipWithoutChrome }, () =>
         assert.deepEqual(result.puts.at(-1), ['PUT', '/organizations/me/classes', { enabled: true }]);
         assert.match(result.opened, /360 is open: students added by your 360 teachers now see these activities/);
         assert.deepEqual(result.puts.at(-2), ['PUT', '/organizations/me/classes/activities', { groups: [
-            { _id: 'g1', name: 'Academic Excellence', activities: [{ _id: 'a1', name: 'Presentations', mode: 'max', marks: 15 }] },
-            { name: 'Earn While Learn', activities: [{ name: 'Individual activities', mode: 'each', marks: 1 }] }
-        ] }]);
+            { _id: 'g1', name: 'Academic Excellence', activities: [{ _id: 'a1', name: 'Presentations', mode: 'max', marks: 15, cap: null, bonus: false }] },
+            { name: 'Earn While Learn', activities: [{ name: 'Individual activities', mode: 'each', marks: 1, cap: null, bonus: false }] }
+        ], targetTotal: null }]);
         assert.match(result.after, /Activities saved/);
         assert.match(result.after, /2 categories · 2 activities/);
         assert.deepEqual(result.categories, ['Academic Excellence (1)', 'Earn While Learn (1)']);

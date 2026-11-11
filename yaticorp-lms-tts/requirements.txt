@@ -1,0 +1,7 @@
+# Intel Macs: torch 2.2.2 is the last build; keep numpy < 2 with it.
+torch>=2.2.2
+numpy<2
+fastapi>=0.110
+uvicorn[standard]>=0.29
+soundfile>=0.12
+git+https://github.com/huggingface/parler-tts.git

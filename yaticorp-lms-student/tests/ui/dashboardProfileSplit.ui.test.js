@@ -9,10 +9,13 @@
  *   Dashboard  — a welcome banner (photo, level, greeting, progress to the
  *                next level),
  *                Leaderboard, Wallet & Rewards, My Learning.
- *   My Profile — Personal Information (photo and its camera, Full Name,
- *                User ID, Email, Phone Number, Organization/College, Level,
- *                Edit Profile), Your Progress, My Certificates, Your Resume,
- *                Your Own AI Key.
+ *   My Profile — Personal Information (photo and its camera, Full name,
+ *                Phone, Email, Organization / college, ID, Level, Edit
+ *                Profile), My Certificates, Your Resume, Your Own AI Key.
+ *                (Your Progress was taken off on 2026-10-29.)
+ *
+ * Brought up to date 2026-11-05 with the 2026-10-28…31 redesigns of the
+ * welcome banner, the Personal Information card and the menus.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -68,14 +71,13 @@ const SECTIONS = `
   const body = document.body.innerText;
   const has = (re) => re.test(body);
   const sections = {
-    welcome: has(/Hello, Bhagyashree!/),
+    welcome: has(/Hello, Bhagyashree/),
     personalInfo: has(/Personal Information/),
     leaderboard: has(/Leaderboard/),
     wallet: has(/Wallet/),
     myLearning: has(/Available Courses/) && has(/Weekly activity/i),
     resume: has(/Your Resume/),
     aiKey: has(/Your own AI key/i),
-    progress: has(/Your Progress/),
     certificates: has(/My Certificates/)
   };`;
 
@@ -83,7 +85,7 @@ const BOTH = [];
 const DASHBOARD_ONLY = ['welcome', 'leaderboard', 'myLearning'];
 // Wallet & Rewards is at the top of My Courses now (2026-10-26), on neither page.
 const NEITHER = ['wallet'];
-const PROFILE_ONLY = ['personalInfo', 'progress', 'certificates', 'resume', 'aiKey'];
+const PROFILE_ONLY = ['personalInfo', 'certificates', 'resume', 'aiKey'];
 
 describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
     test('the Dashboard has its sections, and none of My Profile\'s', async () => {
@@ -110,7 +112,7 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         await sleep(1500);
         const c = $('[data-welcome]') || $('[data-personal-info]'); const t = c.innerText;
         return {
-            greeting: /Good (morning|afternoon|evening)/.test(t) && /Hello, Bhagyashree!/.test(t),
+            greeting: /Good (morning|afternoon|evening)/.test(t) && /Hello, Bhagyashree/.test(t),
             level: /Lv 3/i.test(t),   // styled uppercase, so innerText reads "LV 3"
             card: t.includes('2401 0001 9664'), email: t.includes('bhagya@example.com'), phone: t.includes('9876543210'),
             edit: Array.from(c.querySelectorAll('button')).some((b) => /Edit Profile/.test(b.innerText)),
@@ -131,25 +133,23 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
 
     test('the banner names the level the student is at, and how far through it they are', async () => {
         // Hari's real standing: Level 3, 590 XP. Level 4 begins at 600, so 10
-        // to go, and 290 of the level's 300 done — 97%. It used to read
-        // "10 XP to reach Level 4", which named only the next level and was
-        // taken for the one he was on; Level 4 must not appear at all.
+        // to go, and 290 of the level's 300 done — 97%. Since the 2026-10-28
+        // banner: "LEVEL 3" in the ring, "Progress to level 4", "97% 10 XP to go".
         const hari = api.replace('"level":3,"xp":315', '"level":3,"xp":590');
         const { result, errors } = await screen({
             entry: page(), api: hari, styles: true, width: DESKTOP, budget: 20_000, script: `
                 await sleep(1500);
                 const b = $('[data-welcome]');
                 const bar = b.querySelector('[role="progressbar"]');
-                const link = bar.closest('a');
+                const link = [...b.querySelectorAll('a')].find((a) => /See progress/.test(a.innerText));
                 return { text: b.innerText.replace(/\\s+/g, ' '), now: bar.getAttribute('aria-valuenow'),
-                         fill: bar.firstElementChild.style.width, href: link && link.getAttribute('href'),
-                         level4Anywhere: /Level 4|Lv 4/i.test(document.body.innerText) };` });
+                         fill: bar.firstElementChild.style.width, href: link && link.getAttribute('href') };` });
         assert.deepEqual(errors, []);
-        assert.match(result.text, /Level 3 · 10 XP to the next level/);
-        assert.equal(result.level4Anywhere, false, 'the Dashboard never says Level 4 for a Level 3 student');
+        assert.match(result.text, /Level 3/i, 'the level the student is at');
+        assert.match(result.text, /Progress to level 4 97% 10 XP to go/, 'and how far to the next');
         assert.equal(result.now, '97', 'the bar says 97% through Level 3');
         assert.equal(result.fill, '97%', 'and is drawn at 97%');
-        assert.equal(result.href, '/career', 'it opens Career Path, where XP and levels are earned');
+        assert.equal(result.href, '/career', 'See progress opens Career Path, where XP and levels are earned');
     });
 
     test('the banner sits side by side on a wide screen, and stacks when narrower', async () => {
@@ -162,44 +162,34 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
                 const b = $('[data-welcome]'); const B = b.getBoundingClientRect();
                 const T = b.querySelector('h1').parentElement.getBoundingClientRect();
                 const P = b.querySelector('[role="progressbar"]').closest('a, div.rounded-2xl').getBoundingClientRect();
-                const art = b.querySelector('svg');
                 return { beside: P.left >= T.right && Math.abs(P.top - T.top) < 60,
                          below: P.top >= T.bottom,
                          overlap: !(P.left >= T.right || P.top >= T.bottom),
-                         inside: P.right <= B.right && P.left >= B.left,
-                         art: getComputedStyle(art).display !== 'none' };` })).result;
+                         inside: P.right <= B.right && P.left >= B.left };` })).result;
         const laptop = await at(1512);
         assert.equal(laptop.beside, true, 'on a 1512px laptop the progress sits beside the greeting');
-        assert.equal(laptop.art, true, 'with the desk picture on the right');
         assert.equal(laptop.overlap, false, 'and nothing overlaps');
         const small = await at(1024);
         assert.equal(small.below, true, 'at 1024px it moves under the greeting rather than squeezing in');
-        assert.equal(small.art, false, 'and the picture steps aside');
         assert.equal(small.inside, true, 'still inside the card');
     });
 
-    test('on a phone, Edit Profile is a pencil at the top right, and the heading keeps its line', async () => {
-        // Beside the heading on a 344px phone a full button squeezed "Personal
-        // Information" onto two lines; under it, it took a row of its own. On a
-        // phone it is the pencil alone, on the heading's row (2026-10-01), and
-        // its name is still there for a screen reader. A desktop has the label.
-        const HEAD = `
+    test('Edit Profile is on the cover at the top right: a pencil on a phone, labelled on a desktop', async () => {
+        // Since the 2026-10-31 card: on the cover band, its label hidden on a
+        // phone (still read by a screen reader), shown from sm up.
+        const BTN = `
             await sleep(1500);
-            const c = $('[data-personal-info]'), h = $('#personal-info-title'), sub = h.nextElementSibling;
+            const c = $('[data-personal-info]');
             const btn = [...c.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Edit Profile');
-            const lines = (el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
-            const H = h.getBoundingClientRect(), B = btn.getBoundingClientRect(), C = c.getBoundingClientRect();
-            return { title: lines(h), sub: lines(sub), beside: B.left > H.right, sameRow: B.top < H.bottom,
-                     atRight: C.right - B.right < 40, width: Math.round(B.width), height: Math.round(B.height) };`;
-        const phone = await screen({ entry: page('profile'), api, styles: true, device: DEVICES.galaxyZFold6Folded, budget: 20_000, script: HEAD });
+            const B = btn.getBoundingClientRect(), C = c.getBoundingClientRect();
+            return { atRight: C.right - B.right < 40, atTop: B.top - C.top < 40, width: Math.round(B.width), height: Math.round(B.height) };`;
+        const phone = await screen({ entry: page('profile'), api, styles: true, device: DEVICES.galaxyZFold6Folded, budget: 20_000, script: BTN });
         assert.deepEqual(phone.errors, []);
-        assert.equal(phone.result.title, 1, '"Personal Information" on one line');
-        assert.equal(phone.result.sub, 1, 'and "Manage your profile information" on one line');
-        assert.equal(phone.result.beside && phone.result.sameRow && phone.result.atRight, true, 'Edit Profile at the top right, on the heading\'s row');
-        assert.ok(phone.result.width <= 40 && phone.result.height <= 40, `as an icon, drawn ${phone.result.width} by ${phone.result.height}`);
-        const desk = await screen({ entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: HEAD });
-        assert.equal(desk.result.beside, true, 'on a desktop it is beside the heading too');
-        assert.ok(desk.result.width > 60 && desk.result.width <= 120 && desk.result.height <= 34,
+        assert.equal(phone.result.atRight && phone.result.atTop, true, 'Edit Profile at the top right of the card');
+        assert.ok(phone.result.width <= 48 && phone.result.height <= 40, `as an icon on a phone, drawn ${phone.result.width} by ${phone.result.height}`);
+        const desk = await screen({ entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: BTN });
+        assert.equal(desk.result.atRight && desk.result.atTop, true, 'and on a desktop');
+        assert.ok(desk.result.width > 60 && desk.result.width <= 140 && desk.result.height <= 36,
             `a small button with its label, drawn ${desk.result.width} by ${desk.result.height}`);
     });
 
@@ -215,7 +205,7 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
                 const name = [...c.querySelectorAll('p')].find((p) => p.innerText.trim() === 'Bhagyashree Bangera').getBoundingClientRect();
                 const rows = [...c.querySelectorAll('dl > div')].map((d) => d.getBoundingClientRect());
                 return { nameBeside: name.left > photo.right && name.top < photo.bottom,
-                         oneList: rows.every((r, i) => !i || Math.abs(r.top - rows[i - 1].bottom) < 1.5),
+                         oneList: rows.every((r, i) => !i || Math.abs(r.top - rows[i - 1].bottom) < 4),
                          sameEdges: new Set(rows.map((r) => Math.round(r.left) + ':' + Math.round(r.right))).size === 1,
                          height: Math.round(c.getBoundingClientRect().height), vh: innerHeight,
                          sideways: document.documentElement.scrollWidth > innerWidth };` });
@@ -233,19 +223,19 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
                 await sleep(1500);
                 const c = $('[data-personal-info]');
                 const pairs = {};
-                c.querySelectorAll('dl > div').forEach((d) => { pairs[d.querySelector('dt').innerText.trim()] = d.querySelector('dd').innerText.trim(); });
-                return { heading: c.querySelector('h2').innerText.trim(), pairs,
+                c.querySelectorAll('dl > div').forEach((d) => { pairs[d.querySelector('dt').textContent.trim()] = d.querySelector('dd').innerText.trim(); });
+                return { heading: c.querySelector('h2').textContent.trim(), pairs,
                          edit: Array.from(c.querySelectorAll('button')).some((b) => /Edit Profile/.test(b.innerText)),
                          camera: !!c.querySelector('button[aria-label="Change photo or avatar"]'),
                          greeting: /Hello,|Good (morning|afternoon|evening)/.test(c.innerText) };` });
         assert.deepEqual(errors, []);
         assert.equal(result.heading, 'Personal Information');
         assert.deepEqual(result.pairs, {
-            'Full Name': 'Bhagyashree Bangera',
-            'User ID': '2401 0001 9664',
+            'Full name': 'Bhagyashree Bangera',
+            'Phone': '9876543210',
             'Email': 'bhagya@example.com',
-            'Phone Number': '9876543210',
-            'Organization/College': 'Yaticorp',
+            'Organization / college': 'Yaticorp',
+            'ID': '2401 0001 9664',
             'Level': 'Level 3'
         }, 'each detail, from the account and the API');
         assert.equal(result.edit, true, 'with Edit Profile');
@@ -253,44 +243,41 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         assert.equal(result.greeting, false, 'the greeting is the Dashboard\'s, not repeated here');
     });
 
-    test('each detail is its own tile with its own icon, under a heading that says what the card is for', async () => {
+    test('each detail has its own icon, under the photo, name and level', async () => {
         const { result, errors } = await screen({
             entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: `
                 await sleep(1500);
                 const c = $('[data-personal-info]');
                 const tiles = [...c.querySelectorAll('dl > div')];
-                const beside = c.querySelector('dl').previousElementSibling;
-                return { subtitle: /Manage your profile information/.test(c.innerText),
-                         photoColumn: beside.innerText.replace(/\\s+/g, ' ').trim(),
+                const head = c.querySelector('dl').closest('div').previousElementSibling;
+                return { head: head.innerText.replace(/\\s+/g, ' ').trim(),
                          tiles: tiles.length,
-                         icons: tiles.filter((t) => t.querySelector('svg')).length,
-                         separate: tiles.every((t) => getComputedStyle(t).borderTopWidth !== '0px') };` });
+                         icons: tiles.filter((t) => t.querySelector('svg')).length };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.subtitle, true, 'the subtitle under Personal Information');
         // This student has no photo, so the circle shows their initials, BB.
-        assert.match(result.photoColumn, /^Level 3 BB Bhagyashree Bangera Learning to grow every day/,
-            'beside the tiles: the level, the photo, then the name and the line under it');
+        assert.match(result.head, /BB Hello\W*Bhagyashree Bangera Level 3/, 'above the details: the photo, a hello, the name and the level');
         assert.equal(result.tiles, 6, 'six details');
         assert.equal(result.icons, 6, 'each with an icon');
-        assert.equal(result.separate, true, 'each drawn as its own tile');
     });
 
-    test('the laid-out order, three to a row as in the design: Name, Phone, Email; then ID, Organization, Level', async () => {
+    test('the laid-out order, three to a row as in the design: Name, Phone, Email; then Organization, ID, Level', async () => {
         const { result, errors } = await screen({
             entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: `
                 await sleep(1500);
                 const at = {};
                 $('[data-personal-info]').querySelectorAll('dl > div').forEach((d) => {
-                    const r = d.getBoundingClientRect(); at[d.querySelector('dt').innerText.trim()] = { x: Math.round(r.left), y: Math.round(r.top) };
+                    // Laid-out position, not the drawn one: the tiles slide in
+                    // (the card's stagger), which a screenshot moment catches part way.
+                    at[d.querySelector('dt').textContent.trim()] = { x: d.offsetLeft, y: d.offsetTop };
                 });
                 return at;` });
         assert.deepEqual(errors, []);
-        const top = ['Full Name', 'Phone Number', 'Email'], bottom = ['User ID', 'Organization/College', 'Level'];
+        const top = ['Full name', 'Phone', 'Email'], bottom = ['Organization / college', 'ID', 'Level'];
         for (const row of [top, bottom]) {
             assert.equal(new Set(row.map((k) => result[k].y)).size, 1, `${row.join(', ')} share one row`);
             assert.ok(result[row[0]].x < result[row[1]].x && result[row[1]].x < result[row[2]].x, `${row.join(', ')} run left to right`);
         }
-        assert.ok(result['User ID'].y > result['Full Name'].y, 'the second row is below the first');
+        assert.ok(result['ID'].y > result['Full name'].y, 'the second row is below the first');
         for (let i = 0; i < 3; i++) assert.equal(result[top[i]].x, result[bottom[i]].x, `${top[i]} and ${bottom[i]} share a column`);
     });
 
@@ -300,7 +287,7 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         // arrow used to be, and still the tile's own control when it has one.
         const PRESS = (label) => `
             await sleep(1500);
-            const tile = [...$('[data-personal-info]').querySelectorAll('dl > div')].find((d) => d.querySelector('dt').innerText.trim() === '${label}');
+            const tile = [...$('[data-personal-info]').querySelectorAll('dl > div')].find((d) => d.querySelector('dt').textContent.trim() === '${label}');
             const r = tile.getBoundingClientRect();
             const hit = document.elementFromPoint(r.right - 30, r.top + r.height / 2);
             const link = hit.closest('a');
@@ -316,11 +303,11 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
             assert.deepEqual(errors, []);
             return result;
         };
-        const phone = await run('Phone Number');
+        const phone = await run('Phone');
         assert.equal(phone.chevrons, 0, 'no tile carries an arrow');
         assert.equal(phone.form, false, 'Phone Number is a plain detail: Edit Profile at the top changes it');
         assert.equal((await run('Email')).form, false, 'so is Email');
-        assert.equal((await run('Organization/College')).popup, true, 'Organization/College opens the organization popup');
+        assert.equal((await run('Organization / college')).popup, true, 'Organization / college opens the organization popup');
         assert.equal((await run('Level')).href, '/career', 'and Level opens Career Path, where levels are earned');
     });
 
@@ -349,57 +336,7 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         assert.equal(result.cardLocked, true, 'and the card number still read-only');
     });
 
-    test('on a phone, Your Progress is two tiles to a row, not a column of five cards', async () => {
-        // One full-width card per figure made a column taller than the screen
-        // (2026-10-01). Two to a row; the streak spans the row under them; the
-        // overall figure stays on its label's line with the bar below.
-        for (const device of [DEVICES.galaxyZFold6Folded, DEVICES.galaxyA55]) {
-            const { result, errors } = await screen({
-                entry: page('profile'), api, styles: true, device, budget: 20_000, script: `
-                    await sleep(1800);
-                    const c = [...document.querySelectorAll('section')].find((x) => /Your Progress/.test(x.querySelector('h2')?.innerText || ''));
-                    const tiles = [...c.querySelector('.grid').children].map((t) => t.getBoundingClientRect());
-                    const label = [...c.querySelectorAll('p')].find((p) => p.innerText.trim() === 'Overall Progress').getBoundingClientRect();
-                    const pct = [...c.querySelectorAll('span')].find((x) => /^\\d+%$/.test(x.innerText.trim())).getBoundingClientRect();
-                    return { rows: new Set(tiles.map((t) => Math.round(t.top))).size,
-                             pairs: [0, 2].every((i) => Math.round(tiles[i].top) === Math.round(tiles[i + 1].top)),
-                             streakSpans: tiles[4].width > tiles[0].width * 1.8,
-                             pctOnLabelLine: Math.abs((pct.top + pct.bottom) / 2 - (label.top + label.bottom) / 2) < 8,
-                             height: Math.round(c.getBoundingClientRect().height), vh: innerHeight,
-                             sideways: document.documentElement.scrollWidth > innerWidth };` });
-            assert.deepEqual(errors, []);
-            assert.equal(result.rows, 3, `three rows of tiles at ${device.width}px, not five`);
-            assert.equal(result.pairs, true, 'the first four in pairs');
-            assert.equal(result.streakSpans, true, 'the streak across the row under them');
-            assert.equal(result.pctOnLabelLine, true, 'the overall figure on the line of its label');
-            assert.ok(result.height < result.vh * 0.75, `the section is ${result.height}px on a ${result.vh}px screen`);
-            assert.equal(result.sideways, false, 'and nothing pushes the page sideways');
-        }
-    });
-
-    test('Your Progress shows the six figures, from the API', async () => {
-        const { result, errors } = await screen({
-            entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: `
-                await sleep(1500);
-                const t = document.body.innerText;
-                return {
-                    labels: ['Courses Enrolled', 'Lessons Completed', 'Quizzes Passed', 'XP Earned', 'Current Streak', 'Overall Progress'].filter((l) => t.includes(l)),
-                    asked: window.__calls.map((c) => c[1]),
-                    lessonsThisWeek: /\\+2 this week/.test(t),
-                    xpThisWeek: /\\+40 this week · Level 3/.test(t),
-                    bestStreak: /Best: 6 days/.test(t)
-                };` });
-        assert.deepEqual(errors, []);
-        assert.deepEqual(result.labels, ['Courses Enrolled', 'Lessons Completed', 'Quizzes Passed', 'XP Earned', 'Current Streak', 'Overall Progress']);
-        assert.ok(result.asked.some((u) => u.includes('/rewards/summary')), 'the figures are fetched, not written into the page');
-        // The big numbers count up on animation frames, which a headless
-        // browser does not run reliably (see hooks/useCountUp.js), so the
-        // source is proved with the figures beside them that do not animate —
-        // each one only the server's response could have put there.
-        assert.equal(result.lessonsThisWeek, true, 'lessons this week is the 2 the server sent');
-        assert.equal(result.xpThisWeek, true, 'XP this week and the level are its 40 and 3');
-        assert.equal(result.bestStreak, true, 'and the best streak is its 6');
-    });
+    // Your Progress (its tiles and six figures) was taken off My Profile on 2026-10-29.
 
     test('My Certificates lists what the server has, and Upload Certificate opens the form', async () => {
         const { result, errors } = await screen({
@@ -473,32 +410,24 @@ createRoot(document.getElementById('root')).render(
     </RewardsContext.Provider>
   </AuthContext.Provider>);`;
 
-    test('the sidebar is grouped — Dashboard, then Learn, Career, Activities — and My Profile sits at the foot beside Contact Support', async () => {
+    test('the sidebar is grouped — Dashboard, then Learn, Career, Activities — with Contact Support at the foot and no My Profile', async () => {
+        // My Profile left the sidebar for the photo menu in the top bar (and the
+        // phone's drawer); the foot keeps Contact Support. Scholarships is inside
+        // Career Path since 2026-10-27; Activities is Extra Curricular,
+        // Competitions and Games (and 360 once it is open to the student).
         const { result, errors } = await screen({
             entry: layout('/'), api, styles: true, width: DESKTOP, script: `
                 await sleep(600);
                 const aside = $('aside');
-                const links = $$('aside nav a').map((a) => a.innerText.trim());
-                const heads = $$('aside nav p').map((p) => p.innerText.trim());
-                const mine = [...aside.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'My Profile');
-                const inNav = !!mine && !!mine.closest('nav');
-                const footer = mine && mine.parentElement;
-                const support = footer && [...footer.querySelectorAll('button')].some((b) => b.innerText.includes('Contact Support'));
-                mine.click();
-                await sleep(300);
-                return { links, heads, href: mine.getAttribute('href'), inNav, support,
-                         now: text($('#where')),
-                         lit: [...$('aside').querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'My Profile').className.includes('bg-indigo-600') };` });
+                return { links: $$('aside nav a').map((a) => a.innerText.trim()),
+                         heads: $$('aside nav p').map((p) => p.innerText.trim()),
+                         profileInSidebar: [...aside.querySelectorAll('a')].some((a) => /My Profile/.test(a.getAttribute('aria-label') || a.innerText)),
+                         support: [...aside.querySelectorAll('button')].some((b) => b.innerText.includes('Contact Support')) };` });
         assert.deepEqual(errors, []);
         assert.deepEqual(result.heads, ['LEARN', 'CAREER', 'ACTIVITIES']);
-        // The menu as merged from test (2026-10-26): no Community, Interview Prep
-        // and Jobs as one "Job Preparation", and Extra Curricular under Activities.
-        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Career Path', 'Job Preparation', 'Scholarships', 'Games', 'Competitions', 'Extra Curricular']);
-        assert.equal(result.href, '/profile');
-        assert.equal(result.inNav, false, 'My Profile is not in the menu list');
-        assert.equal(result.support, true, 'it sits in the footer with Contact Support');
-        assert.equal(result.now, '/profile', 'and clicking it opens My Profile');
-        assert.equal(result.lit, true, 'which it then shows as the current page');
+        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Career Path', 'Job Preparation', 'Extra Curricular', 'Competitions', 'Games']);
+        assert.equal(result.profileInSidebar, false, 'My Profile is not in the sidebar');
+        assert.equal(result.support, true, 'Contact Support is at its foot');
     });
 
     test('the header menu\'s My Profile goes to /profile, not back to the Dashboard', async () => {
@@ -508,7 +437,7 @@ createRoot(document.getElementById('root')).render(
                 await sleep(600);
                 const menuLinks = () => $$('a').filter((a) => a.innerText.trim() === 'My Profile').map((a) => a.getAttribute('href'));
                 const before = menuLinks().length;
-                const opener = $$('button').find((b) => b.innerText.includes('Bhagyashree'));
+                const opener = $('button[aria-label="Account menu"]');
                 if (opener) opener.click();
                 await sleep(300);
                 return { hrefs: menuLinks(), opened: menuLinks().length > before };` });
@@ -607,9 +536,9 @@ createRoot(document.getElementById('root')).render(<App />);`;
                 window.__release(); await sleep(800);
                 return { before, after: ${READ} };` });
         assert.deepEqual(errors, []);
-        assert.match(result.before.text, /Level 3 · 285 XP to the next level/, 'the saved level, before the server has answered');
+        assert.match(result.before.text, /Lv 3[\s\S]*285 XP to go/i, 'the saved level, before the server has answered');
         assert.doesNotMatch(result.before.text, /Level 1|Lv 1/i);
-        assert.match(result.after.text, /Level 3 · 285 XP to the next level/);
+        assert.match(result.after.text, /Lv 3[\s\S]*285 XP to go/i);
     });
 
     test('with no saved level, a placeholder until the server answers, then the level is saved for next time', async () => {
@@ -624,7 +553,7 @@ createRoot(document.getElementById('root')).render(<App />);`;
         assert.deepEqual(errors, []);
         assert.ok(result.before.placeholder, 'a placeholder where the level goes');
         assert.doesNotMatch(result.before.text, /Level \d|Lv \d/i, 'no made-up level');
-        assert.match(result.after.text, /Level 3 · 285 XP to the next level/);
+        assert.match(result.after.text, /Lv 3[\s\S]*285 XP to go/i);
         assert.equal(result.after.placeholder, false);
         assert.deepEqual(result.saved, { xp: 315, level: 3, name: USER.name }, 'saved on the device, the rest kept');
         assert.deepEqual(result.user, { xp: 315, level: 3 }, 'and on the signed-in student');

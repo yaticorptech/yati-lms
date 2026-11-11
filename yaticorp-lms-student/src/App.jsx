@@ -146,6 +146,7 @@ const researchPage = (Page) => <ResearchOnly>{teacherPage(Page)}</ResearchOnly>;
 const Profile = React.lazy(() => import('./pages/Profile'));
 const Signup = React.lazy(() => import('./pages/Signup'));
 const AdminAccess = React.lazy(() => import('./pages/AdminAccess'));
+const TeacherAdminAccess = React.lazy(() => import('./teacher/pages/TeacherAdminAccess'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 const EnrolledCourses = React.lazy(() => import('./pages/EnrolledCourses'));
 // Downloaded when first opened rather than with the sign-in page: the player
@@ -404,6 +405,8 @@ function App() {
       <Route path="/reset-password" element={<React.Suspense fallback={<CareerFallback />}><ResetPassword /></React.Suspense>} />
       {/* A superadmin opening a student's dashboard from the admin Users page. */}
       <Route path="/admin-access" element={<React.Suspense fallback={<CareerFallback />}><AdminAccess /></React.Suspense>} />
+      {/* …and a teacher's, from the admin Teachers page (2026-11-11). */}
+      <Route path="/admin-access/teacher" element={<React.Suspense fallback={<CareerFallback />}><TeacherAdminAccess /></React.Suspense>} />
       {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
           has to be able to open these, and so does anyone deciding whether to
           sign up at all. */}
