@@ -4,69 +4,94 @@
  * bubbles pointing at who speaks, a line of narration under some, and the story's moral at the end. Drawn here in
  * SVG from the story's words (the server's comics.js) — no pictures to load. Read aloud panel by panel.
  *
- * Each story has its own look (2026-10-31, "don't give the same design to all stories", `THEMES`): its sky and
- * ground, its trees and huts, its panel borders, its title, caption and bubble shapes, and its layout; and close-ups
- * (`zoom`), evenings, nights and rain vary the panels inside a story.
+ * One look for every story (2026-11-04, from the page the user showed: "add this type of interface for all
+ * stories", `LOOK`): a bright blue sky with white clouds, green hills and grass with flowers, thatched huts; rounded
+ * panels on a soft lilac page, two to a row; the title on a wooden sign hung by two ropes, yellow caption tags,
+ * white bubbles edged in purple, and each line of narration in a cream bar with its own speaker. Close-ups
+ * (`zoom`), evenings, nights and rain vary the panels inside a story. (From 2026-10-31 each story had its own
+ * look — summer, journey, monsoon, dusk; the story's `theme` is still sent, and marked on the page.)
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { Headphones, Square } from 'lucide-react';
-import { COLORS } from '../meta';
+import { Headphones, Square, Volume2 } from 'lucide-react';
 
-const INK = '#1b1b1b';
+// Soft brown outlines, as a children's picture book draws them (2026-11-05, the user's picture).
+const INK = '#4a3222';
 const H = 240;
 const GROUND = 226;
 const HORIZON = 150;
-const FONT = "'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', 'Marker Felt', system-ui, sans-serif";
-const line = { stroke: INK, strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round' };
+const FONT = "'Nunito', ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', system-ui, sans-serif";
+const line = { stroke: INK, strokeWidth: 1.8, strokeLinejoin: 'round', strokeLinecap: 'round' };
 
-/**
- * A story's look. `trees`: light, dark and highlight greens; `hut`: walls and roof; `frame`: the panel border;
- * `title`: stamp, banner, board or scroll; `bubble`: oval, round or box; `columns`: panels to a row on a wide page.
- */
-const THEMES = {
-    // A hot, dry summer: an orange sky, a big sun, cracked ochre earth, olive trees; a red stamp for its title.
-    summer: {
-        sky: ['#f39a4a', '#fde6ae'], hills: '#e6c27a', ground: '#d8b065', path: '#ecd29a', trees: ['#8aa63c', '#6b8a2c', '#a8c457'], hut: ['#e2b07a', '#9c6b3c'], sun: true, cracks: true,
-        frame: { color: INK, width: 3, radius: 0 }, caption: '#FFD978', narration: '#FFF3D6', title: 'stamp', bubble: 'oval', page: '#FFF8EC', moral: ['#C0392B', '#FFFFFF'], columns: 2
-    },
-    // A bright journey: a clear morning sky with white clouds, fresh green fields; rounded blue panels, a ribbon title, three to a row.
-    journey: {
-        sky: ['#8fd3f7', '#f0fbff'], hills: '#bfe3a0', ground: '#9cd06a', path: '#f0d98c', trees: ['#5aa832', '#3f8a26', '#78c045'], hut: ['#f4f1e8', '#a1866f'], clouds: '#ffffff',
-        frame: { color: '#1e3a8a', width: 3, radius: 16 }, caption: '#DBEAFE', narration: '#EEF5FF', title: 'banner', bubble: 'round', page: '#F3F8FF', moral: ['#1E3A8A', '#FFFFFF'], columns: 3
-    },
-    // The monsoon: a grey cloudy sky, deep wet greens, red-tiled huts; brown wooden frames and a signboard title.
-    monsoon: {
-        sky: ['#7f9db2', '#d9e6ec'], hills: '#5e9f4c', ground: '#4f9a3a', path: '#b9a27a', trees: ['#2f7d32', '#1f6327', '#45a049'], hut: ['#efe6d3', '#b5523b'], clouds: '#c9d3da',
-        frame: { color: '#5b3a1e', width: 4, radius: 4 }, caption: '#E3F2D2', narration: '#F2F8EA', title: 'board', bubble: 'oval', page: '#EEF5EA', moral: ['#5B3A1E', '#FFF3D6'], columns: 2
-    },
-    // A river town at dusk: teal water, warm evenings and starry nights; frames with a hard shadow, a scroll title, square bubbles.
-    dusk: {
-        sky: ['#87c4e8', '#e9f6fb'], hills: '#7fae6a', ground: '#7fb35a', path: '#e7cf9a', water: '#2a8a9a', trees: ['#3f7f4a', '#2c6338', '#5a9a5f'], hut: ['#f4f1e8', '#7d5a44'],
-        frame: { color: '#111111', width: 3, radius: 2, shadow: true }, caption: '#F5DEB3', narration: '#FFF6E5', title: 'scroll', bubble: 'box', page: '#FFF9F0', moral: ['#0F4C5C', '#FDF6E3'], columns: 2
-    }
+/** The look of every story: its sky, hills, grass, path, water, trees (light, dark, highlight), huts (walls, thatch), clouds, flowers; and the page's. */
+const LOOK = {
+    sky: ['#45b3ee', '#d6f1ff'], hills: ['#9ed4bc', '#86cc62'], ground: '#76c84b', path: '#efdcab', water: '#3aa6d8',
+    trees: ['#5cbf3a', '#3f9a2c', '#8fdb5f'], hut: ['#f3dcaa', '#d9a441'], clouds: '#ffffff', flowers: ['#ff6fa3', '#ffd23f', '#ff8a5c'],
+    page: '#F3EFFF', purple: '#7C5CD6', ink: '#2A1F4D', narration: '#FFF8E6'
 };
-const themeOf = (name) => THEMES[name] || THEMES.summer;
 
 /* ── The scenery ──────────────────────────────────────────────────────── */
 
+/** A leafy tree: a trunk with two branches, its crown in clusters — dark behind, light in front, sunlit on top. */
 function Tree({ x, y, s = 1, tone }) {
+    const leaf = { stroke: tone[1], strokeWidth: 1.4, strokeOpacity: 0.6 };
     return (
         <g transform={`translate(${x} ${y}) scale(${s})`}>
-            <path d="M -8 0 L -5 -62 Q 0 -68 5 -62 L 9 0 Z" fill="#8b5a2b" {...line} />
-            <circle cx="-24" cy="-70" r="25" fill={tone[1]} {...line} />
-            <circle cx="22" cy="-72" r="27" fill={tone[1]} {...line} />
-            <circle cx="0" cy="-96" r="31" fill={tone[0]} {...line} />
-            <circle cx="-8" cy="-104" r="11" fill={tone[2]} />
+            <path d="M -9 0 C -7 -24 -8 -44 -6 -62 L 6 -62 C 8 -44 7 -24 10 0 Z" fill="#8b5a2b" {...line} />
+            <path d="M -3 -44 C -12 -52 -18 -58 -24 -66 M 3 -50 C 12 -58 18 -62 24 -70" stroke="#7a4d24" strokeWidth="4" strokeLinecap="round" fill="none" />
+            {[[-30, -76, 22], [30, -78, 23], [0, -70, 24]].map(([cx, cy, r]) => <circle key={cx} cx={cx} cy={cy} r={r} fill={tone[1]} {...line} />)}
+            {[[-20, -98, 26], [20, -100, 26], [0, -114, 25]].map(([cx, cy, r]) => <circle key={cx} cx={cx} cy={cy} r={r} fill={tone[0]} {...line} />)}
+            {[[-26, -106, 9], [8, -124, 9], [26, -108, 7]].map(([cx, cy, r]) => <circle key={cx} cx={cx} cy={cy} r={r} fill={tone[2]} />)}
+            <path d="M -34 -88 q 5 -4 10 0 M 12 -86 q 5 -4 10 0 M -6 -100 q 5 -4 10 0" fill="none" {...leaf} />
         </g>
     );
 }
+/** A village hut: mud walls, a door and a window, a thatched roof of straw. */
 function Hut({ x, y, s = 1, tone }) {
     return (
         <g transform={`translate(${x} ${y}) scale(${s})`}>
-            <rect x="-32" y="-44" width="64" height="44" fill={tone[0]} {...line} />
-            <rect x="-9" y="-30" width="18" height="30" fill="#4a3426" {...line} />
-            <path d="M -42 -42 L 0 -74 L 42 -42 Z" fill={tone[1]} {...line} />
-            <path d="M -30 -50 L 0 -68 M 30 -50 L 0 -68 M -16 -46 L 0 -66 M 16 -46 L 0 -66" stroke="rgba(0,0,0,.25)" strokeWidth="1.5" />
+            <rect x="-30" y="-40" width="60" height="40" rx="3" fill={tone[0]} {...line} />
+            <rect x="-30" y="-8" width="60" height="8" fill="#e2c58e" />
+            <rect x="-30" y="-40" width="60" height="40" rx="3" fill="none" {...line} />
+            <rect x="-8" y="-28" width="16" height="28" rx="2" fill="#5a3b26" {...line} strokeWidth="1.4" />
+            <rect x="14" y="-30" width="10" height="10" rx="1.5" fill="#5a3b26" {...line} strokeWidth="1.2" />
+            <path d="M -45 -34 Q -40 -62 0 -80 Q 40 -62 45 -34 Q 22 -29 0 -31 Q -22 -29 -45 -34 Z" fill={tone[1]} stroke="#a8741f" strokeWidth="1.8" strokeLinejoin="round" />
+            <path d="M -34 -38 Q -26 -60 -6 -74 M -18 -34 Q -12 -56 0 -76 M 0 -32 L 2 -76 M 18 -34 Q 14 -56 4 -76 M 34 -38 Q 26 -58 8 -74" stroke="#b8862e" strokeWidth="1.3" fill="none" />
+            <path d="M -45 -34 l 5 5 l 5 -4 l 5 5 l 5 -4 l 5 5 l 5 -4 l 5 5 l 5 -4 l 5 5 l 5 -4 l 5 5 l 5 -4 l 5 5 l 5 -4 l 5 5 l 5 -4 l 5 4" stroke="#a8741f" strokeWidth="1.4" fill="none" strokeLinejoin="round" />
+        </g>
+    );
+}
+/** Small round trees along the far hills. */
+function FarTrees({ W, tone, y = HORIZON - 4 }) {
+    return (
+        <g>
+            {[0.05, 0.19, 0.31, 0.69, 0.8, 0.95].map((f, i) => (
+                <g key={f} transform={`translate(${W * f} ${y + (i % 2) * 5})`}>
+                    <rect x="-1.5" y="-7" width="3" height="9" fill="#7a5230" />
+                    <circle cy="-14" r={7 + (i % 3) * 2} fill={tone[1]} />
+                    <circle cx="-3" cy="-17" r={3 + (i % 2)} fill={tone[0]} />
+                </g>
+            ))}
+        </g>
+    );
+}
+/** A low bush. */
+function Bush({ x, y, s = 1, tone }) {
+    return (
+        <g transform={`translate(${x} ${y}) scale(${s})`} stroke="#2f7d22" strokeWidth="1.4">
+            <circle cx="-14" cy="-8" r="12" fill={tone[1]} />
+            <circle cx="12" cy="-9" r="13" fill={tone[1]} />
+            <circle cx="0" cy="-16" r="14" fill={tone[0]} />
+            <circle cx="-4" cy="-22" r="5" fill={tone[2]} stroke="none" />
+        </g>
+    );
+}
+/** Tufts of grass on the ground. */
+function Tufts({ W }) {
+    return (
+        <g stroke="#4f9e2e" strokeWidth="1.6" strokeLinecap="round" fill="none">
+            {[[0.16, 214], [0.3, 232], [0.44, 220], [0.6, 234], [0.74, 216], [0.88, 230], [0.24, 178], [0.68, 182], [0.52, 196]].map(([f, ty]) => (
+                <path key={f} d={`M ${W * f - 5} ${ty} l 2 -6 M ${W * f} ${ty} l 0 -8 M ${W * f + 5} ${ty} l -2 -6`} />
+            ))}
         </g>
     );
 }
@@ -82,15 +107,20 @@ function Stall({ x, y, s = 1, stripe = '#e74c3c' }) {
         </g>
     );
 }
+/** The old banyan: a thick trunk on its buttress roots, a wide crown in clusters, and roots hanging from its branches to the ground. */
 function Banyan({ x, y, s = 1, tone }) {
     return (
         <g transform={`translate(${x} ${y}) scale(${s})`}>
-            <path d="M -22 0 C -16 -40 -18 -70 -10 -96 L 12 -96 C 18 -70 16 -40 24 0 Z" fill="#7a5230" {...line} />
-            {[-70, -52, 48, 66].map((rx) => <path key={rx} d={`M ${rx} -100 C ${rx + 2} -60 ${rx - 2} -30 ${rx} 0`} stroke="#6b4628" strokeWidth="3" fill="none" />)}
-            <ellipse cx="0" cy="-118" rx="96" ry="40" fill={tone[1]} {...line} />
-            <ellipse cx="-44" cy="-140" rx="48" ry="28" fill={tone[0]} {...line} />
-            <ellipse cx="40" cy="-142" rx="52" ry="30" fill={tone[0]} {...line} />
-            <ellipse cx="0" cy="-160" rx="44" ry="24" fill={tone[2]} {...line} />
+            {/* The roots hanging down (from under the crown to the ground). */}
+            {[-104, -86, -66, -48, 46, 64, 84, 102].map((rx, i) => (
+                <path key={rx} d={`M ${rx} -${96 + (i % 3) * 6} C ${rx + 3} -62 ${rx - 3} -30 ${rx + 1} ${i % 2 ? -10 : 0}`} stroke="#7a5230" strokeWidth={i % 2 ? 2.4 : 3.2} fill="none" strokeLinecap="round" />
+            ))}
+            <path d="M -36 0 C -24 -8 -22 -40 -18 -70 C -16 -86 -22 -98 -30 -106 L 30 -106 C 22 -98 18 -86 20 -70 C 24 -40 26 -8 38 0 Z" fill="#8a5a32" {...line} />
+            <path d="M -8 -10 C -6 -40 -8 -70 -4 -96 M 8 -14 C 10 -44 6 -72 10 -98 M -24 0 C -16 -6 -12 -14 -12 -24" stroke="#6b4426" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+            {[[-118, -112, 30], [-80, -134, 38], [-30, -150, 42], [26, -150, 42], [78, -136, 38], [118, -114, 30]].map(([cx, cy, r]) => <circle key={cx} cx={cx} cy={cy} r={r} fill={tone[1]} {...line} />)}
+            {[[-98, -106, 30], [-54, -122, 34], [0, -128, 36], [54, -122, 34], [98, -106, 28]].map(([cx, cy, r]) => <circle key={cx} cx={cx} cy={cy} r={r} fill={tone[0]} {...line} />)}
+            {[[-66, -146, 12], [-12, -168, 15], [40, -160, 13], [96, -130, 9], [-104, -124, 8]].map(([cx, cy, r]) => <circle key={cx} cx={cx} cy={cy} r={r} fill={tone[2]} />)}
+            <path d="M -120 -96 Q 0 -78 120 -96" stroke={tone[1]} strokeWidth="6" fill="none" strokeLinecap="round" />
         </g>
     );
 }
@@ -144,52 +174,75 @@ function Sign({ x, text, broken }) {
 }
 function Cloud({ x, y, s = 1, fill }) {
     return (
-        <g transform={`translate(${x} ${y}) scale(${s})`} fill={fill} stroke="rgba(0,0,0,.18)" strokeWidth="1.5">
-            <ellipse cx="-18" cy="0" rx="20" ry="12" />
-            <ellipse cx="6" cy="-8" rx="22" ry="16" />
-            <ellipse cx="26" cy="2" rx="18" ry="11" />
+        <g transform={`translate(${x} ${y}) scale(${s})`} fill={fill}>
+            <path d="M -38 10 C -48 10 -48 -6 -36 -6 C -36 -20 -18 -24 -10 -14 C -6 -30 22 -30 24 -12 C 36 -16 46 -4 38 10 Z" />
+            <path d="M -36 10 L 38 10" stroke="#d6ecf8" strokeWidth="2" />
         </g>
     );
 }
 
-/** The scene behind a panel `W` wide, in its story's look: its sky (or a room), its ground and what stands there. */
+/** A bush of flowers at the front of a scene. */
+function Flowers({ x, flip = false, colors }) {
+    return (
+        <g transform={`translate(${x} ${H}) scale(${flip ? -1 : 1} 1)`}>
+            <path d="M -30 2 C -32 -16 -18 -26 -6 -22 C 0 -34 18 -32 22 -18 C 34 -18 38 -4 34 2 Z" fill="#3f9a2c" />
+            <path d="M -18 -6 q 6 -14 14 -16 M 6 -8 q 4 -12 14 -12" stroke="#2f7d22" strokeWidth="2" fill="none" />
+            {[[-16, -18, 0], [4, -26, 1], [22, -14, 2], [-2, -8, 0]].map(([fx, fy, c]) => (
+                <g key={`${fx}${fy}`} transform={`translate(${fx} ${fy})`}>
+                    {[0, 72, 144, 216, 288].map((r) => <ellipse key={r} cx="0" cy="-4.5" rx="3" ry="4.5" fill={colors[c]} transform={`rotate(${r})`} />)}
+                    <circle r="2.4" fill="#fff3b0" />
+                </g>
+            ))}
+        </g>
+    );
+}
+
+/** The scene behind a panel `W` wide, in the stories' look: its sky (or a room), its ground and what stands there. */
 function Scene({ panel, W, theme, gid }) {
     const { scene } = panel;
     const sky = scene === 'house' ? null : panel.night ? ['#0f1d3a', '#34497a'] : panel.evening ? ['#f08a4b', '#fcd9a0'] : theme.sky;
-    const ground = <rect x="0" y={HORIZON} width={W} height={H - HORIZON} fill={theme.ground} />;
-    const hills = (lift = 0) => <path d={`M 0 ${HORIZON - 14 - lift} Q ${W * 0.25} ${HORIZON - 40 - lift} ${W * 0.5} ${HORIZON - 16 - lift} T ${W} ${HORIZON - 22 - lift} L ${W} ${HORIZON + 2} L 0 ${HORIZON + 2} Z`} fill={theme.hills} />;
+    const ground = <rect x="0" y={HORIZON} width={W} height={H - HORIZON} fill={`url(#${gid}g)`} />;
+    // Two rows of hills: the far ones paler.
+    const hills = (lift = 0) => (
+        <>
+            <path d={`M 0 ${HORIZON - 30 - lift} Q ${W * 0.18} ${HORIZON - 58 - lift} ${W * 0.4} ${HORIZON - 34 - lift} T ${W * 0.78} ${HORIZON - 40 - lift} T ${W} ${HORIZON - 30 - lift} L ${W} ${HORIZON + 2} L 0 ${HORIZON + 2} Z`} fill={theme.hills[0]} />
+            <path d={`M 0 ${HORIZON - 14 - lift} Q ${W * 0.25} ${HORIZON - 40 - lift} ${W * 0.5} ${HORIZON - 16 - lift} T ${W} ${HORIZON - 22 - lift} L ${W} ${HORIZON + 2} L 0 ${HORIZON + 2} Z`} fill={theme.hills[1]} />
+        </>
+    );
+    const outdoors = !['house', 'market', 'river'].includes(scene);
     const focus = (panel.focus ?? 50) / 100;
     const water = theme.water || '#4fa3dc';
     return (
         <>
             <defs>
                 {sky && <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={sky[0]} /><stop offset="1" stopColor={sky[1]} /></linearGradient>}
+                <linearGradient id={`${gid}g`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#93d86a" /><stop offset="1" stopColor={theme.ground} /></linearGradient>
             </defs>
             {sky && <rect x="0" y="0" width={W} height={HORIZON + 2} fill={`url(#${gid})`} />}
-            {/* The sun of a hot summer (away from the title, top left); the evening's low sun; the clouds. */}
-            {sky && !panel.night && theme.sun && !panel.evening && (
-                <g transform={`translate(${W * 0.86} 40)`}>
-                    {Array.from({ length: 10 }, (_, i) => <path key={i} d="M 0 -30 L 0 -40" stroke="#f8c146" strokeWidth="4" strokeLinecap="round" transform={`rotate(${i * 36})`} />)}
-                    <circle r="22" fill="#fbd34d" stroke="#e8a317" strokeWidth="2" />
-                </g>
-            )}
+            {/* The evening's low sun; the clouds. */}
             {sky && panel.evening && <circle cx={W * 0.8} cy="74" r="18" fill="#f9e79f" opacity=".9" />}
             {sky && !panel.night && theme.clouds && [[0.62, 34, 0.9], [0.84, 60, 0.7], [0.36, 70, 0.6]].map(([f, y, s2]) => <Cloud key={f} x={W * f} y={y} s={s2} fill={theme.clouds} />)}
             {scene === 'village' && (
                 <>
                     {hills()}
+                    <FarTrees W={W} tone={theme.trees} />
                     {ground}
+                    <Tufts W={W} />
                     <ellipse cx={W * 0.5} cy={GROUND + 4} rx={W * 0.36} ry="10" fill={theme.path} />
                     <Tree x={W * 0.08} y={HORIZON + 22} s={0.95} tone={theme.trees} />
                     <Tree x={W * 0.56} y={HORIZON} s={0.42} tone={theme.trees} />
+                    <Bush x={W * 0.7} y={HORIZON + 8} s={0.7} tone={theme.trees} />
                     <Hut x={W * 0.9} y={HORIZON + 26} s={0.85} tone={theme.hut} />
                 </>
             )}
             {scene === 'road' && (
                 <>
                     {hills(4)}
+                    <FarTrees W={W} tone={theme.trees} />
                     {ground}
+                    <Tufts W={W} />
                     <path d={`M ${W * 0.3} ${H} L ${W * 0.47} ${HORIZON} L ${W * 0.53} ${HORIZON} L ${W * 0.74} ${H} Z`} fill={theme.path} />
+                    <path d={`M ${W * 0.3} ${H} L ${W * 0.47} ${HORIZON} M ${W * 0.53} ${HORIZON} L ${W * 0.74} ${H}`} stroke="#d9c08a" strokeWidth="3" />
                     <Tree x={W * 0.1} y={HORIZON + 40} s={1} tone={theme.trees} />
                     <Tree x={W * 0.38} y={HORIZON + 2} s={0.35} tone={theme.trees} />
                     <Tree x={W * 0.64} y={HORIZON + 4} s={0.4} tone={theme.trees} />
@@ -198,7 +251,7 @@ function Scene({ panel, W, theme, gid }) {
             )}
             {scene === 'river' && (
                 <>
-                    <rect x="0" y={HORIZON - 26} width={W} height="28" fill={theme.hills} />
+                    <rect x="0" y={HORIZON - 26} width={W} height="28" fill={theme.hills[1]} />
                     <Tree x={W * 0.2} y={HORIZON - 4} s={0.4} tone={theme.trees} />
                     <Tree x={W * 0.7} y={HORIZON - 2} s={0.46} tone={theme.trees} />
                     <Hut x={W * 0.46} y={HORIZON - 2} s={0.4} tone={theme.hut} />
@@ -231,25 +284,29 @@ function Scene({ panel, W, theme, gid }) {
             {scene === 'banyan' && (
                 <>
                     {hills(-8)}
+                    <FarTrees W={W} tone={theme.trees} y={HORIZON - 12} />
                     {ground}
+                    <Tufts W={W} />
+                    <Bush x={W * (focus > 0.5 ? 0.24 : 0.76)} y={HORIZON + 10} s={0.6} tone={theme.trees} />
                     <Hut x={W * (focus > 0.5 ? 0.1 : 0.9)} y={HORIZON + 14} s={0.6} tone={theme.hut} />
+                    <ellipse cx={W * focus} cy={GROUND - 24} rx={W > 500 ? 150 : 120} ry="16" fill="#5aae3a" opacity=".55" />
                     <Banyan x={W * focus} y={GROUND - 30} s={W > 500 ? 1 : 0.86} tone={theme.trees} />
                 </>
             )}
             {(scene === 'field' || scene === 'water') && (
                 <>
                     {hills(-2)}
+                    <FarTrees W={W} tone={theme.trees} />
                     {ground}
+                    <Tufts W={W} />
                     <path d={`M ${W * 0.62} ${HORIZON + 30} Q ${W * 0.78} ${HORIZON - 6} ${W * 0.98} ${HORIZON + 30} Z`} fill="#9a6a3a" {...line} />
                     <ellipse cx={W * 0.48} cy={GROUND - 4} rx="40" ry="11" fill={scene === 'water' ? water : '#4a3020'} {...line} />
                     {scene === 'water' && <path d={`M ${W * 0.48 - 12} ${GROUND - 14} q 4 -18 8 -2 M ${W * 0.48 + 4} ${GROUND - 16} q 5 -22 10 -2 M ${W * 0.48 - 24} ${GROUND - 10} q 2 -10 6 0`} stroke={water} strokeWidth="3" fill="none" strokeLinecap="round" />}
                     <Tree x={W * 0.12} y={HORIZON + 6} s={0.5} tone={theme.trees} />
                 </>
             )}
-            {/* Dry, cracked earth in a hot summer. */}
-            {theme.cracks && scene !== 'house' && scene !== 'market' && scene !== 'river' && (
-                <path d={`M ${W * 0.12} ${H - 8} l 10 -6 l 6 4 l 10 -8 M ${W * 0.7} ${H - 12} l 8 4 l 12 -6 l 6 5 M ${W * 0.4} ${H - 4} l 6 -5 l 9 2`} stroke="#a77b3c" strokeWidth="1.6" fill="none" />
-            )}
+            {/* Flowers at the front corners, outdoors. */}
+            {outdoors && <><Flowers x={W * 0.035} colors={theme.flowers} /><Flowers x={W * 0.965} flip colors={theme.flowers} /></>}
         </>
     );
 }
@@ -305,93 +362,119 @@ function Held({ what }) {
     return null;
 }
 
+// Each pose's arms, from the shoulder (y -100) by the elbow to the hand; `w` widens a big man.
 const ARMS = {
-    stand: (w) => [[-15 * w, -112, -20 * w, -92, -21 * w, -74], [15 * w, -112, 20 * w, -92, 21 * w, -74]],
-    talk: (w) => [[-15 * w, -112, -20 * w, -92, -21 * w, -74], [15 * w, -112, 27 * w, -96, 36 * w, -106]],
-    point: (w) => [[-15 * w, -112, -20 * w, -92, -21 * w, -74], [15 * w, -112, 34 * w, -110, 56 * w, -112]],
-    cheer: (w) => [[-15 * w, -112, -27 * w, -130, -31 * w, -152], [15 * w, -112, 27 * w, -130, 31 * w, -152]],
-    sad: (w) => [[-15 * w, -110, -16 * w, -90, -11 * w, -76], [15 * w, -110, 16 * w, -90, 11 * w, -76]],
-    give: (w) => [[-15 * w, -112, -20 * w, -92, -21 * w, -74], [15 * w, -112, 30 * w, -98, 47 * w, -94]],
-    carry: (w) => [[-15 * w, -112, -22 * w, -132, -9, -156], [15 * w, -112, 22 * w, -132, 13, -156]],
-    dig: (w) => [[-15 * w, -112, 6 * w, -102, 28 * w, -92], [15 * w, -112, 28 * w, -98, 38 * w, -84]],
-    surprise: (w) => [[-15 * w, -112, -25 * w, -122, -21 * w, -140], [15 * w, -112, 26 * w, -122, 24 * w, -140]]
+    stand: (w) => [[-14 * w, -100, -19 * w, -80, -20 * w, -62], [14 * w, -100, 19 * w, -80, 20 * w, -62]],
+    talk: (w) => [[-14 * w, -100, -19 * w, -80, -20 * w, -62], [14 * w, -100, 26 * w, -84, 35 * w, -94]],
+    point: (w) => [[-14 * w, -100, -19 * w, -80, -20 * w, -62], [14 * w, -100, 33 * w, -98, 55 * w, -100]],
+    cheer: (w) => [[-14 * w, -100, -26 * w, -118, -30 * w, -140], [14 * w, -100, 26 * w, -118, 30 * w, -140]],
+    sad: (w) => [[-14 * w, -98, -15 * w, -78, -10 * w, -64], [14 * w, -98, 15 * w, -78, 10 * w, -64]],
+    give: (w) => [[-14 * w, -100, -19 * w, -80, -20 * w, -62], [14 * w, -100, 29 * w, -86, 46 * w, -82]],
+    carry: (w) => [[-14 * w, -100, -21 * w, -122, -10, -150], [14 * w, -100, 21 * w, -122, 14, -150]],
+    dig: (w) => [[-14 * w, -100, 6 * w, -90, 27 * w, -80], [14 * w, -100, 27 * w, -86, 37 * w, -72]],
+    surprise: (w) => [[-14 * w, -100, -24 * w, -110, -20 * w, -128], [14 * w, -100, 25 * w, -110, 23 * w, -128]]
 };
 const MOUTH = { talk: 'talk', point: 'talk', cheer: 'happy', give: 'happy', sad: 'sad', surprise: 'oh' };
+const GOLD = '#f4c542';
 
 function Arm({ pts, skin }) {
     const p = pts.join(' ');
     const [hx, hy] = pts.slice(-2);
     return (
         <g>
-            <polyline points={p} fill="none" stroke={INK} strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" />
+            <polyline points={p} fill="none" stroke={INK} strokeWidth="10.5" strokeLinecap="round" strokeLinejoin="round" />
             <polyline points={p} fill="none" stroke={skin} strokeWidth="7.4" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx={hx} cy={hy} r="5" fill={skin} {...line} strokeWidth="1.6" />
+            <circle cx={hx} cy={hy} r="5.2" fill={skin} {...line} strokeWidth="1.5" />
         </g>
     );
 }
 
-/** Someone in the story: their look (skin, clothes, hair), how they stand, which way they face, what they hold; `size` for a close-up. */
+/**
+ * Someone in the story, drawn as a picture book draws them (2026-11-05, the user's picture): a big round head with
+ * a happy face — eyes with a shine, eyebrows, pink cheeks — clothes with gold borders, a soft shadow at their feet.
+ * Their look (skin, clothes, hair), how they stand, which way they face, what they hold; `size` for a close-up.
+ */
 function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, speaking, size = 1 }) {
     const s = (look.child ? 0.58 : 0.75) * size;
-    const w = look.big ? 1.2 : 1;
+    const w = look.big ? 1.15 : 1;
     const skin = look.skin || '#c68642';
     const grey = ['grey', 'greybun'].includes(look.hair);
-    const hairColor = grey ? '#e8e8e8' : '#222';
+    const hairColor = grey ? '#ededed' : '#2b211c';
     const [back, front] = (ARMS[pose] || ARMS.stand)(w);
     const mouth = MOUTH[pose] || (speaking ? 'talk' : 'calm');
     const hand = front.slice(-2);
-    const hairTop = 'M -13 -139 C -13 -156 16 -158 17 -141 C 12 -146 4 -147 -2 -145 C -8 -143 -11 -140 -13 -139 Z';
+    const long = look.woman;
     return (
         <g transform={`translate(${x} ${y}) scale(${face === 'left' ? -s : s} ${s})`}>
+            <ellipse cx="2" cy="0" rx={24 * w} ry="4.5" fill="rgba(40,60,20,.18)" />
+            {/* Long hair down the back; a braid with a flower at its end. */}
+            {long && !['bun', 'greybun', 'braid'].includes(look.hair) && look.hair !== 'cap' && look.hair !== 'turban' && <path d="M -18 -132 C -24 -112 -20 -98 -12 -92 L -6 -104 C -12 -112 -12 -124 -10 -134 Z" fill={hairColor} {...line} strokeWidth="1.4" />}
+            {look.hair === 'braid' && (
+                <g>
+                    <path d="M -14 -120 C -22 -104 -16 -92 -20 -76" stroke={INK} strokeWidth="9" fill="none" strokeLinecap="round" />
+                    <path d="M -14 -120 C -22 -104 -16 -92 -20 -76" stroke={hairColor} strokeWidth="6.4" fill="none" strokeLinecap="round" />
+                    {[-108, -96, -84].map((by) => <path key={by} d={`M -22 ${by} q 4 3 7 0`} stroke="#5a4a40" strokeWidth="1" fill="none" />)}
+                    <circle cx="-20" cy="-74" r="3" fill="#ff6fa3" stroke={INK} strokeWidth="1" />
+                </g>
+            )}
             <Arm pts={back} skin={skin} />
-            {/* Below the waist: a dhoti, or a sari's skirt with its border. */}
+            {/* Below the waist: a dhoti with its folds, or a sari's skirt with its gold border and pleats. */}
             {look.woman ? (
                 <>
-                    <path d={`M ${-16 * w} -74 L ${16 * w} -74 L ${25 * w} -4 L ${-25 * w} -4 Z`} fill={look.cloth} {...line} />
-                    <path d={`M ${-24 * w} -12 L ${24 * w} -12`} stroke={look.blouse} strokeWidth="5" />
+                    <path d={`M ${-14 * w} -66 L ${14 * w} -66 L ${22 * w} -4 L ${-22 * w} -4 Z`} fill={look.cloth} {...line} />
+                    <path d={`M ${-21 * w} -11 L ${21 * w} -11`} stroke={GOLD} strokeWidth="5" />
+                    <path d={`M 2 -60 L 4 -14 M 9 -60 L 13 -14`} stroke="rgba(0,0,0,.18)" strokeWidth="1.4" />
                 </>
             ) : (
-                <path d={`M ${-16 * w} -74 L ${16 * w} -74 L ${19 * w} -8 L 4 -8 L 0 -38 L -4 -8 L ${-19 * w} -8 Z`} fill={look.dhoti || '#fbfbf5'} {...line} />
+                <>
+                    <path d={`M ${-15 * w} -66 L ${15 * w} -66 L ${18 * w} -6 L 3 -6 L 0 -34 L -3 -6 L ${-18 * w} -6 Z`} fill={look.dhoti || '#fbfbf5'} {...line} />
+                    <path d={`M -8 -60 L -10 -14 M 8 -60 L 11 -14`} stroke="rgba(0,0,0,.12)" strokeWidth="1.4" />
+                </>
             )}
-            <ellipse cx="-9" cy="-4" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.5" />
-            <ellipse cx="12" cy="-4" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.5" />
-            {/* The body: bare with a shawl across it, a shirt, or a blouse under the sari's end. */}
-            <path d={`M ${-15 * w} -116 Q ${-19 * w} -94 ${-16 * w} -72 L ${16 * w} -72 Q ${19 * w} -94 ${15 * w} -116 Q 0 -121 ${-15 * w} -116 Z`} fill={look.woman ? look.blouse : look.shirt || skin} {...line} />
+            <ellipse cx="-8" cy="-3" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.4" />
+            <ellipse cx="11" cy="-3" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.4" />
+            {/* The body: bare with a shawl across it, a shirt, or a blouse under the sari's end — gold along their edges. */}
+            <path d={`M ${-14 * w} -102 Q ${-17 * w} -84 ${-14 * w} -64 L ${14 * w} -64 Q ${17 * w} -84 ${14 * w} -102 Q 0 -106 ${-14 * w} -102 Z`} fill={look.woman ? look.blouse : look.shirt || skin} {...line} />
             {look.woman
-                ? <path d={`M ${15 * w} -116 L ${5 * w} -119 L ${-17 * w} -82 L ${-16 * w} -72 L ${-6 * w} -72 Z`} fill={look.cloth} {...line} />
-                : look.shawl && <path d={`M ${-15 * w} -116 L ${-4 * w} -119 L ${17 * w} -84 L ${16 * w} -72 L ${7 * w} -72 Z M ${-15 * w} -116 L ${-21 * w} -110 L ${-22 * w} -88 L ${-16 * w} -88 Z`} fill={look.shawl} {...line} />}
-            <rect x="-5" y="-125" width="10" height="10" fill={skin} {...line} strokeWidth="1.6" />
-            <g transform={pose === 'sad' ? 'rotate(12 0 -122)' : undefined}>
-                {/* Hair behind the head: a bun, a braid. */}
-                {['bun', 'greybun'].includes(look.hair) && <circle cx="-15" cy="-140" r="7.5" fill={hairColor} {...line} strokeWidth="1.6" />}
-                {look.hair === 'braid' && <path d="M -11 -133 C -16 -120 -13 -108 -16 -94" stroke={hairColor} strokeWidth="6" fill="none" strokeLinecap="round" />}
-                <circle cx="2" cy="-136" r="15" fill={skin} {...line} data-head />
-                <ellipse cx="-4" cy="-135" rx="3.2" ry="4.2" fill={skin} {...line} strokeWidth="1.4" />
-                {/* The face, turned the way they look. */}
-                <circle cx="6" cy="-138" r="1.8" fill={INK} />
-                <circle cx="12.5" cy="-138" r="1.8" fill={INK} />
-                <path d={pose === 'sad' ? 'M 3.5 -143 L 8 -141.5 M 10.5 -141.5 L 15 -143' : 'M 3.5 -142.5 L 8 -143.2 M 10.5 -143.2 L 15 -142.5'} stroke={INK} strokeWidth="1.4" />
-                <path d="M 16.4 -137 L 19 -132 L 16 -131" stroke={INK} strokeWidth="1.4" fill="none" strokeLinejoin="round" />
-                {look.moustache && <path d="M 7.5 -130.5 Q 12 -133.5 16.5 -130.5 Q 12 -129 7.5 -130.5 Z" fill={hairColor} />}
-                {mouth === 'talk' && <ellipse cx="12" cy="-127" rx="3" ry="2.3" fill="#7a2a22" stroke={INK} strokeWidth="1.1" />}
-                {mouth === 'oh' && <ellipse cx="12" cy="-127" rx="2.2" ry="3" fill="#7a2a22" stroke={INK} strokeWidth="1.1" />}
-                {mouth === 'happy' && <path d="M 8 -129 Q 12 -123.5 16 -129 Z" fill="#7a2a22" stroke={INK} strokeWidth="1.2" />}
-                {mouth === 'sad' && <path d="M 8.5 -125.5 Q 12 -129 15.5 -125.5" stroke={INK} strokeWidth="1.5" fill="none" />}
-                {mouth === 'calm' && <path d="M 9 -127.5 Q 12 -126 15 -127.5" stroke={INK} strokeWidth="1.5" fill="none" />}
-                {look.beard && <path d="M -6 -132 C -4 -116 8 -112 16 -118 C 19 -121 18 -126 17 -127 C 12 -123 2 -125 -6 -132 Z" fill={hairColor} {...line} strokeWidth="1.4" />}
-                {/* Hair on top: short hair, a turban, a cap, or none. */}
-                {['hair', 'bun', 'braid', 'grey', 'greybun'].includes(look.hair) && <path d={hairTop} fill={hairColor} {...line} strokeWidth="1.5" />}
+                ? <><path d={`M ${14 * w} -102 L ${4 * w} -105 L ${-16 * w} -74 L ${-15 * w} -64 L ${-5 * w} -64 Z`} fill={look.cloth} {...line} /><path d={`M ${4 * w} -104 L ${-15 * w} -72`} stroke={GOLD} strokeWidth="2.6" /></>
+                : look.shawl && <><path d={`M ${-14 * w} -102 L ${-4 * w} -105 L ${16 * w} -76 L ${15 * w} -64 L ${6 * w} -64 Z M ${-14 * w} -102 L ${-20 * w} -96 L ${-21 * w} -78 L ${-15 * w} -78 Z`} fill={look.shawl} {...line} /><path d={`M ${-4 * w} -104 L ${16 * w} -74`} stroke={GOLD} strokeWidth="2.4" /></>}
+            <rect x="-4.5" y="-111" width="9" height="10" fill={skin} {...line} strokeWidth="1.4" />
+            <g transform={pose === 'sad' ? 'rotate(10 0 -110)' : undefined}>
+                {['bun', 'greybun'].includes(look.hair) && <circle cx="-18" cy="-138" r="8.5" fill={hairColor} {...line} strokeWidth="1.5" />}
+                <circle cx="2" cy="-128" r="21" fill={skin} {...line} data-head />
+                <ellipse cx="-12" cy="-127" rx="4" ry="5.5" fill={skin} {...line} strokeWidth="1.3" />
+                {/* The face, turned the way they look: eyes with a shine, eyebrows, pink cheeks, the mouth. */}
+                {[6.5, 15.5].map((ex) => (
+                    <g key={ex}>
+                        <ellipse cx={ex} cy="-131" rx="3.4" ry="4.2" fill="#fff" stroke={INK} strokeWidth="1" />
+                        <circle cx={ex + 0.8} cy="-130.4" r="2.3" fill="#2b1d14" />
+                        <circle cx={ex + 1.6} cy="-131.6" r="0.8" fill="#fff" />
+                    </g>
+                ))}
+                <path d={pose === 'sad' ? 'M 3 -138.5 L 9 -136.5 M 13 -136.5 L 19 -138.5' : 'M 3 -137 Q 6.5 -139.8 10 -137.6 M 12 -137.6 Q 15.5 -139.8 19 -137'} stroke={grey ? '#9a9a9a' : '#2b211c'} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                <circle cx="3" cy="-121.5" r="3.2" fill="#f28b82" opacity=".45" />
+                <circle cx="19" cy="-121.5" r="3.2" fill="#f28b82" opacity=".45" />
+                <path d="M 21.5 -128 Q 24 -125 21 -123.5" stroke={INK} strokeWidth="1.3" fill="none" strokeLinecap="round" />
+                {look.moustache && <path d="M 7 -119.6 Q 12 -123 17.5 -119.6 Q 12 -117.6 7 -119.6 Z" fill={hairColor} stroke={INK} strokeWidth=".8" />}
+                {mouth === 'talk' && <ellipse cx="12.5" cy="-115.5" rx="3.2" ry="2.6" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
+                {mouth === 'oh' && <ellipse cx="12.5" cy="-115.5" rx="2.4" ry="3.2" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
+                {mouth === 'happy' && <g><path d="M 7.5 -118 Q 12.5 -109.5 18 -118 Z" fill="#8a2f25" stroke={INK} strokeWidth="1.1" /><path d="M 10 -113.6 Q 12.6 -112 15.4 -113.6" stroke="#e8736a" strokeWidth="1.6" fill="none" /></g>}
+                {mouth === 'sad' && <path d="M 8.5 -113.5 Q 12.5 -117.5 16.5 -113.5" stroke={INK} strokeWidth="1.5" fill="none" strokeLinecap="round" />}
+                {mouth === 'calm' && <path d="M 8 -117 Q 12.5 -112.8 17 -117" stroke={INK} strokeWidth="1.5" fill="none" strokeLinecap="round" />}
+                {look.beard && <path d="M -9 -122 C -8 -98 10 -94 22 -108 C 24 -112 23 -117 22 -119 C 19 -112 6 -112 -1 -116 C -4 -118 -7 -120 -9 -122 Z" fill={hairColor} {...line} strokeWidth="1.3" />}
+                {/* Hair on top: hair parted on the side, a turban, a cap, or none. */}
+                {['hair', 'bun', 'braid', 'grey', 'greybun'].includes(look.hair) && <path d="M -19 -130 C -22 -152 8 -160 22 -142 C 24 -138 23 -134 22 -132 C 16 -142 6 -144 -2 -141 C -8 -139 -14 -135 -19 -130 Z" fill={hairColor} {...line} strokeWidth="1.4" />}
                 {look.hair === 'turban' && (
                     <>
-                        <path d="M -15 -139 C -17 -160 21 -162 19 -139 C 12 -144 -8 -144 -15 -139 Z" fill={look.turban} {...line} />
-                        <path d="M -12 -146 C 0 -151 10 -151 17 -146" stroke={INK} strokeWidth="1.2" fill="none" />
+                        <path d="M -21 -134 C -24 -162 28 -164 25 -134 C 15 -142 -10 -142 -21 -134 Z" fill={look.turban} {...line} />
+                        <path d="M -17 -142 C -2 -150 12 -150 22 -142 M -13 -152 C 0 -156 12 -156 19 -150" stroke="rgba(0,0,0,.25)" strokeWidth="1.3" fill="none" />
                     </>
                 )}
-                {look.hair === 'cap' && <path d="M -13 -143 L 17 -144 L 13 -157 C 4 -159 -6 -158 -11 -152 Z" fill="#fdfefe" {...line} strokeWidth="1.6" />}
+                {look.hair === 'cap' && <path d="M -19 -138 L 24 -140 L 19 -156 C 6 -160 -9 -159 -17 -150 Z" fill="#fdfefe" {...line} strokeWidth="1.5" />}
             </g>
             <Arm pts={front} skin={skin} />
-            {holds && <g transform={`translate(${pose === 'carry' ? 2 : hand[0] + 3} ${pose === 'carry' ? -164 : hand[1]})`}><Held what={holds} /></g>}
-            {pose === 'dig' && <path d="M 30 -100 L 52 -18 M 44 -22 L 60 -14 L 56 -2 L 42 -10 Z" fill="#95a5a6" {...line} />}
+            {holds && <g transform={`translate(${pose === 'carry' ? 2 : hand[0] + 3} ${pose === 'carry' ? -160 : hand[1]})`}><Held what={holds} /></g>}
+            {pose === 'dig' && <path d="M 30 -88 L 50 -10 M 42 -14 L 58 -6 L 54 6 L 40 -2 Z" fill="#95a5a6" {...line} />}
         </g>
     );
 }
@@ -409,24 +492,48 @@ const bubblesOf = (panel, wide) => {
     return out.map((b) => ({ ...b, w, tail: Math.max(14, Math.min(86, ((b.at - b.left) / w) * 100)) }));
 };
 
-const BUBBLE = { oval: { borderRadius: '50%', padding: '0.8em 1.5em' }, round: { borderRadius: '1.3em', padding: '0.7em 1em' }, box: { borderRadius: '6px', padding: '0.6em 0.85em' } };
-
-/** The story's title on its first panel, in its story's style. */
-function Title({ text, style, wide, capRef }) {
-    const size = wide ? 'clamp(15px, 3.4cqw, 30px)' : 'clamp(14px, 5.4cqw, 26px)';
-    const base = 'absolute left-[2.5%] top-[3%] max-w-[70%] px-[0.6em] py-[0.25em] font-black uppercase leading-tight tracking-wide';
-    if (style === 'stamp') return <p ref={capRef} className={`${base} -rotate-2 border-[3px] border-[#1b1b1b] text-white shadow-[3px_3px_0_#1b1b1b]`} style={{ fontSize: size, background: '#C0392B' }} data-comic-title="stamp">{text}</p>;
-    if (style === 'banner') return <p ref={capRef} className={`${base} px-[1.1em] text-white drop-shadow-[0_3px_0_rgba(0,0,0,.35)]`} style={{ fontSize: size, background: '#1E3A8A', clipPath: 'polygon(0 0, 100% 0, 95% 50%, 100% 100%, 0 100%, 5% 50%)' }} data-comic-title="banner">{text}</p>;
-    if (style === 'board') {
-        return (
-            <p ref={capRef} className={`${base} rounded-md border-[3px] border-[#3d2612]`} style={{ fontSize: size, background: '#8B5A2B', color: '#FFF3D6' }} data-comic-title="board">
-                <span aria-hidden="true" className="absolute left-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#3d2612]" /><span aria-hidden="true" className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#3d2612]" />
-                {text}
+/** The story's title on its first panel: a wooden sign hung from the top on two ropes, a leaf at each end. */
+function Title({ text, wide, capRef }) {
+    const size = wide ? 'clamp(16px, 3.5cqw, 34px)' : 'clamp(15px, 5.6cqw, 28px)';
+    const leaf = (side) => (
+        <svg aria-hidden="true" viewBox="0 0 40 24" className={`absolute top-1/2 h-[1.1em] w-[1.8em] -translate-y-1/2 ${side === 'left' ? '-left-[1.1em] -scale-x-100' : '-right-[1.1em]'}`}>
+            <path d="M2 12 C 10 0 30 0 38 12 C 30 24 10 24 2 12 Z" fill="#5cbf3a" stroke="#2f7d22" strokeWidth="2" />
+            <path d="M4 12 L 34 12" stroke="#2f7d22" strokeWidth="1.6" />
+        </svg>
+    );
+    return (
+        <div ref={capRef} className="absolute inset-x-0 top-0 z-[1] mx-auto w-fit max-w-[80%] pt-[1.1em]" style={{ fontSize: size }} data-comic-title="sign">
+            {['left-[14%]', 'right-[14%]'].map((at) => (
+                <span key={at} aria-hidden="true" className={`absolute top-0 ${at} h-[1.35em] w-[0.16em] rounded-full bg-[#9a6a35]`}>
+                    <span className="absolute -bottom-[0.12em] left-1/2 h-[0.34em] w-[0.34em] -translate-x-1/2 rounded-full border-[0.08em] border-[#6b4422] bg-[#c99a5b]" />
+                </span>
+            ))}
+            <p className="relative rounded-[0.4em] border-[0.1em] border-[#b07a3a] px-[1.1em] py-[0.28em] text-center font-black leading-tight"
+                style={{ color: LOOK.ink, background: 'repeating-linear-gradient(180deg, rgba(160,110,50,.10) 0 0.18em, transparent 0.18em 0.5em), linear-gradient(#fbe7b9, #ebc581)', boxShadow: '0 0.14em 0 #b07a3a, 0 0.35em 0.6em rgba(0,0,0,.18)', textWrap: 'balance' }}>
+                {leaf('left')}{text}{leaf('right')}
             </p>
-        );
-    }
-    return <p ref={capRef} className={`${base} rounded-full border-[2.5px] border-[#1b1b1b] px-[1em] italic text-[#1b1b1b]`} style={{ fontSize: size, background: '#F5DEB3' }} data-comic-title="scroll">{text}</p>;
+        </div>
+    );
 }
+
+/** A line of narration read aloud, from the purple speaker in its bar. */
+function SayLine({ text, lang }) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
+    const say = () => {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = lang || 'en-IN'; u.rate = 0.92;
+        window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+    };
+    return (
+        <button type="button" onClick={say} aria-label={`Listen: ${text}`} className="flex h-[2.4em] w-[2.4em] shrink-0 items-center justify-center rounded-full text-white transition-transform active:scale-95"
+            style={{ background: 'linear-gradient(#9475f2, #6c4ad6)', boxShadow: '0 0.15em 0 #5236b0, 0 0.25em 0.5em rgba(82,54,176,.35)' }} data-comic-say>
+            <Volume2 className="h-[55%] w-[55%]" strokeWidth={2.6} />
+        </button>
+    );
+}
+
+/** Under a panel, where its picture's floor goes on: grass (darker at night), a room's floor, sand, the market's earth. */
+const floorOf = (panel) => (panel.scene === 'house' ? '#b97a45' : panel.scene === 'river' ? '#e6c88e' : panel.scene === 'market' ? '#dcb787' : panel.night ? '#3f6b35' : LOOK.ground);
 
 function Panel({ panel, comic, theme, wide, index }) {
     const gid = `sky${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
@@ -466,7 +573,6 @@ function Panel({ panel, comic, theme, wide, index }) {
     const people = comic.people || {};
     const speakers = new Set((panel.say || []).map((b) => b.who));
     const caption = panel.title ? null : panel.caption;
-    const { frame } = theme;
     // A close-up: the people twice as big, from the waist up.
     const zoom = panel.zoom ? 2 : 1;
     // Each bubble under the caption box (or beside it, when there is room), and never above the one said before
@@ -476,7 +582,7 @@ function Panel({ panel, comic, theme, wide, index }) {
         return [...out, { ...b, top: Math.max(own, out.at(-1)?.top ?? 0) }];
     }, []);
     return (
-        <figure className="overflow-hidden bg-white [container-type:inline-size]" style={{ fontFamily: FONT, border: `${frame.width}px solid ${frame.color}`, borderRadius: frame.radius, boxShadow: frame.shadow ? `5px 5px 0 ${frame.color}` : undefined, gridColumn: wide ? `span ${wide} / span ${wide}` : undefined }}
+        <figure className="overflow-hidden rounded-[18px] border-[3px] border-white bg-white shadow-[0_6px_16px_rgba(76,53,160,.16)] [container-type:inline-size]" style={{ fontFamily: FONT, gridColumn: wide ? `span ${wide} / span ${wide}` : undefined }}
             data-comic-panel={index} data-zoom={panel.zoom || undefined}>
             <div ref={box} className="relative" style={{ aspectRatio: `${W} / ${H}` }}>
                 <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" aria-hidden="true">
@@ -488,24 +594,35 @@ function Panel({ panel, comic, theme, wide, index }) {
                     {!panel.zoom && (panel.props || []).filter((p) => p.front).map((p, i) => <Prop key={i} prop={p} W={W} theme={theme} />)}
                     <Weather panel={panel} W={W} />
                 </svg>
-                {panel.title && <Title text={comic.title} style={theme.title} wide={wide} capRef={cap} />}
+                {/* Each named person's name at their feet (2026-11-05, "the quiz asks about the names"), in the story's language. */}
+                {panel.cast.filter((c) => people[c.who]?.tag).map((c) => (
+                    <span key={`name-${c.who}`} className="pointer-events-none absolute bottom-[1.5%] -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-[0.65em] py-[0.1em] font-extrabold leading-snug shadow-[0_0.1em_0.35em_rgba(0,0,0,.2)]"
+                        style={{ left: `${Math.min(92, Math.max(8, c.x))}%`, fontSize: sized(0.85), color: LOOK.ink, border: `0.12em solid ${LOOK.purple}` }} data-name-tag={c.who}>{people[c.who].tag}</span>
+                ))}
+                {panel.title && <Title text={comic.title} wide={wide} capRef={cap} />}
                 {caption && (
-                    <p ref={cap} className="absolute left-[2.5%] top-[3%] max-w-[64%] border-2 border-[#1b1b1b] px-[0.6em] py-[0.3em] font-bold uppercase leading-snug text-[#1b1b1b]" style={{ fontSize: wordsSize, background: theme.caption, borderRadius: frame.radius ? 6 : 0 }} data-comic-caption>{caption}</p>
+                    <p ref={cap} className="absolute left-[2.5%] top-[4%] max-w-[64%] rounded-[0.8em] px-[0.85em] py-[0.35em] font-extrabold leading-snug" style={{ fontSize: wordsSize, color: LOOK.ink, background: 'linear-gradient(#ffe68f, #ffd23f)', boxShadow: '0 0.14em 0 #e0a800, 0 0.3em 0.6em rgba(0,0,0,.15)' }} data-comic-caption>{caption}</p>
                 )}
                 {placed.map((b) => (
                     <div key={b.who} className="absolute" style={{ left: `${b.left}%`, top: `${b.top}%`, width: `${b.w}%` }} data-bubble={b.who}>
-                        <p className="relative border-2 border-[#1b1b1b] bg-white text-center font-bold uppercase leading-snug text-[#1b1b1b]" style={{ fontSize: wordsSize, ...BUBBLE[theme.bubble] }} data-bubble-style={theme.bubble}>
+                        <p className="relative border-[2.5px] bg-white text-center font-extrabold leading-snug" style={{ fontSize: wordsSize, color: LOOK.ink, borderColor: LOOK.purple, borderRadius: '50%', padding: '0.85em 1.4em', boxShadow: '0 0.2em 0.5em rgba(60,40,140,.12)' }} data-bubble-style="oval">
                             <span className="sr-only">{b.name ? `${b.name} says: ` : ''}</span>{b.text}
-                            <svg className="absolute" style={{ left: `calc(${b.tail}% - 8px)`, top: 'calc(100% - 3px)' }} width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                                <path d="M1 1 L6 15 L15 1" fill="#fff" stroke={INK} strokeWidth="2" strokeLinejoin="round" />
-                                <rect x="2.5" y="0" width="11" height="3" fill="#fff" />
+                            <svg className="absolute" style={{ left: `calc(${b.tail}% - 9px)`, top: 'calc(100% - 3.5px)' }} width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                                <path d="M1 1 L7 17 L17 1" fill="#fff" stroke={LOOK.purple} strokeWidth="2.5" strokeLinejoin="round" />
+                                <rect x="2.5" y="0" width="13" height="3.5" fill="#fff" />
                             </svg>
                         </p>
                     </div>
                 ))}
             </div>
+            {/* Its narration in a cream bar on the panel's floor, with its own speaker. */}
             {panel.narration && (
-                <figcaption className="px-[1em] py-[0.6em] font-bold uppercase leading-snug text-[#1b1b1b]" style={{ fontSize, background: theme.narration, borderTop: `${frame.width}px solid ${frame.color}` }} data-comic-narration>{panel.narration}</figcaption>
+                <figcaption className="px-[0.7em] pb-[0.7em] pt-[0.15em]" style={{ fontSize, background: floorOf(panel) }} data-comic-narration>
+                    <span className="flex items-center gap-[0.7em] rounded-[1.5em] py-[0.45em] pl-[0.5em] pr-[1em] shadow-[0_0.2em_0.5em_rgba(0,0,0,.12)]" style={{ background: LOOK.narration }}>
+                        <SayLine text={panel.narration} lang={comic.locale} />
+                        <span className="min-w-0 flex-1 font-extrabold leading-snug" style={{ color: LOOK.ink }}>{panel.narration}</span>
+                    </span>
+                </figcaption>
             )}
         </figure>
     );
@@ -542,9 +659,9 @@ export default function Comic({ comic }) {
     }, []);
     useEffect(() => () => { if (window.speechSynthesis) window.speechSynthesis.cancel(); }, []);
     if (!comic?.panels?.length) return null;
-    const theme = themeOf(comic.theme);
-    // Its own layout: three to a row for a story drawn so, on a page wide enough; two; one on a phone.
-    const columns = width >= 900 && theme.columns === 3 ? 3 : width >= 640 ? 2 : 1;
+    const theme = LOOK;
+    // Two to a row on a page wide enough (2026-11-04, every story), one on a phone.
+    const columns = width >= 640 ? 2 : 1;
     const spans = spansOf(comic.panels, columns);
     const canRead = typeof window !== 'undefined' && !!window.speechSynthesis;
     const toggle = () => {
@@ -557,17 +674,17 @@ export default function Comic({ comic }) {
         <div ref={page} className="space-y-3" data-comic data-comic-theme={comic.theme || 'summer'} lang={(comic.locale || 'en-IN').split('-')[0]}>
             {canRead && (
                 <div className="flex justify-end">
-                    <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.blue.ink }} data-comic-read>
+                    <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#DCD3FA', color: LOOK.purple }} data-comic-read>
                         {reading ? <><Square size={15} /> Stop</> : <><Headphones size={17} /> Read aloud</>}
                     </button>
                 </div>
             )}
-            <div className="grid gap-3 rounded-md p-2.5 shadow-[0_2px_10px_rgba(0,0,0,.12)] ring-1 ring-black/10" style={{ background: theme.page, gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }} data-comic-page data-columns={columns}>
+            <div className="grid gap-3 rounded-[24px] p-2.5 sm:p-3" style={{ background: theme.page, gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }} data-comic-page data-columns={columns}>
                 {comic.panels.map((p, i) => <Panel key={i} panel={p} comic={comic} theme={theme} wide={columns > 1 && spans[i] > 1 ? spans[i] : 0} index={i} />)}
                 {/* The story's moral, the end of the page. */}
                 {comic.moral && (
-                    <p className="border-[3px] border-[#1b1b1b] px-4 py-3 text-center font-black uppercase leading-snug tracking-wide" style={{ gridColumn: '1 / -1', fontFamily: FONT, background: theme.moral[0], color: theme.moral[1], fontSize: 'clamp(13px, 1.9vw, 18px)', borderRadius: theme.frame.radius }} data-comic-moral>
-                        <span className="mr-2 opacity-80">{comic.moralLabel || 'Moral:'}</span>{comic.moral}
+                    <p className="rounded-[18px] border-2 border-[#F2C94C] px-4 py-3 text-center font-extrabold leading-snug shadow-[0_4px_12px_rgba(76,53,160,.12)]" style={{ gridColumn: '1 / -1', fontFamily: FONT, background: 'linear-gradient(#fff6d1, #ffe796)', color: LOOK.ink, fontSize: 'clamp(14px, 1.9vw, 19px)' }} data-comic-moral>
+                        <span className="mr-2 font-black" style={{ color: LOOK.purple }}>{comic.moralLabel || 'Moral:'}</span>{comic.moral}
                     </p>
                 )}
             </div>

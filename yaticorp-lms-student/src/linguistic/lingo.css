@@ -30,6 +30,10 @@
 .lingo-sheet { animation: lingo-up 0.22s ease-out; }
 @keyframes lingo-pop { 0% { transform: scale(0.6); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
 .lingo-pop { animation: lingo-pop 0.35s ease-out both; }
+/* The mascot speaking (2026-11-07, ui.jsx TalkingMouth): the mouth opens and closes; drawn again at each word, it opens again. */
+@keyframes lingo-talk { 0% { transform: scale(0.92, 0.2); } 30% { transform: scale(1, 1); } 60% { transform: scale(0.96, 0.45); } 100% { transform: scale(1, 0.85); } }
+.lingo-talk { transform-box: fill-box; transform-origin: 50% 30%; animation: lingo-talk 0.26s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .lingo-talk { animation: none; } }
 @keyframes lingo-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
 .lingo-shake { animation: lingo-shake 0.35s ease-in-out; }
 @keyframes lingo-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
@@ -64,3 +68,7 @@ body:has([data-lingo-session]) [data-loop-avoid].mascot-clear[role="status"] {
 @keyframes lingo-spark { 0%, 100% { opacity: 0; transform: scale(.3) rotate(0deg); } 45%, 55% { opacity: 1; transform: scale(1.1) rotate(45deg); } }
 .lingo-spark { animation: lingo-spark 1.8s ease-in-out infinite; text-shadow: 0 0 6px #ffd54a, 0 0 12px #ffb300; }
 @media (prefers-reduced-motion: reduce) { .lingo-cup-glow, .lingo-cup-rays, .lingo-spark { animation: none; opacity: .9; } }
+
+/* The bar running out before a wrong answer's question comes again (Session.jsx, 2026-11-05). */
+@keyframes lingo-run-out { from { width: 100%; } to { width: 0%; } }
+@media (prefers-reduced-motion: reduce) { [data-auto-next] > div { animation: none !important; width: 100%; } }

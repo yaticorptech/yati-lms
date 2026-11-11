@@ -74,7 +74,7 @@ export const langOf = (code) => LANGS[code] || LANGS.kn;
  * 'en-kn' the other way), whichever they are: English, or another course's.
  */
 export const directionLabel = (dir, code = 'kn', target = 'en') => (dir === 'kn-en' ? `${langOf(code).name} → ${langOf(target).name}` : `${langOf(target).name} → ${langOf(code).name}`);
-const markOf = (code) => (code === 'en' ? 'EN' : langOf(code).mark);
+export const markOf = (code) => (code === 'en' ? 'EN' : langOf(code).mark);
 export const shortDirection = (dir, code = 'kn', target = 'en') => (dir === 'kn-en' ? `${langOf(code).mark} → ${markOf(target)}` : `${markOf(target)} → ${langOf(code).mark}`);
 /** A module's one-line description, naming the student's language (and the course's, for a course other than English). */
 export const blurbOf = (module, code = 'kn', target = 'en') => {
@@ -98,6 +98,12 @@ export const langFor = (text, code) => {
     return code && (s === code || (s === 'hi' && code === 'mr') || (s === 'ar' && code === 'ur') || (s === 'zh' && code === 'ja')) ? code : s;
 };
 export const isRtl = (code) => !!LANGS[code]?.rtl;
+/** The voice to read a language with ('ja' → 'ja-JP'): the same as each course's (the server's courses.js). */
+const LOCALES = { en: 'en-IN', kn: 'kn-IN', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN', ml: 'ml-IN', mr: 'mr-IN', bn: 'bn-IN', gu: 'gu-IN', pa: 'pa-IN', or: 'or-IN', ur: 'ur-PK', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', pt: 'pt-BR', ru: 'ru-RU', ar: 'ar-SA', zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR' };
+export const localeOf = (code) => LOCALES[code] || 'en-IN';
+const LATIN = ['en', 'es', 'fr', 'de', 'pt'];
+/** The voice for a word: by its letters (Kannada, Japanese…), else the language it is in when that is written in Latin letters, else English. */
+export const tileVoice = (word, code) => localeOf(langFor(word, code) || (LATIN.includes(code) ? code : 'en'));
 /** The device's language, when it is one the section offers (a phone set to Japanese suggests Japanese). */
 export const deviceLanguage = (codes) => {
     try {
@@ -155,11 +161,20 @@ if (typeof window !== 'undefined' && window.speechSynthesis) {
     window.speechSynthesis.addEventListener?.('voiceschanged', readVoices);
 }
 const norm = (l) => String(l || '').toLowerCase().replace('_', '-');
-/** The device's voice for a language ('kn-IN': a Kannada voice), or null. */
-const voiceFor = (lang) => {
+/*
+ * A woman's or a man's voice (2026-11-07, the user: "a woman's picture, a woman's voice; a man's picture, a man's
+ * voice"). Browsers do not say which a voice is; its name does (Google UK English Female, Microsoft Heera, Rishi…).
+ */
+const FEMALE = /female|woman|girl|zira|hazel|susan|samantha|victoria|karen|moira|tessa|fiona|serena|veena|heera|kalpana|lekha|swara|neerja|aditi|raveena|kajal|sangeeta|shreya|pallavi|vani|monica|paulina|marisol|elvira|helena|laura|amelie|amélie|audrey|aurelie|denise|julie|hedda|katja|anna|alice|elsa|ellen|joana|luciana|francisca|milena|katya|irina|svetlana|kyoko|nanami|haruka|ayumi|ting-?ting|mei-?jia|sin-?ji|xiaoxiao|huihui|yaoyao|yuna|sunhi|heami|salma|zariyah|hoda|laila|dalia/i;
+const MALE = /\bmale\b|\bman\b|david|mark|george|james|daniel|\balex\b|fred|\btom\b|oliver|arthur|aaron|rishi|ravi|hemant|prabhat|madhur|aarav|kumar|mohan|gagan|valluvar|jorge|diego|juan|pablo|thomas|yannick|henri|paul|markus|conrad|stefan|felipe|antonio|duarte|yuri|maxim|pavel|dmitri|otoya|ichiro|keita|kangkang|yunjian|yunxi|injoon|hamed|naayf|maged|tarik/i;
+/** 'f' or 'm' by a voice's name; null when its name does not tell. */
+export const genderOf = (v) => (FEMALE.test(v?.name || '') ? 'f' : MALE.test(v?.name || '') ? 'm' : null);
+/** The device's voice for a language ('kn-IN': a Kannada voice), or null; a woman's or a man's first, when asked (`gender`). */
+const voiceFor = (lang, gender = null) => {
     if (!voices.length) readVoices();
     const want = norm(lang), base = want.split('-')[0];
-    return voices.find((v) => norm(v.lang) === want) || voices.find((v) => norm(v.lang).split('-')[0] === base) || null;
+    const same = voices.filter((v) => norm(v.lang) === want), near = voices.filter((v) => norm(v.lang).split('-')[0] === base);
+    return (gender && (same.find((v) => genderOf(v) === gender) || near.find((v) => genderOf(v) === gender))) || same[0] || near[0] || null;
 };
 /*
  * Kannada on a device with no Kannada voice (2026-10-31, "the Kannada voice is not audible"; most computers and
@@ -183,11 +198,11 @@ export const kannadaIn = (text, base, hindi = false) => [...String(text || '')].
     return hindi ? HINDI_NEAREST[d] || d : d;
 }).join('');
 /** The voice to read `lang` with: its own, or a stand-in reading it in that one's letters; null when there is neither. */
-const readerFor = (lang) => {
-    const own = voiceFor(lang);
+const readerFor = (lang, gender = null) => {
+    const own = voiceFor(lang, gender);
     if (own) return { voice: own, lang, map: (t) => t };
     for (const s of STAND_INS[norm(lang).split('-')[0]] || []) {
-        const v = voiceFor(s.lang);
+        const v = voiceFor(s.lang, gender);
         if (v) return { voice: v, lang: s.lang, map: (t) => kannadaIn(t, s.base, !!s.hindi) };
     }
     return null;
@@ -199,26 +214,59 @@ const readerFor = (lang) => {
  */
 export const canSpeakIn = (lang) => typeof window !== 'undefined' && !!window.speechSynthesis && (!voices.length || !!readerFor(lang));
 
+/*
+ * The mascot speaking (2026-11-07, the user: "the mascot's lips moving when the voice is heard, like Duolingo — for a
+ * sentence, its words"): what the app's own voice is saying now — on from its start, a count of the words said so far
+ * (the browser tells each word as it is reached), off at its end. A recording playing counts too. A woman or a man
+ * speaking (`gender`: the conversation's people) is not the mascot.
+ */
+let talk = { on: false, word: 0, id: 0 };
+let talkIds = 0;
+const talkers = new Set();
+/** Called with { on, word } whenever the mascot starts or stops speaking or reaches a word; returns how to stop listening. */
+export const onTalk = (fn) => { talkers.add(fn); return () => { talkers.delete(fn); }; };
+export const talkNow = () => talk;
+const tell = (next) => { talk = { ...talk, ...next }; talkers.forEach((f) => f(talk)); };
+/** A new voice: the mascot's (its start, words and end told), or a person's (the mascot quiet). */
+const voiceOf = (gender, text) => {
+    const id = ++talkIds;
+    if (gender) { if (talk.on) tell({ on: false, id }); return null; }
+    const off = () => { if (talk.id === id && talk.on) tell({ on: false }); };
+    // Should the browser never say it ended (a voice cut off), quiet again after about as long as the text takes.
+    setTimeout(off, 1500 + [...String(text || '')].length * 120);
+    return { start: () => tell({ on: true, word: 0, id }), word: () => { if (talk.id === id && talk.on) tell({ word: talk.word + 1 }); }, off };
+};
+
 /**
  * Play a recording; with none, the browser's own voice reads the text, where
  * the browser has one — that language's voice, chosen by name rather than
  * left to the browser, which read Kannada with an English voice, i.e. not at
  * all. Returns the Audio element (to stop it) or null.
  */
-export const play = (src, text, lang = 'en-IN') => {
+export const play = (src, text, lang = 'en-IN', { rate = null, gender = null } = {}) => {
     if (src) {
         const a = new Audio(mediaUrl(src));
+        if (rate) a.playbackRate = rate;
+        const v = voiceOf(gender, text || 'a recording');
+        if (v) { a.addEventListener('playing', v.start); for (const e of ['ended', 'pause', 'error']) a.addEventListener(e, v.off); }
         a.play().catch(() => {});
         return a;
     }
     if (text && typeof window !== 'undefined' && window.speechSynthesis) {
         // Its own voice, or for Kannada a Telugu, Hindi or Marathi one reading it in those letters (2026-10-31).
-        const r = readerFor(lang);
+        const r = readerFor(lang, gender);
         const u = new SpeechSynthesisUtterance(r ? r.map(text) : text);
         u.lang = r ? r.lang : lang;
         try { if (r) u.voice = r.voice; } catch { /* not one of this browser's voices: its own pick */ }
+        // A woman or a man speaking (2026-11-07): with no voice of theirs on the device, the one there higher or lower.
+        if (gender && genderOf(r?.voice) !== gender) u.pitch = gender === 'f' ? (genderOf(r?.voice) === 'm' ? 1.5 : 1.2) : (genderOf(r?.voice) === 'f' ? 0.6 : 0.7);
         // A letter or a short word said slowly, to be heard clearly (2026-10-31).
         if ([...String(text)].length <= 3) u.rate = 0.75;
+        // Slowly, when asked (2026-11-06: tap what you hear, its turtle button).
+        if (rate) u.rate = rate;
+        // The mascot's mouth moves with it, word by word (2026-11-07).
+        const v = voiceOf(gender, text);
+        if (v) { u.onstart = v.start; u.onboundary = (e) => { if (!e?.name || e.name === 'word') v.word(); }; u.onend = v.off; u.onerror = v.off; }
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
     }
@@ -231,3 +279,22 @@ export const PRAISE = ['Nicely done!', 'Great job!', 'Excellent!', 'You got it!'
 
 /** Back to the page before (2026-10-29: "always where they were"); opened straight here, `fallback`. */
 export const backOr = (navigate, fallback) => () => { const prev = previousPage(); return prev ? navigate(prev) : navigate(fallback, { replace: true }); };
+
+/*
+ * The last lesson the student was in, on this device (2026-11-05: "back from a quiz, or anywhere, went to Section 1,
+ * Unit 1"): the learning path opens at its unit — or, that unit finished, the next — not at the first lesson left
+ * anywhere in the course (one who can open every lesson may have left one in Unit 1).
+ */
+const lastKey = () => { try { return `lingo:last:${JSON.parse(localStorage.getItem('studentData') || '{}')._id || 'me'}`; } catch { return 'lingo:last:me'; } };
+export const rememberLesson = (id) => { try { if (id) localStorage.setItem(lastKey(), String(id)); } catch { /* storage off */ } };
+export const lastLesson = () => { try { return localStorage.getItem(lastKey()); } catch { return null; } };
+/**
+ * Out of a lesson: the page it was opened from (the roadmap, the notes…); from the path, or straight here, the path at its
+ * unit (`?from=`) — at `nextId`, the lesson its result said is next (`&next=`, 2026-11-07: "Next up said one lesson, the
+ * path opened another").
+ */
+export const backToPath = (navigate, lessonId, nextId = null) => () => {
+    const prev = previousPage();
+    if (prev && !/^\/linguistic\/?(\?|$)/.test(prev)) return navigate(prev);
+    return navigate(`/linguistic?from=${encodeURIComponent(lessonId)}${nextId ? `&next=${encodeURIComponent(nextId)}` : ''}`);
+};

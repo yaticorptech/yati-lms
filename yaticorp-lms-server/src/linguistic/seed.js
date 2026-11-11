@@ -52,6 +52,22 @@ const seed = async () => {
         await LinguisticLesson.updateOne({ seedKey: lesson.seedKey, updatedBy: 'Seed content', title: WAS[lesson.seedKey] },
             { $set: { title: value.title, summary: value.summary, items: value.items, quiz: value.quiz } });
     }
+    // One short sentence to read in each Section 1 unit (2026-11-04): added to the four lessons as seeded (an edit stands).
+    for (const lesson of lessons.filter((l) => ['translation-beginner-kn-en', 'translation-beginner-en-kn', 'translation-beginner-3', 'translation-beginner-4'].includes(l.seedKey))) {
+        const { value, errors } = validateLesson({ ...lesson, status: 'published' });
+        if (errors.length) continue;
+        // Until its last one is there as written — with its own direction where it has one.
+        const last = value.items.find((x) => x.id === 'i8');
+        if (!last) continue;
+        await LinguisticLesson.updateOne({ seedKey: lesson.seedKey, updatedBy: 'Seed content', items: { $not: { $elemMatch: { id: 'i8', model: last.model, ...(last.direction ? { direction: last.direction } : {}) } } } }, { $set: { items: value.items } });
+    }
+    // The interview's last question answered (2026-11-06, the user: "where is the answer for his question?"): the
+    // conversation as now written, where it is as seeded and still ends on his question (an administrator's edit stands).
+    for (const lesson of lessons.filter((l) => l.seedKey === 'speaking-advanced-1')) {
+        const { value, errors } = validateLesson({ ...lesson, status: 'published' });
+        if (errors.length || !value.learn?.dialogue?.lines?.length) continue;
+        await LinguisticLesson.updateOne({ seedKey: lesson.seedKey, updatedBy: 'Seed content', 'learn.dialogue.lines.10': { $exists: false } }, { $set: { 'learn.dialogue': value.learn.dialogue } });
+    }
     if (added) console.log(`[linguistic] seeded ${added} lesson${added === 1 ? '' : 's'}`);
     return added;
 };

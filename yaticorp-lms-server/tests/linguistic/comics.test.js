@@ -87,3 +87,49 @@ describe('picture stories', () => {
         assert.deepEqual([done.body.percent, done.body.passed], [100, true]);
     });
 });
+
+describe('the people\'s names in a picture story', () => {
+    test('each named person has their name to show under them, in every language — spelt as that language\'s story spells it (2026-11-05)', () => {
+        const { LANGS } = require('../../src/linguistic/content/comicLangs');
+        const textOf = (pack) => JSON.stringify(pack);
+        for (const s of comics.STORIES) {
+            for (const code of [null, ...Object.keys(LANGS[s.order] || {})]) {
+                const stub = comics.stubs().find((x) => x.order === s.order && (x.course || null) === code);
+                if (!stub) continue;
+                const { people } = comics.build(stub, 'en').comic;
+                for (const [key, p] of Object.entries(people)) {
+                    const at = `${s.title} (${code || 'en'}) ${key}`;
+                    if (!comics.NAMES[p.name]) { assert.equal(p.tag, undefined, `${at}: no name, none shown`); continue; }
+                    assert.ok(p.tag, `${at}: its name`);
+                    // Where the English story says the name, the language's story writes it as the tag does.
+                    const said = JSON.stringify({ panels: s.panels.map((x) => [x.caption, x.narration, ...(x.say || []).map((b) => b.text)]), questions: s.questions }).includes(p.name);
+                    if (code && said && !['es', 'fr', 'de', 'pt'].includes(code)) assert.ok(textOf(LANGS[s.order][code]).includes(p.tag), `${at}: "${p.tag}" as its story writes it`);
+                }
+            }
+        }
+    });
+});
+
+// 2026-11-06, the user's picture (an Arabic story's question): "how will the student understand this language?" — in a
+// course, each question and each of its choices carries its English, sent with it for a tap; the story's title too.
+describe('a course\'s picture story in English, for a tap', () => {
+    test('every question and every choice, in all 20 courses; the English story\'s own words; the answers not given away', () => {
+        const courses = new Set();
+        for (const stub of comics.stubs().filter((s) => s.course)) {
+            const b = comics.build(stub, 'en'), s = comics.storyOf(stub);
+            courses.add(stub.course);
+            assert.equal(b.comic.titleEn, s.title, `${stub.seedKey}: its title in English`);
+            b.quiz.forEach((q, i) => {
+                const at = `${stub.seedKey} ${q.id}`;
+                assert.equal(q.promptMeaning, s.questions[i].prompt, `${at}: the question in English`);
+                assert.deepEqual(q.options.map((o) => q.optionMeanings[o]), [s.questions[i].answer, ...s.questions[i].others], `${at}: each choice in English`);
+                const shown = svc.publicQuestion(q, 'x');
+                assert.equal(shown.answer, undefined, `${at}: no answer sent`);
+                assert.deepEqual([shown.promptMeaning, shown.meaningLang, Object.keys(shown.optionMeanings).sort()], [q.promptMeaning, 'en', [...q.options].sort()], `${at}: sent with it`);
+            });
+        }
+        assert.equal(courses.size, 20);
+        const english = comics.build(comics.stubs().find((s) => !s.course), 'kn');
+        assert.ok(english.quiz.every((q) => !q.optionMeanings), 'the English course\'s story: none (it is asked in English)');
+    });
+});

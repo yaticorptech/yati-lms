@@ -162,7 +162,11 @@ module.exports = [
                 ['Interviewer', 'And a weakness?'],
                 ['Nikhil', 'I sometimes spend too long on small details. I\'m working on it by setting a time limit for each task.'],
                 ['Interviewer', 'Thank you, Nikhil. Do you have any questions for us?'],
-                ['Nikhil', 'Yes. Could you tell me what a typical day looks like for someone in this role?']
+                ['Nikhil', 'Yes. Could you tell me what a typical day looks like for someone in this role?'],
+                // His question answered (2026-11-06, the user: "where is the answer for his question?"), and the close.
+                ['Interviewer', 'Good question. The day starts with a short team meeting at ten. After that, you would work on a project with a senior developer, writing and testing code. In the afternoon, we review the work together. New joiners also get two weeks of training.'],
+                ['Nikhil', 'That sounds great. I would really enjoy learning from senior developers. Thank you for your time.'],
+                ['Interviewer', 'Thank you, Nikhil. We will let you know by Friday.']
             ]),
             phrases: ['Could you tell me a little about yourself?', 'I led a team of…', 'I\'m working on it by…']
         },

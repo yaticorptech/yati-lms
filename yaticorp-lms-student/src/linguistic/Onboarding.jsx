@@ -2,10 +2,13 @@
  * Linguistic Ability — starting out, the way language apps ask it (asked
  * 2026-10-23; Duolingo, Babbel and Busuu's questions 2026-10-26; and
  * Talkpal's, the same day: "first get them started, then ask these"). A
- * welcome to Get started; the language to learn (searched in a grid) and
- * their level; their reason; the language they know — translations and tips
- * are in it (searched in a list); how much time they have — the roadmap is made to fit it (Roadmap.jsx) —
- * and where that takes them. Everyone starts at Section 1, Unit 1 (2026-10-28; before then: from scratch, or finding
+ * welcome to Get started; the language to learn (searched in a grid);
+ * their reason; the language they know — translations and tips
+ * are in it (searched in a list); where a little every day takes them; the languages they speak, write and read;
+ * then, last (2026-11-04), Beginner or Advanced — Advanced takes the Advanced entry test straight away. The time is
+ * not asked (2026-11-04, "set it automatically, don't give the learning days to choose"): the roadmap is made for
+ * 90 days, or 60 of the Advanced lessons once the test is passed (server service.js, autoPlan). Everyone starts at
+ * Section 1, Unit 1 (2026-10-28; before then: from scratch, or finding
  * their level with the placement test (or, for one who knows some, straight
  * at the level they said).
  * The two languages can be changed later in the dropdowns by the level
@@ -15,13 +18,16 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, GraduationCap, Briefcase, Users, Plane, Smile, Brain, Search, FlaskConical, Globe, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, GraduationCap, Briefcase, Users, Plane, Smile, Brain, Search, FlaskConical, Globe, Sparkles, Compass } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, langOf, deviceLanguage } from './meta';
 import { Bar, Chunky, Mascot } from './ui';
 import { SessionFrame } from './session/Session';
-import PlanChoices from './parts/PlanChoices';
 import KnowsPick from './parts/KnowsPick';
+import { tr, trf } from './say';
+
+/** A language's name in another ("en" in Kannada: ಇಂಗ್ಲಿಷ್), by the browser's own list; null where it has none. */
+const nameIn = (code, lang) => { try { const n = new Intl.DisplayNames([lang], { type: 'language' }).of(code); return n && n !== code ? n : null; } catch { return null; } };
 
 const REASONS = [
     { id: 'research', label: 'Academia and research', icon: FlaskConical },
@@ -36,15 +42,14 @@ const REASONS = [
 ];
 // What they want to achieve, how they like to learn, their age, and the minutes a day (2026-10-26, as Talkpal asks).
 // What they want to get better at, the topics they like, and when they like to learn (more than one may be chosen of the first two).
-// How much of the language they know, as Duolingo asks it, and the level each answer points to.
-// `cefr`: the band each answer is, shown beside it (2026-10-26, as Talkpal shows A1 … C2).
-const KNOW = [
-    { know: 0, label: 'I am new to', bars: 0, level: 'beginner', cefr: 'A1' },
-    { know: 1, label: 'I know some common words', bars: 1, level: 'beginner', cefr: 'A1–A2' },
-    { know: 2, label: 'I can have basic conversations', bars: 2, level: 'intermediate', cefr: 'A2–B1' },
-    { know: 3, label: 'I can talk about various topics', bars: 3, level: 'intermediate', cefr: 'B1–B2' },
-    { know: 4, label: 'I can discuss most topics in detail', bars: 4, level: 'advanced', cefr: 'B2+' }
+// Their level, the last question (2026-11-04: two answers; before, five, from "I am new to" to "I can discuss most
+// topics in detail"). `know`: the answer kept with their reason (0 new … 4 knows it well); `cefr`, shown beside it.
+const LEVELS = [
+    { level: 'beginner', label: 'Beginner', text: (name) => `Start from the first lesson: the letters, words and short sentences of ${name}.`, bars: 1, cefr: 'A1–A2', know: 0 },
+    { level: 'advanced', label: 'Advanced', text: (name) => `I know ${name} well. Start from scratch, or take a short test to start at Advanced.`, bars: 4, cefr: 'B2+', know: 4 }
 ];
+/** The days of a Beginner's roadmap (set by the server, service.js AUTO_DAYS): the weeks on the chart. */
+const BEGINNER_DAYS = 90;
 
 /** Signal bars, like Duolingo's: how many of four are lit. */
 const Bars = ({ n }) => (
@@ -130,8 +135,10 @@ const GoalChart = ({ weeks }) => (
  * student starts at Section 1, Unit 1, and opens each unit and section by finishing the one before); then, last
  * (asked the same day), the languages they speak, write and read — shown on the section's dashboard.
  */
-const STEPS = ['welcome', 'learn', 'know', 'why', 'translate', 'time', 'chart', 'speak', 'write', 'read'];
-/** The screens before then: a place kept by its number in this list is read by its name. */
+// 'start' (2026-11-07, the user's Duolingo picture "Now, let's find the best place to start!"): only after Advanced —
+// from scratch, or the Advanced entry test to find their level; in the language they know.
+const STEPS = ['welcome', 'learn', 'why', 'translate', 'chart', 'speak', 'write', 'read', 'level', 'start'];
+/** The screens before then: a place kept by its number in this list is read by its name (the level and the time were asked here). */
 const OLD_STEPS = ['welcome', 'learn', 'know', 'aim', 'started', 'why', 'style', 'focus', 'topics', 'age', 'translate', 'practice', 'when', 'time', 'chart', 'start'];
 /** Where one who left half-way comes back to: the screen they were on, or the last one still asked before it. */
 const placeOf = (saved) => {
@@ -163,59 +170,57 @@ export default function Onboarding({ dash, onDone }) {
     const [findLanguage, setFindLanguage] = useState('');
     const [step, setStep] = useState(() => placeOf(saved));
     const [reason, setReason] = useState(saved.reason ?? null);
-    const [know, setKnow] = useState(saved.know ?? null);
-    const [days, setDays] = useState(saved.days ?? null);
+    // Beginner or Advanced (an answer kept from the five-answer question: the top one was Advanced).
+    const [level, setLevel] = useState(saved.level || (saved.know == null ? null : saved.know === 4 ? 'advanced' : 'beginner'));
     const [speak, setSpeak] = useState(saved.speak || []);
     const [write, setWrite] = useState(saved.write || []);
     const [read, setRead] = useState(saved.read || []);
-    const [options, setOptions] = useState(null);
+    // An Advanced learner's start (2026-11-07): 'scratch' (the first lesson) or 'test' (the Advanced entry test).
+    const [begin, setBegin] = useState(saved.begin ?? null);
     // Kept as they go, to come back to the same question.
     useEffect(() => {
-        try { localStorage.setItem(startKey(), JSON.stringify({ step, at: STEPS[step], course, from, reason, know, days, speak, write, read })); } catch { /* storage off */ }
-    }, [step, course, from, reason, know, days, speak, write, read]);
+        try { localStorage.setItem(startKey(), JSON.stringify({ step, at: STEPS[step], course, from, reason, level, speak, write, read, begin })); } catch { /* storage off */ }
+    }, [step, course, from, reason, level, speak, write, read, begin]);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
 
     const at = STEPS[Math.min(step, STEPS.length - 1)];
     // One cannot learn the language one speaks (English for English speakers is a course of its own).
     const clash = !!from && course !== 'en' && from === course;
-    const answered = { welcome: true, learn: !!course, know: know !== null, why: !!reason, translate: !!from && !clash, time: !!days, chart: true, speak: speak.length > 0, write: write.length > 0, read: read.length > 0 }[at];
-    const last = step === STEPS.length - 1;
+    const answered = { welcome: true, learn: !!course, why: !!reason, translate: !!from && !clash, chart: true, speak: speak.length > 0, write: write.length > 0, read: read.length > 0, level: !!level, start: !!begin }[at];
     const english = course === 'en';
     const name = courses.find((c) => c.code === course)?.name || 'English';
-    // The times to choose: the roadmap from the first unit, where every student starts (2026-10-28).
-    const forLevel = 'beginner';
-    useEffect(() => {
-        if (at !== 'time') return undefined;
-        let live = true;
-        linguisticApi.planOptions(course, from, forLevel).then((r) => { if (live) setOptions(r.options); }).catch((e) => { if (live) setError(e.message); });
-        return () => { live = false; };
-    }, [at, course, from, forLevel]);
+    const toAdvanced = level === 'advanced';
+    // A Beginner is done at their level; an Advanced learner then chooses where to start.
+    const last = at === 'start' || (at === 'level' && !toAdvanced);
+    const toTest = toAdvanced && begin === 'test';
+    // The start screen in the language they know (Kannada for a Kannada speaker), the course named in it.
+    const S = at === 'start' ? tr(from) : (t) => t;
 
     const finish = () => {
         setBusy(true); setError('');
-        const saves = [linguisticApi.setAbout(reason, know), linguisticApi.setKnows({ speak, write, read })];
+        const saves = [linguisticApi.setAbout(reason, LEVELS.find((l) => l.level === level).know), linguisticApi.setKnows({ speak, write, read })];
         // Their language first (the course is checked against it — the course they had steps aside to English if it is the one they
-        // speak); then the course at its starting level; then the plan in it (it sets the daily goal to match).
-        // Everyone starts at the first unit of the first section (2026-10-28).
-        const level = 'beginner';
+        // speak); then the course at its starting level; then the plan in it, its days set by itself (it sets the daily goal to
+        // match). Everyone starts at the first unit of the first section (2026-10-28).
+        const start = 'beginner';
         const was = dash.course?.code || 'en';
         const steps = [];
         if (from !== dash.language?.code || !dash.languageChosen) {
             if (from === was && was !== 'en') steps.push(() => linguisticApi.setCourse('en'));
             steps.push(() => linguisticApi.setLanguage(from));
         }
-        if (course !== was || !english) steps.push(() => linguisticApi.setCourse(course, english ? null : level));
-        steps.push(() => linguisticApi.setPlan(days));
+        if (course !== was || !english) steps.push(() => linguisticApi.setCourse(course, english ? null : start));
+        steps.push(() => linguisticApi.setPlan());
         saves.push(steps.reduce((p, f) => p.then(f), Promise.resolve()));
-        // One who says they know the language well (Advanced) takes the Advanced entry test now (2026-10-31: "when the user goes
-        // directly to the advanced level, show the beginning test; without it, no Advanced"): passed, Advanced opens;
-        // not taken or not passed, they start at Beginner like everyone.
-        const toAdvanced = KNOW.find((k) => k.know === know)?.level === 'advanced';
+        // One who says Advanced takes the Advanced entry test now (2026-10-31: "when the user goes directly to the advanced
+        // level, show the beginning test; without it, no Advanced"): passed, Advanced opens, and their roadmap becomes 60 days
+        // of it; not taken or not passed, they start at Beginner like everyone, on the 90 days.
         Promise.all(saves)
             // "Find my level" starts them at Beginner first, so leaving the test half-way never brings these questions back.
-            .then(() => (!english ? null : linguisticApi.chooseLevel(level)))
-            .then(() => (toAdvanced ? linguisticApi.jump('advanced').catch(() => null) : null))
+            .then(() => (!english ? null : linguisticApi.chooseLevel(start)))
+            // Advanced, from scratch (2026-11-07): the first lesson like a Beginner; finding their level: the test.
+            .then(() => (toTest ? linguisticApi.jump('advanced').catch(() => null) : null))
             .then((jump) => { forgetStart(); if (jump?.lesson) navigate(`/linguistic/${jump.module}/${jump.lesson}`, { replace: true }); else onDone(); })
             .catch((e) => { setError(e.message); setBusy(false); });
     };
@@ -249,7 +254,7 @@ export default function Onboarding({ dash, onDone }) {
                                 {courses.filter((c) => matches(findCourse, c.name, c.native)).map((c) => {
                                     const on = course === c.code;
                                     return (
-                                        <button key={c.code} type="button" onClick={() => { setCourse(c.code); setDays(null); }} aria-pressed={on} data-course={c.code}
+                                        <button key={c.code} type="button" onClick={() => setCourse(c.code)} aria-pressed={on} data-course={c.code}
                                             className="lingo-tile flex min-h-[7.5rem] flex-col items-center justify-center gap-2 px-2 py-3 text-center" style={on ? { borderColor: '#84D8FF', background: COLORS.blue.light } : undefined}>
                                             <span className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-black text-white" style={{ background: on ? COLORS.blue.face : COLORS.green.face }} lang={c.code}>{c.code === 'en' ? 'En' : langOf(c.code).mark}</span>
                                             <span className="w-full truncate text-[15px] font-extrabold text-[#3c3c3c]">{c.name}</span>
@@ -276,31 +281,6 @@ export default function Onboarding({ dash, onDone }) {
                         </>
                     )}
 
-                    {at === 'know' && (
-                        <>
-                            <Ask pose="presenting" title={`What's your ${name} level?`} text="We will fit your lessons to your level." />
-                            <div className="grid gap-2">
-                                {KNOW.map((k) => (
-                                    <Choice key={k.know} on={know === k.know} onClick={() => { setKnow(k.know); }} attr={{ 'data-know': k.know }}>
-                                        <Bars n={k.bars} />
-                                        <span className="min-w-0 flex-1 text-[17px] font-extrabold text-[#3c3c3c]">{k.know === 0 ? `${k.label} ${name}` : k.label}</span>
-                                        <span className="shrink-0 text-[15px] font-extrabold tabular-nums text-[#AFAFAF]" data-cefr>{k.cefr}</span>
-                                    </Choice>
-                                ))}
-                            </div>
-                            {/* Advanced only through its test (2026-10-31). */}
-                            {KNOW.find((k) => k.know === know)?.level === 'advanced' && (
-                                <p className="mt-3 rounded-2xl border-2 px-4 py-3 text-[15px] font-semibold text-[#4b4b4b]" style={{ borderColor: COLORS.purple.light, background: '#FBF7FF' }} role="status" data-advanced-test-note>
-                                    To start at Advanced, you first take the Advanced entry test: how much do you know? 20 questions, 10 on Beginner and 10 on Advanced. Get half of each right and Advanced opens. Below that, you start from Beginner. You have one try.
-                                </p>
-                            )}
-                        </>
-                    )}
-
-
-
-
-
                     {at === 'translate' && (
                         <>
                             <Ask pose="thinking" title="Choose your translation language" text={`The language you know best: word meanings, translations and tips are shown in it.${clash ? ` You are learning ${name}, so choose another.` : ''}`} />
@@ -321,17 +301,10 @@ export default function Onboarding({ dash, onDone }) {
 
 
 
-                    {at === 'time' && (
-                        <>
-                            <Ask pose="flex-determined" title={`How much time do you have to learn ${name}?`} text="Your roadmap is made to fit it: every lesson when there is time, the main ones when time is short. You can change it later." />
-                            {options ? <PlanChoices options={options} picked={days} onPick={setDays} /> : <p className="py-6 text-center text-[15px] font-bold text-[#AFAFAF]" role="status">Working out your roadmap…</p>}
-                        </>
-                    )}
-
                     {at === 'chart' && (
                         <>
                             <Ask pose="star-celebrate" title="Reach your learning goals faster!" text="A little every day takes you further than a lot now and then." />
-                            <GoalChart weeks={Math.max(1, Math.ceil((days || 42) / 7))} />
+                            <GoalChart weeks={Math.ceil(BEGINNER_DAYS / 7)} />
                         </>
                     )}
 
@@ -355,16 +328,68 @@ export default function Onboarding({ dash, onDone }) {
                         </>
                     )}
 
+                    {/* Last (2026-11-04): Beginner, or Advanced through its test. */}
+                    {at === 'level' && (
+                        <>
+                            <Ask pose="presenting" title={`Are you a Beginner or an Advanced ${name} learner?`} text="We will fit your lessons and your roadmap to it." />
+                            <div className="grid gap-2">
+                                {LEVELS.map((l) => (
+                                    <Choice key={l.level} on={level === l.level} onClick={() => setLevel(l.level)} attr={{ 'data-level': l.level }}>
+                                        <Bars n={l.bars} />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-[17px] font-extrabold text-[#3c3c3c]">{l.label}</span>
+                                            <span className="block text-sm font-semibold text-[#777]">{l.text(name)}</span>
+                                        </span>
+                                        <span className="shrink-0 text-[15px] font-extrabold tabular-nums text-[#AFAFAF]" data-cefr>{l.cefr}</span>
+                                    </Choice>
+                                ))}
+                            </div>
+                            {/* Advanced only through its test (2026-10-31). */}
+                            {toAdvanced && (
+                                <p className="mt-3 rounded-2xl border-2 px-4 py-3 text-[15px] font-semibold text-[#4b4b4b]" style={{ borderColor: COLORS.purple.light, background: '#FBF7FF' }} role="status" data-advanced-test-note>
+                                    To start at Advanced, you first take the Advanced entry test: how much do you know? 20 questions, 10 on Beginner and 10 on Advanced. Get half of each right and Advanced opens. Below that, you start from Beginner. You have one try.
+                                </p>
+                            )}
+                        </>
+                    )}
+
+                    {/* An Advanced learner's start (2026-11-07, as Duolingo asks it): from scratch, or find their level. */}
+                    {at === 'start' && (
+                        <>
+                            <Ask pose="presenting" title={<span dir="auto" lang={from}>{S("Now, let's find the best place to start!")}</span>} />
+                            <div className="grid gap-3" lang={from} dir="auto">
+                                <Choice on={begin === 'scratch'} onClick={() => setBegin('scratch')} attr={{ 'data-begin': 'scratch' }}>
+                                    <span className="relative flex h-16 w-12 shrink-0 items-center justify-center rounded-r-md rounded-l-sm text-2xl font-black" style={{ background: '#F8C94B', color: '#C47F17', boxShadow: 'inset -5px 0 0 #fff, inset -7px 0 0 #E5A72A' }} aria-hidden="true">
+                                        <span className="absolute left-2 top-0 h-3 w-2.5 rounded-b-sm" style={{ background: COLORS.red.face }} />1
+                                    </span>
+                                    <span className="min-w-0 flex-1 py-2">
+                                        <span className="block text-[17px] font-extrabold text-[#3c3c3c]">{S('Start from scratch')}</span>
+                                        <span className="block text-[15px] font-semibold text-[#777]">{trf(from)('Take the easiest lesson of the {0} course', nameIn(course, from) || name)}</span>
+                                    </span>
+                                </Choice>
+                                <Choice on={begin === 'test'} onClick={() => setBegin('test')} attr={{ 'data-begin': 'test' }}>
+                                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-[5px] bg-white" style={{ borderColor: COLORS.blue.face }} aria-hidden="true">
+                                        <Compass size={30} strokeWidth={2.4} style={{ color: COLORS.red.face }} />
+                                    </span>
+                                    <span className="min-w-0 flex-1 py-2">
+                                        <span className="block text-[17px] font-extrabold text-[#3c3c3c]">{S('Find my level')}</span>
+                                        <span className="block text-[15px] font-semibold text-[#777]">{S('Take a short test, and we will show you where to start')}</span>
+                                    </span>
+                                </Choice>
+                            </div>
+                        </>
+                    )}
+
                 </div>
             </main>
 
             {error && <p className="mx-auto w-full max-w-[1000px] shrink-0 px-4 pb-2 text-center text-[15px] font-bold sm:px-10" style={{ color: COLORS.red.ink }} role="alert">{error}</p>}
             <footer className="shrink-0 border-t-2 border-[#E5E5E5]">
                 <div className="mx-auto flex max-w-[1000px] items-center gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-10 sm:py-7">
-                    {!answered && <p className="hidden flex-1 text-[15px] font-bold text-[#AFAFAF] sm:block" data-choose-first>Choose an answer to continue.</p>}
+                    {!answered && <p className="hidden flex-1 text-[15px] font-bold text-[#AFAFAF] sm:block" data-choose-first>{S('Choose an answer to continue.')}</p>}
                     <span className={answered ? 'hidden flex-1 sm:block' : 'hidden'} />
                     <Chunky color="green" onClick={next} disabled={!answered || busy} className="flex-1 sm:min-w-[150px] sm:flex-none" data-primary>
-                        {busy ? 'Saving…' : at === 'welcome' ? 'Get started' : last ? 'Start learning' : 'Continue'}
+                        {busy ? S('Saving…') : at === 'welcome' ? 'Get started' : last ? S(toTest ? 'Start the test' : 'Start learning') : 'Continue'}
                     </Chunky>
                 </div>
             </footer>

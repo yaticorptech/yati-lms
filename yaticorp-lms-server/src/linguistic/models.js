@@ -77,7 +77,8 @@ const lessonProgressSchema = new Schema({
 const mistakeSchema = new Schema({
     // What to ask again: the lesson and the question in it (or a daily word).
     lessonId: { type: Schema.Types.ObjectId, ref: 'LinguisticLesson' },
-    section: { type: String, enum: ['practice', 'quiz', 'items', 'vocab', 'spell', 'daily'], required: true },
+    // 'blanks' (2026-11-06): a fill-in-the-blanks question got wrong — it was missing, so saving one failed ("Something went wrong").
+    section: { type: String, enum: ['practice', 'quiz', 'items', 'vocab', 'spell', 'daily', 'blanks', 'hear', 'chat'], required: true },
     qid: { type: String, required: true },
     module: String,
     level: String,
@@ -104,8 +105,8 @@ const progressSchema = new Schema({
     // The treasure chests opened on the path (2026-10-24): "<course>:<unit id>", e.g. "en:beginner-1".
     chests: { type: [String], default: [] },
     // The student's learning plan in each course (2026-10-24, service.js): the days they gave themselves, from when,
-    // and whether the roadmap has every lesson ('full') or the main ones ('main').
-    plans: { type: [{ course: String, days: Number, tier: String, startedAt: Date, _id: false }], default: [] },
+    // and whether the roadmap has every lesson ('full') or the main ones ('main'); `auto`: its days set by itself (2026-11-04).
+    plans: { type: [{ course: String, days: Number, tier: String, startedAt: Date, auto: Boolean, _id: false }], default: [] },
     certificates: { type: [{ level: String, number: String, issuedAt: Date, average: Number, course: String, hiddenAt: { type: Date, default: null }, _id: false }], default: [] },
     lastLessonId: { type: Schema.Types.ObjectId, ref: 'LinguisticLesson', default: null },
     lastActiveAt: { type: Date, default: null },

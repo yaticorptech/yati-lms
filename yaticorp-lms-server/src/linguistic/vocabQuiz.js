@@ -46,6 +46,7 @@ const KINDS = ['meaning', 'blank', 'spell', 'synonym', 'antonym', 'word', 'liste
  * speaker's stay English.
  */
 const ASKS = require('./content/asks/words');
+const { pictureOf } = require('./content/pictures');
 const askedIn = (q, w, sentence) => {
     const a = q && ASKS[w.lang || 'Kannada'];
     if (!a?.[q.kind]) return q;
@@ -93,6 +94,14 @@ const questionInEnglish = (words, i, kind, seed, pool = words) => {
         return { id, type: 'mcq', kind, prompt: 'Listen, and pick what it means', say: w.word, sayLang: w.locale || 'en-IN', audio: w.audio || null, written: w.word,
             options: options(w.kannada, others.map((x) => x.kannada)), answer: w.kannada, explanation: `"${w.word}" means ${w.kannada}.`, word: w.word };
     }
+    // Write the word (2026-11-06, the user's Duolingo picture: "Write “ಬೆಕ್ಕು” in English", in every language): a course's
+    // word in its own letters, or as it sounds in English letters ("neko"); its other forms too.
+    if (kind === 'spell' && w.course) {
+        const [main, ...forms] = String(w.word).split(/\s*[,;/、，،]\s*/).filter(Boolean);
+        const sounds = String(w.say || '').split(/\s*[,;/、，،]\s*/).filter(Boolean);
+        return { id, type: 'spelling', kind, prompt: `Type the ${w.target} word for "${w.kannada}".`, answer: main, accepted: [...new Set([...forms, ...sounds, ...sounds.flatMap((x) => [x.replace(/-/g, ''), x.normalize('NFD').replace(/\p{M}/gu, ''), x.normalize('NFD').replace(/\p{M}/gu, '').replace(/-/g, '')])])],
+            explanation: `${w.kannada} is "${main}"${sounds.length ? ` (${sounds.join(', ')})` : ''}.`, word: w.word, meaning: w.kannada, writeIn: String(w.locale || 'en').split('-')[0], pic: pictureOf(w.en) };
+    }
     if (w.course && kind !== 'meaning') return null;
     if (kind === 'blank') {
         const sentence = blanked(w);
@@ -109,7 +118,7 @@ const questionInEnglish = (words, i, kind, seed, pool = words) => {
     }
     if (kind === 'spell') {
         return { id, type: 'spelling', kind, prompt: w.lang === 'English' ? `Type the word that means "${w.kannada}".` : `Type the English word for "${w.kannada}".`, hint: `${w.word[0]}${'_'.repeat(Math.max(0, w.word.length - 1))} (${w.word.length} letters)`,
-            answer: w.word, explanation: `${w.kannada} is "${w.word}". ${w.example}`, word: w.word };
+            answer: w.word, explanation: `${w.kannada} is "${w.word}". ${w.example}`, word: w.word, meaning: w.kannada, writeIn: 'en', pic: pictureOf(w.word) };
     }
     if (kind === 'synonym' && w.synonyms?.length) {
         return { id, type: 'mcq', kind, prompt: `Which word means the same as "${w.word}"?`, options: options(w.synonyms[0], [...others.map((x) => x.word), ...others.flatMap((x) => x.antonyms || [])]), answer: w.synonyms[0],

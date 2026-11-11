@@ -19,11 +19,12 @@ import { createPortal } from 'react-dom';
 import { X, Heart, Volume2, VolumeX, Check, Flame, RotateCcw, Send, ChevronsRight } from 'lucide-react';
 import { useHideLoop } from '../../components/loopVisibility';
 import { COLORS, chime, soundOn, setSoundOn, langFor } from '../meta';
+import { MoodContext } from './mood';
 import { tr, line } from '../say';
 import { Chunky, Bar, Mascot } from '../ui';
 import { Diff } from './Finish';
-import { startValue, givenOf, answered, isInfo, sheetOf, xpIn } from './logic';
-import { IntroStep, NotesStep, WordsStep, PassageStep, ComicStep, LetterWordsStep, DialogueStep, PairsStep, QuestionStep, TranslateStep, WriteStep, SpeakStep, TalkStep, MissReviewStep, Corrections } from './exercises';
+import { startValue, givenOf, answered, isInfo, sheetOf, xpIn, xpBy } from './logic';
+import { IntroStep, NotesStep, WordsStep, PassageStep, ComicStep, LetterWordsStep, DialogueStep, PairsStep, QuestionStep, TranslateStep, WriteStep, SpeakStep, TalkStep, PracticeReviewStep, Corrections, MoodMascot, SayItStep } from './exercises';
 import '../lingo.css';
 
 /** The session's own full screen, over the app's header and menus. */
@@ -37,7 +38,7 @@ export function SessionFrame({ children, label }) {
     );
 }
 
-const SCREENS = { intro: IntroStep, notes: NotesStep, words: WordsStep, passage: PassageStep, comic: ComicStep, letterWords: LetterWordsStep, dialogue: DialogueStep, pairs: PairsStep, question: QuestionStep, translate: TranslateStep, write: WriteStep, speak: SpeakStep, talk: TalkStep, missReview: MissReviewStep };
+const SCREENS = { intro: IntroStep, notes: NotesStep, words: WordsStep, passage: PassageStep, comic: ComicStep, letterWords: LetterWordsStep, dialogue: DialogueStep, pairs: PairsStep, sayit: SayItStep, question: QuestionStep, translate: TranslateStep, write: WriteStep, speak: SpeakStep, talk: TalkStep, practiceReview: PracticeReviewStep };
 const TONE = { right: COLORS.green, wrong: COLORS.red, info: COLORS.blue };
 
 /** The sheet under a checked answer. `T`: its words in the student's language (say.js). */
@@ -54,7 +55,7 @@ function Sheet({ sheet, onContinue, T }) {
                             <Icon size={24} strokeWidth={3.5} className="shrink-0 sm:hidden" /> {sheet.title}
                         </p>
                         {sheet.answer && <p className="break-words text-[17px] font-bold" style={{ color: c.ink }} lang={langFor(sheet.answer)} dir="auto" translate="no" data-sheet-answer>{sheet.answer}</p>}
-                        {sheet.diff?.length > 0 && <Diff diff={sheet.diff} />}
+                        {sheet.diff?.length > 0 && <Diff diff={sheet.diff} T={T} />}
                         {sheet.text && <p className="text-[15px] font-semibold" style={{ color: c.ink }}>{sheet.text}</p>}
                         {sheet.tips?.length > 0 && <ul className="space-y-0.5">{sheet.tips.map((t) => <li key={t} className="text-[15px] font-semibold text-[#4b4b4b]">• {t}</li>)}</ul>}
                         {sheet.good?.length > 0 && <ul className="space-y-0.5">{sheet.good.map((t) => <li key={t} className="text-[15px] font-semibold" style={{ color: COLORS.green.ink }}>✓ {t}</li>)}</ul>}
@@ -156,9 +157,11 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
     // An answer got wrong (2026-10-27): the right one in green below it, while the student tries again.
     const [retry, setRetry] = useState(null);         // { answer, why }
     const [popup, setPopup] = useState(false);        // the grammar corrections' popup open
+    // How the last answer went, for the character to show (2026-11-06): 'right' (thumbs up, a moment, then on) | 'wrong' (sad).
+    const [mood, setMood] = useState(null);
     const repeats = useRef(0);
     const answers = useRef({});
-    const tally = useRef({ right: 0, wrong: 0, xp: 0, praise: 0 });
+    const tally = useRef({ right: 0, wrong: 0, xp: 0, xpBy: {}, praise: 0 });
     const started = useRef(0);
     const primaryRef = useRef(() => {});
     useEffect(() => { started.current = Date.now(); }, []);
@@ -169,58 +172,76 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
 
     const finish = (outOfHearts) => {
         setEnding({ outOfHearts }); setBusy(true); setError(null);
-        Promise.resolve(onComplete({ answers: { ...answers.current }, right: tally.current.right, wrong: tally.current.wrong, xp: tally.current.xp, outOfHearts, ms: Date.now() - started.current }))
+        Promise.resolve(onComplete({ answers: { ...answers.current }, right: tally.current.right, wrong: tally.current.wrong, xp: tally.current.xp, xpBy: { ...tally.current.xpBy }, outOfHearts, ms: Date.now() - started.current, practice: [...practiced.current] }))
             .catch((e) => { setError(e); setBusy(false); });
     };
 
-    // The practice questions got wrong (2026-11-04): each once, with the first answer given, shown before the quiz.
-    const misses = useRef([]);
+    // Every answer given before the quiz, right or wrong (2026-11-04, the user: "before Quiz time! show the review of
+    // the answers"): each practice question's first answer, and each matching round's words with any wrong picks. Shown
+    // on a review screen just before the quiz, and again on the result screen's Review answers.
+    const practiced = useRef([]);
     const reviewed = useRef(false);
-    const noteMiss = (st, given, r) => {
-        const key = String(st.key).replace(/(~\d+|-again)+$/, ''), answer = r.answer || r.model;
-        if (st.part !== 'practice' || !answer || misses.current.some((m) => m.key === key)) return;
-        const prompt = st.kind === 'translate' ? st.item?.source : [st.q?.prompt, st.q?.kannada].filter(Boolean).join(': ');
-        misses.current.push({ key, prompt: prompt || '', given: Array.isArray(given) ? given.join(' ') : String(given ?? ''), answer, why: r.explanation || '' });
+    const promptOf = (st) => (st.kind === 'translate' ? st.item?.source : [st.q?.prompt, st.q?.kannada].filter(Boolean).join(': ')) || '';
+    const shown = (given) => (Array.isArray(given) ? given.join(' ') : String(given ?? ''));
+    const notePractice = (st, given, r) => {
+        if (st.part !== 'practice' || st.repeat || st.again || !['question', 'translate'].includes(st.kind) || typeof r.correct !== 'boolean') return;
+        const key = String(st.key);
+        if (practiced.current.some((x) => x.id === key)) return;
+        practiced.current.push({ id: key, prompt: promptOf(st), given: shown(given), correct: r.correct, answer: r.answer || r.model || '', explanation: r.explanation || '', ...(r.verdict ? { verdict: r.verdict, diff: r.diff } : {}) });
+    };
+    const notePairs = (st, rows) => {
+        if (st.part !== 'practice' || !rows?.length || practiced.current.some((x) => x.id === String(st.key))) return;
+        practiced.current.push({ id: String(st.key), kind: 'pairs', rows, correct: rows.every((r) => !r.chosen.length) });
     };
 
     const goTo = (i) => {
         const next = queue[i];
-        // Into the quiz with practice questions got wrong: their review first (shown once).
-        if (next.part === 'quiz' && step.part !== 'quiz' && misses.current.length && !reviewed.current) {
+        // Into the quiz with answers given before it: their review first (shown once).
+        if (next.part === 'quiz' && step.part !== 'quiz' && practiced.current.length && !reviewed.current) {
             reviewed.current = true;
-            const review = { part: 'practice', kind: 'missReview', key: 'miss-review', misses: [...misses.current], language: queue.find((x) => x.language)?.language };
+            const review = { part: 'practice', kind: 'practiceReview', key: 'practice-review', items: [...practiced.current], language: queue.find((x) => x.language)?.language };
             setQueue((q) => [...q.slice(0, i), review, ...q.slice(i)]);
-            setIndex(i); setValue(startValue(review)); setSheet(null); setResult(null); setError(null); setRetry(null); setPopup(false);
+            setIndex(i); setValue(startValue(review)); setSheet(null); setResult(null); setError(null); setRetry(null); setPopup(false); setMood(null);
             return;
         }
         if (next.part !== step.part) onEnterPart?.(next.part);
-        setIndex(i); setValue(startValue(next)); setSheet(null); setResult(null); setError(null); setRetry(null); setPopup(false);
+        setIndex(i); setValue(startValue(next)); setSheet(null); setResult(null); setError(null); setRetry(null); setPopup(false); setMood(null);
     };
+    // Out of hearts, every question of the quiz is still asked, then the result (2026-11-05, "ask the second question
+    // also, then go to the review"); it says the hearts ran out. (Before, the quiz ended at the last heart.)
     const advance = () => {
-        if (hearts === 0) return finish(true);
-        if (index >= lastIndex) return finish(false);
+        if (index >= lastIndex) return finish(hearts === 0);
         return goTo(index + 1);
     };
 
+    // Right: the chime, the character's thumbs up for a moment, then on by itself (2026-11-06, the user: "right — thumbs
+    // up"; still straight on, no Continue — 2026-10-27). Wrong: the character sad. Only its face — no voice (the user, same
+    // day: "don't give that sound, only the expression").
+    const RIGHT_MS = 650;
+    const cheer = (then) => { chime('right'); setMood('right'); setTimeout(then, RIGHT_MS); };
+    const sigh = () => { chime('wrong'); setMood('wrong'); };
     const judged = (r, given) => {
         tally.current.xp += xpIn(r.events);
+        xpBy(r.events, tally.current.xpBy);
+        notePractice(step, given, r);
         // Grammar corrections: in the popup (2026-10-27).
         if (r.sentences?.length) setPopup(true);
         // Any question got wrong (asked 2026-10-27, for every question): no sheet — the student's answer
         // stays, the right one in green below it, and Continue; then the same question again, on its own
         // screen, until it is answered right; only then the next question. The first answer is the one that
         // counts (the answers sent, the tally, a heart).
-        if (step.repeat && r.correct) { chime('right'); advance(); return; }
+        if (step.repeat && r.correct) { cheer(advance); return; }
         if (r.correct === false && (r.answer || r.model)) {
             if (!step.repeat) {
-                noteMiss(step, given, r);
                 if (step.collect) answers.current[step.collect] = given;
                 setCombo(0); tally.current.wrong += 1;
                 if (step.part === 'quiz' && hearts !== null) setHearts((h) => Math.max(0, h - 1));
             }
             // The student's answer marked red where it stands (the screens' wrong tone), the right one green below.
-            setResult(r); setRetry({ answer: r.answer || r.model, why: r.explanation || '', say: r.answerSay || null });
-            chime('wrong');
+            // A passage far off the model (2026-11-05): asked again until it is right, the student's own text kept to put right.
+            const passage = step.kind === 'translate' && step.item?.open && typeof value === 'string';
+            setResult(r); setRetry({ answer: r.answer || r.model, why: r.explanation || '', say: r.answerSay || null, keep: passage ? value : null });
+            sigh();
             return;
         }
         const s = sheetOf(step, r, tally.current.praise);
@@ -228,11 +249,13 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
         // Right (2026-10-27, "go directly to the next question"): the chime, and straight on — no green
         // sheet. Kept: grammar corrections (their popup) and an answer right but for small differences (shown).
         if (s.tone === 'right' && !r.sentences?.length && !s.diff?.length) {
-            chime('right'); setCombo((c) => c + 1); tally.current.right += 1; tally.current.praise += 1;
-            advance();
+            setCombo((c) => c + 1); tally.current.right += 1; tally.current.praise += 1;
+            cheer(advance);
             return;
         }
-        setResult(r); setSheet(s);
+        // A passage translated (2026-11-05, "below the answer box, as the other questions"): its model under the box and
+        // CONTINUE there too, not in a sheet at the foot.
+        setResult(r); setSheet(step.kind === 'translate' && r.verdict === 'review' ? { ...s, inline: true } : s);
         // A piece of writing or a passage with mistakes, or a talk not passed (2026-10-27, "everywhere the same
         // rule"): its corrections and Continue, then the same task again — the student's own text kept to put
         // right — until there is nothing left to correct.
@@ -241,8 +264,7 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
             setRetry({ answer: null, keep: open && typeof value === 'string' ? value : null });
         }
         if (s.tone === 'wrong') {
-            if (!step.repeat) noteMiss(step, given, r);
-            chime('wrong'); setCombo(0); tally.current.wrong += 1;
+            sigh(); setCombo(0); tally.current.wrong += 1;
             if (step.part === 'quiz' && hearts !== null) setHearts((h) => Math.max(0, h - 1));
             // A practice question got wrong comes back once, before the quiz.
             if (step.part === 'practice' && step.retry && !step.again) {
@@ -254,7 +276,7 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
             }
         } else {
             chime('right');
-            if (s.tone === 'right') { setCombo((c) => c + 1); tally.current.right += 1; tally.current.praise += 1; }
+            if (s.tone === 'right') { setMood('right'); setCombo((c) => c + 1); tally.current.right += 1; tally.current.praise += 1; }
         }
     };
 
@@ -263,22 +285,33 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
         repeats.current += 1;
         const again = { ...step, key: `${step.key}~${repeats.current}`, again: true, repeat: true };
         setQueue((q) => [...q.slice(0, index + 1), again, ...q.slice(index + 1)]);
-        setIndex(index + 1); setValue(retry?.keep ?? startValue(again)); setSheet(null); setResult(null); setError(null); setRetry(null); setPopup(false);
+        setIndex(index + 1); setValue(retry?.keep ?? startValue(again)); setSheet(null); setResult(null); setError(null); setRetry(null); setPopup(false); setMood(null);
     };
 
     const primary = () => {
         if (quitting) return;
         if (ending) { if (!busy) finish(ending.outOfHearts); return; }
-        if (busy) return;
+        if (busy || (mood === 'right' && !sheet)) return;
         if (retry) { askAgain(); return; }
         if (sheet || isInfo(step)) { advance(); return; }
-        if (step.kind === 'pairs' || !answered(step, value)) return;
+        if (step.kind === 'pairs' || step.kind === 'sayit' || !answered(step, value)) return;
         const given = givenOf(step, value);
         if (mode === 'end') { if (step.collect) answers.current[step.collect] = given; advance(); return; }
         setBusy(true); setError(null);
         Promise.resolve(check(step, given, value)).then((r) => judged(r, given)).catch(setError).finally(() => setBusy(false));
     };
     useEffect(() => { primaryRef.current = primary; });
+
+    // A wrong answer with one right answer (2026-11-05, "don't make them press Continue"): the right answer stays for
+    // 3 seconds — longer for a long one or a "Why" (6 at most) — a bar running out in place of CONTINUE, then the same
+    // question again by itself (the 27 Oct rule). Paused while the quit question is open.
+    const autoNext = retry?.answer && !ending && !result?.sentences?.length
+        ? Math.min(6000, 3000 + Math.max(0, String(retry.answer).length + String(retry.why || '').length - 40) * 25) : 0;
+    useEffect(() => {
+        if (!autoNext || quitting) return undefined;
+        const id = setTimeout(() => primaryRef.current(), autoNext);
+        return () => clearTimeout(id);
+    }, [autoNext, quitting, index]);
 
     // Enter checks and continues (but makes a new line in long writing, and still presses the app's other buttons).
     useEffect(() => {
@@ -303,21 +336,25 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
     const ready = info || !!retry || (step.kind !== 'pairs' && answered(step, value));
     // The screen's own words in the student's language (say.js): Kannada for a Kannada speaker.
     const T = tr(step.language);
-    const label2 = T(info || retry ? 'Continue' : mode === 'end' ? (index === lastIndex ? 'Finish' : 'Continue')
+    const label2 = T(info || retry || sheet ? 'Continue' : mode === 'end' ? (index === lastIndex ? 'Finish' : 'Continue')
         : step.kind === 'speak' ? 'Save' : step.kind === 'write' && !['jumbled', 'sentence'].includes(step.task.type) ? 'Submit' : 'Check');
     // CHECK right under what is on the screen, not in the bar at its foot (2026-11-03 for the matching pairs; 2026-11-04,
     // "wherever the check button is", every language) — and the CONTINUE it turns into once checked, in the same place.
     // Save, Submit, Continue on a screen to read, Finish and Try again stay in the bar (the user: only CHECK).
     const checks = !info && mode !== 'end' && step.kind !== 'speak' && !(step.kind === 'write' && !['jumbled', 'sentence'].includes(step.task.type));
-    const inline = checks && !ending && !sheet && !grammar;
-    const button = (className) => (
+    const inline = checks && !ending && (!sheet || sheet.inline) && !grammar;
+    const button = (className) => (autoNext ? (
+        <div className={`${className} h-3 overflow-hidden rounded-full bg-[#E5E5E5]`} role="progressbar" aria-label={`The question again in ${Math.round(autoNext / 1000)} seconds`} data-auto-next={autoNext}>
+            <div key={`${index}-${quitting}`} className="h-full rounded-full" style={{ background: COLORS.green.face, animation: `lingo-run-out ${autoNext}ms linear forwards` }} />
+        </div>
+    ) : (
         <Chunky color="green" onClick={() => primaryRef.current()} disabled={ending ? busy : (!ready || busy)} className={className} data-primary>
             {ending ? T(busy ? 'Saving…' : 'Try again') : busy ? T('Checking…') : label2}
         </Chunky>
-    );
+    ));
 
     return (
-        <>
+        <MoodContext.Provider value={mood}>
             <header className="mx-auto flex w-full max-w-[1000px] shrink-0 items-center gap-3 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))] sm:gap-4 sm:px-10 sm:pt-8">
                 <button type="button" onClick={() => setQuitting(true)} aria-label="Quit" className="-ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#AFAFAF] hover:bg-[#F7F7F7]"><X size={26} strokeWidth={3} /></button>
                 <Bar value={progress} className="h-4 flex-1" label={`${label}: progress`} />
@@ -339,8 +376,8 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
                         {combo >= 3 && !step.again && <span key={combo} className="lingo-pop rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider" style={{ background: COLORS.orange.light, color: COLORS.orange.ink }} data-combo={combo}><Flame size={13} className="mr-1 inline" />{line(step.language, 'inARow', combo)}</span>}
                     </div>
                     {/* The lesson itself stays as written, whatever the app's language. */}
-                    <div translate="no"><Screen key={step.key} step={step} value={value} onChange={setValue} locked={!!sheet || busy || !!ending || !!retry} result={result} correction={retry && Array.isArray(value) ? retry.answer : null}
-                        done={!!sheet} onDone={() => { tally.current.praise += 1; setCombo((c) => c + 1); chime('right'); setTimeout(advance, 450); }} />
+                    <div translate="no"><Screen key={step.key} step={step} value={value} onChange={setValue} locked={!!sheet || busy || !!ending || !!retry || mood === 'right'} result={result} correction={retry && Array.isArray(value) ? retry.answer : null}
+                        done={!!sheet} onDone={(rows) => { notePairs(step, rows); tally.current.praise += 1; setCombo((c) => c + 1); setMood('right'); chime('right'); setTimeout(advance, 450); }} />
                         {/* A wrong answer (2026-10-27): the right one in green, under the student's (in the answer box itself for word tiles). */}
                         {retry?.answer && !Array.isArray(value) && !grammar && (
                             <div className="lingo-in mt-5 rounded-2xl px-4 py-3" style={{ background: COLORS.green.light }} data-correction-box>
@@ -350,8 +387,17 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
                                 {retry.why && <p className="mt-1 text-sm font-semibold" style={{ color: COLORS.green.ink }} data-correction-why>{T('Why: ')}{retry.why}</p>}
                             </div>
                         )}
+                        {/* A passage (2026-11-05): its model translation under the student's, in green as the others' answers. */}
+                        {sheet?.inline && sheet.model && (
+                            <div className="lingo-in mt-5 rounded-2xl px-4 py-3" style={{ background: COLORS.green.light }} data-model-box>
+                                {sheet.text && <p className="mb-1.5 text-sm font-semibold" style={{ color: COLORS.green.ink }} data-model-note>{sheet.text}</p>}
+                                <p className="text-xs font-extrabold uppercase tracking-wider" style={{ color: COLORS.green.ink }}>{sheet.modelLabel || T('Model translation')}</p>
+                                <p className="mt-0.5 whitespace-pre-line break-words text-[17px] font-extrabold" style={{ color: COLORS.green.ink }} lang={langFor(sheet.model)} dir="auto" data-model>{sheet.model}</p>
+                            </div>
+                        )}
                     </div>
-                    {inline && <div className="mt-6" data-inline-primary>{button('w-full')}</div>}
+                    {/* Say this sentence: its own big button is the one to press (2026-11-06), none under it. */}
+                    {inline && step.kind !== 'sayit' && <div className="mt-6" data-inline-primary>{button('w-full')}</div>}
                 </div>
             </main>
 
@@ -386,6 +432,13 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
                     said={step.kind === 'talk' ? 'You said' : 'You wrote'} onContinue={() => primaryRef.current()} onClose={() => setPopup(false)} T={T} />
             )}
             {quitting && <QuitDialog onStay={() => setQuitting(false)} onQuit={onQuit} T={T} />}
-        </>
+            {/* The character for a screen with none of its own (2026-11-06): in the corner, thumbs up or sad, as the answer went
+                (hidden where the screen has its own: the class, in the app's main styles). */}
+            {mood && !ending && (
+                <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 z-[95] sm:left-8 [[data-lingo-session]:has([data-answer-area]_[data-mood-mascot])_&]:hidden" data-float-mascot data-mood={mood} aria-hidden="true">
+                    <MoodMascot pose={mood === 'right' ? 'thumbs-up' : 'sad'} className="h-20 w-20 drop-shadow-lg sm:h-28 sm:w-28" />
+                </div>
+            )}
+        </MoodContext.Provider>
     );
 }

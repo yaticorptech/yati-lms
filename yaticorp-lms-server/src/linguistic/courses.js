@@ -48,7 +48,8 @@ const wordIn = (code, baseKey, w) => (code === 'en' ? w.word : code === 'kn' ? w
  */
 const itemIn = (code, base, it) => {
     const p = code === 'en' || code === 'kn' ? null : packOf(code)?.items?.[base.seedKey]?.[it.id];
-    if (base.direction === 'en-kn') {
+    // A question may go the other way from its lesson (its own `direction`, 2026-11-04).
+    if ((it.direction || base.direction) === 'en-kn') {
         if (code === 'en') return { text: it.source, accepted: [], explanation: it.explanation };
         if (code === 'kn') return { text: it.model, accepted: it.accepted || [], explanation: it.explanation };
         return p ? { text: p.model, accepted: p.accepted || [], tiles: p.tiles, explanation: p.explanation } : null;
@@ -99,12 +100,15 @@ const build = (stub, helper) => {
         return out;
     }
     // Translation: write the language learnt (from the student's own), or read it.
-    const write = stub.direction === 'kn-en';
+    const lessonWrite = stub.direction === 'kn-en';
     const make = (it) => {
+        // Its own way where it has one (2026-11-04: a sentence to read in a lesson to write), else its lesson's.
+        const write = it.direction ? it.direction === 'en-kn' : lessonWrite;
         const from = itemIn(write ? Y.code : X.code, base, it), to = itemIn(write ? X.code : Y.code, base, it);
         if (!from || !to) return null;
         return {
             id: it.id, kind: it.kind, topic: it.topic, open: !!it.open, source: from.text, model: to.text, accepted: to.accepted || [],
+            ...(write !== lessonWrite ? { direction: write ? 'kn-en' : 'en-kn' } : {}),
             ...(to.tiles ? { tiles: to.tiles } : {}),
             // Japanese or Chinese with no tiles cut for it: one tile would be the whole answer, so it is typed.
             ...(!to.tiles && NO_SPACES.includes(write ? X.code : Y.code) ? { typed: true } : {}),
@@ -115,7 +119,7 @@ const build = (stub, helper) => {
     };
     out.items = (base.items || []).map(make).filter(Boolean);
     out.quiz = (base.quiz || []).map(make).filter(Boolean);
-    const N = NOTES[Y.code];
+    const N = NOTES[Y.code], write = lessonWrite;
     out.learn = N ? { intro: write ? N.write : N.read, points: [N.tiles, N.close] } : write
         ? { intro: `Read each sentence in ${Y.name} and write it in ${X.name}.`, points: [`Tap the word tiles in order, or switch to the keyboard and type in ${X.name}.`, `No ${X.name} keyboard? Use the ${X.name} letters under the answer box.`, 'A close answer counts: you will see the model and the small differences.'] }
         : { intro: `Read each sentence in ${X.name} and write what it means in ${Y.name}.`, points: ['Read the whole sentence first, then the words you know.', `Tap the word tiles in order, or type in ${Y.name}.`, 'A close answer counts: you will see the model and the small differences.'] };
