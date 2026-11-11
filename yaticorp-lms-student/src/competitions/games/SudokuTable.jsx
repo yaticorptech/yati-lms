@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Lightbulb, Timer, X, CheckCircle2, Pencil } from 'lucide-react';
+import { Lightbulb, X, CheckCircle2, Pencil } from 'lucide-react';
 import usePhaseClock from './usePhaseClock';
 
 /**
@@ -9,7 +9,6 @@ import usePhaseClock from './usePhaseClock';
  * and counts a mistake if not. Notes (small pencil marks) stay in this
  * browser. The others' boards are never sent — only how far along they are.
  */
-const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 export default function SudokuTable({ view, onAction, busy }) {
     // The dark room (2026-11-02): the page sets view.dark; the 9×9 board itself stays a white board.
@@ -18,7 +17,7 @@ export default function SudokuTable({ view, onAction, busy }) {
     const [notes, setNotes] = useState({});
     const [noting, setNoting] = useState(false);
     // The game's clock, on the server's time (the shared phase clock, the whole game one phase).
-    const { left } = usePhaseClock({ status: view.status, phaseEndsAt: view.endsAt, phaseStartedAt: view.startedAt, serverNow: view.serverNow });
+    const { left, share } = usePhaseClock({ status: view.status, phaseEndsAt: view.endsAt, phaseStartedAt: view.startedAt, serverNow: view.serverNow });
 
     const board = view.board || view.puzzle;
     const over = view.status !== 'active';
@@ -57,7 +56,7 @@ export default function SudokuTable({ view, onAction, busy }) {
             <section className={dark ? 'rounded-3xl border border-[#4b46b8]/50 bg-[#10142f]/90 p-3 shadow-[0_24px_60px_-20px_rgba(0,0,0,.85),0_0_40px_rgba(99,102,241,.12)] sm:p-4' : 'rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4'}>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span />
-                    {!over && <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-black tabular-nums ${left < 60000 ? (dark ? 'bg-rose-500/15 text-rose-300' : 'bg-rose-50 text-rose-700') : dark ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-700'}`} data-timer><Timer size={14} aria-hidden="true" /> {fmt(left)}</span>}
+                    {!over && <span className={`h-2 w-40 overflow-hidden rounded-full sm:w-56 ${dark ? 'bg-white/10' : 'bg-slate-100'}`} aria-hidden="true" data-time-bar><span className={`block h-full rounded-full transition-[width] duration-100 ease-linear ${left < 60000 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${share * 100}%` }} /></span>}
                     {me && <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-bold ${me.mistakes ? (dark ? 'bg-rose-500/15 text-rose-300' : 'bg-rose-50 text-rose-700') : dark ? 'bg-white/10 text-white/80' : 'bg-slate-100 text-slate-600'}`} data-mistakes={me.mistakes}><X size={14} aria-hidden="true" /> Mistakes {me.mistakes}/{view.maxMistakes}</span>}
                 </div>
                 <div className="mx-auto grid aspect-square w-full max-w-[30rem] grid-cols-9 overflow-hidden rounded-xl border-2 border-slate-800" role="grid" aria-label="Sudoku">

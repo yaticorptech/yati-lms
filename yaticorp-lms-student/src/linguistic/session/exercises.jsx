@@ -16,6 +16,7 @@ import { ticksOf, needOf, canTranscribe } from '../parts/speakTicks';
 import { KeysPopup } from '../parts/LetterKeys';
 import { hasLetters } from '../parts/letters';
 import Comic from '../parts/Comic';
+import StoryFilm, { FilmScript } from '../parts/StoryFilm';
 
 /* ── Shared pieces ────────────────────────────────────────────────────── */
 
@@ -307,7 +308,16 @@ export function MissReviewStep({ step }) {
 }
 
 /** A picture story (2026-10-31, the server's comics.js): its comic page, read before its questions. */
-export function ComicStep({ step }) {
+export function ComicStep({ step, onFinish, sound }) {
+    // A story told as a film (story 2 since 2026-11-07): its player, then on to the questions by itself.
+    if (step.comic?.film) {
+        return (
+            <div className="lingo-in space-y-3">
+                <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.purple.ink }}>Story film</p>
+                <StoryFilm film={step.comic} onFinish={onFinish} sound={sound} />
+            </div>
+        );
+    }
     return (
         <div className="lingo-in space-y-3">
             <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.purple.ink }}>Picture story</p>
@@ -434,7 +444,7 @@ function ContextPeek({ context, T = (x) => x }) {
             </button>
             {open && (
                 <div className="border-t-2 border-[#E5E5E5] p-4">
-                    {context.comic ? <Comic comic={context.comic} /> : context.passage
+                    {context.comic?.film ? <FilmScript film={context.comic} /> : context.comic ? <Comic comic={context.comic} /> : context.passage
                         ? <div className="space-y-2 text-[15px] font-semibold leading-7 text-[#4b4b4b]">{String(context.passage.text).split(/\n+/).map((x, i) => <p key={i}>{x}</p>)}</div>
                         : <Dialogue dialogue={context.dialogue} compact />}
                 </div>

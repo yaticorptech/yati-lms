@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Delete, Zap } from 'lucide-react';
 import RoundFrame from './RoundTable';
+import useWrongBuzz from './useWrongBuzz';
 
 /**
  * Sequence & Reaction (Group Brain).
@@ -46,6 +47,9 @@ export default function SequenceTable({ view, onAction, busy }) {
     const mine = view.you != null ? view.answers[view.you] : null;
     const sending = useRef(false);
     const [flash, setFlash] = useState(null);       // the place just tapped, lit for a moment
+    // A wrong answer buzzes (2026-11-06): a false start at once (it is told to this player straight away), a
+    // sequence with a slip at the reveal, its wrong places red and the right sequence green.
+    useWrongBuzz(view.status === 'active' && mine && (mine.falseStart || (view.phase === 'reveal' && view.results?.[view.you]?.correct === false)) ? view.number : null);
 
     const tap = (i) => {
         if (!view.canAnswer || busy || sending.current || mine) return;
@@ -99,7 +103,7 @@ export default function SequenceTable({ view, onAction, busy }) {
                                 const v = shown[k];
                                 const right = view.phase === 'reveal' && r.sequence ? r.sequence[k] === v : null;
                                 return (
-                                    <span key={k} className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-white text-slate-900 ring-2 ${right === true ? 'ring-emerald-500' : right === false ? 'ring-rose-500' : 'ring-slate-200'}`}>
+                                    <span key={k} className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl text-slate-900 ring-2 ${right === true ? 'bg-white ring-emerald-500' : right === false ? 'bg-rose-100 ring-rose-500 gs-wrong' : 'bg-white ring-slate-200'}`}>
                                         {v != null ? <Item set={r.set} value={r.items[v]} /> : <span className="text-slate-300">{k + 1}</span>}
                                     </span>
                                 );
@@ -108,7 +112,7 @@ export default function SequenceTable({ view, onAction, busy }) {
                         {view.phase === 'reveal' && r.sequence && (
                             <div className="flex flex-wrap items-center justify-center gap-2" aria-label="The sequence">
                                 <span className={`text-xs font-bold uppercase tracking-wide ${view.dark ? 'text-[#a5a9da]' : 'text-slate-500'}`}>It was</span>
-                                {r.sequence.map((v, k) => <span key={k} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-white text-slate-900 ring-1 ring-slate-200"><Item set={r.set} value={r.items[v]} /></span>)}
+                                {r.sequence.map((v, k) => <span key={k} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-emerald-50 text-slate-900 ring-2 ring-emerald-500"><Item set={r.set} value={r.items[v]} /></span>)}
                             </div>
                         )}
                         {view.phase === 'answer' && !mine && view.you != null && (

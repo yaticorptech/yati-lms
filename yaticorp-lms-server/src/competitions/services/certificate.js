@@ -1,7 +1,7 @@
 /**
  * A competition certificate, drawn as a PDF: "Winner — 1st Place" for the
  * placed teams' players, "Certificate of Participation" for everyone else who
- * played for an approved team.
+ * played for an approved team — who actually played, not just listed (`eligibleFor`).
  */
 const PDFDocument = require('pdfkit');
 
@@ -15,6 +15,14 @@ const TITLE = { 1: 'Winner', 2: 'Runner-up', 3: 'Third Place' };
  * participation certificates.
  */
 const eligible = (competition, team) => (team?.place ? competition.certificates !== false : competition.participationCertificates !== false);
+
+/**
+ * Whether this player of an approved team actually took part (2026-11-06): only they get a certificate, winners' or
+ * participation — a player listed on the team who never played gets none (certificates/participation.js says who
+ * played). `eligible` is about the competition's switches; a player's certificate needs both.
+ */
+const tookPart = async (competition, userId) => (await require('../certificates/participation').tookPartIn(competition)).has(String(userId));
+const eligibleFor = async (competition, team, userId) => eligible(competition, team) && tookPart(competition, userId);
 
 /*
  * The winners' certificate: the account owner's design (2026-10-10), the red
@@ -44,7 +52,7 @@ const winnerWords = ({ competition, team, place, paragraph }) => ({
     lead: LEAD[place],
     // `paragraph` (a contest played alone) replaces it. A student on their own has no team to name; a quiz or a hackathon has no matches.
     paragraph: paragraph || `This certificate is awarded in recognition of your outstanding performance${team.soloUserId ? '' : ` with ${team.teamName} (${team.collegeName})`} in ${GAME[competition.game] || competition.game}. Your achievement reflects your skill, ${team.soloUserId ? 'dedication' : 'team spirit'} and ${['quiz', 'hackathon'].includes(competition.game) ? 'hard work' : 'sportsmanship'}, and the effort you brought to ${{ quiz: 'every question', hackathon: 'your project' }[competition.game] || 'every match'}.`,
-    date: (competition.completedAt ? new Date(competition.completedAt) : new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    date: (competition.completedAt ? new Date(competition.completedAt) : new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' })
 });
 
 /** The largest size, down to `min`, at which `text` fits `width` points. */
@@ -132,7 +140,8 @@ const draw = (res, { competition, team, playerName, place, paragraph, line: ownL
     doc.fillColor(ink).font('Helvetica-Bold').fontSize(16)
         .text(`${competition.name} — ${GAME[competition.game] || competition.game}`, 80, winner ? 338 : 298, { width: W - 160, align: 'center' });
 
-    const when = (competition.completedAt || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+    // In India's time, as the other certificates (a competition finished after midnight IST is that day's, on a UTC server too).
+    const when = new Date(competition.completedAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
     doc.fillColor('#64748b').font('Helvetica').fontSize(11)
         .text(`Organized by ${competition.organizedBy || 'YATICORP'}  ·  ${when}`, 0, H - 120, { width: W, align: 'center' });
     doc.strokeColor('#cbd5e1').lineWidth(1).moveTo(W / 2 - 110, H - 86).lineTo(W / 2 + 110, H - 86).stroke();
@@ -140,4 +149,4 @@ const draw = (res, { competition, team, playerName, place, paragraph, line: ownL
     doc.end();
 };
 
-module.exports = { draw, eligible, winnerWords, TITLE, GAME };
+module.exports = { draw, eligible, eligibleFor, tookPart, winnerWords, TITLE, GAME };

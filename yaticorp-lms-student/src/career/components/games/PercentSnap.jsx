@@ -3,6 +3,8 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useFresh from './useFresh';
+import useAnswerReveal from './useAnswerReveal';
 
 const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -31,7 +33,8 @@ const makeQuestion = (percents, maxStep) => {
 const configFor = (difficulty, levelNo) => ({
   // Every percent divides 100, so the answer is always a whole number.
   percents: difficulty === 1 ? [50, 25, 10] : difficulty === 2 ? [50, 25, 20, 10, 5] : [50, 25, 20, 10, 5, 4, 2],
-  maxStep: between(4, 12, levelNo),
+  // Wide enough that a level never runs short of new questions.
+  maxStep: between(12, 24, levelNo),
   seconds: between(60, 45, levelNo),
   target: between(6, 15, levelNo) + (difficulty - 1) * 2
 });
@@ -50,10 +53,12 @@ export default function PercentSnap({ onExit }) {
 
 function Round({ progress, onExit }) {
   const config = configFor(progress.difficulty, progress.levelNo);
-  const [question, setQuestion] = useState(() => makeQuestion(config.percents, config.maxStep));
+  const fresh = useFresh();
+  const [question, setQuestion] = useState(() => fresh(() => makeQuestion(config.percents, config.maxStep)));
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
   const [started, setStarted] = useState(false);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -61,15 +66,17 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const answer = (value) => {
-    if (over) return;
+    if (over || busy) return;
+    const next = () => setQuestion(fresh(() => makeQuestion(config.percents, config.maxStep)));
     if (value === question.answer) {
       setScore((s) => s + 1);
       setFlash('right');
+      next();
+      setTimeout(() => setFlash(null), 250);
     } else {
-      setFlash('wrong');
+      // The buzz, the pick red and the right answer green, then the next one.
+      showWrong(value, question.answer, next);
     }
-    setQuestion(makeQuestion(config.percents, config.maxStep));
-    setTimeout(() => setFlash(null), 250);
   };
 
   return (
@@ -124,7 +131,8 @@ function Round({ progress, onExit }) {
                 key={option}
                 type="button"
                 onClick={() => answer(option)}
-                className="fp-press min-h-14 rounded-2xl bg-surface-50 text-xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset hover:bg-emerald-50 hover:ring-emerald-300 tabular-nums"
+                disabled={busy}
+                className={`fp-press min-h-14 rounded-2xl bg-surface-50 text-xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset tabular-nums ${busy ? '' : 'hover:bg-emerald-50 hover:ring-emerald-300'} ${toneOf(option)}`}
               >
                 {option}
               </button>

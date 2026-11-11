@@ -37,7 +37,7 @@ const CompetitionsOverview = React.lazy(() => import('./competitions/hub/Overvie
 const hubPage = (name) => React.lazy(() => import('./competitions/hub/pages').then((m) => ({ default: m[name] })));
 const HUB = {
   game: hubPage('GameDetailPage'), completed: hubPage('CompletedPage'),
-  live: hubPage('LivePage'), open: hubPage('OpenPage'), upcoming: hubPage('UpcomingPage'),
+  open: hubPage('OpenPage'), upcoming: hubPage('UpcomingPage'),
   teams: hubPage('TeamsPage'), leaderboard: hubPage('LeaderboardPage'), results: hubPage('ResultsPage')
 };
 // Extra Curricular: NCC, NSS, Scouts & Guides and the organization's clubs.
@@ -429,8 +429,10 @@ function App() {
         {/* A Group Brain room — its lobby, game and result — is part of Games, not Competitions. */}
         <Route path="games/play/:gameId" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense></EnglishOnly>} />
         <Route path="competitions" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CompetitionsOverview /></React.Suspense></EnglishOnly>} />
-        <Route path="competitions/live" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.live /></React.Suspense></EnglishOnly>} />
+        {/* "Live now" left the tabs (2026-11-07): live competitions are on the Competitions page's Live & Upcoming. */}
+        <Route path="competitions/live" element={<Navigate to="/competitions" replace />} />
         <Route path="competitions/open" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.open /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/registered" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.upcoming /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/upcoming" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.upcoming /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/completed" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.completed /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/games/:game" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.game /></React.Suspense></EnglishOnly>} />

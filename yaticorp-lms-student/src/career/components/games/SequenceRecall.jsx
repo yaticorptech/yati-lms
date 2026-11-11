@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
 
 const PADS = [
   { id: 0, on: 'bg-rose-400', off: 'bg-rose-500/30' },
@@ -38,6 +39,7 @@ function Round({ progress, onExit }) {
   const [dead, setDead] = useState(false);
   const [won, setWon] = useState(false);
   const timers = useRef([]);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
 
   const pace = Math.max(220, config.pace);
 
@@ -93,10 +95,11 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, finishedRound, stars);
 
   const press = (pad) => {
-    if (showing || finishedRound) return;
+    if (showing || finishedRound || busy) return;
 
     if (order[step] !== pad) {
-      setDead(true);
+      // The buzz, the pad pressed red and the one that was next green, a pause, then the run ends.
+      showWrong(pad, order[step], () => setDead(true));
       return;
     }
 
@@ -105,7 +108,10 @@ function Round({ progress, onExit }) {
 
     if (step + 1 === order.length) {
       // The run just played back in full: either that is the level won, or it
-      // grows by one and goes again.
+      // grows by one and goes again. The pads lock at once: a tap in the gap
+      // before the replay used to repeat the last pad and queue a second
+      // extend (two sequences overlapping), or end the run on a "wrong" pad.
+      setShowing(true);
       if (order.length >= maxRun) {
         timers.current.push(setTimeout(() => setWon(true), 450));
       } else {
@@ -163,11 +169,11 @@ function Round({ progress, onExit }) {
             key={pad.id}
             type="button"
             onClick={() => press(pad.id)}
-            disabled={showing || finishedRound}
+            disabled={showing || finishedRound || busy}
             aria-label={`Pad ${pad.id + 1}`}
             className={`aspect-square rounded-3xl transition-all duration-150 ${
               lit === pad.id ? `${pad.on} scale-105 shadow-lg` : pad.off
-            } ${showing || finishedRound ? 'cursor-not-allowed' : 'hover:brightness-110'}`}
+            } ${showing || finishedRound || busy ? 'cursor-not-allowed' : 'hover:brightness-110'} ${toneOf(pad.id)}`}
           />
         ))}
       </div>

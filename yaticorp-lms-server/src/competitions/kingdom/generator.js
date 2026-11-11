@@ -83,6 +83,91 @@ const templeOfKnowledge = (rng, level, exclude = []) => {
     };
 };
 
+/* ── Puzzle 2 since 2026-11-07: the tile swap (the approved design) ───── */
+// A 3×3 board of three symbols, three of each, scrambled. Two tiles tapped swap places; it is solved when every row
+// and every column has one of each symbol. Any such arrangement is right (checkAnswer reads the rule, not one order).
+const SWAP_SYMBOLS = ['gem', 'sun', 'leaf'];
+const SWAP_NAME = { gem: 'Gem', sun: 'Sun', leaf: 'Leaf' };
+const swapSolved = (tiles) => Array.isArray(tiles) && tiles.length === 9 && tiles.every((t) => SWAP_SYMBOLS.includes(t))
+    && [0, 1, 2].every((i) => new Set([0, 1, 2].map((k) => tiles[i * 3 + k])).size === 3 && new Set([0, 1, 2].map((k) => tiles[k * 3 + i])).size === 3);
+const tileSwap = (rng) => {
+    // One solved board: a shuffled first row, then the same row turned one step (left or right) for each row after.
+    const first = shuffle(rng, SWAP_SYMBOLS); const dir = rng() < 0.5 ? 1 : 2;
+    const answer = [0, 1, 2].flatMap((r) => [0, 1, 2].map((k) => first[(k + r * dir) % 3]));
+    // Scrambled far enough that it needs a few swaps: no more than two rows/columns already right.
+    const lines = (t) => [0, 1, 2].flatMap((i) => [new Set([0, 1, 2].map((k) => t[i * 3 + k])).size === 3, new Set([0, 1, 2].map((k) => t[k * 3 + i])).size === 3]).filter(Boolean).length;
+    let start; do start = shuffle(rng, answer); while (swapSolved(start) || lines(start) > 2);
+    const rows = [0, 1, 2].map((r) => answer.slice(r * 3, r * 3 + 3).map((x) => SWAP_NAME[x]).join(', '));
+    return {
+        kind: 'swap', skill: 'logic',
+        prompt: 'Tap two tiles to swap them. Make every row and every column have one Gem, one Sun and one Leaf. Then press Submit.',
+        data: { symbols: [...SWAP_SYMBOLS], start },
+        answer,
+        hints: ['Click two tiles to swap them.', 'Fix the first row, then make each row below it the one above turned by one step.'],
+        explain: `Every row and every column needs one Gem, one Sun and one Leaf — for example: ${rows.join(' / ')}.`
+    };
+};
+
+/* ── Puzzle 4: the number grid (harder since 2026-11-07) ─────────────── */
+// Three by three: in every row — or every column, which the student must notice — the third number comes from the
+// first two by one hidden rule (add and add 1, double one and add, multiply…). Any one cell may be missing. Kept only
+// when exactly one number can fill it (rules.js tries every rule, both ways).
+const { RULES, GRID, triangleFills, gridFills } = require('./rules');
+const HARD_GRID = RULES.filter((r) => r.id !== 'sum' && r.id !== 'diff');
+const numberGrid = (rng) => {
+    for (;;) {
+        const rule = pick(rng, HARD_GRID); const way = rng() < 0.5 ? 'rows' : 'cols';
+        const cells = Array(9).fill(0);
+        for (const [z, x, y] of GRID[way]) { cells[x] = int(rng, 2, 12); cells[y] = int(rng, 2, 12); cells[z] = rule.f(cells[x], cells[y]); }
+        if (cells.some((v) => v < 0 || v > 999) || new Set(cells).size < 7) continue;
+        const gap = int(rng, 0, 8); const answer = cells[gap];
+        const shown = cells.map((v, i) => (i === gap ? null : v));
+        const ans = gridFills(shown);
+        if (ans.length !== 1 || ans[0] !== answer) continue;
+        const line = GRID[way].find((rel) => rel.includes(gap));
+        const [z, x, y] = line;
+        const words = way === 'rows' ? 'row' : 'column';
+        return {
+            kind: 'grid', skill: 'math',
+            prompt: 'Find the missing number in the pattern.',
+            data: { cells: shown },
+            answer,
+            hints: [`Look along each ${words}: the third number is made from the first two.`, `In each ${words}: ${rule.say}.`],
+            explain: `In every ${words}, ${rule.say}: ${cells[x]} and ${cells[y]} make ${cells[z]}, so the missing number is ${answer}.`
+        };
+    }
+};
+
+/* ── Puzzle 3: the number triangle (2026-11-07: one operation only) ───── */
+// Six circles in three rows; each number comes from the two just below it by ONE operation, the same for all —
+// adding, taking the smaller from the larger, or multiplying (never two at once, as asked). The last circle is missing,
+// as the picture's card says. Kept only when exactly one number fits every rule a student might try (rules.js).
+const TRI_RULES = ['sum', 'diff', 'mul'].map((id) => RULES.find((r) => r.id === id));
+const TRI_RANGE = { sum: [1, 12], diff: [1, 30], mul: [2, 5] };
+const numberTriangle = (rng) => {
+    for (;;) {
+        const rule = pick(rng, TRI_RULES);
+        const [lo, hi] = TRI_RANGE[rule.id];
+        const d = int(rng, lo, hi); const e = int(rng, lo, hi); const f = int(rng, lo, hi);
+        const b = rule.f(d, e); const c = rule.f(e, f); const a = rule.f(b, c);
+        if ([a, b, c].some((v) => v < 1 || v > 99) || new Set([a, b, c, d, e, f]).size < 5) continue;
+        const answer = f;
+        const shown = [[a], [b, c], [d, e, null]];
+        const ans = triangleFills(shown);
+        if (ans.length !== 1 || ans[0] !== answer) continue;
+        const op = { sum: '+', diff: '−', mul: '×' }[rule.id];
+        const calc = (x, y, z) => (rule.id === 'diff' ? `${Math.max(x, y)} − ${Math.min(x, y)} = ${z}` : `${x} ${op} ${y} = ${z}`);
+        return {
+            kind: 'triangle', skill: 'math',
+            prompt: 'Find the missing number in the final circle. Each number comes from the two numbers just below it — by adding, subtracting or multiplying.',
+            data: { rows: shown },
+            answer,
+            hints: ['Each number comes from the two numbers just below it, by one operation: +, − or ×.', `The operation is: ${rule.say}.`],
+            explain: `Each number: ${rule.say} (the two just below it). ${calc(d, e, b)}, ${calc(b, c, a)}, so ${calc(e, answer, c)} — the missing number is ${answer}.`
+        };
+    }
+};
+
 /* ── Logic: the safe bridge ──────────────────────────────────────────── */
 const SIDES = ['left', 'middle', 'right'];
 const bridgeOfLogic = (rng, level) => {
@@ -229,9 +314,9 @@ const finalCombination = (rng, level) => {
 /* ── An expedition ───────────────────────────────────────────────────── */
 const TRIALS = [
     { title: 'The Broken Path', region: 'The Waterfall Gorge', relic: { id: 'compass', name: 'Bronze Compass', icon: '🧭' } },
-    { title: 'The Temple of Knowledge', region: 'The Temple of Knowledge', relic: { id: 'scroll', name: 'Scroll of the Sages', icon: '📜' } },
-    { title: 'The Bridge of Logic', region: 'The Three Bridges', relic: { id: 'amulet', name: 'Jade Amulet', icon: '🟢' } },
-    { title: 'The Code Mechanism', region: 'The Sealed Vault Door', relic: { id: 'key', name: 'Golden Key', icon: '🗝️' } },
+    { title: 'The Sun Temple', region: 'The Temple of the Three Symbols', relic: { id: 'scroll', name: 'Scroll of the Sages', icon: '📜' } },
+    { title: 'The Forgotten Palace', region: 'The Forgotten Palace', relic: { id: 'amulet', name: 'Jade Amulet', icon: '🟢' } },
+    { title: 'The Haunted Castle', region: 'The Haunted Castle', relic: { id: 'key', name: 'Golden Key', icon: '🗝️' } },
     { title: 'The Final Combination', region: 'The Final Gate', relic: { id: 'star', name: 'Star of Aurelia', icon: '✴️' } }
 ];
 
@@ -266,7 +351,7 @@ const expedition = (rng, opts = {}) => {
 };
 const makeExpedition = (rng, { level = 'school', excludeGk = [] } = {}) => {
     const lvl = level === 'college' ? 'college' : 'school';
-    const made = [brokenPath(rng, lvl), templeOfKnowledge(rng, lvl, excludeGk), bridgeOfLogic(rng, lvl), codeMechanism(rng, lvl), finalCombination(rng, lvl)];
+    const made = [brokenPath(rng, lvl), tileSwap(rng), numberTriangle(rng), numberGrid(rng), finalCombination(rng, lvl)];
     // The final gate's journal clues, one handed out after each of the first four trials.
     const journal = made[4].collected;
     const trials = made.map((t, i) => ({ ...TRIALS[i], ...t, clue: journal[i] || null }));
@@ -275,10 +360,46 @@ const makeExpedition = (rng, { level = 'school', excludeGk = [] } = {}) => {
     return trials;
 };
 
+/**
+ * A game whose second trial is still the old knowledge question (made before 2026-11-05, or by a server running the
+ * old code — several share one database): it becomes the three discs, made from the old trial itself so it is the
+ * same on every look and every server. Changes `shared` in place; true if it did.
+ */
+const upgradeTrials = (shared) => {
+    // The fourth trial, likewise: the code panels become the number grid.
+    const four = shared?.stages?.[3];
+    let changedFour = false;
+    if (four && four.kind === 'panels') {
+        let s4 = 2166136261;
+        for (const ch of JSON.stringify(four.data) + four.prompt) { s4 ^= ch.charCodeAt(0); s4 = Math.imul(s4, 16777619) >>> 0; }
+        shared.stages[3] = { ...TRIALS[3], ...numberGrid(() => { s4 = (Math.imul(s4 ^ (s4 >>> 15), 2246822507) + 0x9e3779b9) >>> 0; return s4 / 4294967296; }), clue: four.clue || null };
+        changedFour = true;
+    }
+    // The third trial, likewise: the safe-bridge question becomes the number triangle.
+    const three = shared?.stages?.[2];
+    let changed = changedFour;
+    if (three && three.kind === 'mcq' && three.skill === 'logic') {
+        let s3 = 2166136261;
+        for (const ch of three.prompt + JSON.stringify(three.options)) { s3 ^= ch.charCodeAt(0); s3 = Math.imul(s3, 16777619) >>> 0; }
+        shared.stages[2] = { ...TRIALS[2], ...numberTriangle(() => { s3 = (Math.imul(s3 ^ (s3 >>> 15), 2246822507) + 0x9e3779b9) >>> 0; return s3 / 4294967296; }), clue: three.clue || null };
+        changed = true;
+    }
+    // The second trial: the old knowledge question, or the three discs (before 2026-11-07), becomes the tile swap.
+    const old = shared?.stages?.[1];
+    if (!old || !((old.kind === 'mcq' && old.skill === 'gk') || old.kind === 'discs')) return changed;
+    let seed = 2166136261;
+    for (const ch of JSON.stringify(old.options || old.data) + old.prompt) { seed ^= ch.charCodeAt(0); seed = Math.imul(seed, 16777619) >>> 0; }
+    const rng = () => { seed = (Math.imul(seed ^ (seed >>> 15), 2246822507) + 0x9e3779b9) >>> 0; return seed / 4294967296; };
+    shared.stages[1] = { ...TRIALS[1], ...tileSwap(rng), clue: old.clue || null };
+    return true;
+};
+
 /** Whether `value` answers trial `t`. */
 const checkAnswer = (t, value) => {
     if (t.kind === 'arrange') return Array.isArray(value) && value.length === 5 && value.every((v, i) => v === t.answer[i]);
+    if (t.kind === 'swap') return swapSolved(value);
+    if (t.kind === 'discs') return Array.isArray(value) && value.length === 3 && value.every((v, i) => v === t.answer[i]);
     return Number.isInteger(Number(value)) && Number(value) === t.answer;
 };
 
-module.exports = { expedition, checkAnswer, seeded, TRIALS, SYMBOLS, fits, cluePool, PERMS };
+module.exports = { expedition, checkAnswer, swapSolved, upgradeTrials, seeded, TRIALS, SYMBOLS, fits, cluePool, PERMS };

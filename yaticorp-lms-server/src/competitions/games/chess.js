@@ -135,7 +135,8 @@ const applyMove = (state, seat, action, now) => {
     // A move answers any offer the opponent made: it is declined by playing on.
     if (state.drawOffer === other(seat)) state.drawOffer = null;
     state.offerBlocked[seat] = false;
-    state.message = `${name(seat)} played ${played.san}.`;
+    // Whose turn it is, not the move's notation — the board and move list already show that.
+    state.message = `${name(other(seat))} to move.`;
 
     const result = resultAfterMove(state, chess, seat);
     if (result) {

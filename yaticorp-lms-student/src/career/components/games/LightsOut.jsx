@@ -2,6 +2,7 @@ import { useState } from 'react';
 import GameShell from './GameShell';
 import useGameProgress, { between, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
+import { sfx } from './gameSfx';
 
 /** Pressing a tile flips it and its four neighbours. */
 const neighbours = (index, size) => {
@@ -105,7 +106,10 @@ function Round({ progress, onExit }) {
 
   const tap = (index) => {
     if (solved || outOfMoves) return;
-    setBoard(press(board, index, config.size));
+    const next = press(board, index, config.size);
+    // No single move is wrong here; the losing one is the last move of the budget with lights still on.
+    if (moves + 1 >= config.moveBudget && next.some(Boolean)) sfx.wrong();
+    setBoard(next);
     setMoves((m) => m + 1);
   };
 

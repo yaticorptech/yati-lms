@@ -36,7 +36,7 @@ export default function CertificateInline({ load, fileName, className = '', onCl
     const btn = 'inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-bold';
     return (
         // A medium card with the whole certificate in view; full screen on request.
-        <div ref={boxRef} className={full ? 'fixed inset-0 z-[300] flex flex-col bg-slate-900' : `mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`} data-certificate-inline role={full ? 'dialog' : undefined} aria-label={full ? 'Certificate, full screen' : undefined}>
+        <div ref={boxRef} className={full ? 'fixed inset-0 z-[300] flex flex-col bg-slate-900' : `mx-auto flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`} data-certificate-inline role={full ? 'dialog' : undefined} aria-label={full ? 'Certificate, full screen' : undefined}>
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-white px-3 py-2">
                 <p className="text-sm font-black text-slate-900">Your certificate</p>
                 <span className="flex items-center gap-2">
@@ -51,8 +51,11 @@ export default function CertificateInline({ load, fileName, className = '', onCl
                 PDF viewer's fit-to-width shows the whole certificate — on the card,
                 and in full screen as large as the screen allows, centred. */}
             <div className={full ? 'flex min-h-0 flex-1 items-center justify-center p-3 sm:p-6' : ''}>
-                <div className="aspect-[1.414] w-full overflow-hidden bg-slate-100" style={full ? { width: 'min(100%, calc((100vh - 5.5rem) * 1.414))' } : undefined}>
-                    {state.url ? <iframe title="Certificate" src={`${state.url}#toolbar=0&navpanes=0&view=FitH`} className="h-full w-full" />
+                {/* Held still (2026-11-06): the frame a touch taller than the A4 page so the whole page fits with nothing to
+                    scroll, and a clear layer over it so the browser's PDF viewer takes no wheel or swipe. */}
+                <div className={`relative aspect-[1.36] w-full overflow-hidden bg-white ${full ? 'rounded-xl shadow-[0_30px_80px_-20px_rgba(0,0,0,.8)] ring-1 ring-white/10' : ''}`} style={full ? { width: 'min(100%, 60rem, calc((100dvh - 7rem) * 0.78 * 1.36))' } : undefined}>
+                    {state.url && <span aria-hidden className="absolute inset-0 z-10" onWheel={(e) => e.preventDefault()} />}
+                    {state.url ? <iframe title="Certificate" src={`${state.url}#toolbar=0&navpanes=0&scrollbar=0&view=Fit&zoom=page-fit`} scrolling="no" tabIndex={-1} className="pointer-events-none h-full w-full" />
                         : <div className="flex h-full items-center justify-center p-6 text-sm text-slate-500">{state.error || <Loader2 className="animate-spin text-indigo-500" aria-label="Loading the certificate" />}</div>}
                 </div>
             </div>

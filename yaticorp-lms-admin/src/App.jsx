@@ -117,13 +117,11 @@ const OrgBsgDashboard = React.lazy(() => import('./pages/org/OrgBsgDashboard'));
 const OrgHome = () => (useOutletContext()?.organization?.bsgOffice ? <OrgBsgDashboard /> : <OrgDashboard />);
 import OrgNotFound from './pages/org/OrgNotFound';
 // Games & Competitions: the platform runs inter-college competitions; colleges enter teams.
-const Competitions = React.lazy(() => import('./pages/Competitions'));
 const CompetitionAdmin = React.lazy(() => import('./pages/CompetitionAdmin'));
 // The Admin Competition Dashboard (2026-11-04): what is on and what needs doing, across competitions.
 const CompetitionDashboard = React.lazy(() => import('./pages/CompetitionDashboard'));
 const OrgCompetitions = React.lazy(() => import('./pages/org/OrgCompetitions'));
-// The Certificate Builder (2026-10-31): one module, both dashboards.
-const CertificateBuilder = React.lazy(() => import('./certificates/CertificateBuilder'));
+// The certificates (2026-10-31); since 2026-11-07 both dashboards build them on the same page (CertificateConfiguration).
 const IssuedCertificates = React.lazy(() => import('./certificates/IssuedCertificates'));
 // Organisations: Certificate Configuration (intra- / inter-college, formal certificates), 2026-10-31.
 const CertificateConfiguration = React.lazy(() => import('./certificates/CertificateConfiguration'));
@@ -202,9 +200,9 @@ function App() {
         <Route path="rewards" element={<Rewards />} />
         <Route path="global-quiz" element={<GlobalQuiz />} />
         <Route path="announcements" element={<Announcements />} />
-        <Route path="competitions" element={<SuperAdminRoute what="competitions"><Competitions /></SuperAdminRoute>} />
-        <Route path="competitions/dashboard" element={<SuperAdminRoute what="competitions"><CompetitionDashboard /></SuperAdminRoute>} />
-        <Route path="competitions/certificates" element={<SuperAdminRoute what="competitions"><CertificateBuilder side="platform" /></SuperAdminRoute>} />
+        <Route path="competitions" element={<SuperAdminRoute what="competitions"><CompetitionDashboard /></SuperAdminRoute>} />
+        <Route path="competitions/dashboard" element={<Navigate to="/competitions" replace />} />
+        <Route path="competitions/certificates" element={<SuperAdminRoute what="competitions"><CertificateConfiguration side="platform" /></SuperAdminRoute>} />
         <Route path="competitions/certificates/issued" element={<SuperAdminRoute what="competitions"><IssuedCertificates side="platform" /></SuperAdminRoute>} />
         <Route path="competitions/:id" element={<SuperAdminRoute what="competitions"><CompetitionAdmin /></SuperAdminRoute>} />
         {/* Quiz Arena lives in Games & Competitions: its contests in the list, its question bank a page of it. */}

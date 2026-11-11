@@ -16,6 +16,8 @@ import { Bell, Copy, Check, Trophy, X, CreditCard, Loader2 } from 'lucide-react'
 import { competitionsApi } from './api';
 import { arenaApi } from './arena/api';
 import { payOnline } from './razorpay';
+import { checkLive } from './liveWatch';
+import { PaymentHoldCard } from './GameInfo';
 
 const SEEN = 'competition-alerts-dismissed';
 const read = () => { try { return JSON.parse(sessionStorage.getItem(SEEN) || '[]'); } catch { return []; } };
@@ -41,6 +43,7 @@ export default function CompetitionAlerts() {
                 for (const a of rows) {
                     if (notified.has(a.id)) continue;
                     notified.add(a.id);
+                    if (a.kind === 'payment-hold') continue;      // shown in the app only
                     try { new Notification(a.kind === 'payment' ? `${a.title} — ${a.subtitle}` : `${a.title} — join now`, { body: a.kind === 'payment' ? 'Pay the entry fee online (UPI, card or net banking) to enroll.' : `${a.subtitle}. Your joining code: ${a.code}`, tag: a.id }); } catch { /* not supported here */ }
                 }
             }
@@ -53,10 +56,12 @@ export default function CompetitionAlerts() {
         return () => { clearInterval(t); document.removeEventListener('visibilitychange', check); };
     }, [check]);
     useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+    // Notify me for live competitions (liveWatch.js): a look once a minute, for those who asked.
+    useEffect(() => { checkLive(); const t = setInterval(checkLive, 60000); return () => clearInterval(t); }, []);
 
     const alert = alerts.find((a) => !dismissed.includes(a.id));
     // Already on the page where the code is typed: no pop-up over it.
-    const target = alert ? (alert.kind === 'payment' ? (alert.arenaId ? `/competitions/arena/${alert.arenaId}` : `/competitions/${alert.competitionId}`) : alert.kind === 'arena' ? `/competitions/arena/${alert.arenaId}/play` : `/competitions/play/${alert.gameId}`) : null;
+    const target = alert ? (['payment', 'payment-hold'].includes(alert.kind) ? (alert.arenaId ? `/competitions/arena/${alert.arenaId}` : `/competitions/${alert.competitionId}`) : alert.kind === 'arena' ? `/competitions/arena/${alert.arenaId}/play` : `/competitions/play/${alert.gameId}`) : null;
     if (!alert || pathname === target) return null;
 
     const close = () => { remember(alert.id); setDismissed(read()); setCopied(false); setPayError(''); };
@@ -67,7 +72,12 @@ export default function CompetitionAlerts() {
             .catch((e) => setPayError(e.message || 'The payment did not go through.'))
             .finally(() => setPaying(false));
     };
-    const copy = () => { navigator.clipboard?.writeText(alert.code).then(() => { setCopied(true); markCopied(alert.code); }).catch(() => {}); };
+    // No clipboard, or the write refused: the code is on screen, so Go to join turns on anyway (it never stays locked).
+    const copy = () => {
+        const done = () => { setCopied(true); markCopied(alert.code); };
+        if (!navigator.clipboard?.writeText) { done(); return; }
+        navigator.clipboard.writeText(alert.code).then(done, done);
+    };
     const left = alert.deadline ? Math.max(0, Math.ceil((new Date(alert.deadline).getTime() - now) / 1000)) : null;
     const canAsk = typeof Notification !== 'undefined' && Notification.permission === 'default';
 
@@ -75,12 +85,18 @@ export default function CompetitionAlerts() {
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="comp-alert-title" data-competition-alert={alert.id}>
             <div className="relative w-full max-w-sm overflow-hidden rounded-3xl bg-white text-center shadow-2xl">
                 <button type="button" onClick={close} aria-label="Close" className="absolute right-3 top-3 rounded-full p-1.5 text-white/80 hover:bg-white/10"><X size={18} /></button>
-                <div className="bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 px-6 pb-6 pt-7 text-white">
+                <div className={`${alert.kind === 'payment-hold' ? 'bg-slate-800' : 'bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600'} px-6 pb-6 pt-7 text-white`}>
                     <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15"><Trophy size={24} aria-hidden="true" /></span>
                     <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-white/80">{alert.subtitle}</p>
                     <h2 id="comp-alert-title" className="mt-1 text-xl font-black leading-tight">{alert.title}</h2>
                 </div>
-                {alert.kind === 'payment' ? (
+                {alert.kind === 'payment-hold' ? (
+                    // Paid, but no longer playing: whom to contact about the fee (once a session; the page keeps it).
+                    <div className="max-h-[70vh] space-y-4 overflow-y-auto p-6" data-hold-alert>
+                        <PaymentHoldCard hold={alert.hold} compact />
+                        <button type="button" onClick={() => { close(); navigate(target); }} className="w-full rounded-2xl bg-slate-900 py-3 text-sm font-black text-white hover:bg-slate-800">See the competition</button>
+                    </div>
+                ) : alert.kind === 'payment' ? (
                     <div className="space-y-4 p-6" data-pay-alert>
                         <p className="text-sm text-slate-600">You are approved for this competition. Pay the entry fee online to enroll — your joining code comes only after it is paid.</p>
                         <p className="text-4xl font-black text-slate-900">₹{alert.amount}</p>

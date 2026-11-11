@@ -340,6 +340,7 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
                     </div>
                     {/* The lesson itself stays as written, whatever the app's language. */}
                     <div translate="no"><Screen key={step.key} step={step} value={value} onChange={setValue} locked={!!sheet || busy || !!ending || !!retry} result={result} correction={retry && Array.isArray(value) ? retry.answer : null}
+                        onFinish={advance} sound={sound}
                         done={!!sheet} onDone={() => { tally.current.praise += 1; setCombo((c) => c + 1); chime('right'); setTimeout(advance, 450); }} />
                         {/* A wrong answer (2026-10-27): the right one in green, under the student's (in the answer box itself for word tiles). */}
                         {retry?.answer && !Array.isArray(value) && !grammar && (

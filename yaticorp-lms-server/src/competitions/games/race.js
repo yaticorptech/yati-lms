@@ -18,7 +18,7 @@ const D = { easy: 1, medium: 2, hard: 3 };
 
 /** The shared parts: points, progress, the clock. */
 const race = (def) => makeStageEngine({
-    id: def.id, label: def.label, emoji: def.emoji, summary: def.summary,
+    id: def.id, label: def.label, emoji: def.emoji, summary: def.summary, firstFinishWins: Boolean(def.firstFinishWins),
     setup: (o, rng) => ({ seconds: def.seconds[o.difficulty] || def.seconds.medium, stages: def.make(rng, D[o.difficulty] || 2), kind: def.id }),
     start: (shared) => ({ stage: 0, ...(def.begin ? def.begin(shared.stages[0]) : {}) }),
     actions: {
@@ -53,6 +53,7 @@ const race = (def) => makeStageEngine({
     progressOf: (p, s) => ({ at: p.stage, of: s.shared.stages.length }),
     score: (s, i) => {
         const p = s.progress[i];
+        if (def.score) return def.score(s, p);
         // Points earned move by move; a test player's steps (services/testBots.js) move the stage and the
         // mistakes without points, so those count at the usual 100 and −20.
         const steps = p.stage - (p.solved || 0);
@@ -130,7 +131,8 @@ const WORDS = {
 const typingsprint = race({
     id: 'typingsprint', label: 'Typing Sprint', emoji: '⌨️', summary: 'Type the same words, exactly and fast. The quickest clean typist wins.',
     seconds: { easy: 90, medium: 90, hard: 100 }, action: 'type',
-    make: (rng, d) => shuffle([...WORDS[d], ...WORDS[Math.max(1, d - 1)]], rng).slice(0, 12).map((word) => ({ word })),
+    // Easy has only its own words (WORDS[1] twice would deal the same word twice).
+    make: (rng, d) => shuffle([...WORDS[d], ...(d > 1 ? WORDS[d - 1] : [])], rng).slice(0, 12).map((word) => ({ word })),
     play: (st, p, a) => (String(a.value || '').trim().toLowerCase() === st.word ? { solved: true } : { wrong: true }),
     show: (st) => ({ word: st.word })
 });
@@ -185,8 +187,10 @@ const mathsprint = race({
         return { text: `${a} ${op} ${b}`, answer };
     }),
     play: (st, p, a) => {
-        const v = Number(String(a.value ?? '').trim());
-        if (!Number.isFinite(v)) throw new GameError('Type a number.');
+        // An empty answer is not 0 (Number('') is): it would solve every sum whose answer is 0.
+        const raw = String(a.value ?? '').trim();
+        const v = Number(raw);
+        if (!raw || !Number.isFinite(v)) throw new GameError('Type a number.');
         return v === st.answer ? { solved: true } : { wrong: true };
     },
     show: (st) => ({ text: st.text })
@@ -195,12 +199,25 @@ const mathsprint = race({
 /* ── Memory Match ───────────────────────────────────────────────────── */
 const FACES = ['🍎', '🚀', '🎸', '🐼', '⚽', '🌈', '🍕', '🦋', '🎲', '🌵', '🐙', '🍩'];
 const memorymatch = race({
-    id: 'memorymatch', label: 'Memory Match', emoji: '🃏', summary: 'The same deck for everyone: turn two cards at a time and pair them all.',
+    id: 'memorymatch', label: 'Memory Match', emoji: '🃏', summary: 'The same deck for everyone: turn two cards at a time — the first to pair them all wins.',
+    // A race against the clock (2026-11-07): whoever pairs every card first wins, the next to finish is second, and so
+    // on — a wrong pair costs only the time it took. Finishers: 1000 + 10 a second left (ties: who finished first, to
+    // the millisecond); the rest: 100 a pair found.
+    // Over the moment someone pairs them all: they win at once; the others by pairs found (2026-11-07).
+    firstFinishWins: true,
+    score: (s, p) => (p.done ? 1000 + 10 * Math.max(0, Math.floor((s.runMs - (p.doneMs ?? s.runMs)) / 1000)) : 100 * (p.stage || 0)),
     seconds: { easy: 120, medium: 150, hard: 180 }, action: 'flip',
     // One stage per pair, on one deck: the stage counts the pairs found.
     make: (rng, d) => {
         const pairs = d === 1 ? 6 : d === 2 ? 8 : 10;
-        const deck = shuffle([...FACES.slice(0, pairs), ...FACES.slice(0, pairs)], rng);
+        // Pairs kept apart (2026-11-07: "only one pair near by, not more"): shuffled again until at most one pair
+        // touches — side by side, one above the other, or corner to corner — on the board as drawn (4 across; 5 above
+        // 16 cards). The best of the tries is kept.
+        const cols = pairs * 2 > 16 ? 5 : 4;
+        const near = (a, b) => Math.abs(Math.floor(a / cols) - Math.floor(b / cols)) <= 1 && Math.abs((a % cols) - (b % cols)) <= 1;
+        const touching = (dk) => FACES.slice(0, pairs).filter((f) => { const [a, b] = dk.flatMap((g, i) => (g === f ? [i] : [])); return near(a, b); }).length;
+        let deck = shuffle([...FACES.slice(0, pairs), ...FACES.slice(0, pairs)], rng);
+        for (let tries = 0; tries < 3000 && touching(deck) > 1; tries += 1) { const next = shuffle(deck, rng); if (touching(next) < touching(deck)) deck = next; }
         return Array.from({ length: pairs }, () => ({ deck }));
     },
     begin: () => ({}),

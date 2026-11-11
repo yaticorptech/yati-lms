@@ -1,11 +1,33 @@
 import { useState } from 'react';
 import { Flame } from 'lucide-react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
+import useGameProgress, { pressure, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useAnswerReveal from './useAnswerReveal';
+import useFresh from './useFresh';
 
 const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+/** A number of exactly `d` digits. */
+const digits = (d) => rnd(d === 1 ? 2 : 10 ** (d - 1), 10 ** d - 1);
+
+/**
+ * The stages, by how hard a level is (levels.js `pressure`; asked 2026-11-05:
+ * "each next level harder — two digits, then three"). So they ride the same
+ * roller coaster as every game: five easy levels, five medium, five hard, then
+ * back down to a slightly harder easy. Each row: the digits of each side of a
+ * + or −, the digits of × and ÷, the operations, the target and the clock.
+ */
+const STAGES = [
+  { at: 0, add: [1, 1], mul: null, ops: ['+', '-'], target: 8, seconds: 60 },
+  { at: 0.05, add: [2, 1], mul: null, ops: ['+', '-'], target: 7, seconds: 60 },
+  { at: 0.09, add: [2, 2], mul: [1, 1], ops: ['+', '-', '×'], target: 7, seconds: 60 },
+  { at: 0.15, add: [3, 2], mul: [2, 1], ops: ['+', '-', '×', '÷'], target: 6, seconds: 70 },
+  { at: 0.22, add: [3, 3], mul: [2, 1], ops: ['+', '-', '×', '÷'], target: 6, seconds: 75 },
+  { at: 0.35, add: [4, 3], mul: [2, 2], ops: ['+', '-', '×', '÷'], target: 5, seconds: 80 },
+  { at: 0.55, add: [4, 4], mul: [3, 1], ops: ['+', '-', '×', '÷'], target: 5, seconds: 80 }
+];
 
 /**
  * Build a question whose answer is always a whole number.
@@ -14,47 +36,44 @@ const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
  * random numbers — the only way to guarantee it divides cleanly. Otherwise the
  * game would occasionally ask for 7 ÷ 3 and mark every answer wrong.
  */
-const makeQuestion = (span, ops) => {
+const makeQuestion = ({ add, mul, ops }) => {
   const op = ops[rnd(0, ops.length - 1)];
   let a;
   let b;
   let answer;
 
   if (op === '+') {
-    a = rnd(2, span * 2);
-    b = rnd(2, span * 2);
+    [a, b] = Math.random() < 0.5 ? [digits(add[0]), digits(add[1])] : [digits(add[1]), digits(add[0])];
     answer = a + b;
   } else if (op === '-') {
-    a = rnd(4, span * 2);
-    b = rnd(1, a - 1); // never negative
+    const x = digits(add[0]);
+    const y = digits(add[1]);
+    // Never negative, never zero: the larger first.
+    [a, b] = x === y ? [x + 1, y] : [Math.max(x, y), Math.min(x, y)];
     answer = a - b;
   } else if (op === '×') {
-    a = rnd(2, Math.min(12, span));
-    b = rnd(2, Math.min(12, span));
+    a = mul[0] === 1 ? rnd(2, 12) : digits(mul[0]);
+    b = mul[1] === 1 ? rnd(2, 9) : digits(mul[1]);
     answer = a * b;
   } else {
-    b = rnd(2, Math.min(12, span));
-    answer = rnd(2, Math.min(12, span));
+    b = mul[1] === 1 ? rnd(2, 9) : rnd(11, 25);
+    answer = mul[0] === 1 ? rnd(2, 12) : digits(mul[0]);
     a = b * answer;
   }
 
+  // Near misses — a slipped carry, a column off by ten — not numbers that can be ruled out at a glance.
+  const misses = [1, -1, 2, -2, 10, -10, ...(answer >= 100 ? [100, -100, 11, -9] : [3, -3])];
   const options = new Set([answer]);
   while (options.size < 4) {
-    const drift = rnd(1, Math.max(3, Math.round(Math.abs(answer) * 0.25)));
-    const candidate = answer + (Math.random() < 0.5 ? -drift : drift);
+    const candidate = answer + misses[rnd(0, misses.length - 1)];
     if (candidate >= 0) options.add(candidate);
   }
 
   return { text: `${a} ${op} ${b}`, answer, options: [...options].sort(() => Math.random() - 0.5) };
 };
 
-/** Ten levels per band: the sums get bigger, the clock shorter, the bar higher. */
-const configFor = (difficulty, levelNo) => ({
-  span: between(6, 14, levelNo) + (difficulty - 1) * 4,
-  ops: difficulty === 1 ? ['+', '-'] : difficulty === 2 ? ['+', '-', '×'] : ['+', '-', '×', '÷'],
-  seconds: between(60, 45, levelNo),
-  target: between(6, 16, levelNo) + (difficulty - 1) * 3
-});
+/** The stage a level plays: the bigger sums take longer, so the bar drops a little as they grow. */
+const configFor = (level) => [...STAGES].reverse().find((s) => pressure(level) >= s.at);
 
 /** ⚡ Math & speed: as many correct answers as you can before time runs out. */
 export default function MathSprint({ onExit }) {
@@ -69,12 +88,14 @@ export default function MathSprint({ onExit }) {
 }
 
 function Round({ progress, onExit }) {
-  const config = configFor(progress.difficulty, progress.levelNo);
-  const [question, setQuestion] = useState(() => makeQuestion(config.span, config.ops));
+  const config = configFor(progress.level);
+  const fresh = useFresh();
+  const [question, setQuestion] = useState(() => fresh(() => makeQuestion(config)));
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [flash, setFlash] = useState(null);
   const [started, setStarted] = useState(false);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -82,19 +103,21 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const answer = (value) => {
-    if (over) return;
+    if (over || busy) return;
+    const next = () => setQuestion(fresh(() => makeQuestion(config)));
     if (value === question.answer) {
       setScore((s) => s + 1);
       setStreak((s) => s + 1);
       setFlash('right');
+      next();
+      setTimeout(() => setFlash(null), 300);
     } else {
       // A wrong answer costs the streak, never the score — going backwards for
       // a slip is punishing, and this is meant to be played for two minutes.
+      // The buzz, the pick red and the right answer green, then the next sum.
       setStreak(0);
-      setFlash('wrong');
+      showWrong(value, question.answer, next);
     }
-    setQuestion(makeQuestion(config.span, config.ops));
-    setTimeout(() => setFlash(null), 300);
   };
 
   return (
@@ -154,7 +177,8 @@ function Round({ progress, onExit }) {
                 key={option}
                 type="button"
                 onClick={() => answer(option)}
-                className="fp-press min-h-14 rounded-2xl bg-surface-50 text-xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset hover:bg-amber-50 hover:ring-amber-300 tabular-nums"
+                disabled={busy}
+                className={`fp-press min-h-14 rounded-2xl bg-surface-50 text-xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset tabular-nums ${busy ? '' : 'hover:bg-amber-50 hover:ring-amber-300'} ${toneOf(option)}`}
               >
                 {option}
               </button>

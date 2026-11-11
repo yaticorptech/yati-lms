@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { starsFor, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
+import { sfx } from './gameSfx';
 
 const FACES = ['🚀', '🎯', '💡', '🧠', '⚡', '🏆', '🔭', '🧩', '🎨', '🔑', '🎲', '🛰️'];
 
@@ -14,15 +15,19 @@ const shuffled = (pairs) => {
     const j = Math.floor(Math.random() * (i + 1));
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
+  // Every card has its pair (2026-11-05): the board is always columns × 4, so no free ★ fill-ins are needed.
   return deck;
 };
 
-/** More pairs, and a tighter move budget, the further up the band you go. */
-const configFor = (difficulty, levelNo) => {
-  // Twelve faces exist and the top of the ramp only ever asked for eight, so
-  // most of the board was never used and levels repeated in blocks of six.
-  const pairs = Math.min(FACES.length, between(4, 10, levelNo) + (difficulty - 1) * 2);
-  return { pairs, moveBudget: Math.round(pairs * (difficulty === 1 ? 2.6 : difficulty === 2 ? 2.2 : 1.9)) };
+/**
+ * The board by how hard the level is (2026-11-05: "easy: 3 columns, 4 rows; harder, a bigger grid — but it must fit"):
+ * always 4 rows, wider as it gets harder — easy 3×4 (6 pairs), medium 4×4 (8), hard 5×4 (10), the hardest 6×4 (12).
+ * The move budget tightens with the band.
+ */
+const configFor = (difficulty, tier) => {
+  const cols = tier === 'easy' ? 3 : tier === 'medium' ? 4 : difficulty === 3 ? 6 : 5;
+  const pairs = Math.min(FACES.length, cols * 2);
+  return { cols, pairs, moveBudget: Math.round(pairs * (difficulty === 1 ? 2.6 : difficulty === 2 ? 2.2 : 1.9)) };
 };
 
 /** 🧠 Memory & focus: turn cards two at a time and pair them all. */
@@ -39,7 +44,7 @@ export default function MemoryMatch({ onExit }) {
 
 function Round({ progress, onExit }) {
   const [started, setStarted] = useState(false);
-  const config = configFor(progress.difficulty, progress.levelNo);
+  const config = configFor(progress.difficulty, progress.tier);
   const [deck] = useState(() => shuffled(config.pairs));
   const [flipped, setFlipped] = useState([]);
   const [matched, setMatched] = useState([]);
@@ -62,7 +67,7 @@ function Round({ progress, onExit }) {
 
   const turn = (index) => {
     if (locked || won) return;
-    if (flipped.includes(index) || matched.includes(deck[index].id)) return;
+    if (deck[index].free || flipped.includes(index) || matched.includes(deck[index].id)) return;
 
     const next = [...flipped, index];
     setFlipped(next);
@@ -76,7 +81,8 @@ function Round({ progress, onExit }) {
       return;
     }
 
-    // Held face-up for a moment so the pair can actually be memorised.
+    // Held face-up for a moment (marked red, with the buzz) so the pair can actually be memorised.
+    sfx.wrong();
     setLocked(true);
     timers.current.push(
       setTimeout(() => {
@@ -126,9 +132,17 @@ function Round({ progress, onExit }) {
         </p>
       }
     >
+      {/* Cards about 5.5rem a side at most, so even the 6×4 board fits on one screen without scrolling. */}
       {started && (
-      <div className="mx-auto grid max-w-md grid-cols-4 gap-2.5 sm:gap-3">
+      <div className="mx-auto grid gap-2 sm:gap-3" style={{ gridTemplateColumns: `repeat(${config.cols}, minmax(0, 1fr))`, maxWidth: `${config.cols * 5.5 + (config.cols - 1) * 0.75}rem` }}>
         {deck.map((card, index) => {
+          if (card.free) {
+            return (
+              <span key={card.id} aria-hidden="true" className="flex aspect-square items-center justify-center rounded-2xl bg-amber-50 text-3xl ring-2 ring-amber-200 ring-inset sm:text-4xl">
+                {card.face}
+              </span>
+            );
+          }
           const faceUp = flipped.includes(index) || matched.includes(card.id);
           const solved = matched.includes(card.id);
           return (
@@ -138,10 +152,12 @@ function Round({ progress, onExit }) {
               onClick={() => turn(index)}
               aria-label={faceUp ? `Card showing ${card.face}` : 'Face-down card'}
               disabled={solved}
-              className={`fp-press flex aspect-square items-center justify-center rounded-2xl text-3xl transition-all duration-200 ${
+              className={`fp-press flex aspect-square items-center justify-center rounded-2xl text-3xl transition-all duration-200 sm:text-4xl ${
                 solved
                   ? 'scale-95 bg-emerald-50 ring-2 ring-emerald-200 ring-inset'
-                  : faceUp
+                  : faceUp && locked
+                    ? 'gs-wrong bg-rose-50 shadow-md ring-2 ring-rose-300 ring-inset'
+                    : faceUp
                     ? 'bg-surface shadow-md ring-2 ring-journey-300 ring-inset'
                     : 'fp-journey-gradient shadow-sm hover:brightness-110'
               }`}

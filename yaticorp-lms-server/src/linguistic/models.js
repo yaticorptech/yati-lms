@@ -77,7 +77,10 @@ const lessonProgressSchema = new Schema({
 const mistakeSchema = new Schema({
     // What to ask again: the lesson and the question in it (or a daily word).
     lessonId: { type: Schema.Types.ObjectId, ref: 'LinguisticLesson' },
-    section: { type: String, enum: ['practice', 'quiz', 'items', 'vocab', 'spell', 'daily'], required: true },
+    // Which part of the lesson: 'practice', 'quiz', 'items', 'vocab', 'spell', 'daily' here; other builds sharing the
+    // database also write 'hear' and 'blanks'. No fixed list since 2026-11-07: one unknown name in a student's old
+    // mistakes made every save of their progress fail, and with it every lesson they opened.
+    section: { type: String, required: true },
     qid: { type: String, required: true },
     module: String,
     level: String,

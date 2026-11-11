@@ -4,6 +4,8 @@ import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels'
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 import BRAIN_WORDS from '../../data/brainWords';
+import useFresh from './useFresh';
+import { sfx } from './gameSfx';
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
@@ -24,7 +26,8 @@ function Round({ progress, onExit }) {
   const config = configFor(progress.difficulty, progress.levelNo);
   const pool = BRAIN_WORDS.filter((w) => w.word.length >= config.minLength);
   const words = pool.length ? pool : BRAIN_WORDS;
-  const [current, setCurrent] = useState(() => pick(words));
+  const fresh = useFresh((w) => w.word);
+  const [current, setCurrent] = useState(() => fresh(() => pick(words)));
   const [typed, setTyped] = useState('');
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
@@ -42,13 +45,19 @@ function Round({ progress, onExit }) {
 
   const onChange = (e) => {
     if (over) return;
-    const value = e.target.value.toUpperCase();
+    // Spaces dropped: a phone keyboard adds one after a suggestion it commits.
+    const value = e.target.value.toUpperCase().replace(/\s/g, '');
+    // The keystroke that first goes wrong buzzes (once, not on every key while it stays wrong). The
+    // word is already on screen above with the bad letter red, so there is nothing more to reveal,
+    // and the student keeps typing on the same word as before.
+    const wasOk = !typed || current.word.startsWith(typed);
+    if (wasOk && value && !current.word.startsWith(value)) sfx.wrong();
     setTyped(value);
     if (value === current.word) {
       setScore((s) => s + 1);
       setFlash('right');
       setTyped('');
-      setCurrent(pick(words.filter((w) => w.word !== current.word)));
+      setCurrent(fresh(() => pick(words.filter((w) => w.word !== current.word))));
       setTimeout(() => setFlash(null), 220);
     }
   };

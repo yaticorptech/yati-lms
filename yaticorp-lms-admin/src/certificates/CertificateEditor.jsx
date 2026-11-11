@@ -15,7 +15,7 @@ import { CT } from './design';
 import { boxOf, fittedSize } from './metrics';
 
 const LABELS = {
-    logo: 'College logo', college: 'College name', address: 'Address', title: 'Certificate title', tagline: 'Tagline', intro: 'Intro line',
+    logo: 'College logo', college: 'College name', address: 'Address', title: 'Certificate title', tagline: 'Tagline', intro: 'Intro line', place: 'Place badge',
     name: 'Student name', inst: 'Participating college', lead: '“for securing”', award: 'Achievement / position', inThe: '“in the”',
     comp: 'Competition name', desc: 'Description', seal: 'Seal', qr: 'QR code', affil: 'Affiliation', nameline: 'Line under the name',
     sentence: 'Paragraph',
@@ -203,11 +203,12 @@ export default function CertificateEditor({
                     {t && (
                         <>
                             {textValue !== null && (
-                                t.t === 'para'
-                                    ? <textarea ref={textBox} value={textValue} onChange={(e) => onText(selected, e.target.value)} disabled={!!locked} rows={2} className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm disabled:bg-slate-100" data-cert-text-input />
+                                t.t === 'para' || t.t === 'rich'
+                                    ? <textarea ref={textBox} value={textValue} onChange={(e) => onText(selected, e.target.value)} disabled={!!locked} rows={t.t === 'rich' ? 4 : 2} className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm disabled:bg-slate-100" data-cert-text-input />
                                     : <input ref={textBox} value={textValue} onChange={(e) => onText(selected, e.target.value)} disabled={!!locked} className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm disabled:bg-slate-100" data-cert-text-input />
                             )}
                             {locked && <p className="text-[11px] font-semibold text-slate-500">{locked}</p>}
+                            {textValue !== null && /\{\w+\}/.test(textValue || '') && <p className="text-[11px] text-slate-500">Words in braces are filled in for each student: {'{name}'}, {'{place}'}, {'{rank}'}, {'{competition}'}, {'{college}'}, {'{institution}'}, {'{date}'}.</p>}
                             <div className="flex flex-wrap items-center gap-1.5">
                                 <Dropdown small value={CT.familyOf(t.font)} onChange={(v) => edit({ family: v })} options={[['serif', 'Serif (Times)'], ['sans', 'Sans (Helvetica)'], ['mono', 'Mono (Courier)']]} className="h-8 w-40 rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold" data-cert-font />
                                 <input type="number" min={6} max={300} value={size} onChange={(e) => setSize(Number(e.target.value))} className="h-8 w-16 rounded-lg border border-slate-300 px-1.5 text-xs" title="Font size" data-cert-size />

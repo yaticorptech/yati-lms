@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import usePhaseClock from './usePhaseClock';
+import useWrongBuzz from './useWrongBuzz';
 import QuizTable from './QuizTable';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
@@ -35,6 +36,8 @@ function Live({ view, onAction, busy }) {
     const q = view.question;
     const reveal = view.phase === 'reveal';
     const myAnswer = view.you != null ? view.answers[view.you] : null;
+    // A wrong answer buzzes at the reveal (2026-11-06), when the pick goes red and the answer green.
+    useWrongBuzz(view.status === 'active' && myAnswer?.correct === false ? view.number : null);
     const key = `${view.number}:${view.phase}`;
     const picked = pickedAt.key === key ? pickedAt.i : null;
     const setPicked = (i) => setPickedAt({ key, i });
@@ -64,7 +67,6 @@ function Live({ view, onAction, busy }) {
         return chosen !== null && chosen !== undefined ? 'dim' : 'open';
     };
     const seconds = Math.ceil(left / 1000);
-    const clock = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
     const anagram = q && /^Unscramble the letters:\s*([A-Za-z]+)\s*$/.exec(q.prompt || '');
     const leader = Math.max(...(view.scores || [0]));
 
@@ -87,15 +89,6 @@ function Live({ view, onAction, busy }) {
                     </p>
                     <span className="mt-1.5 h-px w-48 bg-gradient-to-r sm:w-72 from-transparent via-[#f4c95d] to-transparent" />
                 </div>
-                {view.phase === 'question' && (
-                    <div className="flex items-center gap-2 rounded-xl border-2 border-fuchsia-400 bg-[#120c2a]/80 px-3 py-1.5 sm:gap-3 sm:rounded-2xl sm:px-5 sm:py-2.5 shadow-[0_0_18px_rgba(217,70,239,.55),inset_0_0_14px_rgba(217,70,239,.25)] lg:absolute lg:right-0 lg:top-1/2 lg:-translate-y-1/2" data-timer={seconds}>
-                        <span className="text-2xl sm:text-4xl" aria-hidden="true">⏳</span>
-                        <span className="leading-tight">
-                            <span className="block text-[11px] font-bold text-white/90 sm:text-sm">Time Left</span>
-                            <span className={`block text-xl font-black italic tabular-nums sm:text-3xl ${seconds <= 5 ? 'text-rose-300' : ''}`}>{clock}</span>
-                        </span>
-                    </div>
-                )}
             </div>
 
             {/* The players. */}
@@ -144,9 +137,6 @@ function Live({ view, onAction, busy }) {
                 <section className={`${view.phase === 'question' ? 'mt-3' : 'mt-6'} rounded-2xl border-2 border-[#f4c95d] bg-[#0d1230]/60 p-4 sm:rounded-[26px] sm:p-5 shadow-[0_0_26px_rgba(244,201,93,.45),inset_0_0_30px_rgba(244,201,93,.08)] sm:p-8`} data-question={view.number}>
                     <div className="flex items-center justify-between gap-3">
                         <p className="min-w-0 text-[15px] font-black leading-snug sm:text-2xl">Question {view.number} of {view.total}{q.topic ? ` – ${q.topic}` : ''}</p>
-                        {view.phase === 'question' && (
-                            <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#f4c95d]/70 px-2.5 py-1 text-sm font-black tabular-nums text-[#f4c95d] sm:gap-2 sm:px-4 sm:py-1.5 sm:text-xl">⏱ {seconds}s</span>
-                        )}
                         {reveal && <span className="rounded-full border border-[#f4c95d]/70 px-4 py-1.5 text-sm font-black text-[#f4c95d]">Answer</span>}
                     </div>
                     <div className="mt-3 flex gap-1 sm:mt-4 sm:gap-2" aria-hidden="true">
@@ -179,7 +169,7 @@ function Live({ view, onAction, busy }) {
                             }[m];
                             return (
                                 <button key={i} type="button" data-option={i} data-mark={m} disabled={!canPick} onClick={() => pick(i)}
-                                    className={`flex min-h-12 items-center gap-3 rounded-full border-2 px-3 py-2 text-left text-base font-black tracking-wide sm:min-h-16 sm:gap-5 sm:px-5 sm:py-2.5 sm:text-xl transition-[box-shadow,border-color] disabled:cursor-default sm:text-2xl ${look}`}
+                                    className={`flex min-h-12 items-center gap-3 rounded-full border-2 px-3 py-2 text-left text-base font-black tracking-wide sm:min-h-16 sm:gap-5 sm:px-5 sm:py-2.5 sm:text-xl transition-[box-shadow,border-color] disabled:cursor-default sm:text-2xl ${m === 'wrong' ? 'gs-wrong' : ''} ${look}`}
                                     style={m === 'mine' ? { background: 'linear-gradient(180deg,#c98a2a,#8a5a14)' } : undefined}>
                                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-violet-300/70 text-base sm:h-12 sm:w-12 bg-gradient-to-b from-violet-500 to-indigo-700 text-xl font-black shadow-[inset_0_2px_0_rgba(255,255,255,.35)]">
                                         {m === 'right' ? <Check size={22} /> : m === 'wrong' ? <X size={22} /> : LETTERS[i]}
@@ -190,9 +180,9 @@ function Live({ view, onAction, busy }) {
                         })}
                     </div>
 
-                    {view.phase === 'question' && view.you != null && (
+                    {view.phase === 'question' && view.you != null && (myAnswer || picked !== null) && (
                         <p className="mt-4 text-center text-xs font-bold text-[#f4c95d]/90 sm:mt-6 sm:text-sm" data-status>
-                            {myAnswer || picked !== null ? 'Locked in. Waiting for the others…' : 'Pick your answer. Right +100, wrong −20. Keys 1–4 work too.'}
+                            Locked in. Waiting for the others…
                         </p>
                     )}
                     {reveal && view.answer && (

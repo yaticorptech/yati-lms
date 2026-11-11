@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import GameShell from './GameShell';
 import useGameProgress, { between, starsFor, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
+import RecallMistake from './RecallMistake';
+import { sfx } from './gameSfx';
 
 const makeDigits = (length) => Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
 
@@ -31,6 +33,9 @@ function Round({ progress, onExit }) {
   const [showing, setShowing] = useState(true);
   const [guess, setGuess] = useState('');
   const [dead, setDead] = useState(false);
+  // A wrong answer is shown first — what was asked, what was typed, the wrong
+  // digits marked — and the round ends only when the student moves on.
+  const [mistake, setMistake] = useState(null);
   // Bumped to start a fresh reveal. The effect below watches it, so the hide
   // is scheduled by an effect rather than state being set from inside one.
   const [reveal, setReveal] = useState(0);
@@ -54,7 +59,7 @@ function Round({ progress, onExit }) {
 
   const submit = (event) => {
     event.preventDefault();
-    if (showing || dead) return;
+    if (showing || dead || mistake) return;
 
     if (guess.trim() === digits) {
       setDigits(makeDigits(digits.length + 1));
@@ -62,7 +67,8 @@ function Round({ progress, onExit }) {
       setShowing(true);
       setReveal((r) => r + 1);
     } else {
-      setDead(true);
+      sfx.wrong();
+      setMistake({ asked: digits, typed: guess.trim() });
     }
   };
 
@@ -106,7 +112,9 @@ function Round({ progress, onExit }) {
         </p>
       }
     >
-      {started && !dead && (
+      {started && !dead && mistake && <RecallMistake {...mistake} onContinue={() => setDead(true)} />}
+
+      {started && !dead && !mistake && (
         <div className="mx-auto max-w-md text-center">
           <div className="flex min-h-20 flex-wrap items-center justify-center gap-2">
             {digits.split('').map((d, i) => (
@@ -125,6 +133,9 @@ function Round({ progress, onExit }) {
             <form onSubmit={submit} className="mt-5 flex flex-wrap justify-center gap-2">
               <input
                 ref={inputRef}
+                // The hide timer's focus() runs before this input is mounted,
+                // so it found nothing; focus it as it appears instead.
+                autoFocus
                 value={guess}
                 onChange={(e) => setGuess(e.target.value.replace(/\D/g, ''))}
                 inputMode="numeric"
@@ -146,3 +157,4 @@ function Round({ progress, onExit }) {
     </GameShell>
   );
 }
+

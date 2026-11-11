@@ -69,6 +69,15 @@ const VERBS = {
 
 const VOWELS = 'aeiou';
 
+/*
+ * Forms a dictionary also accepts, which must never be offered as the wrong
+ * answer: "lighted", "leaped", "thrived" are standard pasts beside "lit",
+ * "leapt", "throve"; "benefitted" and "focussed" are accepted British
+ * spellings; "proved", "swelled", "sowed" are accepted participles.
+ */
+const ALSO_PAST = new Set(['lighted', 'shined', 'hanged', 'kneeled', 'leaped', 'beseeched', 'strived', 'thrived', 'weaved', 'benefitted', 'focussed']);
+const ALSO_PARTICIPLE = new Set([...ALSO_PAST, 'proved', 'sheared', 'sowed', 'swelled']);
+
 /** The regular past of a base: stop -> stopped, try -> tried, bake -> baked. */
 const regular = (base) => {
   if (base.endsWith('e')) return `${base}d`;
@@ -126,13 +135,36 @@ const wrongFor = ([base, past, participle], rng) => {
   const fallback = [`${stem}ed`, `${stem}d`, `${stem}t`, `${stem}${stem.at(-1)}ed`, `${past}t`];
   const wrong = [];
   for (const w of [...candidates, ...fallback]) {
-    if (w !== past && w !== stem && !wrong.includes(w)) wrong.push(w);
+    if (w !== past && w !== stem && !ALSO_PAST.has(w) && !wrong.includes(w)) wrong.push(w);
     if (wrong.length === 3) break;
   }
   return shuffle(rng, wrong).slice(0, 3);
 };
 
-/** The whole pool, every band, in the order the verbs were listed. */
+/**
+ * Three wrong past participles: the simple past in its place ("I have went"),
+ * the regular ending, "-ed" bolted on, an invented vowel.
+ */
+const wrongParticiple = ([base, past, participle], rng) => {
+  const stem = base.replace(/\s*\(.*\)$/, '');
+  const candidates = [past !== participle ? past : null, regular(stem), `${participle}ed`, mangle(participle, stem), `${stem}en`, `${stem}d`, `${stem}ed`, `${participle}d`].filter(Boolean);
+  const wrong = [];
+  for (const w of candidates) {
+    if (w !== participle && w !== stem && !ALSO_PARTICIPLE.has(w) && !wrong.includes(w)) wrong.push(w);
+    if (wrong.length === 3) break;
+  }
+  return shuffle(rng, wrong).slice(0, 3);
+};
+
+/**
+ * The whole pool, every band, in the order the verbs were listed.
+ *
+ * Two kinds of question (2026-11-05: "change the question, don't keep the
+ * same thing through every level"): the past ("Yesterday, I …") and, for the
+ * verbs whose participle differs from their past, the past participle ("I
+ * have already …"). The participles are graded above the pasts of their
+ * band, so a band opens on pasts and turns to participles as it climbs.
+ */
 export const buildTenses = () => {
   const out = [];
   for (const band of [1, 2, 3]) {
@@ -151,7 +183,20 @@ export const buildTenses = () => {
         answer: past,
         options: shuffle(rng, [past, ...wrong]),
         level: band,
-        tier: tierOf(i, verbs.length)
+        tier: tierOf(i, verbs.length) * 0.5
+      });
+    });
+    const prng = seeded(9900 + band);
+    const split = verbs.filter((v) => v[2] !== v[1]);
+    split.forEach((v, i) => {
+      const participle = v[2];
+      out.push({
+        base: v[0],
+        form: 'participle',
+        answer: participle,
+        options: shuffle(prng, [participle, ...wrongParticiple(v, prng)]),
+        level: band,
+        tier: 0.5 + tierOf(i, split.length) * 0.5
       });
     });
   }

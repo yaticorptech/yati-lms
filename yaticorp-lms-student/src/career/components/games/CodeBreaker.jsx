@@ -3,6 +3,7 @@ import { Check, Circle } from 'lucide-react';
 import GameShell from './GameShell';
 import useGameProgress, { between, starsFor, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
+import { sfx } from './gameSfx';
 
 const COLOURS = [
   { key: 'r', class: 'bg-rose-500', name: 'Red' },
@@ -94,7 +95,10 @@ function Round({ progress, onExit }) {
 
   const submit = () => {
     if (draft.length !== LENGTH || over) return;
-    setRows([...rows, { guess: draft, ...scoreGuess(draft, secret) }]);
+    const scored = scoreGuess(draft, secret);
+    // A guess that does not crack it: the buzz (the pegs already say how close it was).
+    if (scored.exact !== LENGTH) sfx.wrong();
+    setRows([...rows, { guess: draft, ...scored }]);
     setDraft([]);
   };
 
