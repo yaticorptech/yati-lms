@@ -235,6 +235,9 @@ const within = (p, ms = 2000) => Promise.race([Promise.resolve(p).catch(() => nu
 let cacheP = null;
 const openCache = () => {
     if (typeof caches === 'undefined') return Promise.resolve(null);
+    // Kept for good (2026-11-11, user: "every clip should save in the user's device"): asks the browser not to
+    // clear the saved audio when the device runs low on space.
+    if (!cacheP) { try { navigator.storage?.persist?.().catch(() => {}); } catch { /* not offered */ } }
     if (!cacheP) cacheP = within(caches.open(VOICE_CACHE)).then((c) => { if (!c) cacheP = null; return c; });
     return cacheP;
 };

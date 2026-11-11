@@ -5,3 +5,8 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 soundfile>=0.12
 git+https://github.com/huggingface/parler-tts.git
+# Pinned to the versions that work locally (2026-11-11: on Railway an older protobuf broke the tokenizer:
+# "cannot import name 'runtime_version' from 'google.protobuf'").
+protobuf==4.25.9
+sentencepiece==0.2.2
+transformers==4.46.1
