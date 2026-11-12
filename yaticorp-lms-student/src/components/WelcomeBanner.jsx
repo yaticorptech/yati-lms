@@ -91,7 +91,7 @@ function LevelRing({ level, percent }) {
 function LevelPanel({ level, percent, xpRemaining, xpTo }) {
     const p = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
     return (
-        <div className="wb-in relative min-w-0 rounded-2xl border border-indigo-100 bg-white/80 p-4 shadow-[0_12px_32px_-20px_rgba(79,70,229,0.45)] backdrop-blur-sm sm:p-5 lg:w-[25rem] lg:shrink-0" style={{ animationDelay: '0.15s' }}>
+        <div className="wb-in relative min-w-0 rounded-2xl border border-indigo-100 bg-white/80 p-4 shadow-[0_12px_32px_-20px_rgba(79,70,229,0.45)] backdrop-blur-sm sm:p-5 @4xl:w-[25rem] @4xl:shrink-0" style={{ animationDelay: '0.15s' }}>
             <div className="flex items-center gap-3 sm:gap-4">
                 <LevelRing level={level} percent={p} />
                 <div className="min-w-0 flex-1">
@@ -136,14 +136,16 @@ export default function WelcomeBanner({
 
     return (
         <section data-welcome aria-label="Welcome"
-            className="relative isolate overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-b from-indigo-50/70 to-white p-4 shadow-sm sm:bg-white sm:bg-none sm:p-7">
+            className="@container relative isolate overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-b from-indigo-50/70 to-white p-4 shadow-sm sm:bg-white sm:bg-none sm:p-7">
             {/* A soft indigo wash, flowing sine waves and rising bubbles — one colour throughout. */}
             <span aria-hidden="true" className="wb-glow pointer-events-none absolute -top-24 -left-20 -z-10 h-72 w-72 rounded-full bg-indigo-100/80 blur-3xl" />
             <span aria-hidden="true" className="wb-glow pointer-events-none absolute -right-16 -bottom-28 -z-10 h-72 w-72 rounded-full bg-indigo-50 blur-3xl" style={{ animationDelay: '-6s' }} />
             <Contours />
             <Bubbles />
 
-            <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
+            {/* Side by side by the banner's own width, not the window's (2026-11-05): at a
+                1024px laptop the sidebar leaves it ~680px, too narrow for both. */}
+            <div className="flex flex-col gap-4 sm:gap-6 @4xl:flex-row @4xl:items-center @4xl:justify-between @4xl:gap-10">
                 <div className="flex min-w-0 items-center gap-3.5 sm:gap-6">
                     {/* The photo in an indigo ring, with the level on a badge. */}
                     <div className="relative shrink-0">

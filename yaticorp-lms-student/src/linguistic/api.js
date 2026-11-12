@@ -1,5 +1,6 @@
 /** Linguistic Ability — the calls, on the LMS's axios client (as interview/api.js). */
 import client from '../utils/api';
+import { askIfDriveRequired } from '../integrations/google/driveGate';
 
 const unwrap = (err) => {
     const body = err.response?.data;
@@ -30,7 +31,8 @@ export const linguisticApi = {
     // The learning plan (2026-10-24): the roadmap, the times to choose (before the student has started: as they said), making or changing it.
     plan: () => get('/plan'),
     planOptions: (course, language, level) => get(`/plan/options?${new URLSearchParams({ course: course || 'en', language: language || '', level: level || '' })}`),
-    setPlan: (days) => post('/plan', { days }),
+    // The days are set by the server (2026-11-04): 90 for a Beginner, 60 after the Advanced entry test.
+    setPlan: () => post('/plan', {}),
     /** The language to learn: 'en', or another course (Vocabulary and Translation), starting at a level. */
     setCourse: (course, start = null) => post('/course', { course, start }),
     /** Choose the student's own language (meanings and translation). */
@@ -41,6 +43,8 @@ export const linguisticApi = {
     submitPlacement: (answers) => post('/placement', { answers }),
     module: (module) => get(`/modules/${module}`),
     lesson: (id) => get(`/lessons/${id}`),
+    /** The unit this lesson is in, every lesson as the student has it: for downloading its audio first. */
+    lessonPack: (id) => get(`/lessons/${id}/pack`),
     step: (id, step) => post(`/lessons/${id}/step`, { step }),
     check: (id, section, qid, given) => post(`/lessons/${id}/check`, { section, id: qid, given }),
     /** Check one quiz answer as it is given (nothing saved); the quiz is still submitted whole at the end. */
@@ -66,7 +70,8 @@ export const linguisticApi = {
     deleteNote: (id) => del(`/notes/${id}`),
     certificates: () => get('/certificates'),
     /** The certificate PDF, as a Blob. */
-    certificatePdf: (level, course = null) => client.get(`/linguistic/certificates/${level}/pdf${course ? `?course=${encodeURIComponent(course)}` : ''}`, { responseType: 'blob' }).then((r) => r.data).catch(unwrap),
+    certificatePdf: (level, course = null) => client.get(`/linguistic/certificates/${level}/pdf${course ? `?course=${encodeURIComponent(course)}` : ''}`, { responseType: 'blob' }).then((r) => r.data)
+        .catch((err) => { askIfDriveRequired(err, 'So the certificates you earn here are kept in your own Google Drive.'); return unwrap(err); }),
     hideCertificate: (level, course = null) => del(`/certificates/${level}${course ? `?course=${encodeURIComponent(course)}` : ''}`)
 };
 

@@ -53,11 +53,12 @@
     const subLine = (d, def, upper = true) => subOf(d, upper) || (d.plain ? '' : def);
     /** The heading ("Certificate") and the line before the name, as typed; the standard ones only off organisations' certificates. */
     const headOf = (d, def) => d.title || (d.plain ? '' : def);
-    const introOf = (d, def) => d.intro || (d.plain ? '' : def);
+    // The line before the name is always on the certificate (2026-11-07), as typed on it or the standard one.
+    const introOf = (d, def) => d.intro || def;
     /** Heading and intro where the design had them (the design pictures no longer carry them). */
     const heading = (d, h) => [
         ...(headOf(d, 'Certificate') ? [at(h.cx, h.base, h.upper === false ? headOf(d, 'Certificate') : headOf(d, 'Certificate').toUpperCase(), h.size, 'serifBold', h.color, { align: h.align || 'center', maxW: h.w, spacing: h.spacing ?? 3 })] : []),
-        ...(h.intro && introOf(d, h.introDef) ? [at(h.icx ?? h.cx, h.intro, h.introUpper ? introOf(d, h.introDef).toUpperCase() : introOf(d, h.introDef), h.introSize || 20, h.introFont || 'serif', h.introColor || '#333333', { align: h.align || 'center', maxW: h.w, spacing: h.introSpacing ?? (h.introUpper ? 4 : 0) })] : [])
+        ...(h.intro && introOf(d, h.introDef) ? [at(h.icx ?? h.cx, h.intro, h.introUpper ? introOf(d, h.introDef).toUpperCase() : introOf(d, h.introDef), h.introSize || 20, h.introFont || 'serif', h.introColor || '#333333', { align: h.align || 'center', maxW: h.w, spacing: h.introSpacing ?? (h.introUpper ? 4 : 0), key: 'intro' })] : [])
     ];
     /** "28/10/2026" → "28th October 2026"; anything else as typed. */
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -93,7 +94,7 @@
             date: String(input.date || '').trim(),
             venue: String(input.venue || '').trim(),
             brand: { name: String(input.brand?.name || '').trim(), tagline: String(input.brand?.tagline || '').trim(), org: String(input.brand?.org || '').trim() },
-            hasLogo: Boolean(input.hasLogo), ownLogo: Boolean(input.ownLogo), hasSeal: Boolean(input.hasSeal),
+            hasLogo: Boolean(input.hasLogo), ownLogo: Boolean(input.ownLogo), hasSeal: Boolean(input.hasSeal), hasBg: Boolean(input.hasBg),
             certId: String(input.certId || 'CERT-PREVIEW'),
             signatories: (input.signatories || []).filter((s) => s && (s.name || s.designation || s.signature)).slice(0, 2)
                 .map((s, i) => ({ name: String(s.name || '').trim(), designation: String(s.designation || '').trim(), slot: s.signature ? `sig${i}` : null }))
@@ -111,7 +112,8 @@
         if (split) { d.title = split[1]; d.subtitle = split[2]; }
         // Organisations' certificates (2026-10-31): only what was typed is written — no default heading, tagline, intro or wording.
         d.plain = Boolean(input.plain ?? input.noQr);
-        d.typedDescription = String(input.description || '').trim();
+        // The organiser's own description, its {name}, {competition}, {award}, {institution} and {date} filled in.
+        d.typedDescription = fill(String(input.description || '').trim(), d);
         d.intro = String(input.details?.intro || '').trim();
         d.position = String(input.award?.title || '').trim() || (award.kind === 'participation' ? 'Participation' : titleCase(award.title));
         d.details = {
@@ -469,7 +471,13 @@
          * the signatures left and right with the seal between them — three signatories share the row equally.
          */
         sealDefault: (d) => (d.allSignatories.length >= 3 ? { cx: 710, cy: 852, side: 88 } : { cx: 710, cy: 945, side: 160 }),
-        draw: (d) => [{ t: 'bg', slot: 'background' }, ...customText(d)]
+        // On the organiser's own picture, the place ("1st", "2nd", "3rd") in bright pure gold where a medal usually is — the
+        // right side (2026-11-07); like any element it can be moved onto the picture's own medal.
+        draw: (d) => [{ t: 'bg', slot: 'background' }, ...customText(d),
+            ...(d.hasBg ? (['first', 'second', 'third'].includes(d.award.kind)
+                ? [at(1271, 313, d.award.short, 58, 'serifBold', '#f7c948', { maxW: 130, key: 'place' })]
+                // Participation (and a custom award): a gold star in its place, as on the built-in medals.
+                : [{ t: 'poly', key: 'place', fill: '#f7c948', pts: Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (Math.PI * i) / 5; const r = i % 2 ? 17 : 40; return [1271 + Math.cos(a) * r, 293 + Math.sin(a) * r]; }) }]) : [])]
     });
 
     /**
@@ -519,7 +527,7 @@
             at(cx, 410, subLine(d, d.award.kind === 'participation' ? 'OF PARTICIPATION' : 'OF ACHIEVEMENT'), 22, 'sansBold', GOLD, { spacing: 9 }),
             { t: 'line', x1: cx - 160, y1: 436, x2: cx + 160, y2: 436, stroke: GOLD, sw: 1.5 },
             { t: 'poly', pts: [[cx, 429], [cx + 7, 436], [cx, 443], [cx - 7, 436]], fill: GOLD },
-            at(cx, 490, introOf(d, 'This is to certify that'), 26, 'serifItalic', MUTED),
+            at(cx, 490, introOf(d, 'This is to certify that'), 26, 'serifItalic', MUTED, { key: 'intro' }),
             // The name, large; everything else in one paragraph, the position and the competition in bold.
             at(cx, 594, d.name, 90, 'script', NAVY, { maxW: 1100 }),
             { t: 'line', x1: cx - 280, y1: 622, x2: cx + 280, y2: 622, stroke: GOLD, sw: 1.2 },
@@ -594,7 +602,7 @@
         // Only the name's frame is part of the page (2026-10-31): the title, the tagline and the intro are what is typed.
         if (headOf(d, 'Certificate')) out.push(at(768, 420, headOf(d, 'Certificate').toUpperCase(), 104, 'serifBold', N, { spacing: 2, maxW: 780 }));
         if (subLine(d, d.award.kind === 'participation' ? 'OF PARTICIPATION' : 'OF ACHIEVEMENT')) out.push(at(768, 470, subLine(d, d.award.kind === 'participation' ? 'OF PARTICIPATION' : 'OF ACHIEVEMENT'), 32, 'serifBold', G, { spacing: 7, maxW: 640 }));
-        if (introOf(d, 'This is to certify that')) out.push(at(768, 524, introOf(d, 'This is to certify that'), 30, 'serif', N, { maxW: 640 }));
+        if (introOf(d, 'This is to certify that')) out.push(at(768, 524, introOf(d, 'This is to certify that'), 30, 'serif', N, { maxW: 640, key: 'intro' }));
         out.push(at(768, 608, d.name, 66, 'serifBold', '#8a5a12', { maxW: 680 }));
         const p = d.position;
         const by = [d.details.department, d.details.college || d.brand.org].filter(Boolean).join(', ');
@@ -735,7 +743,8 @@
     // `noQr` (organisations' certificates, 2026-10-31): the QR code, its box and the ID under it left out.
     const layout = (templateId, input) => {
         const t = templateOf(templateId);
-        let shapes = t.draw(words(input));
+        const d = words(input);
+        let shapes = t.draw(d);
         if (input?.noQr) shapes = shapes.filter((x) => !x.qrPart);
         // The logo as the organiser set it (2026-10-31): `logoAt` — its centre (fx, fy) as shares of the page and its
         // size (fs) as a multiple of the template's own — and its shape: 'original', 'circle' or 'square'.
@@ -768,7 +777,7 @@
             shapes.push({ t: 'img', slot: 'seal', x: cx - side / 2, y: cy - side / 2, w: side, h: side, fs, base: { w: own.side, h: own.side }, key: 'seal' });
         }
         // Every element as the organiser edited it (the Smart Certificate Builder, 2026-10-31).
-        return applyElements(shapes.filter((x) => x.t !== 'text' || x.text), input?.elements);
+        return applyElements(shapes.filter((x) => x.t !== 'text' || x.text), input?.elements, tokensOf(d));
     };
 
     /*
@@ -785,7 +794,16 @@
      * copy — dx/dy (a move), s (a scale: an image's size, a text's font size), rot (degrees, about its centre), z (layer),
      * text, family / bold / italic, color, align, hidden — so the design underneath can change and the edits still sit.
      */
-    const applyElements = (shapes, els) => {
+    /*
+     * Words typed over the certificate (2026-11-07: every text editable) may carry each certificate's own details —
+     * {name}, {place}, {rank} (1st…), {competition}, {college}, {institution}, {date} — filled in for each recipient.
+     */
+    const tokensOf = (d) => ({
+        name: d.name, place: d.position, rank: d.award.short === '★' ? '' : d.award.short, competition: d.competition || '',
+        college: d.details.college || d.brand.org || '', institution: d.institution || '', date: d.date ? niceDate(d.date) : ''
+    });
+    const fillTokens = (text, v) => String(text).replace(/\{(\w+)\}/g, (m, k) => (v && k in v ? String(v[k] ?? '') : m));
+    const applyElements = (shapes, els, vars = null) => {
         if (!els || typeof els !== 'object') return shapes;
         const out = [];
         shapes.forEach((s, i) => {
@@ -795,7 +813,7 @@
             const o = { ...s, i };
             const dx = Number(e.dx) || 0, dy = Number(e.dy) || 0, sc = Number(e.s) || 1;
             if (o.t === 'text' || o.t === 'para') {
-                if (typeof e.text === 'string') o.text = e.text;
+                if (typeof e.text === 'string') o.text = fillTokens(e.text, vars);
                 if (sc !== 1) {
                     o.size *= sc;
                     if (o.maxW) o.maxW *= sc;
@@ -811,6 +829,8 @@
                 if (e.align) o.align = e.align;
                 o.x += dx; o.y += dy;
             } else if (o.t === 'rich') {
+                // The sentence typed over: the filled-in details in bold, as the standard one has them.
+                if (typeof e.text === 'string') o.runs = e.text.split(/(\{\w+\})/).filter(Boolean).map((part) => (/^\{\w+\}$/.test(part) && vars && part.slice(1, -1) in vars ? { text: fillTokens(part, vars), bold: true } : { text: part }));
                 if (sc !== 1) { o.size *= sc; o.lineH *= sc; o.w *= sc; }
                 if (e.color) { o.color = e.color; o.boldColor = e.color; }
                 if (typeof e.italic === 'boolean') o.italic = e.italic;

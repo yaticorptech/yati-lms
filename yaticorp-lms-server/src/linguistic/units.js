@@ -119,22 +119,46 @@ const pathOrder = (levelLessons) => unitsOf(levelLessons).flatMap((u) => u.lesso
  * tapped). From the unit's Words lesson as the student has it — in their
  * language, or the course's. None for a Words lesson or a review.
  */
+/**
+ * The words of a lesson's own unit of its topic (parts.js), from the topic's Words lesson as the student has it — in
+ * their language, or the course's: `word` the one learnt, `kannada` its meaning. With the unit's locale.
+ */
+const unitWordsOf = (doc, helper) => {
+    if (!doc) return null;
+    const { localize } = require('./languages');
+    const courses = require('./courses');
+    const base = CONTENT.find((l) => l.module === 'vocabulary' && l.level === doc.level && (Number(l.order) || 1) === (Number(doc.order) || 1));
+    if (!base) return null;
+    const stub = doc.course ? courses.stubOf(doc.course, base) : base;
+    const unit = parts.cut(doc.course ? courses.build(stub, helper) : localize(base, helper), { ...stub, part: parts.partOf(doc) });
+    return { words: (unit?.words || []).filter((w) => w.word && w.kannada), locale: unit?.targetLocale || 'en-IN' };
+};
+
+/**
+ * The sentences of a lesson's own unit of its topic (2026-11-05, for a Words lesson's blanks): the topic's translation
+ * lesson as the student has it, cut to the unit's share — its items and its direction. Null without one.
+ */
+const unitSentencesOf = (doc, helper) => {
+    if (!doc) return null;
+    const { localize } = require('./languages');
+    const courses = require('./courses');
+    const base = CONTENT.find((l) => l.module === 'translation' && l.level === doc.level && (Number(l.order) || 1) === (Number(doc.order) || 1));
+    if (!base) return null;
+    const stub = doc.course ? courses.stubOf(doc.course, base) : base;
+    const unit = parts.cut(doc.course ? courses.build(stub, helper) : localize(base, helper), { ...stub, part: parts.partOf(doc) });
+    return unit ? { items: unit.items || [], direction: unit.direction } : null;
+};
+
 const warmupFor = (doc, helper) => {
     if (!doc || doc.module === 'vocabulary' || doc.review) return null;
     // Matching pairs once a unit (2026-10-29, the user: "why ask this question for every step?" — chose "once per
     // unit"): the unit's Words lesson has them; no other lesson starts with them any more.
     if (!WARMUP_ON) return null;
-    const { localize } = require('./languages');
-    const courses = require('./courses');
-    const base = CONTENT.find((l) => l.module === 'vocabulary' && l.level === doc.level && (Number(l.order) || 1) === (Number(doc.order) || 1));
-    if (!base) return null;
-    // The words of the lesson's own unit of the topic (parts.js).
-    const stub = doc.course ? courses.stubOf(doc.course, base) : base;
-    const unit = parts.cut(doc.course ? courses.build(stub, helper) : localize(base, helper), { ...stub, part: parts.partOf(doc) });
-    const words = (unit?.words || []).filter((w) => w.word && w.kannada);
+    const unit = unitWordsOf(doc, helper);
+    const words = unit?.words || [];
     if (words.length < 2) return null;
     return shuffle(words, seeded(`${doc.seedKey || doc._id}:warmup`)).slice(0, WARMUP_WORDS)
-        .map((w) => ({ word: w.word, kannada: w.kannada, audio: w.audio || null, locale: unit.targetLocale || 'en-IN', say: w.say || null }));
+        .map((w) => ({ word: w.word, kannada: w.kannada, audio: w.audio || null, locale: unit.locale, say: w.say || null }));
 };
 
-module.exports = { MODULE_ORDER, LEVEL_REVIEWS, TRACKS, TRACK_LEVELS, isTracked, unitsOf, pathOrder, warmupFor, topicOf, typeOf };
+module.exports = { MODULE_ORDER, LEVEL_REVIEWS, TRACKS, TRACK_LEVELS, isTracked, unitsOf, pathOrder, warmupFor, unitWordsOf, unitSentencesOf, topicOf, typeOf };

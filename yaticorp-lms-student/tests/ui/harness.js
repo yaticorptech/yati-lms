@@ -225,8 +225,24 @@ const viaDevTools = async (url, { width, height, dpr = 3, mobile = true }, timeo
         ws = new WebSocket(target.webSocketDebuggerUrl);
         await new Promise((resolve, reject) => { ws.addEventListener('open', resolve, { once: true }); ws.addEventListener('error', reject, { once: true }); });
         let id = 0; const pending = new Map();
-        ws.addEventListener('message', (m) => { const msg = JSON.parse(m.data); if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); } });
-        const send = (method, params = {}) => new Promise((resolve) => { const n = ++id; pending.set(n, resolve); ws.send(JSON.stringify({ id: n, method, params })); });
+        // A page that crashes (or a Chrome that stops answering) fails the screen instead of waiting for ever
+        // (2026-11-11: a run stood still for hours on a crashed page, its Runtime.evaluate never answered).
+        let dead = null;
+        const fail = (why) => { dead = dead || new Error(why); for (const [, p] of pending) p.reject(dead); pending.clear(); };
+        ws.addEventListener('message', (m) => {
+            const msg = JSON.parse(m.data);
+            if (msg.method === 'Inspector.targetCrashed') return fail('the page crashed');
+            if (msg.id && pending.has(msg.id)) { pending.get(msg.id).resolve(msg); pending.delete(msg.id); }
+        });
+        ws.addEventListener('close', () => fail('Chrome closed the connection'));
+        const send = (method, params = {}) => new Promise((resolve, reject) => {
+            if (dead) return reject(dead);
+            const n = ++id;
+            const timer = setTimeout(() => { if (pending.delete(n)) reject(new Error(`Chrome did not answer ${method} in 20s`)); }, 20000);
+            pending.set(n, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
+            ws.send(JSON.stringify({ id: n, method, params }));
+        });
+        await send('Inspector.enable');
 
         await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: dpr, mobile, screenWidth: width, screenHeight: height });
         await send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 });

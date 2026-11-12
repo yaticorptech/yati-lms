@@ -7,7 +7,7 @@
 import { createPortal } from 'react-dom';
 import { ArrowBigUp, Delete, Keyboard, X } from 'lucide-react';
 import KannadaKeys from './KannadaKeys';
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { LAYOUTS, LATIN, capitalOf, typeAt, deleteAt, keySay, KANA_CHART, katakanaOf, modifyKana, KEY_ROW, KEY_FIT } from './letters';
 import { isRtl } from '../meta';
 
@@ -165,22 +165,43 @@ function JapaneseKeys({ inputRef, value, onChange, disabled }) {
  * The letters as a keyboard that pops up (2026-10-29: "give this like a popup keyboard: when the user wants it, they
  * click the keyboard icon and the popup comes"): from the foot of the screen, over the lesson, the text box still in
  * view above it; Done closes it. What is tapped goes into the text box, as before.
+ *
+ * The answer box itself in view (2026-11-05, "the keyboard hides the answer space"): the page gets room at its foot as
+ * tall as the keyboard, and the box is scrolled up over it — so no copy of what is typed on the keyboard (from
+ * 2026-10-29 until then).
  */
 export function KeysPopup({ code, title, onClose, ...keys }) {
+    const box = useRef(null);
+    const { inputRef } = keys;
+    useLayoutEffect(() => {
+        const pop = box.current, input = inputRef?.current;
+        const page = input?.closest('main');
+        if (!pop || !input || !page) return undefined;
+        const was = page.style.paddingBottom;
+        const fit = () => {
+            // The frame at the foot of the screen (not the card in it, which pops in grown from smaller).
+            const top = pop.getBoundingClientRect().top;
+            page.style.paddingBottom = `${pop.offsetHeight + 16}px`;
+            // The box's foot just above the keyboard (its head not above the page's).
+            const r = input.getBoundingClientRect(), head = page.getBoundingClientRect().top;
+            const by = Math.min(r.bottom - (top - 12), r.top - head);
+            if (by > 0) page.scrollTop += by;
+        };
+        fit();
+        const ro = new ResizeObserver(fit);
+        ro.observe(pop);
+        return () => { ro.disconnect(); page.style.paddingBottom = was; };
+    }, [inputRef]);
     return createPortal(
-        <div className="lingo fixed inset-x-0 bottom-0 z-[96] flex justify-center px-2 pb-2 sm:px-4 sm:pb-4" role="dialog" aria-label={title} data-keys-popup={code}>
-            <div className="lingo-pop w-full max-w-3xl rounded-3xl border-2 border-[#E5E5E5] bg-white p-3 shadow-[0_-8px_30px_rgba(0,0,0,0.15)]">
-                <div className="mb-2 flex items-center justify-between gap-2 px-1">
+        <div ref={box} className="lingo fixed inset-x-0 bottom-0 z-[96] flex justify-center px-2 pb-2 sm:px-4 sm:pb-4" role="dialog" aria-label={title} data-keys-popup={code}>
+            <div className="lingo-pop w-full max-w-3xl rounded-3xl border-2 border-[#E5E5E5] bg-white p-2.5 shadow-[0_-8px_30px_rgba(0,0,0,0.15)]">
+                <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
                     <p className="flex items-center gap-2 text-sm font-extrabold text-[#4b4b4b]"><Keyboard size={18} /> {title}</p>
-                    <button type="button" onClick={onClose} onMouseDown={(e) => e.preventDefault()} className="lingo-btn inline-flex h-9 items-center gap-1.5 px-3 text-xs" style={{ background: '#fff', borderColor: '#E5E5E5', color: '#777' }} data-keys-close>
+                    <button type="button" onClick={onClose} onMouseDown={(e) => e.preventDefault()} className="lingo-btn inline-flex h-8 items-center gap-1.5 px-3 text-xs" style={{ background: '#fff', borderColor: '#E5E5E5', color: '#777' }} data-keys-close>
                         <X size={15} strokeWidth={3} /> Done
                     </button>
                 </div>
-                {/* What is typed, in view while the keyboard covers the box (2026-10-29). */}
-                <p className="mb-2 min-h-10 truncate rounded-xl border-2 border-[#E5E5E5] bg-white px-3 py-2 text-[17px] font-semibold text-[#4b4b4b]" dir="auto" lang={code} data-keys-typed>
-                    {keys.value ? (keys.value.length > 60 ? `…${keys.value.slice(-60)}` : keys.value) : <span className="text-[#AFAFAF]">…</span>}
-                </p>
-                <div className="max-h-[50vh] overflow-y-auto overscroll-contain">
+                <div className="max-h-[46vh] overflow-y-auto overscroll-contain">
                     <LetterKeys code={code} {...keys} />
                 </div>
             </div>

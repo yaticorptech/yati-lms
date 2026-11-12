@@ -378,8 +378,16 @@ const GROUP_LIMIT_SECONDS = 30 * 60;
 /* Accounts with 2 hours a day instead (2026-11-02: Hari Kiran's card, 240100018860). More with GROUP_GAMES_LONG_TIME
    (card numbers, comma-separated). */
 const LONG_LIMIT_SECONDS = 2 * 60 * 60;
-const LONG_TIME = new Set(['240100018860', ...String(process.env.GROUP_GAMES_LONG_TIME || '').split(',').map((x) => x.trim()).filter(Boolean)]);
+// Bhagyashree's card (240100045056) added 2026-11-07.
+const LONG_TIME = new Set(['240100018860', '240100045056', ...String(process.env.GROUP_GAMES_LONG_TIME || '').split(',').map((x) => x.trim()).filter(Boolean)]);
 const groupLimitFor = async (userId) => {
+  // The admin's setting (Rewards → Reward rules → Group games, 2026-11-04) is the limit for everyone; 0 = no limit
+  // (a whole day). Since 2026-11-05 it comes first: the long-time accounts' fixed 2 hours used to override it, so an
+  // admin's 7 hours still locked them at 2. Those accounts' 2 hours, and the 30-minute default, apply only while
+  // the admin has set nothing.
+  const cfg = await require('../../rewards/services/configService').getConfig().catch(() => null);
+  const minutes = cfg?.games?.groupDailyMinutes;
+  if (minutes != null && Number.isFinite(Number(minutes))) return Number(minutes) > 0 ? Math.round(Number(minutes) * 60) : 24 * 3600;
   const u = await require('../../models/User').findById(userId).select('cardNumber').lean();
   return u?.cardNumber && LONG_TIME.has(String(u.cardNumber)) ? LONG_LIMIT_SECONDS : GROUP_LIMIT_SECONDS;
 };

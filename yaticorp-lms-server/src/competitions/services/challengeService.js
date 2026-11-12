@@ -316,7 +316,15 @@ const signUp = async (c, user) => {
     };
     await Team.dropOldIndex();
     const back = await Team.findOneAndUpdate({ competitionId: c._id, soloUserId: user._id }, { $set: fields }, { returnDocument: 'after' });
-    return back || Team.create({ competitionId: c._id, organizationId: user.organizationId || null, soloUserId: user._id, entry: 0, ...fields });
+    const team = back || await Team.create({ competitionId: c._id, organizationId: user.organizationId || null, soloUserId: user._id, entry: 0, ...fields });
+    // Two sign-ups at once can both pass the count above: whoever is past the limit (in sign-up order) is taken out again.
+    const ahead = await Team.find({ competitionId: c._id, status: { $in: ['pending', 'approved'] } }).sort({ reviewedAt: 1, _id: 1 }).limit(c.maxTeams).select('_id').lean();
+    if (!ahead.some((t) => id(t) === id(team))) {
+        if (back) await Team.updateOne({ _id: team._id }, { $set: { status: 'withdrawn' } });
+        else await Team.deleteOne({ _id: team._id });
+        throw fail(409, `This competition is full (${c.maxTeams} students).`);
+    }
+    return team;
 };
 
 /** Taken back while registration is still open. */

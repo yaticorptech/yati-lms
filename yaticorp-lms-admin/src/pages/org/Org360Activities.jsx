@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { Banner } from '../../components/orgUi';
 import OrgActivities from '../../components/teachers/OrgActivities';
+import Org360Toppers from '../../components/teachers/Org360Toppers';
 
 const Org360Activities = () => {
     const [notice, setNotice] = useState('');
@@ -15,6 +16,7 @@ const Org360Activities = () => {
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             <OrgActivities onNotice={setNotice} />
+            <Org360Toppers />
         </div>
     );
 };

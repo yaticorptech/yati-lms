@@ -136,6 +136,8 @@ const validateLesson = (body = {}) => {
                 const kind = ITEM_KINDS.includes(it?.kind) ? it.kind : 'sentence';
                 const o = { id, kind, topic: str(it?.topic, 40) || 'daily conversation', source: str(it?.source, 1500), model: str(it?.model, 1500), accepted: strs(it?.accepted, 15, 1500), explanation: str(it?.explanation, 600) };
                 if (it?.open || kind === 'paragraph') o.open = true;
+                // A question going the other way from its lesson keeps its own direction (2026-11-04).
+                if (DIRECTIONS.includes(it?.direction) && it.direction !== value.direction) o.direction = it.direction;
                 if (!o.source || !o.model) errors.push(`${where} ${i + 1}: give the text to translate and its model translation.`);
                 return o;
             });

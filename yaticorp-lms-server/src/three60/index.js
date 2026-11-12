@@ -84,6 +84,8 @@ const overview = (org) => ({
     enabled: Boolean(org.three60?.enabled),
     // The 360 activities, in their categories (./activities.js).
     activityGroups: require('./activities').groupsView(org),
+    // What the list adds up to, against the total the organization aims for (2026-11-06).
+    summary: require('./activities').summaryOf(org),
     programs: (org.three60?.programs || []).map((p) => ({
         _id: p._id, name: p.name,
         sections: p.sections.map((s) => ({ _id: s._id, name: s.name })),
@@ -321,7 +323,7 @@ const student = express.Router();
 student.get('/', async (req, res) => {
     try {
         const user = await User.findById(req.user._id).select('organizationId').lean();
-        const org = user?.organizationId ? await Organization.findById(user.organizationId).select('name three60').lean() : null;
+        const org = user?.organizationId ? await Organization.findById(user.organizationId).select('name logo three60').lean() : null;
         if (!org?.three60?.enabled || !require('./activities').unlocked(org)) return res.json({ enabled: false });
         const teachers = await Teacher.find({ organizationId: org._id, mentor360: true, students360: req.user._id }).select('name email phone').sort({ name: 1 }).lean();
         // Only the students a 360 teacher has added take part (2026-10-31): for the others 360 stays shut.
@@ -335,6 +337,7 @@ student.get('/', async (req, res) => {
         res.json({
             enabled: true,
             organization: org.name,
+            organizationLogo: org.logo || '',
             teachers: teachers.map((t) => ({ name: t.name, email: t.email || '', phone: t.phone || '', subjects: [...(subjectsOf[String(t._id)] || [])] })),
             // The activities, the student's proofs and their marks (./activities.js).
             ...(await require('./activities').studentActivities(org, req.user._id))

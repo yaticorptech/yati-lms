@@ -32,7 +32,7 @@ describe('the Letters unit', () => {
         assert.equal(groupsOf('en')[0].letters[0].example, 'A is for apple.');
         assert.deepEqual(groupsOf('ja')[0].letters.slice(0, 6).map((l) => l.say), ['a', 'i', 'u', 'e', 'o', 'ka']);
         // What the voice is given (2026-10-31, "the correct pronunciation"): an English letter's name; a Korean letter with its vowel.
-        assert.deepEqual(groupsOf('en')[0].letters.slice(0, 3).map((l) => l.speak), ['ay', 'bee', 'see']);
+        assert.deepEqual(groupsOf('en')[0].letters.slice(0, 3).map((l) => l.speak), ['a', 'b', 'c'], 'the small letter: said once, by its name (2026-11-07; "ee" was read "E, E", a capital alone "capital E", "S." as "Saint")');
         assert.deepEqual(groupsOf('ko')[0].letters.slice(0, 3).map((l) => l.speak), ['가', '나', '다']);
         assert.deepEqual(groupsOf('ko')[1].letters.slice(0, 3).map((l) => l.speak), ['아', '야', '어']);
         assert.equal(groupsOf('kn')[0].letters[0].speak, undefined, 'a Kannada letter is said as it is');
@@ -61,7 +61,7 @@ describe('the Letters unit', () => {
         assert.ok(all.every((l) => l.word && l.pic && l.word[0].toUpperCase() === l.char), 'every letter, its word starting with it');
         assert.ok(all.every((l) => l.sentence && l.sentence.toLowerCase().includes(l.word.toLowerCase())), 'and a sentence using its word');
         const l = lessonOf('letters-beginner-1', 'kn');
-        assert.deepEqual([l.words[0].word, l.words[0].pic, l.words[0].for, l.words[0].forSay], ['A', '🍎', 'apple', 'ay for apple']);
+        assert.deepEqual([l.words[0].word, l.words[0].pic, l.words[0].for, l.words[0].forSay], ['A', '🍎', 'apple', 'a for apple'], 'said "a for apple": the letter once, by its name (2026-11-07)');
         assert.match(l.learn.intro, /A for apple/);
         const quiz = svc.quizOf(l);
         assert.equal(quiz.length, 9, 'one for each of its nine letters');

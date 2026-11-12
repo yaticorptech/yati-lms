@@ -37,7 +37,7 @@ const CompetitionsOverview = React.lazy(() => import('./competitions/hub/Overvie
 const hubPage = (name) => React.lazy(() => import('./competitions/hub/pages').then((m) => ({ default: m[name] })));
 const HUB = {
   game: hubPage('GameDetailPage'), completed: hubPage('CompletedPage'),
-  live: hubPage('LivePage'), open: hubPage('OpenPage'), upcoming: hubPage('UpcomingPage'),
+  open: hubPage('OpenPage'), upcoming: hubPage('UpcomingPage'),
   teams: hubPage('TeamsPage'), leaderboard: hubPage('LeaderboardPage'), results: hubPage('ResultsPage')
 };
 // Extra Curricular: NCC, NSS, Scouts & Guides and the organization's clubs.
@@ -146,6 +146,7 @@ const researchPage = (Page) => <ResearchOnly>{teacherPage(Page)}</ResearchOnly>;
 const Profile = React.lazy(() => import('./pages/Profile'));
 const Signup = React.lazy(() => import('./pages/Signup'));
 const AdminAccess = React.lazy(() => import('./pages/AdminAccess'));
+const TeacherAdminAccess = React.lazy(() => import('./teacher/pages/TeacherAdminAccess'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 const EnrolledCourses = React.lazy(() => import('./pages/EnrolledCourses'));
 // Downloaded when first opened rather than with the sign-in page: the player
@@ -386,7 +387,9 @@ function App() {
   // Yati is the students' companion: not on the teacher dashboard either.
   const showLoop = !LOOP_HIDDEN_ON.includes(here) && !here.startsWith('/teacher');
   // A game in play hides Loop without unmounting it (components/loopVisibility).
-  const loopHidden = useLoopHidden() || LOOP_QUIET_ON.includes(here);
+  // Not in Language Learning (2026-11-07, the user: "remove the side standing mascot from the multilingo section"): its own
+  // mascot is in the lessons. Kept loaded, so it is back at once on the next page.
+  const loopHidden = useLoopHidden() || LOOP_QUIET_ON.includes(here) || here === '/linguistic' || here.startsWith('/linguistic/');
   return (
     <>
     {/* At most 120px on a laptop (the package's 170 filled too much of the
@@ -402,6 +405,8 @@ function App() {
       <Route path="/reset-password" element={<React.Suspense fallback={<CareerFallback />}><ResetPassword /></React.Suspense>} />
       {/* A superadmin opening a student's dashboard from the admin Users page. */}
       <Route path="/admin-access" element={<React.Suspense fallback={<CareerFallback />}><AdminAccess /></React.Suspense>} />
+      {/* …and a teacher's, from the admin Teachers page (2026-11-11). */}
+      <Route path="/admin-access/teacher" element={<React.Suspense fallback={<CareerFallback />}><TeacherAdminAccess /></React.Suspense>} />
       {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
           has to be able to open these, and so does anyone deciding whether to
           sign up at all. */}
@@ -429,8 +434,10 @@ function App() {
         {/* A Group Brain room — its lobby, game and result — is part of Games, not Competitions. */}
         <Route path="games/play/:gameId" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense></EnglishOnly>} />
         <Route path="competitions" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CompetitionsOverview /></React.Suspense></EnglishOnly>} />
-        <Route path="competitions/live" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.live /></React.Suspense></EnglishOnly>} />
+        {/* "Live now" left the tabs (2026-11-07): live competitions are on the Competitions page's Live & Upcoming. */}
+        <Route path="competitions/live" element={<Navigate to="/competitions" replace />} />
         <Route path="competitions/open" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.open /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/registered" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.upcoming /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/upcoming" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.upcoming /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/completed" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.completed /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/games/:game" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.game /></React.Suspense></EnglishOnly>} />

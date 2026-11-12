@@ -68,6 +68,8 @@ const settingSchema = new mongoose.Schema({
         default: [],
         select: false
     },
+    // The platform admin's saved certificate defaults (2026-11-07: the builder made the organisations' one).
+    certificateDefaults: { type: mongoose.Schema.Types.Mixed, default: null, select: false },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Setting', settingSchema);

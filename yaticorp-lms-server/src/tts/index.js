@@ -21,6 +21,8 @@ router.get('/status', (req, res) => res.json({ enabled: !!store.URL_BASE(), lang
 router.get('/', async (req, res) => {
     const clip = store.clean(req.query.text, req.query.lang, req.query.voice);
     if (clip.error) return res.status(clip.status).json({ message: clip.error, ...(clip.code ? { code: clip.code } : {}) });
+    // ?cached=1 (the audio pack): only a clip already made; 204 at once rather than waiting minutes for the model.
+    if (req.query.cached === '1' && !store.has(clip)) return res.status(204).end();
     // A clip already made is served even with the voice service off.
     if (!store.has(clip) && !store.URL_BASE()) return res.status(503).json({ message: 'Indic speech is not set up on this server.', code: 'TTS_OFF' });
     try {

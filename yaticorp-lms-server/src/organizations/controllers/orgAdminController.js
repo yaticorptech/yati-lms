@@ -348,6 +348,21 @@ const ROW_SORTS = {
 ROW_SORTS.active = ROW_SORTS.recent;
 
 /**
+ * Each row's 360 score (2026-11-05, the Students table): the same total the student and their 360 teachers see
+ * (three60/activities totalsOf). `on` is false while 360 is locked for the organization or it has no activities,
+ * and the panel then leaves the column out.
+ */
+const with360 = async (rows, organizationId) => {
+    const { totalsOf, unlocked } = require('../../three60/activities');
+    const org = await Organization.findById(organizationId).select('three60').lean();
+    const on = unlocked(org) && (org.three60?.activityGroups || []).some((g) => (g.activities || []).length);
+    if (!on || !rows.length) return { rows, on };
+    const users = await User.find({ _id: { $in: rows.map((r) => r._id) } }).select('+activityProofs +activityMarks').lean();
+    const byId = new Map(users.map((u) => [String(u._id), totalsOf(org, u.activityProofs, u.activityMarks).total]));
+    return { rows: rows.map((r) => ({ ...r, score360: byId.get(String(r._id)) || 0 })), on };
+};
+
+/**
  * One page of my students — GET /me/students?page=…, opt-in.
  *
  *   page    1-based; limit 25 by default, at most 100
@@ -394,7 +409,8 @@ const getStudentsPage = async (req, res) => {
                 .limit(limit)
                 .lean()
         ]);
-        return res.json({ students: await withSummaries(students, organizationId), total, page, limit });
+        const done = await with360(await withSummaries(students, organizationId), organizationId);
+        return res.json({ students: done.rows, three60: done.on, total, page, limit });
     }
 
     const students = await User.find(query).select(SUMMARY_FIELDS).lean();
@@ -405,7 +421,8 @@ const getStudentsPage = async (req, res) => {
     if (ROW_FILTERS[filter]) rows = rows.filter((r) => ROW_FILTERS[filter](r, cutoff));
     rows.sort(ROW_SORTS[sort]);
 
-    return res.json({ students: rows.slice((page - 1) * limit, page * limit), total: rows.length, page, limit });
+    const done = await with360(rows.slice((page - 1) * limit, page * limit), organizationId);
+    return res.json({ students: done.rows, three60: done.on, total: rows.length, page, limit });
 };
 
 // @desc    My organization's students (all of them, or one page with ?page=)
@@ -422,7 +439,8 @@ const getStudents = async (req, res) => {
             .sort({ name: 1 })
             .lean();
 
-        res.json({ students: await withSummaries(students, req.organization._id) });
+        const done = await with360(await withSummaries(students, req.organization._id), req.organization._id);
+        res.json({ students: done.rows, three60: done.on });
     } catch (error) {
         console.error('[organizations] student list failed:', error);
         res.status(500).json({ message: 'Server error', error: error.message });

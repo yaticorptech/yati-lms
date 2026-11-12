@@ -3,6 +3,7 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import { sfx } from './gameSfx';
 
 const LINES = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -75,6 +76,8 @@ function Round({ progress, onExit }) {
 
   const finish = (result) => {
     setEnded(result);
+    // A lost game is the wrong answer here: the same buzz as every other game.
+    if (result === 'O') sfx.wrong();
     setGames((g) => ({
       won: g.won + (result === 'X' ? 1 : 0),
       drawn: g.drawn + (result === 'draw' ? 1 : 0),

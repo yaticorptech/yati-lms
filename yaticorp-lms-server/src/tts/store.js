@@ -39,7 +39,7 @@ const make = async (clip) => {
     const job = (async () => {
         const r = await axios.post(`${URL_BASE()}/tts`, clip, {
             responseType: 'arraybuffer',
-            timeout: 180000,
+            timeout: 600000,
             headers: TOKEN() ? { Authorization: `Bearer ${TOKEN()}` } : {}
         });
         const tmp = `${file}.${process.pid}.tmp`;

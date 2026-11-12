@@ -127,7 +127,7 @@ describe('Group Brain rooms', () => {
     });
 
     test('a room is for 2 to 20 players, as its maker picks; only that many join', async () => {
-        assert.equal((await p[0].call('POST', '/rooms', { game: 'wordlogic', options: { players: 3 } })).status, 400, '3 is not a size');
+        assert.equal((await p[0].call('POST', '/rooms', { game: 'wordlogic', options: { players: 1 } })).status, 400, '1 is not a size');
         const two = (await p[0].call('POST', '/rooms', { game: 'wordlogic', options: { players: 2 } })).body.game;
         assert.equal(two.maxSeats, 2);
         assert.equal((await p[1].call('POST', '/rooms/join', { code: two.code })).status, 200);

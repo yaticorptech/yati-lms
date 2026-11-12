@@ -8,7 +8,12 @@
  * Written here, with no outside service: a native speaker should check them.
  */
 // `speak`: what the device's voice is given to say the letter right, where the letter alone is read otherwise (2026-10-31).
-const L = (char, say, example = '', speak = '') => ({ char, say, ...(example ? { example } : {}), ...(speak ? { speak } : {}) });
+// A capital letter alone is read "capital E" ("E majuscule", "großes E"…), and a name like "ee" as two letters, "E, E"
+// (2026-11-07, the user: "don't say the letter two times"); with a full stop some voices read a short form ("S.": "Saint" in
+// the Indian English voice; French "M." is Monsieur) — the user: "S says a different word". The small letter alone, "s",
+// is said once, by its name, in every voice tried (English: India, US, UK; French, German, Spanish).
+const once = (char) => (/^\p{Lu}$/u.test(char) ? char.toLocaleLowerCase() : '');
+const L = (char, say, example = '', speak = once(char)) => ({ char, say, ...(example ? { example } : {}), ...(speak ? { speak } : {}) });
 const pairsOf = (text) => text.trim().split(/\s+/).map((p) => { const [char, ...say] = p.split(':'); return L(char, say.join(':').replace(/_/g, ' ')); });
 
 /* ── The scripts of India ─────────────────────────────────────────────── */
@@ -106,9 +111,10 @@ const ENGLISH = [
     ['S', 'es', 'sun', '☀️', 'The sun shines in the sky.'], ['T', 'tee', 'tree', '🌳', 'A bird sits in the tree.'], ['U', 'you', 'umbrella', '☂️', 'Take an umbrella when it rains.'],
     ['V', 'vee', 'van', '🚐', 'The van carries boxes.'], ['W', 'double-you', 'watch', '⌚', 'My watch shows the time.'], ['X', 'ex', 'Xmas tree', '🎄', 'We put lights on the Xmas tree.'],
     ['Y', 'why', 'yacht', '⛵', 'The yacht sails on the sea.'], ['Z', 'zed', 'zebra', '🦓', 'The zebra has black and white stripes.']
-// A voice reads a letter alone as a word ("A": "uh"): it is given the letter's name to say instead.
+// A voice reads a letter alone as a word ("A": "uh") or "capital A", and its name "ay" as "eye", "ee" as "E, E" (2026-11-07):
+// it is given the small letter, "a", said once by its name (L, `once`).
 // Each word in a short sentence too (2026-10-31: "in the quiz, not one word — one sentence using that letter's word").
-].map(([c, say, word, pic, sentence]) => ({ ...L(c, say, `${c} is for ${word}.`, say.replace(/-/g, ' ')), word, pic, sentence }));
+].map(([c, say, word, pic, sentence]) => ({ ...L(c, say, `${c} is for ${word}.`), word, pic, sentence }));
 const thirds = (list, titles) => { const n = Math.ceil(list.length / titles.length); return titles.map(([id, title], i) => ({ id, title, letters: list.slice(i * n, (i + 1) * n) })); };
 
 const LATIN = {

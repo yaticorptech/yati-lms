@@ -167,6 +167,8 @@ const userSchema = new mongoose.Schema({
             note: { type: String, default: '', maxlength: 300 },
             status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
             marks: { type: Number, default: 0 },
+            // Bonus marks the teacher added on accepting it (2026-11-06), within the activity's bonusMax.
+            bonusMarks: { type: Number, min: 0, default: 0 },
             reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null },
             reviewerName: { type: String, default: '' },
             reviewNote: { type: String, default: '', maxlength: 300 },

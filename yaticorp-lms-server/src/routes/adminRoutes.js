@@ -108,8 +108,9 @@ router.route('/global-quiz/:id').put(protectAdmin, globalQuizCtrl.updateQuestion
 const { getAnalytics } = require('../controllers/adminAnalyticsController');
 router.get('/analytics', protectAdmin, getAnalytics);
 // Overall analytics (every admin) and the admin audit log (super admins).
-const { getOverallAnalytics, getAuditLog } = require('../controllers/adminInsightsController');
+const { getOverallAnalytics, getAuditLog, getAdminHome } = require('../controllers/adminInsightsController');
 router.get('/overall-analytics', protectAdmin, getOverallAnalytics);
+router.get('/home', protectAdmin, getAdminHome);
 router.get('/audit-log', protectAdmin, superAdminOnly, getAuditLog);
 
 // Announcement Routes

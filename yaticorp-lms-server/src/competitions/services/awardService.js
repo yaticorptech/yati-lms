@@ -18,21 +18,25 @@ const award = async (competition) => {
     const { tell } = require('./notices');
     const teams = await Team.find({ competitionId: competition._id, status: 'approved' }).lean();
     const id = String(competition._id);
+    // A second run (Issue prizes again, or publishing after a run) pays only what is missing; a player is told again only when something new was paid.
+    const firstRun = !(await Competition.exists({ _id: competition._id, awardedAt: { $ne: null } }));
 
     for (const team of teams) {
         const place = competition.winners.find((w) => String(w.teamId) === String(team._id))?.place || null;
         const prize = place ? competition.prizes.find((p) => p.place === place) : null;
         for (const player of team.players) {
             const userId = player.userId;
+            let paidNow = false;
             if (prize?.xp > 0) {
-                await addXp({ userId, amount: prize.xp, source: 'competition', refId: `${id}:place`, description: `for ${ORDINAL[place]} place in ${competition.name}`, silent: true });
+                paidNow = !(await addXp({ userId, amount: prize.xp, source: 'competition', refId: `${id}:place`, description: `for ${ORDINAL[place]} place in ${competition.name}`, silent: true })).duplicate || paidNow;
             }
             if (prize?.rewardPoints > 0) {
-                await awardPoints({ userId, points: prize.rewardPoints, source: 'competition', claimKey: `competition:${id}:place`, description: `${ORDINAL[place]} place in ${competition.name}`, meta: { competitionId: id, place }, quiet: true });
+                paidNow = !!(await awardPoints({ userId, points: prize.rewardPoints, source: 'competition', claimKey: `competition:${id}:place`, description: `${ORDINAL[place]} place in ${competition.name}`, meta: { competitionId: id, place }, quiet: true })) || paidNow;
             }
             if (competition.participationXp > 0) {
-                await addXp({ userId, amount: competition.participationXp, source: 'competition', refId: `${id}:participation`, description: `for taking part in ${competition.name}`, silent: true });
+                paidNow = !(await addXp({ userId, amount: competition.participationXp, source: 'competition', refId: `${id}:participation`, description: `for taking part in ${competition.name}`, silent: true })).duplicate || paidNow;
             }
+            if (!firstRun && !paidNow) continue;
             const who = team.soloUserId ? 'You' : team.teamName;
             const won = place ? `${competition.name}: ${who} finished ${ORDINAL[place]}${prize?.title ? ` — ${prize.title}` : ''}.` : `${competition.name} is over. ${team.soloUserId ? 'Thank you for taking part.' : `Thank you for playing for ${team.teamName}.`}`;
             const extras = [prize?.xp ? `+${prize.xp} XP` : '', prize?.rewardPoints ? `+${prize.rewardPoints} reward points` : '', competition.participationXp ? `+${competition.participationXp} XP for taking part` : '']

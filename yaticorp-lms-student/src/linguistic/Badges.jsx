@@ -5,7 +5,8 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Download, Lock, Check } from 'lucide-react';
-import { saveBlob } from '../native/saveFile';
+import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
+const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi } from './api';
 import { COLORS, MODULES, levelOf } from './meta';
 import { Chunky, Panel } from './ui';
@@ -20,9 +21,10 @@ export default function Badges() {
     const [error, setError] = useState('');
     useEffect(() => { linguisticApi.history().then((h) => setHistory(h.attempts.slice(0, 8))).catch(() => {}); }, []);
 
-    const download = (level) => {
+    const download = async (level) => {
+        if (!(await ensureDriveLinked(CERT_DRIVE_REASON))) return;
         setBusy(level); setError('');
-        linguisticApi.certificatePdf(level).then((blob) => saveBlob(blob, `${dash.course?.name || 'English'}_${levelOf(level).label}_Certificate.pdf`, { title: 'Certificate' })).catch((e) => setError(e.message)).finally(() => setBusy(''));
+        linguisticApi.certificatePdf(level).then((blob) => downloadWithDrive(blob, `${dash.course?.name || 'English'}_${levelOf(level).label}_Certificate.pdf`, { title: 'Certificate', reason: CERT_DRIVE_REASON })).catch((e) => setError(e.message)).finally(() => setBusy(''));
     };
     const earned = dash.achievements.filter((a) => a.earned).length;
 

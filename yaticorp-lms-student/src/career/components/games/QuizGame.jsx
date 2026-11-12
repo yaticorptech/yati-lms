@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Check, X, Lightbulb } from 'lucide-react';
 import GameShell from './GameShell';
 import useGameProgress, { between, ramp, starsForFixed, starsOn } from './levels';
@@ -6,6 +6,7 @@ import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 import { pickQuestions, remember, recordFor, keyOf } from './questionMemory';
 import { useMascot } from '../../mascot/useMascot';
+import useAnswerReveal from './useAnswerReveal';
 
 const shuffle = (list) => {
   const out = [...list];
@@ -34,7 +35,7 @@ const configFor = (levelNo) => ({
   seconds: between(90, 45, levelNo)
 });
 
-export default function QuizGame({ gameId, title, tone, questions, renderPrompt, onExit }) {
+export default function QuizGame({ gameId, title, tone, questions, renderPrompt, onExit, alternate = false }) {
   const progress = useGameProgress(gameId);
   return (
     <Round
@@ -45,17 +46,19 @@ export default function QuizGame({ gameId, title, tone, questions, renderPrompt,
       questions={questions}
       renderPrompt={renderPrompt}
       onExit={onExit}
+      alternate={alternate}
     />
   );
 }
 
-function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
+function Round({ progress, title, tone, questions, renderPrompt, onExit, alternate }) {
   const config = configFor(progress.levelNo);
   const [index, setIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [chosen, setChosen] = useState(null);
   const [started, setStarted] = useState(false);
   const mascot = useMascot();
+  const { busy, showWrong, toneOf } = useAnswerReveal();
 
   /**
    * The questions for this level.
@@ -88,6 +91,21 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
    * asked, and never while it has just been answered correctly.
    */
   const deck = useMemo(() => {
+    // A game that mixes kinds of question (`alternate`, each question's
+    // `kind`) deals each kind its share and takes turns: one of each, in turn.
+    if (alternate) {
+      const kinds = [...new Set(questions.map((q) => q.kind))];
+      const hands = kinds.map((k, i) => shuffle(deal(questions.filter((q) => q.kind === k), Math.floor(config.count / kinds.length) + (i < config.count % kinds.length ? 1 : 0))));
+      const out = [];
+      for (let i = 0; out.length < hands.flat().length; i += 1) hands.forEach((h) => h[i] && out.push(h[i]));
+      return out;
+    }
+    return shuffle(deal(questions, config.count));
+  }, [questions, alternate, progress.difficulty, progress.levelNo, progress.gameId, config.count]);
+
+  /** `count` questions from `questions` for this level: see above. */
+  function deal(questions, count) {
+    const config = { count };   // the share this kind gets, in place of the level's whole count
     const band = progress.difficulty;
     const graded = questions.filter((q) => (q.level || 1) === band);
     let pool = graded.length ? graded : questions;
@@ -113,12 +131,24 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
       }
     }
 
-    return shuffle(pickQuestions(pool, config.count, progress.gameId, band, ramp(progress.levelNo)));
+    // Each level climbs (asked 2026-11-05: "after the next level, harden it —
+    // don't keep the same thing through every level"): a band is a hundred
+    // levels long, so its own questions alone feel flat. From the band's
+    // first step a growing share — up to half by its last — comes from the
+    // band above, the next band's easiest first.
+    const up = band < 3 && graded.length
+      ? questions.filter((q) => (q.level || 1) === band + 1).map((q) => ({ ...q, tierShift: 1, fromBand: band + 1 }))
+      : [];
+    const harder = Math.min(up.length, Math.round(config.count * 0.5 * ramp(progress.levelNo)));
+    const own = pickQuestions(pool, config.count - harder, progress.gameId, band, ramp(progress.levelNo));
+    const taken = new Set(own.map(keyOf));
+    const lift = pickQuestions(up.filter((q) => !taken.has(keyOf(q))), harder, progress.gameId, band, 1);
+    return [...own, ...lift];
     // No `attempt` dependency: QuizGame keys this component on level and
     // attempt, so a retry remounts it and the record is re-read on the way in.
     // The retry therefore leads with whatever was missed, without this memo
     // having to watch for it.
-  }, [questions, progress.difficulty, progress.levelNo, progress.gameId, config.count]);
+  }
 
   const { seconds, over: timeUp } = useTimedRound(config.seconds, started);
   const current = deck[index];
@@ -131,16 +161,26 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
   // two stars.
   const stars = over ? starsForFixed(score, passMark, deck.length) : 0;
   useRecordStars(progress, over, stars);
+  // Read by the wrong-answer pause when it ends: if the clock ran out meanwhile, the round stays where it stopped.
+  const overRef = useRef(over);
+  useEffect(() => { overRef.current = over; }, [over]);
 
   // Options shuffled per question, so the right answer is not always in the
   // same place when a question comes round again.
   const options = useMemo(() => (current ? shuffle(current.options) : []), [current]);
 
   const answer = (value) => {
-    if (chosen !== null) return;
+    if (chosen !== null || busy || over) return;
     const right = value === current.answer;
-    setChosen(value);
-    if (right) setScore((s) => s + 1);
+    if (right) {
+      setChosen(value);
+      setScore((s) => s + 1);
+    } else {
+      // The buzz, the pick red and the right answer green (its note in the footer), a pause, then the next question.
+      showWrong(value, current.answer, () => {
+        if (!overRef.current) setIndex((i) => i + 1);
+      });
+    }
     // Recorded as it happens rather than at the end of the round, so a student
     // who abandons a level half-way still keeps credit for what they answered.
     // Filed under the question's own band (a borrowed one carries it).
@@ -187,7 +227,7 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
           : null
       }
       footer={
-        chosen !== null && current?.note ? (
+        (chosen !== null || busy) && current?.note ? (
           <p className="flex items-center justify-center gap-1.5 text-center text-sm text-ink-500">
             <Lightbulb className="h-3.5 w-3.5 shrink-0 text-amber-500" />
             {current.note}
@@ -213,9 +253,11 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
                   key={String(option)}
                   type="button"
                   onClick={() => answer(option)}
-                  disabled={show}
-                  className={`fp-press flex min-h-14 items-center justify-center gap-2 rounded-2xl px-3 text-base font-black ring-1 transition-all ring-inset ${
-                    show && isAnswer
+                  disabled={show || busy}
+                  className={`fp-press flex min-h-14 items-center justify-center gap-2 rounded-2xl px-3 text-base font-black ring-1 transition-all ring-inset ${toneOf(option)} ${
+                    busy
+                      ? 'bg-surface-50 text-ink-900 ring-line-200'
+                      : show && isAnswer
                       ? 'bg-emerald-50 text-emerald-800 ring-emerald-300'
                       : show && picked
                         ? 'bg-rose-50 text-rose-700 ring-rose-300'

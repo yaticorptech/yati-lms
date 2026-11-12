@@ -46,3 +46,49 @@ test('element edits (the Smart Certificate Builder) move, restyle, hide, turn an
     assert.ok(!shapes.some((s) => s.key === 'logo'), 'hidden');
     assert.strictEqual(shapes[shapes.length - 1].key, 'name', 'brought to the front');
 });
+
+test('the organiser’s own description on Your template fills in {name} and {competition}', () => {
+    const shapes = T.layout('custom', { recipient: { name: 'Asha' }, award: { kind: 'first' }, competition: 'Chess', description: '{name} shone in {competition}.' });
+    const text = shapes.find((s) => s.key === 'sentence').runs.map((r) => r.text).join('');
+    assert.ok(text.includes('Asha shone in Chess.'), text);
+    assert.ok(!/\{(name|competition)\}/.test(text), text);
+});
+
+test('a name in Kannada or Hindi is set in a font that has its letters', async () => {
+    const design = { template: 'custom', competition: { name: 'ಚೆಸ್ प्रतियोगिता' }, branding: {} };
+    const buf = await render.pdf(null, design, [{ certId: 'YC-AAAA-BBBB', recipient: { name: 'ಅನನ್ಯಾ Ananya' }, award: { kind: 'first' } }]);
+    const pdf = buf.toString('latin1');
+    assert.ok(/NotoSerifKannada/.test(pdf), 'Kannada font embedded');
+    assert.ok(/NotoSerifDevanagari/.test(pdf), 'Devanagari font embedded');
+});
+
+test('a certificate only for those who took part: a game\'s players who joined a match, not a no-show or a bye', () => {
+    const { whoTookPart } = require('../../src/competitions/certificates/participation');
+    const team = (id, ...players) => ({ _id: id, players: players.map((userId) => ({ userId })) });
+    const teams = [team('A', 'a1', 'a2'), team('B', 'b1', 'b2'), team('C', 'c1'), team('D', 'd1', 'd2'), team('E', 'e1')];
+    const matches = [
+        { status: 'bye', decidedBy: 'bye', sides: [{ teamId: 'C' }] },
+        // The organizer decided it, no game ever opened (played away from the app): its line-up only.
+        { status: 'completed', decidedBy: 'admin', gameIds: [], sides: [{ teamId: 'D', lineup: ['d2'] }, { teamId: 'E', lineup: [] }] },
+        // A game nobody joined, then decided by the organizer: nobody played.
+        { status: 'completed', decidedBy: 'admin', gameIds: ['g9'], sides: [{ teamId: 'C' }] }
+    ];
+    // a1 played; b1 came to a walkover (b2 a substitute, B's opponents never came).
+    const games = [{ seats: [{ userId: 'a1', joinedAt: new Date() }, { userId: 'c1', joinedAt: null }] }, { seats: [{ userId: 'b1', joinedAt: new Date() }] }];
+    const got = whoTookPart({ competition: { game: 'chess' }, teams, matches, games });
+    assert.deepStrictEqual([...got].sort(), ['a1', 'b1', 'd2', 'e1']);
+
+    assert.deepStrictEqual([...whoTookPart({ competition: { game: 'quiz' }, teams, attempts: [{ userId: 'a2' }, { userId: 'zz' }] })], ['a2']);
+    assert.deepStrictEqual([...whoTookPart({ competition: { game: 'hackathon' }, teams, submissions: [{ teamId: 'D' }] })].sort(), ['d1', 'd2']);
+});
+
+test('the automatic certificates go to the placed and the participants who played, never to a listed player who did not', () => {
+    const { certified } = require('../../src/competitions/certificates/auto');
+    const roster = [
+        { userId: 'w1', place: 1, played: true }, { userId: 'w2', place: 1, played: false },
+        { userId: 'p1', place: null, played: true }, { userId: 'p2', place: null, played: false }
+    ];
+    const comp = { kind: 'competition', winners: true, participants: true };
+    assert.deepStrictEqual(certified({ places: [1, 2, 3] }, comp, roster).map((r) => [r.userId, r.place]), [['w1', 1], ['p1', null]]);
+    assert.deepStrictEqual(certified({ places: [1, 2, 3], participation: false }, comp, roster).map((r) => r.userId), ['w1']);
+});

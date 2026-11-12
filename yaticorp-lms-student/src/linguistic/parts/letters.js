@@ -125,6 +125,11 @@ export const capitalOf = (k) => (k === 'ß' ? k : k.toLocaleUpperCase());
  */
 export const KEY_ROW = 'flex flex-wrap justify-center gap-1';
 export const KEY_FIT = 'flex-none min-w-0 basis-[calc((100%_-_1.25rem)/6_-_0.1px)] @md:basis-[calc((100%_-_1.75rem)/8_-_0.1px)] @xl:basis-[calc((100%_-_2.25rem)/10_-_0.1px)] @2xl:basis-[calc((100%_-_2.75rem)/12_-_0.1px)]';
+/**
+ * Kannada's keys closer together (2026-11-05, "the keyboard hides the answer space"): 8 to a line on a phone, 10, 13,
+ * then 15 on a wide page — its 13 vowels and 15 signs a line each, its 34 consonants three.
+ */
+export const KEY_FIT_DENSE = 'flex-none min-w-0 basis-[calc((100%_-_1.75rem)/8_-_0.1px)] @md:basis-[calc((100%_-_2.25rem)/10_-_0.1px)] @xl:basis-[calc((100%_-_3rem)/13_-_0.1px)] @2xl:basis-[calc((100%_-_3.5rem)/15_-_0.1px)]';
 
 /** Whether a language has letter keys (Chinese has thousands of characters: its word tiles, or the device's keyboard, instead). */
 export const hasLetters = (code) => code === 'kn' || !!LAYOUTS[code];

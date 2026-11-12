@@ -38,7 +38,7 @@ export default function GoogleConsentDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="google-consent-title"
@@ -56,7 +56,7 @@ export default function GoogleConsentDialog() {
             </h2>
             <p className="mt-0.5 text-sm leading-snug text-slate-500">
               {request.reason || 'So your documents from this site are kept in your own Google Drive.'}
-              {request.required && ' Link it once, then upload again.'}
+              {request.required && ' Link it once, then try again.'}
             </p>
           </div>
           <button

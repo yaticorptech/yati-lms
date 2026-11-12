@@ -11,9 +11,10 @@ import useLoad from './hub/useLoad';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Gamepad2, Trophy, UserCheck, BarChart3, History, Users, UsersRound, Crown, CalendarClock, Building2, Loader2,
-    ArrowRight, Award, Download, Medal, Clock, Gift, Search, ChevronRight, Link2, Ticket, Landmark, CalendarDays, Radio, ClipboardList, CheckCircle2, Lock, X, Brain, Code2
+    ArrowRight, Award, Download, Medal, Clock, Gift, Search, ChevronRight, Link2, Ticket, Landmark, CalendarDays, Radio, ClipboardList, CheckCircle2, Lock, X, Brain, Code2, Layers
+, Zap
+, FileText
 } from 'lucide-react';
-import useRowsShown from './useRowsShown';
 import { competitionsApi, GAMES, GAME_BUTTON, PHASE, ORDINAL, fmtDateTime, fmtDate, gameImage, gameIcon } from './api';
 import { StatusChip, GameChip, MatchCard, Empty } from './parts';
 import { arenaApi } from './arena/api';
@@ -119,7 +120,7 @@ const QuizArenaCard = () => {
     useEffect(() => { load(); }, [load]);
     useLive('arena', load);
     return (
-        <GameCard id="quizarena" label="Quiz Arena" image="/games/quizarena-card.jpg?v=3" icon="/games/quizarena-icon.png" tone="from-indigo-600 to-fuchsia-700"
+        <GameCard id="quizarena" label="Quiz Arena" image={gameImage('quizarena')} icon="/games/quizarena-icon.png" tone="from-indigo-600 to-fuchsia-700"
             players="Individual" meta="Everyone at once · 25 questions · 15 s each"
             blurb={next
                 ? `${next.state === 'live' ? 'Live now' : next.state === 'registration' ? 'Entries open' : 'Starting soon'}: ${next.title} · ${fmtDateTime(next.startsAt)}${next.entryStatus === 'approved' ? ' · you are in' : ''}`
@@ -248,41 +249,55 @@ export const ChipIcon = ({ game, className }) => {
  * the game, the name and organizer, colleges, players and date, and View.
  * Shared by the inter-college competitions and Quiz Arena.
  */
+// Each game's chip on a competition card: its sign, in its colour.
+const CARD_CHIP = {
+    quizarena: ['🧠', 'bg-[#fdf0f3] text-[#1e1b3a]'],
+    codeclash: [<Code2 key="c" size={16} strokeWidth={2.6} />, 'bg-[#f1f2f7] text-[#1e1b3a]'],
+    chess: ['♟', 'bg-[#f1f2f7] text-[#1e1b3a]'],
+    rapidfire: [<span key="r" className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-orange-400 text-[11px] text-white">⚡</span>, 'bg-[#fff4e8] text-[#1e1b3a]'],
+    brainsprint: ['🧩', 'bg-[#eef6ff] text-[#1e1b3a]']
+};
+// The reference's own portrait pictures (public/competitions/hub/card-<id>); Brain Sprint's from its game art.
+const CARD_ART = { quizarena: 1, codeclash: 1, chess: 1, rapidfire: 1 };
+
+/**
+ * A competition as a card (2026-11-04, as the reference): its game's picture on the left, and on the right the game,
+ * the name, who organised it, two facts side by side, the date, and View Competition. All one size.
+ */
 const GoldCard = ({ game, gameLabel, bannerUrl, name, organizedBy, stats, extra, to, linkData }) => {
     const [broken, setBroken] = useState(false);
+    const [sign, chip] = CARD_CHIP[game] || [<Trophy key="t" size={15} />, 'bg-slate-100 text-slate-800'];
+    const facts = stats.slice(0, 2);
+    const when = stats[2];
+    const WhenIcon = when?.[0];
     return (
-        // Built like the Results cards (asked 2026-10-28): one size, the
-        // picture, the game and status, the name, the organizer, three facts
-        // one under another, and View at the bottom. The picture is tall
-        // enough to see clearly and takes any height left over, so a card
-        // with a one-line name has no blank gap (asked 2026-10-29).
-        <article {...linkData} className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-[0_14px_30px_rgba(59,47,192,0.14)] motion-reduce:hover:translate-y-0">
-            <div className="relative w-full flex-1 overflow-hidden bg-[#16123f]">
-                <span aria-hidden="true" className="block pb-[50%]" />
+        <article {...linkData} className="group relative grid h-full cursor-pointer grid-cols-[minmax(0,36%)_minmax(0,1fr)] gap-4 overflow-hidden rounded-[24px] border border-[#ecebf5] bg-white p-4 shadow-[0_12px_30px_-20px_rgba(76,64,160,.35)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_-22px_rgba(76,64,160,.5)] sm:gap-5 sm:p-5">
+            <div className="relative min-h-[12rem] overflow-hidden rounded-[18px] bg-[#16123f] shadow-[0_10px_22px_-12px_rgba(0,0,0,.55)]">
                 {!bannerUrl && ART[game] ? (
-                    <span aria-hidden="true" className={`absolute inset-0 flex items-center bg-gradient-to-br pl-[8%] ${GAMES[game].tone}`}>{(() => { const Art = ART[game]; return <Art className="h-[60%] w-auto text-white/90" strokeWidth={1.6} />; })()}</span>
-                ) : !broken && <img src={bannerUrl || cardImage(game)} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" style={bannerUrl ? undefined : { objectPosition: FOCUS[game] || 'center' }} />}
+                    <span aria-hidden="true" className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${GAMES[game].tone}`}>{(() => { const Art = ART[game]; return <Art className="h-1/2 w-auto text-white/90" strokeWidth={1.6} />; })()}</span>
+                ) : !broken && <img src={bannerUrl || (CARD_ART[game] ? `/competitions/hub/card-${game}.jpg` : cardImage(game))} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />}
             </div>
-            <div className="flex flex-col p-5">
-                <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-slate-600"><ChipIcon game={game} className="h-4 w-4 shrink-0" /> {gameLabel}</span>
-                {/* The name (up to two lines) with the organizer right under it. */}
-                <div className="mt-2">
-                    <h3 className="line-clamp-2 text-lg font-bold leading-snug text-slate-900 transition-colors group-hover:text-indigo-700">{name}</h3>
-                    <p className="mt-0.5 truncate text-sm text-slate-500">Organized by {organizedBy}</p>
-                </div>
-                {/* The first two facts side by side, then the date(s), each on its own row. */}
-                <dl className="mt-3 grid grid-cols-2 gap-2">
-                    {stats.map(([Icon, value, label], i) => (
-                        <div key={label} className={`flex min-w-0 items-center gap-2.5 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-100 ${i < 2 ? '' : 'col-span-2'}`}>
-                            <Icon size={17} aria-hidden="true" className="shrink-0 text-indigo-600" />
-                            <dt className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-500">{label}</dt>
-                            <dd className="shrink-0 text-sm font-bold text-slate-900">{value}</dd>
+            <div className="flex min-w-0 flex-col">
+                <span className={`inline-flex w-fit max-w-full items-center gap-2 truncate rounded-full px-3 py-1 text-xs font-bold sm:text-sm ${chip}`}><span aria-hidden="true" className="flex items-center">{sign}</span> {gameLabel}</span>
+                <h3 className="mt-2.5 line-clamp-2 text-base font-black leading-tight tracking-tight text-[#14102e] sm:text-xl">{name}</h3>
+                <p className="mt-1 truncate text-xs text-[#8b8aa3] sm:text-sm">Organized by {organizedBy}</p>
+                <dl className="mt-3 grid grid-cols-2 gap-2.5">
+                    {facts.map(([Icon, value, label]) => (
+                        <div key={label} className="flex min-w-0 items-center gap-2 rounded-xl bg-[#f6f6fb] px-3 py-2.5">
+                            <Icon size={19} aria-hidden="true" className="shrink-0 text-[#4f46e5]" strokeWidth={2} />
+                            <dd className="min-w-0 truncate text-xs font-bold text-[#1e1b3a] sm:text-[15px]">{value} <dt className="inline font-semibold">{label === 'Questions' ? 'Qs' : label}</dt></dd>
                         </div>
                     ))}
+                    {when && (
+                        <div className="col-span-2 flex min-w-0 items-center gap-2 rounded-xl bg-[#f6f6fb] px-3 py-2.5">
+                            <WhenIcon size={19} aria-hidden="true" className="shrink-0 text-[#4f46e5]" strokeWidth={2} />
+                            <dd className="min-w-0 truncate text-xs font-bold text-[#1e1b3a] sm:text-[15px]">{when[1]}</dd>
+                        </div>
+                    )}
                 </dl>
                 {extra}
-                <span aria-hidden="true" className="block h-4 shrink-0" />
-                <Link to={to} className="after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-bold text-indigo-800 transition-colors group-hover:border-indigo-600 group-hover:bg-indigo-600 group-hover:text-white">
+                <span aria-hidden="true" className="block h-3 shrink-0" />
+                <Link to={to} className="after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#c9c3f3] bg-[#f3f1ff] px-3 text-sm font-black text-[#3b2fc0] transition-colors group-hover:border-[#3b2bc4] group-hover:bg-[#3b2bc4] group-hover:text-white sm:min-h-12 sm:text-base">
                     View Competition <ArrowRight size={16} aria-hidden="true" className="transition-transform duration-200 group-hover:translate-x-1" />
                 </Link>
             </div>
@@ -302,7 +317,7 @@ export const CompetitionCard = ({ c }) => (
             : [
                 [Landmark, c.teamsCount, c.hostOrganizationId ? (c.teamsCount === 1 ? 'Team' : 'Teams') : c.teamsCount === 1 ? 'College' : 'Colleges'],
                 [Users, c.playersCount || 0, c.playersCount === 1 ? 'Player' : 'Players'],
-                c.endsAt ? [Clock, dateOnly(c.endsAt), c.kind === 'quiz' ? 'Closes' : 'Due'] : [CalendarDays, `${dateOnly(c.startsAt)}, ${timeOnly(c.startsAt)}`, 'Date']
+                c.endsAt ? [Clock, dateOnly(c.endsAt), c.kind === 'quiz' ? 'Closes' : c.kind === 'hackathon' ? 'Due' : 'Ends'] :[CalendarDays, `${dateOnly(c.startsAt)}, ${timeOnly(c.startsAt)}`, 'Date']
             ]}
         extra={(c.myTeam || ['registration-open', 'closing-soon', 'registration-soon'].includes(c.phase)) && (
             <p className="mt-3 space-x-3 text-[13px] text-slate-600">
@@ -317,7 +332,7 @@ export const ArenaGoldCard = ({ c }) => (
     <GoldCard game="quizarena" gameLabel="Quiz Arena" live={c.state === 'live'} bannerUrl={c.bannerUrl} status={{ live: 'Live', registration: 'Registration Open', upcoming: 'Registration closed', ended: 'Results coming', results: 'Completed', cancelled: 'Closed' }[c.state] || 'Upcoming'} closed={c.state === 'cancelled'}
         name={c.title} organizedBy={c.organizedBy} to={`/competitions/arena/${c.id}`} linkData={{ 'data-arena': c.id }}
         stats={[
-            [Landmark, c.questions, 'Questions'],
+            [FileText, c.questions, 'Questions'],
             [Users, c.registeredCount || 0, c.registeredCount === 1 ? 'Player' : 'Players'],
             [CalendarDays, `${dateOnly(c.startsAt)}, ${timeOnly(c.startsAt)}`, 'Date']
         ]} />
@@ -458,7 +473,7 @@ export const MineTab = () => {
             {active === 'registered' && (
                 <Box>
                     <ul className="divide-y divide-slate-100">
-                        {data.competitions.map((c) => (
+                        {[...data.competitions].sort((a, b) => new Date(b.startsAt || 0) - new Date(a.startsAt || 0)).map((c) => (
                             <li key={c.id} className="flex items-start gap-3 py-3">
                                 <span className="text-2xl leading-none" aria-hidden="true">{c.emoji}</span>
                                 {/* The chip sits beside the name only, and the
@@ -515,64 +530,71 @@ const StatPill = ({ icon: Icon, value, label, tone }) => (
 export const LeaderboardTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.leaderboard);
     const [board, setBoard] = useState('colleges');
-    const listRef = useRef(null);
+    // Every one of them, listed in full (2026-11-04): no inner scroll.
     const rows = data?.[board] || [];
-    // The top two show; the rest scroll inside the list, like the Final standings.
-    const more = useRowsShown(listRef, RANKS_SHOWN, rows.length, { key: board, extra: (RANKS_SHOWN - 1) * ROW_GAP });
     if (error) return <Failed error={error} onRetry={reload} />;
     if (!data) return <Loading list />;
     const label = (r) => (board === 'colleges' ? r.collegeName : board === 'teams' ? r.teamName : r.name);
-    const sub = (r) => (board === 'colleges' ? `${r.competitions} competition${r.competitions === 1 ? '' : 's'}` : board === 'teams' ? `${r.collegeName} · ${r.competition}` : r.collegeName);
+    // A team's line leads with its college (2026-11-04), then the competition.
+    const second = (r) => (board === 'colleges' ? `${r.competitions} Competition${r.competitions === 1 ? '' : 's'}` : board === 'teams' ? [r.collegeName, r.competition].filter(Boolean).join(' · ') : r.collegeName);
+    const RowIcon = board === 'colleges' ? Building2 : board === 'teams' ? Users : UserCheck;
+    const head = board === 'colleges' ? ['College', 'Competitions'] : board === 'teams' ? ['Team', 'Competition'] : ['Player', 'College'];
+    // The rank as a medal: gold and silver as the reference draws them, bronze tinted from the silver.
+    const Medal1 = ({ rank }) => (rank <= 3
+        ? <span className="relative flex h-9 w-10 items-center justify-center sm:h-12 sm:w-14">
+            <img src={`/competitions/hub/lb-r${rank === 1 ? 1 : 2}.png`} alt="" aria-hidden className="absolute inset-0 h-full w-full object-contain mix-blend-multiply" style={rank === 3 ? { filter: 'sepia(1) saturate(2.6) hue-rotate(-18deg) brightness(.92)' } : undefined} />
+        </span>
+        : <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-sm font-black text-slate-600 sm:h-11 sm:w-11 sm:text-base">{rank}</span>);
     return (
-        <Box>
-            {/* One line on a phone: the three share the row (they wrapped
-                Individual onto a second line), and below 380px the icons go so
-                the words fit. From sm up, each is as wide as its words. */}
-            <div className="mb-4 flex gap-1 sm:gap-2" role="tablist" aria-label="Ranking">
+        <section className="rounded-[26px] border border-violet-100 bg-white p-3 shadow-[0_18px_40px_-26px_rgba(109,40,217,.45)] sm:p-5" data-leaderboard>
+            <div className="mb-4 flex gap-2" role="tablist" aria-label="Ranking">
                 {BOARDS.map((b) => (
                     <button key={b.id} type="button" role="tab" aria-selected={board === b.id} onClick={() => setBoard(b.id)}
-                        className={`inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 text-[13px] font-bold transition-colors sm:flex-none sm:px-3.5 sm:text-sm ${board === b.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                        <b.icon size={15} aria-hidden="true" className="hidden shrink-0 min-[380px]:block" /> {b.label}
+                        className={`inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-2xl px-3 text-sm font-bold transition-colors sm:flex-none sm:px-7 sm:text-base ${board === b.id ? 'bg-gradient-to-b from-[#7c3aed] to-[#5b21b6] text-white shadow-[0_10px_22px_-10px_rgba(91,33,182,.8)]' : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-violet-50'}`}>
+                        <b.icon size={19} aria-hidden="true" className="hidden shrink-0 min-[380px]:block" /> {b.label}
                     </button>
                 ))}
             </div>
-            {rows.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">No results yet. Rankings fill in as matches are played.</p> : (
-                <ol ref={listRef} className={`flex flex-col ${more ? 'overflow-y-auto overscroll-contain pr-1' : ''}`} style={{ gap: ROW_GAP }} data-ranking={board}>
-                    {rows.map((r) => {
-                        const top = PODIUM[r.rank];
-                        return (
-                            <li key={r.id} className="flex flex-col gap-3 rounded-2xl p-3 ring-1 transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:gap-4 sm:p-4"
-                                style={{ background: top ? top.row : '#ffffff', '--tw-ring-color': top ? top.ring : '#eef0f6' }}>
-                                <div className="flex min-w-0 flex-1 items-center gap-3">
-                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-black tabular-nums shadow-sm"
-                                        style={top ? { background: top.badge, color: top.ink } : { background: '#f1f5f9', color: '#475569' }}>
-                                        {r.rank === 1 ? <Crown size={20} aria-label="1st" /> : r.rank}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-base font-black text-slate-900">{label(r)}</span>
-                                        <span className="block truncate text-xs text-slate-600">{sub(r)}</span>
-                                    </span>
-                                    {/* Points: on a phone beside the name, on a wide screen at the end. */}
-                                    <span className="shrink-0 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 px-3 py-1.5 text-center text-white shadow-md shadow-indigo-600/25 sm:hidden">
-                                        <span className="block text-lg font-black leading-none tabular-nums">{r.points}</span><span className="text-[10px] font-semibold uppercase tracking-wide text-white/80">Points</span>
-                                    </span>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <StatPill icon={CheckCircle2} value={r.won} label="Won" tone="bg-emerald-50 text-emerald-700 ring-emerald-200" />
-                                    <StatPill icon={Gamepad2} value={r.played} label="Played" tone="bg-indigo-50 text-indigo-700 ring-indigo-200" />
-                                    {r.titles ? <StatPill icon={Trophy} value={r.titles} label={r.titles === 1 ? 'Title' : 'Titles'} tone="bg-amber-50 text-amber-700 ring-amber-200" /> : null}
-                                    {r.place ? <StatPill icon={Medal} value={ORDINAL[r.place]} label="place" tone="bg-rose-50 text-rose-700 ring-rose-200" /> : null}
-                                </div>
-                                <span className="hidden min-w-[92px] shrink-0 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 px-4 py-2 text-center text-white shadow-md shadow-indigo-600/25 sm:block">
-                                    <span className="block text-2xl font-black leading-none tabular-nums">{r.points}</span><span className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Points</span>
+            {rows.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">No results yet. Rankings fill in as matches are played.</p> : (<>
+                {/* The column names, on a wide screen. */}
+                <div className="mb-2 hidden grid-cols-[4.5rem_minmax(0,1.6fr)_minmax(0,1.1fr)_minmax(0,1.8fr)_8.5rem] items-center gap-2 text-sm font-semibold text-slate-600 lg:grid">
+                    <span className="rounded-xl bg-slate-50 py-2 text-center">#</span>
+                    <span className="rounded-xl bg-slate-50 px-6 py-2">{head[0]}</span>
+                    <span className="rounded-xl bg-slate-50 px-3 py-2">{head[1]}</span>
+                    <span className="rounded-xl bg-slate-50 px-3 py-2">Performance</span>
+                    <span className="rounded-xl bg-slate-50 px-3 py-2 text-right">Points</span>
+                </div>
+                <ol className="flex flex-col gap-2 pt-4 sm:gap-2.5" data-ranking={board}>
+                    {rows.map((r) => (
+                        <li key={r.id} className={`grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl px-2 py-1.5 ring-1 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto] sm:p-3 lg:grid-cols-[4.5rem_minmax(0,1.6fr)_minmax(0,1.1fr)_minmax(0,1.8fr)_8.5rem] ${r.rank === 1 ? 'bg-gradient-to-r from-[#fff6e0] via-[#fffaf0] to-[#fff6e6] ring-amber-200' : 'bg-white ring-slate-200'}`}>
+                            <span className="flex justify-center"><Medal1 rank={r.rank} /></span>
+                            <span className="flex min-w-0 items-center gap-3 lg:px-3">
+                                <span className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-white to-slate-50 text-slate-600 shadow-[0_6px_14px_-8px_rgba(15,23,42,.4)] ring-1 ring-slate-200 sm:flex"><RowIcon size={22} aria-hidden="true" /></span>
+                                <span className="min-w-0">
+                                    <span className="block break-words text-sm font-black leading-tight text-slate-900 sm:text-lg">{label(r)}</span>
+                                    <span className="mt-0.5 block break-words text-[11px] leading-snug text-slate-600 lg:hidden">{second(r)} · {r.won} won · {r.played} played{r.titles ? ` · ${r.titles} ${r.titles === 1 ? 'title' : 'titles'}` : ''}</span>
                                 </span>
-                            </li>
-                        );
-                    })}
+                            </span>
+                            <span className="hidden items-center gap-2 border-r border-slate-200 px-3 text-sm text-slate-700 lg:flex"><Layers size={20} className="shrink-0 text-slate-600" aria-hidden="true" /><span className="break-words leading-snug">{second(r)}</span></span>
+                            {/* Points: the slanted violet plate, a crown on the leader's. */}
+                            <span className="relative flex justify-end lg:order-last">
+                                {r.rank === 1 && <Crown aria-hidden className="absolute -top-3 left-1/2 z-10 h-5 w-5 -translate-x-1/2 fill-amber-400 text-amber-500 drop-shadow-[0_2px_3px_rgba(180,83,9,.5)] sm:h-7 sm:w-7" strokeWidth={2} />}
+                                <span className={`flex min-w-[3.75rem] -skew-x-[12deg] flex-col items-center justify-center rounded-lg px-2.5 py-1 text-white sm:rounded-xl sm:px-4 sm:py-1.5 shadow-[0_10px_22px_-10px_rgba(91,33,182,.8)] sm:min-w-[7rem] sm:py-2 ${r.rank === 1 ? 'bg-gradient-to-br from-[#7c3aed] to-[#4c1d95]' : 'bg-gradient-to-br from-[#6d28d9] to-[#3b1a8f]'}`}>
+                                    <span className="skew-x-[12deg] text-lg font-black leading-none tabular-nums sm:text-3xl">{r.points}</span>
+                                    <span className="skew-x-[12deg] text-[8px] font-bold uppercase tracking-wide sm:text-xs">Points</span>
+                                </span>
+                            </span>
+                            <span className="hidden flex-wrap items-center gap-2 lg:flex lg:px-3">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200 sm:text-sm"><CheckCircle2 size={16} aria-hidden="true" /> {r.won} Won</span>
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 ring-1 ring-indigo-200 sm:text-sm"><Gamepad2 size={16} aria-hidden="true" /> {r.played} Played</span>
+                                {r.titles ? <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 ring-1 ring-amber-200 sm:text-sm"><Trophy size={16} aria-hidden="true" /> {r.titles} {r.titles === 1 ? 'Title' : 'Titles'}</span> : null}
+                                {r.place ? <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 ring-1 ring-rose-200 sm:text-sm"><Medal size={16} aria-hidden="true" /> {ORDINAL[r.place]} place</span> : null}
+                            </span>
+                        </li>
+                    ))}
                 </ol>
-            )}
-            {more && <p data-ranking-more className="mt-3 text-xs text-slate-600">Showing {RANKS_SHOWN} of {rows.length} {RANK_NOUN[board][1]}. Scroll the list to see the rest.</p>}
-        </Box>
+            </>)}
+        </section>
     );
 };
 
@@ -590,43 +612,43 @@ const PLACES = [
  * and date, the name, the top three one under another (always three rows,
  * so every card is as tall), and View Full Results.
  */
-const ResultCard = ({ game, gameLabel, title, date, winners, mine = null, to, data }) => (
-    <article {...data} className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-amber-300 hover:shadow-[0_12px_28px_rgba(146,104,18,0.14)]">
-        <span aria-hidden="true" className="block h-1 w-full" style={{ background: 'linear-gradient(90deg, #b8860b, #f1c94b, #b8860b)' }} />
-        <div className="flex flex-1 flex-col p-5">
-            <div className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
-                <span className="inline-flex min-w-0 items-center gap-1.5 truncate"><ChipIcon game={game} className="h-4 w-4 shrink-0" /> {gameLabel}</span>
-                <span className="shrink-0">{fmtDate(date)}</span>
+// Each game's chip on a result card (2026-11-04): its sign and its name in capitals.
+const RESULT_CHIP = { quizarena: [Gamepad2, 'bg-amber-50 text-amber-900'], codeclash: [Code2, 'bg-slate-100 text-slate-800'], rapidfire: [Zap, 'bg-orange-50 text-orange-900'], brainsprint: [Brain, 'bg-sky-50 text-sky-900'], chess: [Crown, 'bg-violet-50 text-violet-900'] };
+const MEDAL = { 1: 'from-[#fde68a] to-[#f59e0b] text-[#5b3a03] ring-amber-300', 2: 'from-[#f1f5f9] to-[#a3aec0] text-[#1e293b] ring-slate-300', 3: 'from-[#fdc9a0] to-[#d9773a] text-[#4a1d06] ring-orange-300' };
+
+const ResultCard = ({ game, gameLabel, title, date, winners, mine = null, to, data, featured = false }) => {
+    const [Icon, chip] = RESULT_CHIP[game] || [Trophy, 'bg-slate-100 text-slate-800'];
+    return (
+        <article {...data} className={`group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-[0_14px_34px_-22px_rgba(15,23,42,.45)] ring-1 ring-slate-200 transition-shadow hover:shadow-[0_20px_40px_-22px_rgba(15,23,42,.55)] sm:p-5 ${featured ? 'border-l-[3px] border-amber-400' : ''}`}>
+            <div className="flex items-center justify-between gap-2">
+                <span className={`inline-flex min-w-0 items-center gap-1.5 truncate rounded-lg px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${chip}`}><Icon size={15} aria-hidden="true" className="shrink-0" /> {gameLabel}</span>
+                <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-slate-600 sm:text-sm"><CalendarDays size={15} aria-hidden="true" /> {fmtDate(date)}</span>
             </div>
-            <h3 className="mt-2 line-clamp-2 min-h-[3rem] text-lg font-bold leading-snug text-slate-900">{title}</h3>
-            {mine && <p className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${mine.rank <= 3 ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200' : 'bg-slate-50 text-slate-800 ring-1 ring-slate-200'}`} data-my-place>
+            <h3 className="mt-3 line-clamp-2 text-lg font-black leading-snug text-[#0f172a] sm:text-xl">{title}</h3>
+            {mine && <p className={`mt-2 rounded-lg px-3 py-1.5 text-sm font-semibold ${mine.rank <= 3 ? 'bg-amber-50 text-amber-900' : 'bg-slate-50 text-slate-800'}`} data-my-place>
                 {mine.rank <= 3 ? `You won ${ORDINAL[mine.rank]} place` : `You finished #${mine.rank}`} · {mine.score} points
             </p>}
-            <ol className="mt-4 divide-y divide-slate-100 border-y border-slate-100">
-                {PLACES.map((p) => {
-                    const w = winners.find((x) => x.place === p.place);
+            <ol className="mt-3 divide-y divide-slate-100 border-t border-slate-100">
+                {[1, 2, 3].map((place) => {
+                    const w = winners.find((x) => x.place === place);
                     return (
-                        <li key={p.place} className="flex items-center gap-3 py-2.5">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: w ? p.soft : '#f8fafc' }}>
-                                <Medal size={17} aria-hidden="true" style={{ color: w ? p.medal : '#cbd5e1' }} />
+                        <li key={place} className={`flex items-center gap-3 px-1 py-2.5 ${featured && place === 1 && w ? '-mx-1 rounded-xl bg-gradient-to-r from-[#fff7e6] to-transparent px-2' : ''}`}>
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-b text-sm font-black ring-2 shadow-[0_4px_8px_-4px_rgba(0,0,0,.4)] ${MEDAL[place]}`}>{place}</span>
+                            <span className="min-w-0 flex-1 truncate text-sm">
+                                {w ? <><span className="font-bold text-slate-900">{w.name}</span>{w.sub ? <span className="text-slate-500"> · {w.sub}</span> : null}</> : <span className="text-slate-400">—</span>}
                             </span>
-                            <span className="min-w-0 flex-1">
-                                <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">{p.label}</span>
-                                {w ? <span className="block truncate text-sm font-bold text-slate-900">{w.name}{w.sub ? <span className="font-normal text-slate-500"> · {w.sub}</span> : null}</span>
-                                    : <span className="block text-sm text-slate-400">—</span>}
-                            </span>
-                            {w?.score != null && <span className="shrink-0 text-sm font-bold tabular-nums text-slate-700">{w.score} <span className="text-xs font-medium text-slate-500">pts</span></span>}
+                            {w?.score != null && <span className="shrink-0 text-sm font-black tabular-nums text-slate-800">{Number(w.score).toLocaleString('en-IN')} <span className="text-xs font-medium text-slate-500">pts</span></span>}
                         </li>
                     );
                 })}
             </ol>
-            <span aria-hidden="true" className="block h-4 shrink-0" />
-            <Link to={to} className="after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-900 transition-colors group-hover:bg-amber-100">
+            <span aria-hidden="true" className="block h-3 shrink-0" />
+            <Link to={to} className={`after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold transition-colors ${featured ? 'bg-[#13213d] text-white hover:bg-[#1c2d52]' : 'border border-slate-800/80 bg-white text-slate-900 group-hover:bg-slate-50'}`}>
                 View Full Results <ArrowRight size={16} aria-hidden="true" />
             </Link>
-        </div>
-    </article>
-);
+        </article>
+    );
+};
 
 export const ResultsTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.history);
@@ -638,15 +660,18 @@ export const ResultsTab = () => {
     return (
         // Three to a row, all one size; one on a phone, two on a tablet.
         <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {arenas.map((c) => (
-                <ResultCard key={`a-${c.id}`} game="quizarena" gameLabel="Quiz Arena" title={c.title} date={c.resultsPublishedAt} to={`/competitions/arena/${c.id}`} data={{ 'data-arena-result': c.id }}
-                    mine={c.myResult?.rank != null ? c.myResult : null}
-                    winners={(c.winners || []).map((w) => ({ place: w.place, name: w.name, sub: w.collegeName, score: w.score }))} />
-            ))}
-            {data.competitions.map(({ competition: c }) => (
-                <ResultCard key={c.id} game={c.game} gameLabel={c.gameLabel} title={c.name} date={c.completedAt} to={`/competitions/${c.id}`} data={{ 'data-result': c.id }}
-                    winners={c.winners.map((w) => ({ place: w.place, name: w.collegeName, sub: w.teamName }))} />
-            ))}
+            {/* Newest first (2026-11-06): Quiz Arena and competition results together, by when they finished. */}
+            {[
+                ...arenas.map((c) => ({ at: c.resultsPublishedAt, el: (featured) => (
+                    <ResultCard key={`a-${c.id}`} featured={featured} game="quizarena" gameLabel="Quiz Arena" title={c.title} date={c.resultsPublishedAt} to={`/competitions/arena/${c.id}`} data={{ 'data-arena-result': c.id }}
+                        mine={c.myResult?.rank != null ? c.myResult : null}
+                        winners={(c.winners || []).map((w) => ({ place: w.place, name: w.name, sub: w.collegeName, score: w.score }))} />
+                ) })),
+                ...data.competitions.map(({ competition: c }) => ({ at: c.completedAt, el: (featured) => (
+                    <ResultCard key={c.id} featured={featured} game={c.game} gameLabel={c.gameLabel} title={c.name} date={c.completedAt} to={`/competitions/${c.id}`} data={{ 'data-result': c.id }}
+                        winners={c.winners.map((w) => ({ place: w.place, name: w.collegeName, sub: w.teamName }))} />
+                ) }))
+            ].sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0)).map((r, i) => r.el(i === 0))}
         </div>
     );
 };
@@ -654,7 +679,26 @@ export const ResultsTab = () => {
 /* ── Certificates (mine) — the History tab, as asked 2026-10-27 ─────── */
 
 /** One certificate: what it is for, and the certificate itself, opened in a popup (asked 2026-10-29). */
-const CertificateCard = ({ title, sub, badge, load, fileName, to }) => {
+/** The medal for a place (2026-11-04): gold, silver or bronze with its laurels and ribbon; anyone else a plain one. */
+const MEDAL_LOOK = {
+    1: ['/competitions/hub/medal-gold.png', 'from-[#fde68a] to-[#f2b63c]', '#4a2f02', undefined],
+    2: ['/competitions/hub/medal-silver.png', 'from-[#f8fafc] to-[#bcc5d2]', '#1e293b', undefined],
+    3: ['/competitions/hub/medal-silver.png', 'from-[#fbd2ab] to-[#d07a3c]', '#3b1704', 'sepia(1) saturate(2.4) hue-rotate(-18deg) brightness(.95)']
+};
+const PlaceMedal = ({ place }) => {
+    const look = MEDAL_LOOK[place];
+    if (!look) return <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-b from-violet-50 to-violet-100 text-violet-700 ring-2 ring-violet-200 sm:h-[4.5rem] sm:w-[4.5rem]"><Award size={28} aria-hidden="true" /></span>;
+    const [src, disc, ink, filter] = look;
+    return (
+        <span className="relative block h-16 w-16 shrink-0 sm:h-[4.5rem] sm:w-[4.5rem]" aria-label={`${ORDINAL[place]} place`}>
+            <img src={src} alt="" aria-hidden className="h-full w-full object-contain" style={filter ? { filter } : undefined} />
+            <span className={`absolute left-1/2 top-[39%] flex h-[42%] w-[42%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gradient-to-b ${disc} text-[0.8rem] font-black sm:text-sm`} style={{ color: ink }}>{ORDINAL[place]}</span>
+        </span>
+    );
+};
+
+/** One certificate (2026-11-04, as the reference): its medal, what it is for, and Show Certificate, which opens it. */
+const CertificateCard = ({ title, sub, place, load, fileName, to }) => {
     const [open, setOpen] = useState(false);
     // Escape closes the popup (unless the certificate is in the browser's full screen, which Escape leaves first).
     useEffect(() => {
@@ -664,15 +708,17 @@ const CertificateCard = ({ title, sub, badge, load, fileName, to }) => {
         return () => window.removeEventListener('keydown', onKey);
     }, [open]);
     return (
-        <li className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" data-certificate-card>
-            <div className="flex flex-wrap items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-amber-200 text-sm font-black text-amber-800">{badge}</span>
-                <span className="min-w-0 flex-1 basis-48">
-                    <Link to={to} className="block break-words text-sm font-black text-slate-900 hover:text-indigo-700">{title}</Link>
-                    <span className="block text-xs text-slate-500">{sub}</span>
+        <li className="relative overflow-hidden rounded-2xl border border-amber-200/90 bg-gradient-to-br from-white via-white to-[#fff8e8] p-3 shadow-[0_12px_28px_-18px_rgba(146,104,18,.55)] sm:p-4" data-certificate-card>
+            <span aria-hidden className="pointer-events-none absolute -bottom-8 -right-6 h-24 w-48 -rotate-[18deg] bg-gradient-to-r from-transparent via-amber-200/60 to-amber-300/70" />
+            <div className="relative flex flex-wrap items-center gap-3 sm:flex-nowrap sm:gap-4">
+                <PlaceMedal place={place} />
+                <span aria-hidden className="hidden h-12 w-px bg-amber-200 sm:block" />
+                <span className="min-w-0 flex-1 basis-40">
+                    <Link to={to} className="block break-words text-base font-black text-[#0f172a] hover:text-indigo-700 sm:text-lg">{title}</Link>
+                    <span className="mt-0.5 block text-xs text-slate-500 sm:text-sm">{sub}</span>
                 </span>
-                <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-bold text-white hover:bg-indigo-700">
-                    <Award size={14} aria-hidden="true" /> Show certificate
+                <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="inline-flex min-h-10 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-[#13213d] px-4 text-sm font-bold text-white shadow-[0_8px_18px_-8px_rgba(15,23,42,.8)] hover:bg-[#1c2d52] sm:w-auto sm:px-5">
+                    <Award size={16} aria-hidden="true" /> Show Certificate <ArrowRight size={16} aria-hidden="true" />
                 </button>
             </div>
             {open && createPortal(
@@ -696,16 +742,16 @@ export const HistoryTab = () => {
     const comps = data.results.filter((r) => r.certificate);
     if (!comps.length && !arenas.length) return <Empty icon={Award} title="No certificates yet">When the results of a competition you played in are published, your certificate appears here.</Empty>;
     return (
-        <ul className="grid items-start gap-3 lg:grid-cols-2" data-history>
+        <ul className="grid items-start gap-3 sm:gap-4 lg:grid-cols-2" data-history>
             {arenas.map((c) => (
                 <CertificateCard key={`arena-${c.id}`} to={`/competitions/arena/${c.id}`} title={`🧠 ${c.title}`}
-                    badge={c.myResult.rank <= 3 ? ORDINAL[c.myResult.rank] : `#${c.myResult.rank}`}
-                    sub={`Quiz Arena · ${c.myResult.rank <= 3 ? `${ORDINAL[c.myResult.rank]} place` : `Rank ${c.myResult.rank}`} · ${c.myResult.score} points · ${fmtDate(c.resultsPublishedAt)}`}
+                    place={c.myResult.rank}
+                    sub={`Quiz Arena  ·  ${c.myResult.rank == null ? 'Took part' : c.myResult.rank <= 3 ? `${ORDINAL[c.myResult.rank]} place` : `Rank ${c.myResult.rank}`}${c.myResult.score != null ? `  ·  ${c.myResult.score} points` : ''}  ·  ${fmtDate(c.resultsPublishedAt)}`}
                     load={() => arenaApi.certificate(c.id)} fileName={`Certificate_${c.title.replace(/\s+/g, '_')}.pdf`} />
             ))}
             {comps.map((r) => (
                 <CertificateCard key={r.competition.id} to={`/competitions/${r.competition.id}`} title={`${r.competition.emoji} ${r.competition.name}`}
-                    badge={r.place ? ORDINAL[r.place] : <Award size={18} aria-hidden="true" />}
+                    place={r.place}
                     sub={`${r.competition.gameLabel} · ${r.place ? `${ORDINAL[r.place]} place` : 'Took part'} · ${fmtDate(r.competition.completedAt)}`}
                     load={() => competitionsApi.certificate(r.competition.id)} fileName={`Certificate_${r.competition.name.replace(/\s+/g, '_')}.pdf`} />
             ))}

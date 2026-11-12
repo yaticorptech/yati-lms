@@ -29,11 +29,11 @@ describe('the seeded lessons', () => {
     test('every line of every conversation has its recording', () => {
         for (const l of lessons.filter((x) => x.module === 'speaking')) for (const line of l.learn.dialogue.lines) assert.ok(fs.existsSync(path.join(__dirname, '../../public', line.audio)), line.audio);
     });
-    test('translation lessons go one way each, with Kannada on the right side', () => {
+    test('translation lessons go one way each (a question its own way where it says so, 2026-11-04), with Kannada on the right side', () => {
         for (const l of lessons.filter((x) => x.module === 'translation')) {
             const kn = /[ಀ-೿]/;
             for (const it of [...l.items, ...l.quiz]) {
-                if (l.direction === 'kn-en') { assert.match(it.source, kn, it.source); assert.doesNotMatch(it.model, kn, it.model); } else { assert.doesNotMatch(it.source, kn, it.source); assert.match(it.model, kn, it.model); }
+                if ((it.direction || l.direction) === 'kn-en') { assert.match(it.source, kn, it.source); assert.doesNotMatch(it.model, kn, it.model); } else { assert.doesNotMatch(it.source, kn, it.source); assert.match(it.model, kn, it.model); }
             }
             assert.ok(l.quiz.every((q) => !q.open), 'quiz items are auto-checked');
         }

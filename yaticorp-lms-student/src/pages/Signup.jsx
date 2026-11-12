@@ -3,13 +3,14 @@
  * @description Multi-step student registration with QR code scan/manual entry
  */
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import SupportDialog from '../components/SupportDialog';
 import { AuthContext } from '../context/AuthContext';
 import { safeNextPath } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession } from '../teacher/teacherSession';
-import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Loader2, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock, GraduationCap } from 'lucide-react';
+import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Loader2, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock, GraduationCap, ShieldCheck, Sparkles } from 'lucide-react';
+import AuthBrandPanel from '../components/AuthBrandPanel';
 
 // Password strength validator
 const getPasswordStrengthError = (pw) => {
@@ -80,6 +81,7 @@ const Signup = () => {
        institution instead of an Organization ID, take any email address, and
        the account opened is a teacher's (src/teacher on the server). */
     const asTeacher = searchParams.get('as') === 'teacher';
+    const swapped = Boolean(useLocation().state?.authSwapFrom);
     const loginLink = asTeacher ? '/login?as=teacher' : next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`;
     // The Student / Teacher switch (2026-10-30), as on the sign-in page. It is
     // the same ?as=teacher the links use; what is already typed stays.
@@ -467,7 +469,7 @@ const Signup = () => {
         );
     }
 
-    const [stepTitle, stepHint] = STEPS[step - 1];
+    const [, stepHint] = STEPS[step - 1];
 
     // The error box every step shows; a used card adds the way to sign in.
     const errorBox = error && (
@@ -480,21 +482,29 @@ const Signup = () => {
     );
 
     return (
-        <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#232840] via-[#1f2336] to-[#272240] p-4 text-slate-100 sm:p-6">
-            {/* The sign-in page's backdrop (2026-10-30): dark, with two quiet glows. */}
-            <span aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[30rem] w-[44rem] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
-            <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-48 -z-10 h-[28rem] w-[28rem] rounded-full bg-violet-500/10 blur-[120px]" />
+        <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#171a2b] p-4 text-slate-100 sm:p-6 lg:p-10">
+            {/* The sign-in page's backdrop: a fine grid and two soft glows. */}
+            <span aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-[0.35] [background-image:linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
+            <span aria-hidden className="pointer-events-none absolute -top-48 right-1/4 -z-10 h-[32rem] w-[40rem] rounded-full bg-indigo-600/20 blur-[140px]" />
+            <span aria-hidden className="pointer-events-none absolute -left-40 -bottom-56 -z-10 h-[30rem] w-[30rem] rounded-full bg-violet-600/15 blur-[140px]" />
             {showContact && <SupportDialog onClose={() => setShowContact(false)} page="signup" tone="dark" />}
 
-            {/* One card, as on the sign-in page: no welcome panel beside it. */}
-            <div className="lg-rise w-full max-w-[30rem] overflow-hidden rounded-3xl bg-[#2a2f45] shadow-[0_30px_70px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
+            {/* As on the sign-in page: the form, with the card panel on the right (desktop). */}
+            <div className={`${swapped ? 'auth-swap-in auth-swap-register' : 'lg-rise'} grid w-full max-w-[30rem] overflow-hidden rounded-[28px] bg-[#232740] shadow-[0_40px_90px_-40px_rgba(0,0,0,0.8)] ring-1 ring-white/[0.08] lg:max-w-[62rem] lg:grid-cols-[1fr_1.05fr]`}>
 
-                {/* ── The sign-up card ─────────────────────────────────── */}
-                <section className="relative px-6 py-8 sm:px-9 sm:py-9">
+                {/* ── Left: brand panel (desktop) ─────────────────────── */}
+                <AuthBrandPanel eyebrow={asTeacher ? 'For teachers' : 'Get started'}
+                    title={asTeacher ? 'Bring your classroom online in minutes.' : 'One card. Every lesson, wherever you are.'}
+                    text={asTeacher ? 'Register your card or the mobile number your organization added you with, and your classes are ready.' : 'Register the AI card you were given, set a password, and start learning right away.'}
+                    points={asTeacher
+                        ? [[BookOpenCheck, 'Your classes and students in one place'], [GraduationCap, 'Follow every student’s progress'], [Sparkles, 'AI help built into every lesson']]
+                        : [[ScanLine, 'Scan your card to register'], [ShieldCheck, 'Protected on up to two devices'], [Sparkles, 'AI help built into every lesson']]} />
+                {/* ── Right: the sign-up form ─────────────────────────────────── */}
+                <section className="relative px-6 py-8 sm:px-10 sm:py-10 lg:px-12">
                     <div className="mx-auto max-w-md">
                         {(
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
-                            <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-5 h-8 w-auto object-contain" />
+                            <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-5 h-8 w-auto object-contain lg:hidden" />
                             <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-indigo-300">Welcome to LearnHub</p>
                             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-400/30">{asTeacher ? <BookOpenCheck size={20} /> : <UserPlus size={20} />}</span>
                             <h2 className="mt-4 text-2xl font-bold tracking-tight text-white">{asTeacher ? 'Register your teacher card' : 'Create your account'}</h2>
@@ -512,13 +522,6 @@ const Signup = () => {
                                 })}
                             </div>
 
-                            {/* Stepper: which of the three steps we are on. */}
-                            <div className={`mt-4 flex items-center gap-2 ${orgMode && asTeacher ? 'hidden' : ''}`} aria-label={`Step ${step} of 3: ${stepTitle}`}>
-                                {[1, 2, 3].map(s => (
-                                    <span key={s} className={`h-2.5 rounded-full transition-all duration-300 ${step === s ? 'w-7 bg-indigo-500' : step > s ? 'w-2.5 bg-emerald-400' : 'w-2.5 bg-white/15'}`} />
-                                ))}
-                                <span className="ml-1 text-xs font-bold uppercase tracking-wider text-slate-400">Step {step} of 3</span>
-                            </div>
                         </div>
                         )}
 
@@ -528,14 +531,17 @@ const Signup = () => {
                                 {/* A teacher signs up with an AI card, or with the mobile number
                                     their organization added them with (only those numbers can). */}
                                 {asTeacher && (!orgMode || orgStage === 'phone') && (
-                                    <div role="radiogroup" aria-label="Sign up with" className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-black/15 p-1">
+                                    <div role="radiogroup" aria-label="Sign up with" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
                                         {[[false, 'AI card', CreditCard], [true, 'Mobile number', Phone]].map(([org, label, Icon]) => {
                                             const on = orgMode === org;
                                             return (
                                                 <button key={label} type="button" role="radio" aria-checked={on}
                                                     onClick={() => { if (on) return; setError(null); setScanning(false); setOrgResult(null); setOrgPick(null); setOrgStage('phone'); setOrgMode(org); }}
-                                                    className={`inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-md text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${on ? 'bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/40' : 'text-slate-400 hover:text-white'}`}>
-                                                    <Icon size={14} aria-hidden="true" /> {label}
+                                                    className={`inline-flex min-h-[32px] items-center gap-2 rounded-md text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${on ? 'text-emerald-200' : 'text-slate-400 hover:text-white'}`}>
+                                                    <span aria-hidden="true" className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${on ? 'border-emerald-400' : 'border-slate-500'}`}>
+                                                        {on && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+                                                    </span>
+                                                    <Icon size={13} aria-hidden="true" /> {label}
                                                 </button>
                                             );
                                         })}
@@ -546,7 +552,6 @@ const Signup = () => {
 
                                 {asTeacher && orgMode ? (
                                     <>
-                                        {orgStage !== 'phone' && <p className="text-center text-xs font-bold uppercase tracking-wider text-slate-400">Step {ORG_STEPS.indexOf(orgStage) + 1} of 3</p>}
                                         {orgStage === 'phone' && (<>
                                         {/* No AI card: the organization added them; check the number they were added with. */}
                                         <div>
@@ -949,7 +954,7 @@ const Signup = () => {
                         </button>
 
                         <p className="mt-5 text-center text-xs text-slate-400">
-                            Already have an account? <Link to={loginLink} className="font-bold text-indigo-300 hover:underline">Sign in here</Link>
+                            Already have an account? <Link to={loginLink} state={{ authSwapFrom: 'register' }} className="font-bold text-indigo-300 hover:underline">Sign in here</Link>
                         </p>
                         <p className="mt-2 text-center text-xs text-slate-400">
                             {asTeacher

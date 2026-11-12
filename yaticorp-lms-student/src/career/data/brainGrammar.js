@@ -109,7 +109,7 @@ export const HOMOPHONES = [
   { text: 'The ___ to the summit took six hours.', answer: 'ascent', wrong: ['assent'], level: 3 },
   { text: 'The long lecture ___ half the audience to sleep.', answer: 'bored', wrong: ['board'], level: 3 },
   { text: 'The company must ___ its staff against injury.', answer: 'insure', wrong: ['ensure'], level: 3 },
-  { text: 'The teacher asked a ___ question to test the class.', answer: 'discrete', wrong: ['discreet'], level: 3 },
+  { text: 'The survey sorted the answers into five ___ groups.', answer: 'discrete', wrong: ['discreet'], level: 3 },
   { text: 'The ___ of the drum echoed through the hall.', answer: 'beat', wrong: ['beet'], level: 3 },
   { text: 'Add some chopped ___ to the soup.', answer: 'leeks', wrong: ['leaks'], level: 3 },
   { text: 'Police sealed off the ___ of the crime.', answer: 'scene', wrong: ['seen'], level: 3 },

@@ -35,20 +35,22 @@ export default function Daily() {
     if (data === undefined) return <SessionFrame label="Daily challenge"><Loading label="Picking today’s words…" /></SessionFrame>;
     if (!data) return <SessionFrame label="Daily challenge"><div className="flex flex-1 flex-col justify-center"><Problem error={error} onRetry={load} /><div className="text-center"><Chunky variant="ghost" color="blue" onClick={back}>Back</Chunky></div></div></SessionFrame>;
 
+    // The result's words in the student's language (2026-11-05).
+    const T = tr(data.language);
     const shown = result || (data.done ? { score: data.done.score, total: data.done.total, results: data.done.results, events: [], already: true } : null);
     if (shown) {
         const perfect = shown.total && shown.score === shown.total;
         return (
             <SessionFrame label="Daily challenge">
-                <Finish tone="pass" pose={perfect ? 'confetti-cheer' : 'thumbs-up'} title={shown.already ? 'Done for today!' : perfect ? 'Perfect!' : 'Challenge complete!'}
-                    text={shown.already ? 'You have done today’s challenge. Come back tomorrow for new words.' : 'Come back tomorrow for new words.'}
-                    stats={[{ label: 'Score', value: `${shown.score}/${shown.total}`, color: 'green', icon: Target }, ...(xpIn(shown.events) ? [{ label: 'Total XP', value: xpIn(shown.events), color: 'gold', icon: Zap }] : [])]}
-                    results={shown.results} primary={{ label: 'Continue', onClick: back }} />
+                <Finish tone="pass" pose={perfect ? 'confetti-cheer' : 'thumbs-up'} title={shown.already ? T('Done for today!') : perfect ? T('Perfect!') : T('Challenge complete!')}
+                    text={shown.already ? T('You have done today’s challenge. Come back tomorrow for new words.') : T('Come back tomorrow for new words.')}
+                    stats={[{ label: T('Score'), value: `${shown.score}/${shown.total}`, color: 'green', icon: Target }, ...(xpIn(shown.events) ? [{ label: T('Total XP'), value: xpIn(shown.events), color: 'gold', icon: Zap }] : [])]}
+                    results={shown.results} primary={{ label: T('Continue'), onClick: back }} lang={data.language} />
             </SessionFrame>
         );
     }
     if (!steps.length) {
-        return <SessionFrame label="Daily challenge"><Finish tone="info" pose="thinking" title="No words yet" text="There are no vocabulary lessons for the challenge yet. Check back soon." primary={{ label: 'Back', onClick: back }} /></SessionFrame>;
+        return <SessionFrame label="Daily challenge"><Finish tone="info" pose="thinking" title={T('No words yet')} text={T('There are no vocabulary lessons for the challenge yet. Check back soon.')} primary={{ label: T('Back'), onClick: back }} lang={data.language} /></SessionFrame>;
     }
     return (
         <SessionFrame label="Daily challenge">

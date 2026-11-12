@@ -34,6 +34,7 @@ import ProfileImage from '../components/ProfileImage';
 import PlatformClosed from '../components/PlatformClosed';
 import useAccessHours from '../hooks/useAccessHours';
 import CompetitionAlerts from '../competitions/CompetitionAlerts';
+import ReminderPopup from '../competitions/ReminderPopup';
 import ResultsCelebration from '../competitions/ResultsCelebration';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
@@ -160,8 +161,24 @@ const useThree60 = (userId) => {
     return [open, points];
 };
 
+// The Games page's first pictures, fetched quietly once the app is idle (2026-11-06): its "What do you want to play?"
+// chooser and the room popups then open with their pictures already there instead of drawing them in late.
+const WARM_PICTURES = ['/games/choose/solo.jpg', '/games/choose/group.jpg', '/games/lobby/table-2.jpg', '/games/lobby/table-4.jpg', '/games/lobby/table-6.jpg'];
+let warmed = false;
+const warmGamesPictures = () => {
+    if (warmed || typeof window === 'undefined') return;
+    warmed = true;
+    const go = () => {
+        WARM_PICTURES.forEach((src) => { const img = new Image(); img.decoding = 'async'; img.src = src; });
+        // The Games page's own code as well, so even a first visit opens it (and its chooser) straight away.
+        import('../career/pages/dashboard/Games').catch(() => {});
+    };
+    if ('requestIdleCallback' in window) window.requestIdleCallback(go, { timeout: 3000 }); else setTimeout(go, 1500);
+};
+
 const StudentLayout = () => {
     const { user, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
+    useEffect(() => { if (user) warmGamesPictures(); }, [user]);
     // The organization's access hours: outside them, the closed screen (components/PlatformClosed).
     const accessHours = useAccessHours(Boolean(user));
     const [three60, three60Points] = useThree60(user?._id);
@@ -1016,12 +1033,20 @@ const StudentLayout = () => {
 
                         <Marks360Chip user={user?.marks360 ? user : progressUser} />
                         {three60 && three60Points !== null && (
-                            <Link to="/360" aria-label={`360 points: ${three60Points}`} title="Your 360 points"
-                                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-bold text-indigo-700 tabular-nums transition-colors hover:bg-indigo-100">
-                                <Orbit size={16} aria-hidden="true" className="motion-safe:animate-[spin_6s_linear_infinite]" />
-                                <span className="text-xs font-black tracking-wide text-indigo-500">360</span>
-                                <span className="h-3.5 w-px bg-indigo-200" aria-hidden="true" />
-                                {three60Points.toLocaleString('en-IN')}
+                            /* The 360 chip (redesigned 2026-11-05, light, 2026-11-05): a small
+                               "360" medallion with an orbit turning round it, then the marks. */
+                            <Link to="/360" aria-label={`360 marks: ${three60Points}`} title="Your 360 marks"
+                                className="group inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#ffffff,#eef2ff)] py-1 pl-1 pr-3.5 text-indigo-950 shadow-sm shadow-indigo-200/60 ring-1 ring-indigo-200 transition-all hover:shadow-md hover:shadow-indigo-200/80 hover:ring-indigo-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                                <span className="relative flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
+                                    <svg viewBox="0 0 32 32" className="absolute inset-0 h-full w-full motion-safe:animate-[spin_8s_linear_infinite]">
+                                        <circle cx="16" cy="16" r="14.5" fill="none" stroke="#818cf8" strokeOpacity="0.6" strokeWidth="1" strokeDasharray="1.5 3" />
+                                        <circle cx="16" cy="1.5" r="1.8" fill="#38bdf8" />
+                                    </svg>
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-[8px] font-black tracking-tight text-white shadow-inner">360</span>
+                                </span>
+                                <span className="flex items-baseline gap-1 tabular-nums">
+                                    <span className="text-sm font-black leading-none">{three60Points.toLocaleString('en-IN')}</span>
+                                </span>
                             </Link>
                         )}
                         {renderWalletButton('desktop')}
@@ -1112,6 +1137,7 @@ const StudentLayout = () => {
             </main>
             {/* A match or Quiz Arena just opened for me: my joining code, on screen. */}
             <CompetitionAlerts />
+            <ReminderPopup />
             {/* The results of a competition I played in, just published: congratulations and my certificate. */}
             <ResultsCelebration />
             {/* No profile picture yet: choose one before going on. */}

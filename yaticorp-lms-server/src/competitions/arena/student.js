@@ -113,7 +113,10 @@ router.get('/:id', wrap(async (req, res) => {
     const c = await load(req.params.id);
     const entry = await ArenaEntry.findOne({ competitionId: c._id, userId: req.user._id }).lean();
     // A college's own contest: only for its own students.
-    if (c.hostOrganizationId && !entry && String(req.user.organizationId || '') !== String(c.hostOrganizationId)) throw fail(404, 'Competition not found.');
+    if (c.hostOrganizationId && !entry && String(req.user.organizationId || '') !== String(c.hostOrganizationId)
+        && !(await fees.EntryPayment.exists({ userId: req.user._id, kind: 'arena', competitionId: c._id, status: 'paid' }))) throw fail(404, 'Competition not found.');
+    // Paid, but not playing (entry turned down or removed, or the contest cancelled): whom to contact about the fee.
+    const held = await fees.onHold(req.user, 'arena', c._id);
     // The colleges taking part: their approved students, by name.
     const approved = await ArenaEntry.find({ competitionId: c._id, status: 'approved' }).select('name collegeName').sort({ collegeName: 1, registeredAt: 1 }).lean();
     const colleges = [];
@@ -122,7 +125,7 @@ router.get('/:id', wrap(async (req, res) => {
         if (!g) colleges.push(g = { collegeName: e.collegeName || 'College', students: [] });
         g.students.push(e.name);
     }
-    res.json({ competition: { ...view(c, req.user, entry, Date.now()), colleges } });
+    res.json({ competition: { ...view(c, req.user, entry, Date.now()), colleges, ...(held ? { paymentOnHold: held } : {}) } });
 }));
 
 /** My entry, or 403: only approved students play. */

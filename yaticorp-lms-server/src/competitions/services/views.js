@@ -89,13 +89,13 @@ const competitionView = (c, { teams = [], myTeam = null } = {}) => {
     };
 };
 
-const teamView = (t, { admin = false } = {}) => ({
+const teamView = (t, { admin = false, paid = true } = {}) => ({
     id: String(t._id),
     teamName: t.teamName,
     collegeName: t.collegeName,
     organizationId: t.organizationId ? String(t.organizationId) : null,
     solo: !!t.soloUserId,
-    players: (t.players || []).map((p) => ({ userId: String(p.userId), name: p.name, paid: !!p.paidAt, ...(admin ? { paidAt: p.paidAt || null, paidAmount: p.paidAmount || 0 } : {}) })),
+    players: (t.players || []).map((p) => ({ userId: String(p.userId), name: p.name, ...(admin || paid ? { paid: !!p.paidAt } : {}), ...(admin ? { paidAt: p.paidAt || null, paidAmount: p.paidAmount || 0 } : {}) })),
     status: t.status,
     note: t.note || '',
     place: t.place || null,
@@ -194,6 +194,8 @@ const detail = async (competitionId, { userId = null, organizationId = null, adm
         const college = await require('../../organizations/models/Organization').findById(c.hostOrganizationId).select('name').lean();
         competition.hostName = college?.name || c.organizedBy;
     }
+    // The organizer's: whether anyone has paid the entry fee — then it can no longer change (routes/admin.js PUT /:id).
+    if (admin) competition.feeLocked = await require('./entryFee').anyPaid('competition', c._id);
     // The organizer's: a quiz's questions with their answers, or the hackathon's projects with their marks; the standings so far.
     const ch = require('./challengeService');
     if (admin && ch.isChallenge(c)) {
@@ -202,7 +204,8 @@ const detail = async (competitionId, { userId = null, organizationId = null, adm
     }
     return {
         competition,
-        teams: shownTeams.map((t) => teamView(t, { admin })),
+        // Who has paid the entry fee: for the organizer, and for a team's own players or college only.
+        teams: shownTeams.map((t) => teamView(t, { admin, paid: admin || (myTeam && String(t._id) === String(myTeam._id)) || (!!organizationId && String(t.organizationId) === String(organizationId)) })),
         ...(admin && ch.isChallenge(c) ? { challenge: await ch.adminView(c) } : {}),
         // Match codes: every one for the organizer; a college's for its own teams' matches.
         // A student's own code is personal: it is in My Games (routes/student.js /me), not here.

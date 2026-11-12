@@ -47,6 +47,9 @@ const prizesFrom = (list) => (Array.isArray(list) ? list : [])
     .filter((p) => [1, 2, 3].includes(Number(p.place)))
     .map((p) => ({ place: Number(p.place), title: text(p.title, 120), xp: num(p.xp, 0, 100000, 0), rewardPoints: num(p.rewardPoints, 0, 100000, 0) }));
 const text = (v, max) => String(v ?? '').trim().slice(0, max);
+const fees = require('../services/entryFee');
+const { checkHostCaps } = require('../routes/admin');
+const feeKey = (f) => (f?.enabled && f.amount > 0 ? `on:${f.amount}` : 'off');
 
 /* ── The question bank ───────────────────────────────────────────────── */
 
@@ -315,6 +318,16 @@ const competitionFrom = (b = {}, current = null) => {
     return out;
 };
 
+/** A picked saved certificate must be the host's own: the platform's for a platform contest, the college's for its own. */
+const checkDesign = async (designId, hostOrganizationId, name = '') => {
+    if (!designId) return;
+    // A test competition (name starting "test") may use any saved certificate (2026-11-06).
+    if (require('../certificates/auto').isTestCompetition(name)) return;
+    const { CertificateDesign } = require('../certificates/models');
+    const d = await CertificateDesign.findById(designId).select('organizationId').lean();
+    if (!d || String(d.organizationId || '') !== String(hostOrganizationId || '')) throw fail(400, 'Choose one of your own saved certificates.');
+};
+
 const load = async (id, req) => {
     if (!isId(id)) throw fail(404, 'Competition not found.');
     const c = await ArenaCompetition.findOne({ _id: id, ...ownOf(req) });
@@ -329,7 +342,9 @@ router.get('/', wrap(async (req, res) => {
 }));
 
 router.post('/', wrap(async (req, res) => {
+    if (org(req)) checkHostCaps(req.body?.prizes, req.body?.participationXp);
     const fields = competitionFrom(req.body);
+    await checkDesign(fields.certificates?.designId, org(req), fields.title);
     // A college's own contest: for its own students only.
     if (org(req)) Object.assign(fields, { hostOrganizationId: org(req), eligibility: { ...fields.eligibility, organizationIds: [org(req)] }, organizedBy: fields.organizedBy === 'YATICORP' ? req.organization.name : fields.organizedBy });
     const c = await ArenaCompetition.create({ ...fields, createdBy: req.admin?._id || null });
@@ -357,7 +372,9 @@ router.get('/:id', wrap(async (req, res) => {
             selection: Object.fromEntries(ROUNDS.map((r) => [r, (c.selection[r] || []).map((id) => byId.get(String(id))).filter(Boolean)])),
             paper: c.paper,
             durationMs: c.paper.length ? totalMs(c) : null,
-            phase: c.status === 'published' ? phaseAt(c, now) : null
+            phase: c.status === 'published' ? phaseAt(c, now) : null,
+            // Anyone paid: the entry fee can no longer change.
+            feeLocked: await fees.anyPaid('arena', c._id)
         },
         // How many approved questions each round of the bank has, for the readiness line.
         bank: Object.fromEntries(await Promise.all(ROUNDS.map(async (r) => [r, await ArenaQuestion.countDocuments({ round: r, status: 'approved', deletedAt: null, ...contestBank(c) })]))),
@@ -369,6 +386,10 @@ router.get('/:id', wrap(async (req, res) => {
 router.put('/:id', wrap(async (req, res) => {
     const c = await load(req.params.id, req);
     if (c.status === 'cancelled') throw fail(409, 'This competition was cancelled.');
+    const designBefore = String(c.certificates?.designId || '');
+    // A hosting college's lower reward limits (routes/admin.js HOST_CAPS).
+    if (org(req)) checkHostCaps(req.body?.prizes, req.body?.participationXp);
+    const feeBefore = feeKey(c.entryFee);
     if (c.status === 'draft') {
         Object.assign(c, competitionFrom(req.body, c.toObject()));
     } else {
@@ -407,8 +428,12 @@ router.put('/:id', wrap(async (req, res) => {
         if (b.certificates) c.certificates = { ...c.certificates, winners: b.certificates.winners !== false, participants: b.certificates.participants !== false, ...(b.certificates.designId !== undefined ? { designId: isId(b.certificates.designId) ? b.certificates.designId : null } : {}) };
         if (b.playersPerCollege !== undefined) c.playersPerCollege = num(b.playersPerCollege, 1, 500, c.playersPerCollege);
     }
+    if (String(c.certificates?.designId || '') !== designBefore) await checkDesign(c.certificates.designId, c.hostOrganizationId, c.title);
+    // Once anyone has paid, the entry fee (on or off, and its amount) stays as it is.
+    const feeLocked = await fees.anyPaid('arena', c._id);
+    if (feeKey(c.entryFee) !== feeBefore && feeLocked) throw fail(409, fees.FEE_LOCKED);
     await c.save();
-    res.json({ competition: summary(c) });
+    res.json({ competition: { ...summary(c), feeLocked } });
 }));
 
 /**
@@ -512,6 +537,7 @@ router.post('/:id/cancel', wrap(async (req, res) => {
 router.delete('/:id', wrap(async (req, res) => {
     const c = await load(req.params.id, req);
     if (c.status === 'published') throw fail(409, 'Cancel it first; a published competition keeps its records.');
+    if (await fees.anyPaid('arena', c._id)) throw fail(409, 'Students have paid its entry fee, so it is kept (cancelled) — they are told to contact their college about the fee.');
     await ArenaEntry.deleteMany({ competitionId: c._id });
     await ArenaCompetition.deleteOne({ _id: c._id });
     res.json({ ok: true });
@@ -634,6 +660,8 @@ router.post('/:id/publish-results', wrap(async (req, res) => {
     c.resultsPublishedAt = new Date();
     await c.save();
     award(c, rankedRows).catch((err) => console.error('[arena] awarding failed:', err.message));
+    // Certificates issued now, so students see theirs the moment results are out (2026-11-06).
+    require('../certificates/auto').syncCompetition('arena', String(c._id)).catch((err) => console.error('[certificates] on publish:', err.message));
     res.json({ competition: summary(c) });
 }));
 

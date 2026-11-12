@@ -19,6 +19,31 @@ export const comicWords = (comic) => (!comic?.panels ? [] : [comic.title, ...com
 /** Texts read aloud one after another, as [[sentence, lang], …]. */
 export const readingSpeech = (texts, lang = 'en-IN') => texts.flatMap(sentencesOf).map((t) => [t, lang]);
 
+/*
+ * A course in an Indian language reads only that language (2026-11-11, user: "read only Kannada, the supporting
+ * English don't read"): a text with none of its letters (an English meaning, an instruction) is not read, and
+ * English words inside one are left out. Every text is read in the course's own voice.
+ */
+const SCRIPT_OF = {
+    kn: /[\u0C80-\u0CFF]/, te: /[\u0C00-\u0C7F]/, ta: /[\u0B80-\u0BFF]/, ml: /[\u0D00-\u0D7F]/,
+    hi: /[\u0900-\u097F]/, mr: /[\u0900-\u097F]/, ne: /[\u0900-\u097F]/, sa: /[\u0900-\u097F]/,
+    bn: /[\u0980-\u09FF]/, as: /[\u0980-\u09FF]/, gu: /[\u0A80-\u0AFF]/, pa: /[\u0A00-\u0A7F]/,
+    or: /[\u0B00-\u0B7F]/, ur: /[\u0600-\u06FF]/
+};
+/** [text, lang] as a course reads it, or null when it is not read. Courses not listed read everything as given. */
+export const courseSpeech = (text, lang, target) => {
+    const t = String(text || '').trim();
+    const script = SCRIPT_OF[String(target || '').split('-')[0]];
+    if (!t) return null;
+    if (!script) return [t, lang];
+    if (!script.test(t)) return null;
+    const only = t.replace(/[A-Za-z][A-Za-z'’-]*/g, ' ')
+        .replace(/\(\s*[^\p{L}]*\)|“\s*[^\p{L}]*”|"\s*[^\p{L}]*"/gu, ' ') // brackets and quotes left empty
+        .replace(/\s+([,.;:!?।])/g, '$1').replace(/([,;:])(\s*[,;:])+/g, '$1')
+        .replace(/^[\s,.;:\-–—=]+|[\s,;:\-–—=]+$/g, '').replace(/\s{2,}/g, ' ').trim();
+    return only && script.test(only) ? [only, `${String(target).split('-')[0]}-IN`] : null;
+};
+
 export const stepSpeech = (step) => {
     if (!step) return [];
     const out = [];
@@ -45,7 +70,7 @@ export const stepSpeech = (step) => {
         }
         default: break;
     }
-    return out;
+    return out.map(([t, l]) => courseSpeech(t, l, step.target)).filter(Boolean);
 };
 
 /** The letters page's sounds (LettersChart.jsx): every letter, as it is tapped. */

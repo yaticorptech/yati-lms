@@ -3,6 +3,8 @@ import GameShell from './GameShell';
 import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import useFresh from './useFresh';
+import useAnswerReveal from './useAnswerReveal';
 
 const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const shuffle = (list) => {
@@ -38,7 +40,7 @@ const makeQuestion = (bits, toBinary) => {
 };
 
 const configFor = (difficulty, levelNo) => ({
-  bits: between(3, 5, levelNo) + (difficulty - 1),
+  bits: between(4, 6, levelNo) + (difficulty - 1),   // 4 bits at least: 3 held only seven numbers, too few not to repeat
   mixed: difficulty >= 2,
   seconds: between(60, 40, levelNo),
   target: between(6, 14, levelNo) + (difficulty - 1) * 2
@@ -52,11 +54,13 @@ export default function BinaryBlitz({ onExit }) {
 
 function Round({ progress, onExit }) {
   const config = configFor(progress.difficulty, progress.levelNo);
-  const next = () => makeQuestion(config.bits, config.mixed && Math.random() < 0.5);
+  const fresh = useFresh();
+  const next = () => fresh(() => makeQuestion(config.bits, config.mixed && Math.random() < 0.5));
   const [q, setQ] = useState(next);
   const [score, setScore] = useState(0);
   const [flash, setFlash] = useState(null);
   const [started, setStarted] = useState(false);
+  const { busy, showWrong, toneOf } = useAnswerReveal();
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
@@ -64,15 +68,16 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const choose = (option) => {
-    if (over) return;
+    if (over || busy) return;
     if (option === q.answer) {
       setScore((s) => s + 1);
       setFlash('right');
+      setQ(next());
+      setTimeout(() => setFlash(null), 220);
     } else {
-      setFlash('wrong');
+      // The buzz, the pick red and the right answer green, then the next number.
+      showWrong(option, q.answer, () => setQ(next()));
     }
-    setQ(next());
-    setTimeout(() => setFlash(null), 220);
   };
 
   return (
@@ -136,7 +141,8 @@ function Round({ progress, onExit }) {
                 key={option}
                 type="button"
                 onClick={() => choose(option)}
-                className="fp-press min-h-14 rounded-2xl bg-surface font-mono text-xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset hover:bg-emerald-50 hover:ring-emerald-300"
+                disabled={busy}
+                className={`fp-press min-h-14 rounded-2xl bg-surface font-mono text-xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset ${busy ? '' : 'hover:bg-emerald-50 hover:ring-emerald-300'} ${toneOf(option)}`}
               >
                 {option}
               </button>

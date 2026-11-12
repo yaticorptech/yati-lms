@@ -67,7 +67,7 @@ let bca, bba;
 const save = (programs) => asOrg('PUT', '/me/classes/programs', { programs });
 
 test('the organization saves its courses and sections at once; mistakes are 400s', async () => {
-    assert.deepEqual((await asOrg('GET', '/me/classes')).body, { allowed: false, enabled: false, activityGroups: [], programs: [] });
+    assert.deepEqual((await asOrg('GET', '/me/classes')).body, { allowed: false, enabled: false, activityGroups: [], summary: { possible: 0, extra: 0, uncapped: [], target: null, groups: [] }, programs: [] });
     assert.equal((await save([{ name: '', sections: 2 }])).body.field, 'name');
     assert.equal((await save([{ name: 'BCA', sections: 0 }])).body.field, 'sections');
     const twice = await save([{ name: 'BCA', sections: 2 }, { name: 'bca', sections: 1 }]);
@@ -313,3 +313,56 @@ test('only students a 360 teacher added take part; that teacher gives one mark p
     assert.equal((await userApp.call(s2.token)('GET', '/360')).body.enabled, true);
     assert.equal((await sendProof(s2, { activityId: String(notes._id) })).status, 201);
 }));
+
+test('per proof stops at its most; extra adds to the score, not the total; each activity once; the total to aim for (2026-11-06)', async () => withStorage(async () => {
+    const put = (groups, extra = {}) => asOrg('PUT', '/me/classes/activities', { groups, ...extra });
+    const twice = await put([{ name: 'Academic Excellence', activities: [{ name: 'Research Projects', marks: 5 }] }, { name: 'Internship', activities: [{ name: 'research projects', marks: 5 }] }]);
+    assert.deepEqual([twice.status, twice.body.group, twice.body.activity, twice.body.field], [400, 1, 0, 'name'], 'the same activity in two categories would count twice');
+    const low = await put([{ name: 'Academic Excellence', activities: [{ name: 'Presentations', mode: 'each', marks: 2, cap: 1 }] }]);
+    assert.deepEqual([low.status, low.body.field], [400, 'cap'], 'the most is at least one proof');
+    assert.equal((await put([], { targetTotal: 'lots' })).body.field, 'targetTotal');
+
+    const r = await put([
+        { name: 'Academic Excellence', activities: [{ _id: String(pres._id), name: 'Presentations', mode: 'max', marks: 10 }, { name: 'Online Training', mode: 'each', marks: 1, cap: 2 }] },
+        { name: 'Personal Growth', activities: [{ name: 'Mock Interviews (Final Year)', mode: 'max', marks: 5, bonus: true }] }
+    ], { targetTotal: 12 });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const training = r.body.activityGroups[0].activities[1];
+    assert.deepEqual([training.cap, r.body.activityGroups[1].activities[0].bonus], [2, true]);
+    assert.deepEqual([r.body.summary.possible, r.body.summary.extra, r.body.summary.target], [12, 5, 12], 'the extra activity is on top of the total');
+    assert.equal((await asOrg('GET', '/me/classes')).body.summary.target, 12);
+    assert.equal(String(r.body.activityGroups[0].activities[0]._id), String(pres._id), 'the id stays');
+    // Left as it is when not sent.
+    assert.equal((await put(r.body.activityGroups)).body.summary.target, 12);
+
+    // Online Training: 1 each, at most 2; three proofs.
+    drive.link(s1.user._id);
+    const asGeeta = await signIn(geeta);
+    const ups = [];
+    for (let i = 0; i < 3; i += 1) ups.push((await sendProof(s1, { activityId: String(training._id) })).body.proof);
+    const said = [];
+    for (const p of ups) said.push(await asGeeta('PUT', `/360/proofs/${s1.user._id}/${p._id}`, { decision: 'approve' }));
+    assert.deepEqual(said.map((x) => x.status), [200, 200, 200], 'past the most, proof is still accepted');
+    assert.equal(said[2].body.full, true);
+    assert.match(said[2].body.message, /Accepted with no marks: Online Training has its most, 2 marks/);
+    const mine = (await userApp.call(s1.token)('GET', '/360')).body;
+    assert.equal(mine.totals.byActivity[String(training._id)], 2, 'never past the most');
+    assert.deepEqual([mine.totals.possible, mine.totals.extra], [12, 5]);
+    assert.equal(mine.proofs.find((x) => same(x._id, ups[2]._id)).marks, 0, 'the one past the most has 0 marks');
+
+    // Bonus: up to 3 in all on top of the marks, added on accepting proof; not part of the total.
+    const withBonus = r.body.activityGroups.map((g) => ({ ...g, activities: g.activities.map((a) => (same(a._id, training._id) ? { ...a, bonusMax: 3 } : a)) }));
+    const saved = await put(withBonus);
+    assert.deepEqual([saved.body.summary.possible, saved.body.summary.extra], [12, 8], 'bonus is extra');
+    const b1 = (await sendProof(s1, { activityId: String(training._id) })).body.proof;
+    const b2 = (await sendProof(s1, { activityId: String(training._id) })).body.proof;
+    assert.equal((await asGeeta('PUT', `/360/proofs/${s1.user._id}/${b1._id}`, { decision: 'approve', bonus: 4 })).body.field, 'bonus', 'not above the bonus');
+    assert.match((await asGeeta('PUT', `/360/proofs/${s1.user._id}/${b1._id}`, { decision: 'approve', bonus: 2 })).body.message, /no marks \+ 2 bonus/);
+    const second = await asGeeta('PUT', `/360/proofs/${s1.user._id}/${b2._id}`, { decision: 'approve', bonus: 2 });
+    assert.deepEqual([second.status, second.body.field], [400, 'bonus'], 'only 1 of the bonus is left');
+    assert.match(second.body.message, /0 to 1 \(2 of 3 already given\)/);
+    assert.equal((await asGeeta('PUT', `/360/proofs/${s1.user._id}/${b2._id}`, { decision: 'approve', bonus: 1 })).status, 200);
+    const now = (await userApp.call(s1.token)('GET', '/360')).body;
+    assert.equal(now.totals.byActivity[String(training._id)], 5, '2 marks + 3 bonus');
+}));
+
