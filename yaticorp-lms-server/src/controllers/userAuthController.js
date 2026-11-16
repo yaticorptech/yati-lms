@@ -91,7 +91,10 @@ const loginUser = async (req, res) => {
             if (teacher.account || teacher.shared) return res.status(401).json({ code: 'TEACHER_ACCOUNT', message: 'This is a teacher account.' });
             if (teacher.pending && !found.wrongPassword) return res.status(401).json({ code: 'PASSWORD_NOT_SET', message: PASSWORD_NOT_SET });
             if (found.wrongPassword || teacher.wrongPassword) return res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });
-            return res.status(401).json({ code: 'NO_ACCOUNT', message: 'No account found with this mobile number. Check the number, use your card number, or sign up.' });
+            // A 12-digit entry may be either (2026-11-16: an unknown card was told "mobile number").
+            return res.status(401).json({ code: 'NO_ACCOUNT', message: k.kind === 'card-or-phone'
+                ? 'No account found with this card number or mobile number. Check it, or sign up.'
+                : 'No account found with this mobile number. Check the number, use your card number, or sign up.' });
         }
 
         const cardNumber = k.value;
@@ -109,7 +112,9 @@ const loginUser = async (req, res) => {
             res.status(401).json({ code: 'NO_ACCOUNT', message: 'No account found with this card number or mobile number. Check it, or sign up.' });
         }
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        // The details stay in the server's log, not in the student's browser (2026-11-16).
+        console.error('[auth] sign-in failed:', error);
+        res.status(500).json({ message: 'Could not sign you in just now. Please try again.' });
     }
 };
 

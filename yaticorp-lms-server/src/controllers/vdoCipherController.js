@@ -35,7 +35,7 @@ const studentCanWatch = async (user, videoId) => {
     const lessons = await Lesson.find({ videoId, videoSource: 'vdocipher', isPublished: true }).select('moduleId').lean();
     if (!lessons.length) return false;
     const modules = await Module.find({ _id: { $in: lessons.map((l) => l.moduleId) } }).select('courseId').lean();
-    const courses = await Course.find({ _id: { $in: modules.map((m) => m.courseId) }, isPublished: true }).select('organizationId').lean();
+    const courses = await Course.find({ _id: { $in: modules.map((m) => m.courseId) }, isPublished: true }).select('organizationId isPrivate privateTo').lean();
     // A key to play the video only for a student who has one of its courses.
     for (const course of courses) if (await canOpenCourse(user, course)) return true;
     return false;

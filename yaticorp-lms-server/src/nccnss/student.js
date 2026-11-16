@@ -5,6 +5,7 @@
  *   GET    /                  my memberships, progress, activities and upcoming events, the clubs and Scouts units I can join,
  *                              and my past memberships (any organization) as history
  *   POST   /join              ask to join { scheme, clubId?, unitId? (Scouts), unit, enrolmentNo, year, certStage, note } — the organization approves
+ *   DELETE /join/:memberId     cancel my request to join while it is still waiting
  *   POST   /activities        log an activity { memberId, … } (multipart, optional "proof" photo) — the organization approves
  *   DELETE /activities/:id    withdraw one that has not been decided yet
  *   POST   /awards            Scouts: "I passed this" { memberId, type, name, date, examiner, certificateNo, note } (multipart,
@@ -292,6 +293,26 @@ router.post('/awards', upload.single('certificate'), async (req, res) => {
         await newAward(member, { ...fields, certificateUrl: url }, { status: 'pending', requestedByUserId: req.user._id });
         res.status(201).json({ message: 'Sent — your unit leader will check the certificate, then your record is updated.' });
     } catch (error) { fail(res, error, 'send your request'); }
+});
+
+/**
+ * DELETE /join/:memberId — cancel my own request to join while it is still waiting (2026-11-16). A fresh request
+ * is removed; one that reused an older row (a past rejection, activities on it) is closed as "left" instead, so
+ * that history stays.
+ */
+router.delete('/join/:memberId', async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.memberId)) return res.status(404).json({ message: 'No such request.' });
+        const row = await NccNssMember.findOne({ _id: req.params.memberId, userId: req.user._id, status: 'pending' });
+        if (!row) return res.status(404).json({ message: 'Only a request still waiting can be cancelled.' });
+        const name = row.clubId ? (await NccNssClub.findById(row.clubId).select('name').lean())?.name || 'the club' : schemeName({ scheme: row.scheme });
+        const history = row.transferredFrom || await NccNssActivity.exists({ memberId: row._id });
+        if (history) {
+            row.status = 'left'; row.endedAt = new Date(); row.endReason = 'Request cancelled by the student';
+            await row.save();
+        } else await row.deleteOne();
+        res.json({ message: `Your request to join ${name} is cancelled.` });
+    } catch (error) { fail(res, error, 'cancel the request'); }
 });
 
 router.delete('/awards/:id', async (req, res) => {

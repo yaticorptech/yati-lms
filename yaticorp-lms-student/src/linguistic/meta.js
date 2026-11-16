@@ -29,12 +29,13 @@ export const MODULES = {
     translation: { label: 'Translation Practice', short: 'Translation', icon: Languages, color: 'red', mascot: 'thumbs-up', blurb: 'Kannada → English and English → Kannada.', blurbIn: (l) => `${l} → English and English → ${l}.` }
 };
 export const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'translation'];
-// Each level is a section of the path, named the Duolingo way with its CEFR level (asked 2026-10-24).
+// Each level is a section of the path, with its CEFR level. Named plainly since 2026-11-16 ("make it beginner");
+// it was Rookie / Explorer / Achiever from 2026-10-24.
 export const LEVELS = [
-    { id: 'beginner', label: 'Beginner', section: 'Rookie', cefr: 'A1', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+    { id: 'beginner', label: 'Beginner', section: 'Beginner', cefr: 'A1', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
     // Hidden (2026-10-29, the server's levels.js): its lessons and old certificates are still named by it.
-    { id: 'intermediate', label: 'Intermediate', section: 'Explorer', cefr: 'A2–B1', chip: 'bg-amber-50 text-amber-700 ring-amber-200', hidden: true },
-    { id: 'advanced', label: 'Advanced', section: 'Achiever', cefr: 'B2', chip: 'bg-rose-50 text-rose-700 ring-rose-200' }
+    { id: 'intermediate', label: 'Intermediate', section: 'Intermediate', cefr: 'A2–B1', chip: 'bg-amber-50 text-amber-700 ring-amber-200', hidden: true },
+    { id: 'advanced', label: 'Advanced', section: 'Advanced', cefr: 'B2', chip: 'bg-rose-50 text-rose-700 ring-rose-200' }
 ];
 export const levelOf = (id) => LEVELS.find((l) => l.id === id) || LEVELS[0];
 /** The sections a course shows: Beginner and Advanced (Intermediate hidden, 2026-10-29). */
@@ -192,14 +193,19 @@ const DEVANAGARI_SHORT = { 'ऎ': 'ए', 'ऒ': 'ओ', 'ॆ': 'े', 'ॊ': 'ो
 // A Hindi voice has no ḷa, ṟa or ḻa (Marathi's does): the nearest sound it says (2026-10-31, "the correct pronunciation").
 const HINDI_NEAREST = { 'ळ': 'ल', 'ऱ': 'र', 'ऴ': 'ल', 'ऩ': 'न' };
 /** Kannada text in another script of the family (`base`: that script's first code point); other letters kept. */
-export const kannadaIn = (text, base, hindi = false) => [...String(text || '')].map((c) => {
-    const n = c.codePointAt(0);
-    if (n < KN_FROM || n > KN_TO) return c;
-    const out = String.fromCodePoint(n - KN_FROM + base);
-    if (base !== 0x0900) return out;
-    const d = DEVANAGARI_SHORT[out] || out;
-    return hindi ? HINDI_NEAREST[d] || d : d;
-}).join('');
+export const kannadaIn = (text, base, hindi = false) => {
+    const out = [...String(text || '')].map((c) => {
+        const n = c.codePointAt(0);
+        if (n < KN_FROM || n > KN_TO) return c;
+        const o = String.fromCodePoint(n - KN_FROM + base);
+        if (base !== 0x0900) return o;
+        const d = DEVANAGARI_SHORT[o] || o;
+        return hindi ? HINDI_NEAREST[d] || d : d;
+    }).join('');
+    // A Hindi or Marathi voice drops a word's last "a" (ಚಿಕ್ಕ → "chikk", ದೊಡ್ಡ → "dodd"); Kannada says it
+    // (2026-11-16). A word ending on a bare consonant gets the vowel sign ा so the voice keeps it.
+    return base === 0x0900 ? out.replace(/([\u0915-\u0939\u0958-\u095F]\u093C?)(?=$|[\s,.;:!?।'"’”)-])/gu, '$1\u093E') : out;
+};
 /** The voice to read `lang` with: its own, or a stand-in reading it in that one's letters; null when there is neither. */
 const readerFor = (lang, gender = null) => {
     const own = voiceFor(lang, gender);
@@ -227,14 +233,16 @@ const SERVER_LANGS = new Set(['as', 'bn', 'en', 'gu', 'hi', 'kn', 'ml', 'mr', 'n
 const clips = new Map(); // key → Promise of the clip's object URL (made, or being made)
 let playing = null; let asked = 0;
 // On (2026-11-06, user: "use the tts inside this project"). Set false to fall back to the device voice.
-const SERVER_VOICE_ON = true;
+// OFF for now (2026-11-12, user: "add system audio, temporarily disable tts package"): the device voice reads
+// everything and no audio pack is asked for. Set true again to turn the AI voice back on.
+const SERVER_VOICE_ON = false;
 const usesServerVoice = (lang) => SERVER_VOICE_ON && SERVER_LANGS.has(norm(lang).split('-')[0]);
 const base = (lang) => norm(lang).split('-')[0];
 /*
  * English is spoken by Kokoro-82M in the browser itself (2026-11-07): the model is downloaded once, kept on the
  * device, and makes each clip locally, with no call to the server. If it cannot load, the server voice reads it.
  */
-const KOKORO_ON = true;
+const KOKORO_ON = false; // OFF for now with the server voice (2026-11-12); true to turn it back on
 const usesKokoro = (lang) => KOKORO_ON && base(lang) === 'en' && kokoroSupported();
 const clipKey = (text, lang) => `${usesKokoro(lang) ? 'kokoro:' : ''}${base(lang)}|${String(text).trim()}`;
 const fromServer = (text, lang) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2 }, responseType: 'blob', timeout: 600000 }).then((r) => r.data);
@@ -421,7 +429,8 @@ export const play = (src, text, lang = 'en-IN', on = {}) => {
         a.play().catch(() => {});
         return a;
     }
-    if (text) {
+    // `any`: a tile read in its own language whatever the course is (the matching pairs, 2026-11-16).
+    if (text && !on.any) {
         const r = courseSpeech(text, lang, voiceCourse);
         if (!r) return null; // English beside a Kannada word, say: not read
         [text, lang] = r;

@@ -16,12 +16,30 @@ const { shuffle, seeded } = require('./vocabQuiz');
 
 const SUMMARY = 'Each letter, its sound, and the letter heard.';
 
-/** Every course's Letters lessons, as stubs. */
-const stubs = () => courses.courseCodes().flatMap((code) => groupsOf(code).map((g, i) => ({
-    course: code === 'en' ? null : code, level: 'beginner', status: 'published', updatedBy: 'Course content', direction: null, learn: {},
-    seedKey: `${code === 'en' ? '' : `${code}:`}letters-beginner-${i + 1}`, review: 'letters', module: 'vocabulary', order: 0,
-    title: g.title.startsWith('Letters') ? g.title : `Letters: ${g.title}`, summary: SUMMARY
-})));
+/*
+ * The letters test (2026-11-12, user: "after he completed the learning of all letters, give an exam … the language's
+ * keyboard should come … only letters … then section 1 and unit 1 will come"; chose: every answer typed, 70% to pass,
+ * Section 1 shut until it is passed): the Letters unit's last stop. 15 letters, each typed on the language's keyboard —
+ * each heard, then tapped on the language's keyboard. Its pass mark keeps Section 1 shut along the path (service.js access).
+ */
+const EXAM_PASS = 70;
+const EXAM_SIZE = 15;
+const EXAM_TITLE = 'Letters test';
+const EXAM_SUMMARY = `Type each letter on the keyboard. Pass it (${EXAM_PASS}%) to start Section 1.`;
+
+/** Every course's Letters lessons, and its letters test, as stubs. */
+const stubs = () => courses.courseCodes().flatMap((code) => [
+    ...groupsOf(code).map((g, i) => ({
+        course: code === 'en' ? null : code, level: 'beginner', status: 'published', updatedBy: 'Course content', direction: null, learn: {},
+        seedKey: `${code === 'en' ? '' : `${code}:`}letters-beginner-${i + 1}`, review: 'letters', module: 'vocabulary', order: 0,
+        title: g.title.startsWith('Letters') ? g.title : `Letters: ${g.title}`, summary: SUMMARY
+    })),
+    ...(groupsOf(code).length ? [{
+        course: code === 'en' ? null : code, level: 'beginner', status: 'published', updatedBy: 'Course content', direction: null, learn: {},
+        seedKey: `${code === 'en' ? '' : `${code}:`}letters-beginner-exam`, review: 'lettersExam', module: 'vocabulary', order: 0,
+        title: EXAM_TITLE, summary: EXAM_SUMMARY, passingScore: EXAM_PASS
+    }] : [])
+]);
 /** A Letters lesson's place in its unit: its group's number. */
 const placeOf = (l) => Number(String(l.seedKey || '').split('-').pop()) || 0;
 
@@ -105,12 +123,61 @@ const ASK = {
 };
 const askIn = (helper) => ASK[helper] || ASK.en;
 
+/** The letters test's questions and its first page, in the student's own language (English where not written yet). */
+const EXAM = {
+    en: { hear: 'Listen, and tap the letter on the keyboard', sound: (s) => `Type the letter that sounds “${s}”`,
+        intro: (l) => `The ${l} letters test: listen to ${EXAM_SIZE} letters, and tap each one on the ${l} keyboard. Get ${EXAM_PASS}% or more to start Section 1. You can take it again as many times as you like.` },
+    kn: { hear: 'ಕೇಳಿ, ಆ ಅಕ್ಷರವನ್ನು ಕೀಬೋರ್ಡ್‌ನಲ್ಲಿ ಒತ್ತಿ', sound: (s) => `“${s}” ಎಂದು ಉಚ್ಚರಿಸುವ ಅಕ್ಷರವನ್ನು ಟೈಪ್ ಮಾಡಿ`,
+        intro: (l) => `${l} ಅಕ್ಷರಗಳ ಪರೀಕ್ಷೆ: ${EXAM_SIZE} ಅಕ್ಷರಗಳನ್ನು ಕೇಳಿ, ಪ್ರತಿಯೊಂದನ್ನೂ ಕೀಬೋರ್ಡ್‌ನಲ್ಲಿ ಒತ್ತಿ. ವಿಭಾಗ 1 ಆರಂಭಿಸಲು ${EXAM_PASS}% ಅಥವಾ ಹೆಚ್ಚು ಪಡೆಯಿರಿ. ಎಷ್ಟು ಬಾರಿ ಬೇಕಾದರೂ ಮತ್ತೆ ಬರೆಯಬಹುದು.` },
+    hi: { hear: 'सुनिए, और वह अक्षर कीबोर्ड पर दबाइए', sound: (s) => `“${s}” बोला जाने वाला अक्षर टाइप कीजिए`,
+        intro: (l) => `${l} अक्षरों की परीक्षा: ${EXAM_SIZE} अक्षर सुनिए, और हर एक को कीबोर्ड पर दबाइए। खंड 1 शुरू करने के लिए ${EXAM_PASS}% या अधिक लाइए। जितनी बार चाहें फिर से दे सकते हैं।` },
+    ta: { hear: 'கேட்ட எழுத்தைத் தட்டச்சு செய்யுங்கள்', sound: (s) => `“${s}” என ஒலிக்கும் எழுத்தைத் தட்டச்சு செய்யுங்கள்` },
+    te: { hear: 'మీరు విన్న అక్షరాన్ని టైప్ చేయండి', sound: (s) => `“${s}” అని పలికే అక్షరాన్ని టైప్ చేయండి` },
+    ml: { hear: 'കേട്ട അക്ഷരം ടൈപ്പ് ചെയ്യുക', sound: (s) => `“${s}” എന്ന് ഉച്ചരിക്കുന്ന അക്ഷരം ടൈപ്പ് ചെയ്യുക` },
+    mr: { hear: 'ऐकलेले अक्षर टाइप करा', sound: (s) => `“${s}” असा उच्चार असलेले अक्षर टाइप करा` }
+};
+const examIn = (helper) => ({ ...EXAM.en, ...(EXAM[helper] || {}) });
+
+/** The test's letters: every group's, once each (a letter in two groups is asked once). */
+const examLetters = (code) => {
+    const seen = new Set();
+    return groupsOf(code).flatMap((g) => g.letters || []).filter((l) => l.char && !seen.has(l.char) && seen.add(l.char))
+        .map((l) => ({ char: l.char, say: l.say || '', ...(l.speak ? { speak: l.speak } : {}) }));
+};
+
+/**
+ * The test's questions: 15 of the course's letters, each typed — heard, then by its sound, in turn (a letter with no
+ * sound written is heard). A letter that sounds the same as another (あ and ア) takes either.
+ */
+const examOf = (lesson, seed) => {
+    const all = lesson.letters || [];
+    const rnd = seeded(`${seed}:exam`);
+    const e = examIn(lesson.language);
+    const writeIn = lesson.target || 'en';
+    return shuffle(all.map((_, i) => i), rnd).slice(0, Math.min(EXAM_SIZE, all.length)).map((i, n) => {
+        const l = all[i];
+        const same = all.filter((x) => x.char !== l.char && x.say && x.say === l.say).map((x) => x.char);
+        const base = { type: 'spelling', kind: 'letterType', answer: l.char, accepted: same, writeIn, explanation: `${l.char} — ${l.say || l.char}` };
+        // Every question heard (2026-11-12, user: "voice will come and the learning language's keyboard will come … the user
+        // will recognise the sound of the letter and choose the correct letter from the keyboard"). `keys`: the course's
+        // letters, for a language with no keyboard of its own on the device (English, Chinese).
+        return { ...base, id: `X~${i}~hear`, prompt: e.hear, say: l.speak || l.char, sayLang: lesson.targetLocale || 'en-IN', ...(l.say ? { meaning: l.say } : {}), keys: all.map((x) => x.char) };
+    });
+};
+
 /** The stub made whole, for a student whose own language is `helper`: its letters as the lesson's words. */
 const build = (stub, helper) => {
     const code = stub.course || 'en';
     const group = groupsOf(code)[placeOf(stub) - 1];
     const info = courses.courseInfo(code);
     const own = infoOf(helper);
+    // The letters test: no cards to learn, every letter of the course to ask.
+    if (stub.review === 'lettersExam') {
+        return {
+            ...stub, language: own.code, languageName: own.name, ...(stub.course ? { target: code, targetName: info.name } : {}), targetLocale: info.locale || 'en-IN',
+            words: [], letters: examLetters(code), passingScore: EXAM_PASS, learn: { intro: examIn(own.code).intro(info.name) }
+        };
+    }
     return {
         ...stub, language: own.code, languageName: own.name,
         ...(stub.course ? { target: code, targetName: info.name, targetLocale: info.locale } : {}),
@@ -180,4 +247,4 @@ const chartOf = (code) => {
     return { course: { code, name: info.name, native: info.native }, locale: info.locale || 'en-IN', groups: groupsOf(code), table: kagunita(code) };
 };
 
-module.exports = { stubs, build, quizOf, placeOf, chartOf, SUMMARY };
+module.exports = { stubs, build, quizOf, examOf, placeOf, chartOf, SUMMARY, EXAM_PASS, EXAM_TITLE };

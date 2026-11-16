@@ -644,7 +644,16 @@ export default function Dashboard() {
     // Which door is open, in the address (?tab=practice), so Back and a reload keep it.
     const [params, setParams] = useSearchParams();
     const tab = ['practice', 'badges', 'writing'].includes(params.get('tab')) ? params.get('tab') : 'learn';
-    const setTab = (id) => setParams(id === 'learn' ? {} : { tab: id });
+    // A door tapped (2026-11-12, "it should automatically scroll down and show"): the page goes down to what it opened,
+    // after the layout's jump to the top that every change of address makes (StudentLayout ScrollReset).
+    const tapped = useRef(false);
+    const setTab = (id) => { tapped.current = true; setParams(id === 'learn' ? {} : { tab: id }); };
+    useEffect(() => {
+        if (!tapped.current) return undefined;
+        tapped.current = false;
+        const frame = requestAnimationFrame(() => document.getElementById('lingo-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        return () => cancelAnimationFrame(frame);
+    }, [tab]);
     const Page = PAGES[tab];
     // As the reference picture (2026-10-29): the greeting and scene, the four doors, then the roadmap on the
     // left (about three fifths) beside the languages and the skills. The rest of the dashboard's cards —
@@ -654,7 +663,7 @@ export default function Dashboard() {
             <Hero dash={dash} />
             <Doors tab={tab} onTab={setTab} />
             {/* The open tab's page: Learn is the dashboard's own cards; the others, their pages, here. */}
-            <div id="lingo-tab-panel" role="tabpanel" className="space-y-6" data-lingo-tab={tab}>
+            <div id="lingo-tab-panel" role="tabpanel" className="scroll-mt-24 space-y-6" data-lingo-tab={tab}>
                 {Page ? <Suspense fallback={<Loading label="Opening…" />}><Page key={`${dash.language?.code || 'kn'}:${dash.course?.code || 'en'}`} /></Suspense> : (
                     <>
                     {/* The roadmap across the whole row; under it the languages, the skills and the levels, side by side. */}

@@ -7,7 +7,7 @@ import React, { createContext, useState, useEffect } from 'react';
 import { forgetTeacher } from '../teacher/teacherSession';
 import api from '../utils/api';
 import { getAuthServices } from '../shared/api/authService';
-import { forgetStudent, safeNextPath } from '../utils/sessionExpiry';
+import { forgetStudent } from '../utils/sessionExpiry';
 
 export const AuthContext = createContext();
 
@@ -117,7 +117,7 @@ export const AuthProvider = ({ children }) => {
      * state first — that started the new student's dashboard requests in this
      * page, only for the reload to throw them away and make them again.
      */
-    const enterApp = (data, next) => {
+    const enterApp = (data) => {
         // A real sign-in ends any administrator's visit in this browser, and
         // whatever this tab remembered about the previous student. Sign-up's
         // organization notice is for this one, so it stays.
@@ -126,7 +126,8 @@ export const AuthProvider = ({ children }) => {
         forgetTeacher();
         localStorage.setItem('studentToken', data.token);
         localStorage.setItem('studentData', JSON.stringify(data));
-        window.location.assign(safeNextPath(next));
+        // Always the Dashboard after signing in (see Login.jsx).
+        window.location.assign('/');
     };
 
     // `typed` is the card number or the mobile number from the one sign-in box (2026-10-30).

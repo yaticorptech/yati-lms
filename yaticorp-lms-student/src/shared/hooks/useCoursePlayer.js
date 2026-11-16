@@ -89,7 +89,8 @@ export const useCoursePlayer = (apiClient, courseId, { requestedLessonId = null 
             if (lesson) setActiveLesson(lesson);
         } catch (err) {
             if (load !== loadRef.current) return;
-            console.error('Failed to fetch course content:', err);
+            // A course the student may not open (403/404: private, or gone) is said on the page, not logged as an error.
+            if (![403, 404].includes(err.response?.status)) console.error('Failed to fetch course content:', err);
             setFetchError(err.response?.data?.message || 'Course not found or unavailable.');
             setFetchErrorCode(err.response?.data?.code || null);
         } finally {

@@ -20,19 +20,31 @@ const CONTENT_ORDER = { order: 1, _id: 1 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** True when `user` may see and open `course`. */
+/** The fields canAccessCourse reads: a query that selects fields must select these too. */
+const ACCESS_FIELDS = 'organizationId isPrivate privateTo';
+
+/**
+ * True when `user` may see and open `course`. A private course (2026-11-12) only for the students it is given to.
+ */
 const canAccessCourse = (user, course) => {
     if (!course) return false;
+    if (course.isPrivate && !(course.privateTo || []).some((id) => sameId(id, user?._id))) return false;
     if (!course.organizationId) return true;
     return sameId(course.organizationId, user?.organizationId);
 };
 
 /** A Mongo filter for the courses `user` may see, to merge into a Course query. */
 const visibleCoursesFilter = (user) => ({
-    $or: [
-        { organizationId: null },
-        { organizationId: { $exists: false } },
-        ...(user?.organizationId ? [{ organizationId: user.organizationId }] : [])
+    $and: [
+        {
+            $or: [
+                { organizationId: null },
+                { organizationId: { $exists: false } },
+                ...(user?.organizationId ? [{ organizationId: user.organizationId }] : [])
+            ]
+        },
+        // A private course: only for the students it is given to.
+        { $or: [{ isPrivate: { $ne: true } }, ...(user?._id ? [{ privateTo: user._id }] : [])] }
     ]
 });
 
@@ -140,7 +152,7 @@ const lessonAccess = async (user, lessonId, { courseId } = {}) => {
     if (!mod || (courseId !== undefined && String(mod.courseId) !== String(courseId))) {
         return deny(404, { message: 'Lesson not found in this course' });
     }
-    const course = await Course.findById(mod.courseId).select('organizationId isPublished').lean();
+    const course = await Course.findById(mod.courseId).select(`${ACCESS_FIELDS} isPublished`).lean();
     if (!course || !course.isPublished || !canAccessCourse(user, course)) return deny(404, { message: 'Course not found' });
     if (!(await canOpenCourse(user, course))) {
         return deny(403, { code: 'NOT_ENROLLED', message: 'Enrol in this course to open its lessons.' });
@@ -167,6 +179,6 @@ const lessonAccess = async (user, lessonId, { courseId } = {}) => {
 };
 
 module.exports = {
-    CONTENT_ORDER, canAccessCourse, canOpenCourse, visibleCoursesFilter, openBundlesFilter, openingBundle,
+    CONTENT_ORDER, ACCESS_FIELDS, canAccessCourse, canOpenCourse, visibleCoursesFilter, openBundlesFilter, openingBundle,
     courseLessons, dripStart, moduleUnlockAt, lessonAccess
 };

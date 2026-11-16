@@ -88,6 +88,7 @@ const Courses = React.lazy(() => import('./pages/Courses'));
 const CourseEditor = React.lazy(() => import('./pages/CourseEditor'));
 const LessonEditor = React.lazy(() => import('./pages/LessonEditor'));
 const Enrollments = React.lazy(() => import('./pages/Enrollments'));
+const PrivateCourses = React.lazy(() => import('./pages/PrivateCourses'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const Tickets = React.lazy(() => import('./pages/Tickets'));
 import NotFound from './pages/NotFound';
@@ -224,6 +225,7 @@ function App() {
         <Route path="courses/:id" element={<CourseEditor />} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<LessonEditor />} />
         <Route path="enrollments" element={<Enrollments />} />
+        <Route path="private-courses" element={<PrivateCourses />} />
         <Route path="organizations" element={<SuperAdminRoute what="organizations"><Organizations /></SuperAdminRoute>} />
         <Route path="settings" element={<Settings />} />
         <Route path="tickets" element={<Tickets />} />

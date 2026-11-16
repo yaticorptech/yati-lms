@@ -100,7 +100,8 @@ const SearchSelect = ({ items, value, onChange, placeholder, loading, emptyText 
                         <Search size={15} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" className="w-full rounded-lg bg-slate-50 py-2 pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/30" />
                     </div>
-                    <ul className="max-h-60 overflow-y-auto py-1">
+                    {/* A short box that scrolls (2026-11-16, "make student names a scroll"): about three and a half names show, so the list never covers the fields below. */}
+                    <ul className="max-h-[8.75rem] overflow-y-auto overscroll-contain py-1 [scrollbar-color:#c7d2fe_transparent] [scrollbar-width:thin]">
                         {allowNone && (
                             <li><button type="button" onClick={() => pick('')} className="w-full px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-50">None</button></li>
                         )}
@@ -140,10 +141,10 @@ const ScoutUnitSelect = ({ value, onChange, noneLabel = 'No unit yet', label = '
     const units = useScoutUnits();
     return (
         <Field label={label}>
-            <select className={INPUT} value={value || ''} onChange={(e) => onChange(e.target.value)} disabled={units.loading}>
+            <Select className={INPUT} value={value || ''} onChange={(e) => onChange(e.target.value)} disabled={units.loading}>
                 <option value="">{units.loading ? 'Loading…' : noneLabel}</option>
                 {units.items.map((u) => <option key={u.id} value={u.id}>{u.label} · {u.sub}</option>)}
-            </select>
+            </Select>
         </Field>
     );
 };
@@ -153,9 +154,9 @@ const MemberFields = ({ form, set, scheme, lockUnit }) => (
     <>
         {scheme === 'CLUB' && (
             <Field label="Post in the club">
-                <select className={INPUT} value={form.role || 'member'} onChange={(e) => set('role', e.target.value)}>
+                <Select className={INPUT} value={form.role || 'member'} onChange={(e) => set('role', e.target.value)}>
                     {ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
+                </Select>
             </Field>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -170,15 +171,15 @@ const MemberFields = ({ form, set, scheme, lockUnit }) => (
         )}
         <div className="grid grid-cols-2 gap-3">
             <Field label="Year">
-                <select className={INPUT} value={form.year} onChange={(e) => set('year', e.target.value)}>
+                <Select className={INPUT} value={form.year} onChange={(e) => set('year', e.target.value)}>
                     {[1, 2, 3].map((y) => <option key={y} value={y}>Year {y}</option>)}
-                </select>
+                </Select>
             </Field>
             {scheme === 'NCC' && (
                 <Field label="Certificate">
-                    <select className={INPUT} value={form.certStage} onChange={(e) => set('certStage', e.target.value)}>
+                    <Select className={INPUT} value={form.certStage} onChange={(e) => set('certStage', e.target.value)}>
                         <option value="">—</option>{['A', 'B', 'C'].map((c) => <option key={c} value={c}>{c} certificate</option>)}
-                    </select>
+                    </Select>
                 </Field>
             )}
         </div>
@@ -230,9 +231,9 @@ const LogActivityDialog = ({ member, activity, onClose, onDone }) => {
     return (
         <DialogShell title={`${activity ? 'Edit' : 'Add'} activity — ${member.student.name}`} onClose={onClose} onSubmit={submit} busy={busy} error={error} submitLabel={activity ? 'Save' : 'Add'}>
             <Field label="Type">
-                <select className={INPUT} value={form.kind} onChange={(e) => set('kind', e.target.value)}>
+                <Select className={INPUT} value={form.kind} onChange={(e) => set('kind', e.target.value)}>
                     {ACTIVITY_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
+                </Select>
             </Field>
             <Field label="What was it"><input className={INPUT} value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Blood donation camp" required /></Field>
             <div className="grid grid-cols-2 gap-3">
@@ -413,10 +414,10 @@ const UnitFilter = ({ value, onChange }) => {
     const units = useScoutUnits();
     if (!units.items.length) return null;
     return (
-        <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Unit" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+        <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Unit" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
             <option value="">All units</option>
             {units.items.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
-        </select>
+        </Select>
     );
 };
 
@@ -498,10 +499,10 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
                                         </div>
                                     </td>
                                     <td className="px-3 py-3">
-                                        <select value={r.role || 'member'} onChange={(e) => update(r, { role: e.target.value })} disabled={r.status === 'pending'} aria-label={`Post of ${r.student.name}`}
+                                        <Select value={r.role || 'member'} onChange={(e) => update(r, { role: e.target.value })} disabled={r.status === 'pending'} aria-label={`Post of ${r.student.name}`}
                                             className={`rounded-lg border px-2 py-1.5 text-xs font-bold ${r.role && r.role !== 'member' ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600'}`}>
                                             {ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                                        </select>
+                                        </Select>
                                     </td>
                                     <td className="px-3 py-3 text-slate-700">{r.year}</td>
                                     <td className={`px-3 py-3 tabular-nums font-semibold ${r.summary.attendance === null ? 'text-slate-400' : r.summary.attendance < r.summary.minAttendance ? 'text-red-600' : 'text-emerald-700'}`}>
@@ -591,6 +592,8 @@ const AwardDialog = ({ member, ranks, onClose, onDone }) => {
     const [error, setError] = useState('');
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'type' ? { name: '' } : {}) }));
     const submit = async () => {
+        // The page's own dropdown has no "required" of the browser's: say it here.
+        if (!String(form.name || '').trim()) { setError(form.type === 'rank' ? 'Choose a rank.' : 'Type its name.'); return; }
         setBusy(true); setError('');
         try { onDone((await api.post(`${BASE}/members/${member._id}/awards`, form)).data.message); }
         catch (err) { setError(errorOf(err, 'Could not record it.')); setBusy(false); }
@@ -598,16 +601,16 @@ const AwardDialog = ({ member, ranks, onClose, onDone }) => {
     return (
         <DialogShell title={`Record for ${member.student.name}`} onClose={onClose} onSubmit={submit} busy={busy} error={error} submitLabel="Record">
             <Field label="What">
-                <select className={INPUT} value={form.type} onChange={(e) => set('type', e.target.value)}>
+                <Select className={INPUT} value={form.type} onChange={(e) => set('type', e.target.value)}>
                     {AWARD_TYPES.filter(([v]) => v !== 'rank' || ranks.length).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
+                </Select>
             </Field>
             <Field label={form.type === 'rank' ? 'Rank' : form.type === 'badge' ? 'Badge' : 'Training'}>
                 {form.type === 'rank' ? (
-                    <select className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} required>
+                    <Select className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)}>
                         <option value="">Choose…</option>
                         {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    </Select>
                 ) : <input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={form.type === 'badge' ? 'e.g. First Aid, Camper' : 'e.g. District camp, Basic course'} required />}
             </Field>
             <div className="grid grid-cols-2 gap-3">
@@ -1069,10 +1072,10 @@ const UnitDialog = ({ unit, onClose, onDone }) => {
             <Field label="Name"><input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. 1st Scout Troop" required /></Field>
             <div className="grid grid-cols-2 gap-3">
                 <Field label="Section">
-                    <select className={INPUT} value={form.section} onChange={(e) => set('section', e.target.value)}>
+                    <Select className={INPUT} value={form.section} onChange={(e) => set('section', e.target.value)}>
                         <option value="">Choose…</option>
                         {Object.entries(SECTION_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                    </select>
+                    </Select>
                 </Field>
                 <Field label="BSG registration no."><input className={INPUT} value={form.regNo} onChange={(e) => set('regNo', e.target.value)} placeholder="If registered" /></Field>
             </div>

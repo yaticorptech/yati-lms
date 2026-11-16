@@ -31,6 +31,10 @@ describe('picture stories', () => {
         assert.deepEqual([...new Set(comics.stubs().map((x) => x.course))].sort(), [null, ...ALL].sort(), 'in English and every other language (2026-11-02)');
         for (const st of comics.stubs()) {
             const l = comics.build(st, 'kn');
+            // Story 2 is told as a film (2026-11-07): its scenes, not panels; its five questions as every story's.
+            if (l.comic.film) {
+                assert.ok(l.comic.scenes.length && l.comic.scenes.every((sc) => sc.lines.every((ln) => ln.text)), `${st.title}: every line in its words`);
+            } else {
             assert.ok(l.comic.panels.length >= 7, st.title);
             if (st.course) {
                 const en = comics.build({ ...st, course: null }, 'kn');
@@ -49,6 +53,7 @@ describe('picture stories', () => {
                 assert.deepEqual(xs, [...xs].sort((a, b) => a - b), `${st.title} panel ${i + 1}: read left to right`);
                 if (!st.course) assert.ok((p.say || []).every((b) => b.name), 'each bubble with its speaker’s name, to read aloud');
             });
+            }
             assert.equal(l.quiz.length, 5);
             for (const q of l.quiz) {
                 assert.equal(new Set(q.options).size, 4, q.prompt);
@@ -62,7 +67,7 @@ describe('picture stories', () => {
         const stories = (await api('GET', '/path')).body.levels.find((l) => l.level === 'advanced').units.find((u) => u.id === 'advanced-stories');
         const titles = stories.lessons.map((x) => x.title);
         const pics = stories.lessons.filter((x) => x.review === 'comic');
-        assert.deepEqual(pics.map((x) => x.title), comics.STORIES.map((x) => `Picture story: ${x.title}`));
+        assert.deepEqual(pics.map((x) => x.title), comics.STORIES.map((x) => `${x.film ? 'Story film' : 'Picture story'}: ${x.title}`));
         assert.ok(pics.every((x) => x.type === 'comic'));
         assert.equal(titles.indexOf('Picture story: The Shared Well'), 1, 'after the first article');
         assert.equal(stories.lessons[0].open, true);
@@ -92,7 +97,8 @@ describe('the people\'s names in a picture story', () => {
     test('each named person has their name to show under them, in every language — spelt as that language\'s story spells it (2026-11-05)', () => {
         const { LANGS } = require('../../src/linguistic/content/comicLangs');
         const textOf = (pack) => JSON.stringify(pack);
-        for (const s of comics.STORIES) {
+        // A film (story 2) names each line's speaker in its scenes instead.
+        for (const s of comics.STORIES.filter((x) => !x.film)) {
             for (const code of [null, ...Object.keys(LANGS[s.order] || {})]) {
                 const stub = comics.stubs().find((x) => x.order === s.order && (x.course || null) === code);
                 if (!stub) continue;
@@ -118,7 +124,7 @@ describe('a course\'s picture story in English, for a tap', () => {
         for (const stub of comics.stubs().filter((s) => s.course)) {
             const b = comics.build(stub, 'en'), s = comics.storyOf(stub);
             courses.add(stub.course);
-            assert.equal(b.comic.titleEn, s.title, `${stub.seedKey}: its title in English`);
+            if (!b.comic.film) assert.equal(b.comic.titleEn, s.title, `${stub.seedKey}: its title in English`);
             b.quiz.forEach((q, i) => {
                 const at = `${stub.seedKey} ${q.id}`;
                 assert.equal(q.promptMeaning, s.questions[i].prompt, `${at}: the question in English`);

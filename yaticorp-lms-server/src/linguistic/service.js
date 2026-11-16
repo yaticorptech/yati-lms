@@ -65,7 +65,7 @@ const ownPart = (doc, lang) => {
  */
 const serveOwn = (doc, progress) => {
     const lang = languageOf(progress);
-    const out = doc?.review === 'letters' ? alphabet.build(doc, lang) : doc?.review === 'talk' ? talks.build(doc, lang) : doc?.review === 'comic' ? comics.build(doc, lang) : doc?.review ? reviews.build(doc, lang) : doc?.course ? build(doc, lang) : doc?.part ? ownPart(doc, lang) : localize(doc, lang);
+    const out = doc?.review === 'letters' || doc?.review === 'lettersExam' ? alphabet.build(doc, lang) : doc?.review === 'talk' ? talks.build(doc, lang) : doc?.review === 'comic' ? comics.build(doc, lang) : doc?.review ? reviews.build(doc, lang) : doc?.course ? build(doc, lang) : doc?.part ? ownPart(doc, lang) : localize(doc, lang);
     return withChats(withHears(withBlanks(withWords(parts.cut(out, doc), doc, lang), doc, lang), doc, lang), doc, lang);
 };
 
@@ -377,7 +377,10 @@ const publicQuestion = (q, seed, others = []) => (q.type === 'chat'
         id: q.id, type: q.type, prompt: q.prompt, ...(q.promptEn ? { promptEn: q.promptEn } : {}), ...(q.hint ? { hint: q.hint } : {}),
         ...(q.optionMeanings ? { promptMeaning: q.promptMeaning, optionMeanings: q.optionMeanings, meaningLang: q.meaningLang } : {}),
         // A word to write: in the student's language, the language to write it in, its picture (2026-11-06).
-        ...(q.type === 'spelling' && q.meaning ? { kannada: q.meaning, writeIn: q.writeIn, ...(q.pic ? { pic: q.pic } : {}) } : {}),
+        ...(q.type === 'spelling' && q.meaning && q.kind !== 'letterType' ? { kannada: q.meaning, writeIn: q.writeIn, ...(q.pic ? { pic: q.pic } : {}) } : {}),
+        // A letter to type (the letters test, 2026-11-12): the keyboard to open, and the letter to hear (it is the answer, so
+        // it is spoken, never written).
+        ...(q.kind === 'letterType' ? { kind: q.kind, writeIn: q.writeIn, ...(q.say ? { say: q.say, sayLang: q.sayLang, audio: null, meaning: q.meaning } : {}), ...(q.keys ? { keys: q.keys } : {}) } : {}),
         // A blank to fill: choices to tap, so no keyboard is needed (2026-11-06, fillChoices.js); `others` the lesson's other answers.
         ...(q.type === 'fill' && fillChoices(q, others) ? { options: fillChoices(q, others) } : {}),
         ...(q.options ? { options: mixed(q.options, `${seed}:${q.id}`) } : {}),
@@ -409,6 +412,8 @@ const quizOf = (lesson) => {
     if (lesson.review === 'hear') return hearQuiz(lesson.words, seed);
     // A Letters lesson (alphabet.js, 2026-10-31): how a letter sounds, which letter makes a sound, a letter heard.
     if (lesson.review === 'letters') return alphabet.quizOf(lesson, seed);
+    // The letters test (2026-11-12): 15 letters, each typed on the language's keyboard.
+    if (lesson.review === 'lettersExam') return alphabet.examOf(lesson, seed);
     // A section's assessment (2026-10-29): 20 questions — its words, its grammar and its sentences (a course with
     // no grammar: words and sentences, ten each).
     if (lesson.review === 'assessment') return testOf(lesson, seed, 20);
@@ -1159,9 +1164,13 @@ const pathView = async (user) => {
     };
     const levels = LEVELS.map((l, li) => {
         // Topic units (units.js, 2026-10-24): each with a lesson of each kind and its review; the level's review last.
-        const units = unitsOf(lessons.filter((x) => x.level === l)).map((u) => ({
+        const grouped = unitsOf(lessons.filter((x) => x.level === l));
+        const lettersFirst = grouped[0]?.kind === 'topic' && grouped[0]?.order === 0;
+        const units = grouped.map((u) => ({
             // Kept when units are added (a chest stays opened): "beginner-1", a topic's second unit "beginner-1-2", the level's review "beginner-review".
-            id: unitIdOf(u, l), index: u.index, kind: u.kind, title: u.title, ...(u.note ? { note: u.note } : {}),
+            // The Letters unit comes before Section 1's units and is not numbered (2026-11-12, "don't name it as a section … then
+            // section 1 and unit 1 will come"): `letters`, and the units after it counted from 1.
+            id: unitIdOf(u, l), index: u.index, look: u.index, kind: u.kind, title: u.title, ...(u.note ? { note: u.note } : {}), ...(lettersFirst && u.order === 0 ? { letters: true } : {}),
             lessons: u.lessons.map((x) => {
                 const e = lessonEntry(progress, x._id);
                 return {
@@ -1170,6 +1179,7 @@ const pathView = async (user) => {
                 };
             })
         })).map((u) => ({ ...u, open: levelOpen[MODULES[0]][l] && u.lessons.some((x) => x.open), lessons: withStops(u, progress) }));
+        // The Letters unit is Section 1, Unit 1 again (2026-11-13), counted with the section.
         const all = units.flatMap((u) => u.lessons.filter((x) => !x.stop));
         const cert = progress.certificates.find((c) => c.level === l && inCourse(c, courseOf(progress)));
         return {
@@ -1253,7 +1263,7 @@ const notesOf = async (user) => {
     const levels = LEVELS.map((level) => ({
         level, label: LEVEL_LABEL[level],
         units: unitsOf(lessons.filter((x) => x.level === level))
-            .map((u) => ({ id: unitIdOf(u, level), title: u.title, lessons: u.lessons.filter(done).map((x) => noteOf(x, progress)).filter((n) => n && (n.story || n.letters?.length || n.words?.length || n.sentences?.length)) }))
+            .map((u) => ({ id: unitIdOf(u, level), number: u.index, title: u.title, lessons: u.lessons.filter(done).map((x) => noteOf(x, progress)).filter((n) => n && (n.story || n.letters?.length || n.words?.length || n.sentences?.length)) }))
             .filter((u) => u.lessons.length)
     })).filter((x) => x.units.length);
     return { ...languageView(progress), ...courseView(progress), levels };
