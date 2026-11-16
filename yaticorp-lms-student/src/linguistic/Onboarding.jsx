@@ -18,7 +18,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, GraduationCap, Briefcase, Users, Plane, Smile, Brain, Search, FlaskConical, Globe, Sparkles, Compass } from 'lucide-react';
+import { ArrowLeft, Check, GraduationCap, Briefcase, Users, Plane, Smile, Brain, Search, FlaskConical, Globe, Sparkles, Compass, Lock } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, langOf, deviceLanguage } from './meta';
 import { Bar, Chunky, Mascot } from './ui';
@@ -48,8 +48,6 @@ const LEVELS = [
     { level: 'beginner', label: 'Beginner', text: (name) => `Start from the first lesson: the letters, words and short sentences of ${name}.`, bars: 1, cefr: 'A1–A2', know: 0 },
     { level: 'advanced', label: 'Advanced', text: (name) => `I know ${name} well. Start from scratch, or take a short test to start at Advanced.`, bars: 4, cefr: 'B2+', know: 4 }
 ];
-/** The days of a Beginner's roadmap (set by the server, service.js AUTO_DAYS): the weeks on the chart. */
-const BEGINNER_DAYS = 90;
 
 /** Signal bars, like Duolingo's: how many of four are lit. */
 const Bars = ({ n }) => (
@@ -98,31 +96,6 @@ const Message = ({ pose, title, text, children }) => (
     </div>
 );
 
-/**
- * Where the roadmap takes them (2026-10-26, Talkpal's "Reach your learning
- * goals faster"): their level now, and by the last week of their plan — a
- * little every day against now and then. A picture of the idea, not a
- * measurement.
- */
-const GoalChart = ({ weeks }) => (
-    <svg viewBox="0 0 330 210" className="mx-auto w-full max-w-md" role="img" aria-label={`From your level now to week ${weeks}: practising every day climbs higher than now and then.`} data-goal-chart={weeks}>
-        {[60, 130, 200, 270].map((x) => <line key={x} x1={x} y1="30" x2={x} y2="170" stroke="#E5E5E5" strokeWidth="2" strokeDasharray="5 6" />)}
-        <path d="M20 160 C 90 160, 120 150, 160 115 S 240 45, 305 40" fill="none" stroke={COLORS.blue.face} strokeWidth="5" strokeLinecap="round" />
-        <path d="M20 160 C 100 160, 150 152, 200 132 S 260 108, 305 106" fill="none" stroke="#C4C4C4" strokeWidth="5" strokeLinecap="round" />
-        <circle cx="60" cy="158" r="8" fill="#fff" stroke={COLORS.green.face} strokeWidth="5" />
-        <circle cx="270" cy="43" r="8" fill="#fff" stroke={COLORS.blue.face} strokeWidth="5" />
-        <circle cx="270" cy="110" r="8" fill="#fff" stroke="#AFAFAF" strokeWidth="5" />
-        <rect x="22" y="118" width="76" height="24" rx="12" fill={COLORS.green.face} />
-        <text x="60" y="134" textAnchor="middle" fontSize="12" fontWeight="800" fill="#fff">Your level</text>
-        <rect x="226" y="6" width="88" height="24" rx="12" fill={COLORS.blue.face} />
-        <text x="270" y="22" textAnchor="middle" fontSize="12" fontWeight="800" fill="#fff">Every day</text>
-        <rect x="222" y="72" width="96" height="24" rx="12" fill="#AFAFAF" />
-        <text x="270" y="88" textAnchor="middle" fontSize="12" fontWeight="800" fill="#fff">Now and then</text>
-        <text x="60" y="194" textAnchor="middle" fontSize="14" fontWeight="800" fill={COLORS.green.ink}>Now</text>
-        <text x="270" y="194" textAnchor="middle" fontSize="14" fontWeight="800" fill={COLORS.blue.ink}>Week {weeks}</text>
-    </svg>
-);
-
 /*
  * Where a student left the start screens (asked 2026-10-26: asked once, from
  * Get started; never again once answered): one who leaves half-way comes
@@ -137,7 +110,9 @@ const GoalChart = ({ weeks }) => (
  */
 // 'start' (2026-11-07, the user's Duolingo picture "Now, let's find the best place to start!"): only after Advanced —
 // from scratch, or the Advanced entry test to find their level; in the language they know.
-const STEPS = ['welcome', 'learn', 'why', 'translate', 'chart', 'speak', 'write', 'read', 'level', 'start'];
+// 'chart' ("Reach your learning goals faster!") taken out 2026-11-12, the user: "remove this from the starting questions";
+// one who left on it comes back at the question before it (OLD_STEPS).
+const STEPS = ['welcome', 'learn', 'why', 'translate', 'speak', 'write', 'read', 'level', 'start'];
 /** The screens before then: a place kept by its number in this list is read by its name (the level and the time were asked here). */
 const OLD_STEPS = ['welcome', 'learn', 'know', 'aim', 'started', 'why', 'style', 'focus', 'topics', 'age', 'translate', 'practice', 'when', 'time', 'chart', 'start'];
 /** Where one who left half-way comes back to: the screen they were on, or the last one still asked before it. */
@@ -187,7 +162,7 @@ export default function Onboarding({ dash, onDone }) {
     const at = STEPS[Math.min(step, STEPS.length - 1)];
     // One cannot learn the language one speaks (English for English speakers is a course of its own).
     const clash = !!from && course !== 'en' && from === course;
-    const answered = { welcome: true, learn: !!course, why: !!reason, translate: !!from && !clash, chart: true, speak: speak.length > 0, write: write.length > 0, read: read.length > 0, level: !!level, start: !!begin }[at];
+    const answered = { welcome: true, learn: !!course, why: !!reason, translate: !!from && !clash, speak: speak.length > 0, write: write.length > 0, read: read.length > 0, level: !!level, start: !!begin }[at];
     const english = course === 'en';
     const name = courses.find((c) => c.code === course)?.name || 'English';
     const toAdvanced = level === 'advanced';
@@ -228,7 +203,7 @@ export default function Onboarding({ dash, onDone }) {
         if (!answered || busy) return;
         if (last) { finish(); return; }
         // The language they know best is one they speak, write and read: ticked to begin with, to change.
-        if (at === 'chart' && from) { if (!speak.length) setSpeak([from]); if (!write.length) setWrite([from]); if (!read.length) setRead([from]); }
+        if (at === 'translate' && from) { if (!speak.length) setSpeak([from]); if (!write.length) setWrite([from]); if (!read.length) setRead([from]); }
         setStep((s) => s + 1);
     };
 
@@ -253,9 +228,12 @@ export default function Onboarding({ dash, onDone }) {
                             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                                 {courses.filter((c) => matches(findCourse, c.name, c.native)).map((c) => {
                                     const on = course === c.code;
+                                    // Locked (2026-11-13: only English, Kannada and Hindi, but for the developer cards): shown, not chosen.
+                                    const shut = !!c.locked;
                                     return (
-                                        <button key={c.code} type="button" onClick={() => setCourse(c.code)} aria-pressed={on} data-course={c.code}
-                                            className="lingo-tile flex min-h-[7.5rem] flex-col items-center justify-center gap-2 px-2 py-3 text-center" style={on ? { borderColor: '#84D8FF', background: COLORS.blue.light } : undefined}>
+                                        <button key={c.code} type="button" onClick={() => !shut && setCourse(c.code)} aria-pressed={on} disabled={shut} aria-label={shut ? `${c.name}: locked` : undefined} data-course={c.code} data-locked={shut || undefined}
+                                            className={`lingo-tile relative flex min-h-[7.5rem] flex-col items-center justify-center gap-2 px-2 py-3 text-center ${shut ? 'cursor-not-allowed opacity-50 grayscale' : ''}`} style={on ? { borderColor: '#84D8FF', background: COLORS.blue.light } : undefined}>
+                                            {shut && <Lock size={16} strokeWidth={2.6} className="absolute right-2 top-2 text-[#AFAFAF]" aria-hidden="true" />}
                                             <span className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-black text-white" style={{ background: on ? COLORS.blue.face : COLORS.green.face }} lang={c.code}>{c.code === 'en' ? 'En' : langOf(c.code).mark}</span>
                                             <span className="w-full truncate text-[15px] font-extrabold text-[#3c3c3c]">{c.name}</span>
                                         </button>
@@ -300,13 +278,6 @@ export default function Onboarding({ dash, onDone }) {
                     )}
 
 
-
-                    {at === 'chart' && (
-                        <>
-                            <Ask pose="star-celebrate" title="Reach your learning goals faster!" text="A little every day takes you further than a lot now and then." />
-                            <GoalChart weeks={Math.ceil(BEGINNER_DAYS / 7)} />
-                        </>
-                    )}
 
                     {/* The languages they already know (2026-10-28): to speak, to write, to read — one or more of each. */}
                     {at === 'speak' && (

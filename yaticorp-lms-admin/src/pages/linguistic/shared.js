@@ -6,7 +6,8 @@ export const MODULES = [
     ['speaking', 'Speaking and Listening'], ['translation', 'Translation Practice']
 ];
 export const MODULE_LABEL = Object.fromEntries(MODULES);
-export const LEVELS = [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']];
+// And the sections added on 2026-11-14 (Daily life, Work and the world): their lessons are made by the server.
+export const LEVELS = [['beginner', 'Beginner'], ['elementary', 'Elementary'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced'], ['professional', 'Professional']];
 export const LEVEL_LABEL = Object.fromEntries(LEVELS);
 export const DIRECTIONS = [['kn-en', 'Kannada → English'], ['en-kn', 'English → Kannada']];
 

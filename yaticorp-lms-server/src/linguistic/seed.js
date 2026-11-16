@@ -31,7 +31,7 @@ const seed = async () => {
     // The other languages' courses (courses.js), every level's review lessons (reviews.js), the topics' second units (parts.js)
     // and the Advanced talks (talks.js): their stubs, once each, by seedKey.
     // And every course's Letters unit (alphabet.js, 2026-10-31).
-    const courseStubs = [...require('./courses').stubs(), ...require('./reviews').stubs(), ...require('./parts').stubs(), ...require('./talks').stubs(), ...require('./alphabet').stubs(), ...require('./comics').stubs()];
+    const courseStubs = [...require('./courses').stubs(), ...require('./reviews').stubs(), ...require('./parts').stubs(), ...require('./talks').stubs(), ...require('./alphabet').stubs(), ...require('./comics').stubs(), ...require('./more').stubs()];
     const haveStub = new Set((await LinguisticLesson.find({ seedKey: { $in: courseStubs.map((x) => x.seedKey) } }).select('seedKey').lean()).map((l) => l.seedKey));
     for (const stub of courseStubs) {
         if (haveStub.has(stub.seedKey)) continue;

@@ -32,7 +32,7 @@ const { nextShown, ASSESSMENT_PASS, SHOWN } = require('./levels');
 const writeLevels = () => require('./units').TRACK_LEVELS;
 const readingAt = (level) => CONTENT.filter((l) => l.level === level && l.module === 'reading' && (l.writing || []).length);
 
-const LEVEL_LABEL = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
+const { LEVEL_LABEL, CONTENT_LEVELS } = require('./levels');
 const KINDS = [
     { review: 'words', module: 'vocabulary', order: 101, title: 'Word review', summary: 'Every word of this level again: match the pairs, then a quiz.' },
     { review: 'listen', module: 'vocabulary', order: 102, title: 'Listen and pick', summary: 'Hear a word of this level and pick it.' },
@@ -70,13 +70,16 @@ const entryTitle = (level) => `${LEVEL_LABEL[level]} entry test`;
 const beforeOf = (level) => SHOWN[SHOWN.indexOf(level) - 1] || null;
 
 /** Every review's stub: four per level and one of each per unit, in the English course and in every other course. */
-const stubs = () => courses.courseCodes().flatMap((code) => LEVELS.flatMap((level) => {
+// Only the sections of written content (levels.js CONTENT_LEVELS): the new ones (2026-11-14) are their own lessons. An
+// assessment only before a section of topic units (Advanced, by skill, has none: it would fill a skill's unit), and an
+// entry test only where the section before it is written content too.
+const stubs = () => courses.courseCodes().flatMap((code) => LEVELS.filter((level) => CONTENT_LEVELS.includes(level)).flatMap((level) => {
     const prefix = code === 'en' ? '' : `${code}:`;
     const base = { course: code === 'en' ? null : code, level, status: 'published', updatedBy: 'Course content', direction: null, learn: {} };
     return [
         ...KINDS.map((k) => ({ ...base, seedKey: `${prefix}review-${k.review}-${level}`, review: k.review, module: k.module, order: k.order, title: k.title, summary: k.summary })),
-        ...(nextShown(level) ? [{ ...base, seedKey: `${prefix}review-assessment-${level}`, review: 'assessment', module: ASSESSMENT.module, order: ASSESSMENT.order, title: assessmentTitle(level), summary: ASSESSMENT.summary }] : []),
-        ...(beforeOf(level) ? [{ ...base, seedKey: `${prefix}review-entry-${level}`, review: 'entry', module: ENTRY.module, order: ENTRY.order, title: entryTitle(level), summary: `How much do you know? 20 questions on ${LEVEL_LABEL[beforeOf(level)]} and ${LEVEL_LABEL[level]}. Half of each right, and ${LEVEL_LABEL[level]} opens.` }] : []),
+        ...(nextShown(level) && !require('./units').isTracked(level) ? [{ ...base, seedKey: `${prefix}review-assessment-${level}`, review: 'assessment', module: ASSESSMENT.module, order: ASSESSMENT.order, title: assessmentTitle(level), summary: ASSESSMENT.summary }] : []),
+        ...(beforeOf(level) && CONTENT_LEVELS.includes(beforeOf(level)) ? [{ ...base, seedKey: `${prefix}review-entry-${level}`, review: 'entry', module: ENTRY.module, order: ENTRY.order, title: entryTitle(level), summary: `How much do you know? 20 questions on ${LEVEL_LABEL[beforeOf(level)]} and ${LEVEL_LABEL[level]}. Half of each right, and ${LEVEL_LABEL[level]} opens.` }] : []),
         ...(code === 'en' && writeLevels().includes(level) ? readingAt(level).map((r) => ({ ...base, seedKey: `review-write-${level}-${Number(r.order) || 1}`, review: 'write', module: 'reading', order: Number(r.order) || 1, part: 2, title: `Writing: ${r.title}`, summary: 'Write the letter, email or paragraph; it is checked here.' })) : []),
         // One of each per unit: a topic's two units (parts.js), the second's seedKey ending "~2".
         ...unitOrders(level).flatMap((order) => parts.PARTS.flatMap((part) => [UNIT, HEAR].map((k) => ({
@@ -222,7 +225,7 @@ function entryOf(stub, helper, out) {
     const half = (level) => { const h = assessmentOf({ ...stub, level }, helper, {}, LEVEL_LABEL[level]); return { level, words: h.words, grammar: h.grammar, sentences: h.sentences, pool: h.pool }; };
     out.entry = { from: before, halves: [half(before), half(stub.level)] };
     out.passingScore = ASSESSMENT_PASS;
-    out.learn = { intro: `The ${LEVEL_LABEL[stub.level]} entry test: how much do you know? 20 questions — 10 on ${LEVEL_LABEL[before]}, 10 on ${LEVEL_LABEL[stub.level]}. Get half of each right (${ASSESSMENT_PASS}% or more of each) and ${LEVEL_LABEL[stub.level]} opens now. Below that, you learn from ${LEVEL_LABEL[before]}, from its start. You have one try.` };
+    out.learn = { intro: `The ${LEVEL_LABEL[stub.level]} entry test: how much do you know? 20 questions — 10 on ${LEVEL_LABEL[before]}, 10 on ${LEVEL_LABEL[stub.level]}. Get half of each right (${ASSESSMENT_PASS}% or more of each) and ${LEVEL_LABEL[stub.level]} opens now. Below that, you learn on from your own section, from its start. You have one try.` };
     return out;
 }
 

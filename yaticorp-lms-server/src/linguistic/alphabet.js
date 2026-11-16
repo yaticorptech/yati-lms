@@ -19,11 +19,15 @@ const SUMMARY = 'Each letter, its sound, and the letter heard.';
 /** Every course's Letters lessons, as stubs. */
 const stubs = () => courses.courseCodes().flatMap((code) => groupsOf(code).map((g, i) => ({
     course: code === 'en' ? null : code, level: 'beginner', status: 'published', updatedBy: 'Course content', direction: null, learn: {},
-    seedKey: `${code === 'en' ? '' : `${code}:`}letters-beginner-${i + 1}`, review: 'letters', module: 'vocabulary', order: 0,
+    // A group's own number where it has one (2026-11-14, the joined letters: 17, 18 — never one used before).
+    seedKey: `${code === 'en' ? '' : `${code}:`}letters-beginner-${g.place || i + 1}`, review: 'letters', module: 'vocabulary', order: 0,
     title: g.title.startsWith('Letters') ? g.title : `Letters: ${g.title}`, summary: SUMMARY
 })));
 /** A Letters lesson's place in its unit: its group's number. */
 const placeOf = (l) => Number(String(l.seedKey || '').split('-').pop()) || 0;
+/** A Letters lesson whose group is still taught (2026-11-14: ಗ ಘ … ರ ಲ taken out; their stubs stay in the database). */
+const groupAt = (code, place) => groupsOf(code).find((g, i) => (g.place || i + 1) === place) || null;
+const inUse = (l) => l.review !== 'letters' || !!groupAt(l.course || 'en', placeOf(l));
 
 /* ── The questions, in the student's own language ─────────────────────── */
 
@@ -108,7 +112,7 @@ const askIn = (helper) => ASK[helper] || ASK.en;
 /** The stub made whole, for a student whose own language is `helper`: its letters as the lesson's words. */
 const build = (stub, helper) => {
     const code = stub.course || 'en';
-    const group = groupsOf(code)[placeOf(stub) - 1];
+    const group = groupAt(code, placeOf(stub));
     const info = courses.courseInfo(code);
     const own = infoOf(helper);
     return {
@@ -117,7 +121,11 @@ const build = (stub, helper) => {
         // A letter is "the word"; its sound, in English letters, what it stands for.
         // A letter with a word and its picture (A for 🍎 apple, 2026-10-31; Kannada and Hindi too): `for`, `pic`, its
         // sentence, how they sound in English letters and what the sentence means, and what its card says aloud.
-        words: (group?.letters || []).map((l) => ({ word: l.char, kannada: l.say, pos: '', example: l.example || '', locale: info.locale || 'en-IN', ...(l.speak ? { speak: l.speak } : {}),
+        // Two consonants with their vowel signs (2026-11-13): each syllable's twin in the other (ಕಾ ↔ ಖಾ), for the mixed quiz.
+        ...(group?.twins ? { twins: true } : {}),
+        // Every letter asked by its word (the joined letters, 2026-11-14): never by its sound in English letters.
+        ...(group?.wordsOnly ? { wordsOnly: true } : {}),
+        words: (group?.letters || []).map((l) => ({ word: l.char, kannada: l.say, pos: '', example: l.example || '', locale: info.locale || 'en-IN', ...(l.speak ? { speak: l.speak } : {}), ...(l.twin ? { twin: l.twin } : {}),
             ...(l.word ? {
                 for: l.word, pic: l.pic, forSay: code === 'en' ? `${l.speak || l.say} for ${l.word}` : `${l.speak || l.char}, ${l.word}`,
                 ...(l.sentence ? { sentence: l.sentence } : {}), ...(l.wordSay ? { forSound: l.wordSay } : {}), ...(l.sentenceSay ? { sentenceSound: l.sentenceSay } : {}), ...(l.sentenceEn ? { sentenceEn: l.sentenceEn } : {}),
@@ -134,9 +142,13 @@ const build = (stub, helper) => {
  */
 const quizOf = (lesson, seed) => {
     const words = lesson.words || [];
+    if (lesson.twins) return twinsQuiz(lesson, seed);
     const a = askIn(lesson.language);
     const rnd = seeded(`${seed}:letters`);
     const picks = shuffle(words.map((_, i) => i), rnd).slice(0, Math.min(10, words.length));
+    // Ten questions at least (2026-11-16, the user: "at least 10 questions in a quiz"): fewer letters, each asked again —
+    // the other way (n one on), never the same question twice.
+    const again = picks.length && picks.length < LETTERS_QUIZ ? shuffle([...picks], seeded(`${seed}:letters:again`)) : [];
     // A letter with a word (2026-10-31): "A is for …" (its word in a sentence: "🍎 I eat a red apple.") and "… is for
     // apple: “I eat a red apple.”" (its letter), in turn — no matching of sounds, no single words to pick. In another
     // language "ಅ → …" and "… → 👩 ಅಮ್ಮ: “…”". A letter with no word is asked by its sound, as before.
@@ -145,28 +157,108 @@ const quizOf = (lesson, seed) => {
     const worded = words.filter((w) => w.for && !w.inside);
     const en = (lesson.target || 'en') === 'en';
     const named = (w) => (w.sentence ? `${w.pic} ${w.sentence}` : `${w.pic} ${w.for}`);
-    const othersBy = (w, f) => shuffle(worded.filter((x) => x !== w).map(f), rnd).slice(0, 3);
+    // Letters to choose read aloud too (2026-11-12, the user: "give the voice for this also"), each by its name once —
+    // its card's spoken form ("u" for U, not "capital U"). Not "which letter makes the sound …": that would answer it.
+    const speakOf = () => Object.fromEntries(words.map((x) => [x.word, x.speak || x.word]));
+    // A lesson asked by its words only (the joined letters): any letter of it to choose from, and no sentence that has a
+    // word starting with the letter asked.
+    const choosable = lesson.wordsOnly ? words.filter((x) => x.for) : worded;
+    const othersBy = (w, f) => shuffle(choosable.filter((x) => x !== w && !(lesson.wordsOnly && f === named && startsIn(x.sentence || x.for, w.word))).map(f), rnd).slice(0, 3);
     // Asked in the student's language (2026-11-02, "change the way of the question"): "Which sentence has a word that
     // starts with “H”?" — sentences to choose; "Which letter does “apple” start with? 🍎 I eat a red apple." — letters.
     const aw = ASK_WORDS[lesson.language] || ASK_WORDS.en;
     const why = (w) => (en ? `${w.word} is for ${w.for}.` : `${w.word} — ${w.for}${w.forSound ? ` (${w.forSound})` : ''}`);
     const byWord = (w, i, n) => (n % 2 === 0
-        ? { id: `L~${i}~word`, type: 'mcq', kind: 'letterWord', prompt: aw.wordWith(w.word), options: shuffle([named(w), ...othersBy(w, named)], rnd), answer: named(w), explanation: why(w) }
-        : { id: `L~${i}~first`, type: 'mcq', kind: 'wordLetter', prompt: `${aw.firstOf(w.for)} ${w.pic}${w.sentence ? ` ${w.sentence}` : ''}`, options: shuffle([w.word, ...othersBy(w, (x) => x.word)], rnd), answer: w.word, explanation: why(w) });
+        // Each sentence read aloud as it is tapped (2026-11-12, the user: "why is this sentence's voice not coming").
+        ? { id: `L~${i}~word`, type: 'mcq', kind: 'letterWord', prompt: aw.wordWith(w.word), options: shuffle([named(w), ...othersBy(w, named)], rnd), answer: named(w), explanation: why(w), optionsSay: w.locale || 'en-IN' }
+        : { id: `L~${i}~first`, type: 'mcq', kind: 'wordLetter', prompt: `${aw.firstOf(w.for)} ${w.pic}${w.sentence ? ` ${w.sentence}` : ''}`, options: shuffle([w.word, ...othersBy(w, (x) => x.word)], rnd), answer: w.word, explanation: why(w), optionsSay: w.locale || 'en-IN', optionsSpeak: speakOf() });
     const inQuestion = (w, i) => {
         const others = shuffle(words.filter((x) => x !== w && x.for && !named(x).includes(w.inside) && !named(x).includes(w.word)).map(named), rnd).slice(0, 3);
-        return others.length === 3 ? { id: `L~${i}~in`, type: 'mcq', kind: 'letterIn', prompt: aw.hasIn(w.word), options: shuffle([named(w), ...others], rnd), answer: named(w), explanation: why(w) } : null;
+        return others.length === 3 ? { id: `L~${i}~in`, type: 'mcq', kind: 'letterIn', prompt: aw.hasIn(w.word), options: shuffle([named(w), ...others], rnd), answer: named(w), explanation: why(w), optionsSay: w.locale || 'en-IN' } : null;
     };
-    if (worded.length >= 4 && worded.length === words.length) return picks.map((i, n) => byWord(words[i], i, n));
+    const tenOf = (ask) => {
+        const out = picks.map((i, n) => ask(i, n));
+        const ids = new Set(out.filter(Boolean).map((q) => q.id));
+        for (const i of again) {
+            if (out.filter(Boolean).length >= LETTERS_QUIZ) break;
+            // The next way it is not asked yet: one on, else two on.
+            const q = [1, 2].map((d) => ask(i, picks.indexOf(i) + d)).find((x) => x && !ids.has(x.id));
+            if (q) { out.push(q); ids.add(q.id); }
+        }
+        return out;
+    };
+    if (worded.length >= 4 && worded.length === words.length) return tenOf((i, n) => byWord(words[i], i, n));
     const others = (i, key) => shuffle(words.filter((w, k) => k !== i && w[key] !== words[i][key] && w.kannada !== words[i].kannada), rnd).slice(0, 3).map((w) => w[key]);
-    return picks.map((i, n) => {
+    return tenOf((i, n) => {
         const w = words[i], kind = ['sound', 'letter', 'hear'][n % 3];
         const inside = w.inside && inQuestion(w, i);
         if (inside) return inside;
-        if (w.for && !w.inside && worded.length >= 4) return byWord(w, i, n);
+        if (w.for && !w.inside && (worded.length >= 4 || lesson.wordsOnly)) return byWord(w, i, n);
         if (kind === 'sound') return { id: `L~${i}~sound`, type: 'mcq', kind: 'letterSound', prompt: a.sound(w.word), options: shuffle([w.kannada, ...others(i, 'kannada')], rnd), answer: w.kannada, explanation: `${w.word} — ${w.kannada}` };
         if (kind === 'letter') return { id: `L~${i}~letter`, type: 'mcq', kind: 'soundLetter', prompt: a.letter(w.kannada), options: shuffle([w.word, ...others(i, 'word')], rnd), answer: w.word, explanation: `${w.word} — ${w.kannada}` };
         return { id: `L~${i}~hear`, type: 'mcq', kind: 'listen', prompt: a.hear, say: w.speak || w.word, sayLang: w.locale, audio: null, meaning: w.kannada, options: shuffle([w.word, ...others(i, 'word')], rnd), answer: w.word, explanation: `${w.word} — ${w.kannada}` };
+    });
+};
+
+/*
+ * Two consonants with their vowel signs (2026-11-13, the user: "add the kha letter also … then ask questions on both
+ * ka and kha, mixed"): twelve questions, the two consonants in turn, each with its twin among the choices — "Which
+ * letter does “ಖಾರ” start with?" has ಖಾ and ಕಾ to choose from. A syllable with a word: which sentence has a word
+ * starting with it, which syllable a word starts with, or the syllable heard; one with the syllable inside a word:
+ * which sentence has it. No sentence to choose has another word starting with the syllable asked (ಕೇ is in "ನಾನು
+ * ಕಿವಿಯಿಂದ ಕೇಳುತ್ತೇನೆ"). Only the syllables with a word are asked (the user, same day, on "Which letter sounds
+ * “chho”?": "don't give questions like this"): never its sound in English letters. A lesson with hardly any words (the
+ * scripts with none written yet) is still asked by sound — it has nothing else.
+ */
+const TWINS_QUIZ = 12;
+const LETTERS_QUIZ = 10;
+const startsIn = (text, syl) => String(text || '').normalize('NFC').split(/[\s.,!?।“”"]+/).some((t) => t.startsWith(syl.normalize('NFC')));
+const twinsQuiz = (lesson, seed) => {
+    const words = lesson.words || [];
+    const a = askIn(lesson.language);
+    const aw = ASK_WORDS[lesson.language] || ASK_WORDS.en;
+    const rnd = seeded(`${seed}:letters`);
+    const twinOf = (w) => words.find((x) => x.word === w.twin);
+    // The two consonants in turn: the first half of the lesson's syllables is one, the second the other.
+    const firstOf = new Set(words.filter((w, i) => i < words.findIndex((x) => x.word === words[0].twin)).map((w) => w.word));
+    const byWords = words.filter((w) => w.for).length >= 4;
+    const askable = byWords ? words.filter((w) => w.for) : words;
+    const [one, two] = [askable.filter((w) => firstOf.has(w.word)), askable.filter((w) => !firstOf.has(w.word))].map((list) => shuffle(list, rnd));
+    const picks = [];
+    for (let k = 0; picks.length < Math.min(TWINS_QUIZ, askable.length) && k < words.length; k++) for (const list of [one, two]) if (list[k] && picks.length < TWINS_QUIZ) picks.push(list[k]);
+    const named = (w) => (w.sentence ? `${w.pic} ${w.sentence}` : `${w.pic} ${w.for}`);
+    const worded = words.filter((w) => w.for && !w.inside);
+    const speakOf = () => Object.fromEntries(words.map((x) => [x.word, x.speak || x.word]));
+    const why = (w) => `${w.word} (${w.kannada})${w.for ? ` — ${w.for}${w.forSound ? ` (${w.forSound})` : ''}` : ''}`;
+    // Its twin first, then the others: three to go with the answer.
+    const withTwin = (w, pool) => { const t = twinOf(w); return [...(t && pool.includes(t) ? [t] : []), ...shuffle(pool.filter((x) => x !== t), rnd)].slice(0, 3); };
+    const at = (w) => words.indexOf(w);
+    return picks.map((w, n) => {
+        const i = at(w), loc = w.locale || 'en-IN';
+        if (w.inside) {
+            const others = withTwin(w, words.filter((x) => x !== w && x.for && !named(x).includes(w.inside) && !named(x).includes(w.word))).map(named);
+            if (others.length === 3) return { id: `L~${i}~in`, type: 'mcq', kind: 'letterIn', prompt: aw.hasIn(w.word), options: shuffle([named(w), ...others], rnd), answer: named(w), explanation: why(w), optionsSay: loc };
+        }
+        const letters = withTwin(w, words.filter((x) => x !== w && x.kannada !== w.kannada)).map((x) => x.word);
+        const hear = { id: `L~${i}~hear`, type: 'mcq', kind: 'listen', prompt: a.hear, say: w.speak || w.word, sayLang: loc, audio: null, meaning: w.kannada, options: shuffle([w.word, ...letters], rnd), answer: w.word, explanation: why(w) };
+        if (w.for && !w.inside) {
+            const kind = n % 3;
+            if (kind === 0) {
+                const others = withTwin(w, worded.filter((x) => x !== w && !startsIn(x.sentence || x.for, w.word))).map(named);
+                if (others.length === 3) return { id: `L~${i}~word`, type: 'mcq', kind: 'letterWord', prompt: aw.wordWith(w.word), options: shuffle([named(w), ...others], rnd), answer: named(w), explanation: why(w), optionsSay: loc };
+            }
+            if (kind !== 2) return { id: `L~${i}~first`, type: 'mcq', kind: 'wordLetter', prompt: `${aw.firstOf(w.for)} ${w.pic}${w.sentence ? ` ${w.sentence}` : ''}`, options: shuffle([w.word, ...letters], rnd), answer: w.word, explanation: why(w), optionsSay: loc, optionsSpeak: speakOf() };
+            return hear;
+        }
+        // Inside a word, and too few sentences without it to choose from: heard.
+        if (w.inside) return hear;
+        const kind = n % 3;
+        if (kind === 0) {
+            const sounds = withTwin(w, words.filter((x) => x !== w && x.kannada !== w.kannada)).map((x) => x.kannada);
+            return { id: `L~${i}~sound`, type: 'mcq', kind: 'letterSound', prompt: a.sound(w.word), options: shuffle([w.kannada, ...sounds], rnd), answer: w.kannada, explanation: why(w) };
+        }
+        if (kind === 1) return { id: `L~${i}~letter`, type: 'mcq', kind: 'soundLetter', prompt: a.letter(w.kannada), options: shuffle([w.word, ...letters], rnd), answer: w.word, explanation: why(w) };
+        return hear;
     });
 };
 
@@ -180,4 +272,4 @@ const chartOf = (code) => {
     return { course: { code, name: info.name, native: info.native }, locale: info.locale || 'en-IN', groups: groupsOf(code), table: kagunita(code) };
 };
 
-module.exports = { stubs, build, quizOf, placeOf, chartOf, SUMMARY };
+module.exports = { stubs, build, quizOf, placeOf, inUse, chartOf, SUMMARY };

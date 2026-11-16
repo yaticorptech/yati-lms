@@ -23,6 +23,8 @@ export const linguisticApi = {
     chooseLevel: (level) => post('/level', { level }),
     /** Straight to a section not open yet (2026-10-31): its jump test, one try → { lesson, module }. */
     jump: (level) => post('/jump', { level }),
+    /** "Jump here?" on a unit (2026-11-13): its test, the unit review before it → { unit, lesson, module }. */
+    jumpUnit: (unit) => post('/jump-unit', { unit }),
     /** Why they are learning, and how much English they know (0 new … 4 most topics). */
     setAbout: (reason, know, more = {}) => post('/about', { reason, know, ...more }),
     setKnows: (knows) => post('/knows', knows),

@@ -136,15 +136,54 @@ def _generate(batch):
     return [_fit(np.atleast_1d(seqs[i].squeeze()[: int(lengths[i])]), batch[i]["text"]) for i in range(len(batch))]
 
 
+def first_burst(audio, sr):
+    """A letter said once (2026-11-12, the user: "don't pronounce the one letter two times"): given a single letter,
+    the model fills its time by saying it again or adding a sound (ಅ and ಕ came out twice). Only the first burst of
+    speech is kept, from just before it to just after it; a click (under 60 ms) is passed over."""
+    hop = int(0.02 * sr)
+    n = len(audio) // hop
+    if n < 3:
+        return audio
+    rms = np.sqrt(np.mean(audio[: n * hop].reshape(n, hop) ** 2, axis=1))
+    top = float(rms.max())
+    if top <= 0:
+        return audio
+    on = rms > top * 0.12
+    i = 0
+    while i < n:
+        if not on[i]:
+            i += 1
+            continue
+        start, end, quiet, j = i, i, 0, i
+        while j < n:
+            if on[j]:
+                end, quiet = j, 0
+            else:
+                quiet += 1
+                if quiet >= 6:          # 120 ms of quiet: the burst is over
+                    break
+            j += 1
+        if (end - start + 1) * 0.02 >= 0.06:
+            a, b = max(start - 2, 0) * hop, min(n, end + 5) * hop
+            out = audio[a:b].copy()
+            fade = min(int(0.04 * sr), len(out))
+            out[-fade:] *= np.linspace(1.0, 0.0, fade, dtype=out.dtype)
+            return out
+        i = j
+    return audio
+
+
 def _fit(audio, text):
     """A clip cut to its own text's length (2026-11-11: a short word made in a batch with a long sentence got
     the sentence's length, and the model filled it with made-up speech: ಮಳೆ said as something else)."""
     cap = int(max_tokens(text) / FRAME_RATE * SAMPLE_RATE)
-    if audio.size <= cap:
-        return audio
-    audio = audio[:cap].copy()
-    fade = min(int(0.04 * SAMPLE_RATE), cap)
-    audio[-fade:] *= np.linspace(1.0, 0.0, fade, dtype=audio.dtype)
+    if audio.size > cap:
+        audio = audio[:cap].copy()
+        fade = min(int(0.04 * SAMPLE_RATE), cap)
+        audio[-fade:] *= np.linspace(1.0, 0.0, fade, dtype=audio.dtype)
+    # A letter (up to 3 characters): said once (2026-11-12).
+    if len(text) <= 3:
+        audio = first_burst(audio, SAMPLE_RATE)
     return audio
 
 

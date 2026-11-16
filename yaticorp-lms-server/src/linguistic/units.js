@@ -46,14 +46,19 @@ const topicOf = (title) => String(title || '').split(':')[0].trim();
 const TRACK_LEVELS = ['advanced'];
 const TRACKS = [
     // With its picture stories (comics.js, 2026-10-31), each after its topic's article.
-    { id: 'stories', title: 'Stories', note: 'Picture stories and articles to read, with questions on them.', has: (l) => l.module === 'reading' && (!l.review || l.review === 'comic') },
-    { id: 'listening', title: 'Listening', note: 'Conversations to listen to, with questions and a role-play.', has: (l) => l.module === 'speaking' && !l.review },
+    // And a unit's new lessons (more.js, 2026-11-14): a story, a conversation, a writing task, each in its skill.
+    { id: 'stories', title: 'Stories', note: 'Picture stories and articles to read, with questions on them.', has: (l) => l.module === 'reading' && (!l.review || l.review === 'comic' || moreKind(l) === 'story') },
+    { id: 'listening', title: 'Listening', note: 'Conversations to listen to, with questions and a role-play.', has: (l) => l.module === 'speaking' && (!l.review || moreKind(l) === 'listen') },
     { id: 'speaking', title: 'Speaking', note: 'Speak on a topic: every sentence corrected, with the reason.', has: (l) => l.review === 'talk' },
-    { id: 'writing', title: 'Writing', note: 'Letters, emails and paragraphs, checked here.', has: (l) => l.review === 'write' },
+    { id: 'writing', title: 'Writing', note: 'Letters, emails and paragraphs, checked here.', has: (l) => l.review === 'write' || moreKind(l) === 'write' },
     { id: 'translation', title: 'Translation', note: 'Passages and sentences, both ways.', has: (l) => l.module === 'translation' },
     { id: 'words', title: 'Words & grammar', note: 'The section’s words and grammar, and their reviews.', has: (l) => ['vocabulary', 'grammar'].includes(l.module) }
 ];
 const isTracked = (level) => TRACK_LEVELS.includes(level);
+// A unit's new lesson's kind (more.js), read when asked (more.js needs this file's neighbours loaded first).
+const moreKind = (l) => require('./more').moreKind(l);
+// The lessons of a unit (2026-11-14, the user: "keep 6 lessons in each unit").
+const UNIT_SIZE = 6;
 
 /**
  * A level's lessons in units, in path order: [{ index, order, part, kind:
@@ -64,9 +69,17 @@ const unitsOf = (levelLessons) => {
     const topics = topicUnitsOf(levelLessons);
     if (!levelLessons.length || !isTracked(levelLessons[0].level)) return topics;
     // A track's lessons in the order the topic units had them (topic by topic), its level reviews last.
+    // In units of six (2026-11-14, the user: "keep 6 lessons in each unit"; chose "split into units of 6"): "Words &
+    // grammar 1", "Words & grammar 2"… — the same lessons, still one chain a skill (service.js `access`).
     const all = topics.flatMap((u) => u.lessons);
-    return TRACKS.map((t) => ({ order: null, kind: 'track', track: t.id, title: t.title, note: t.note, lessons: all.filter(t.has) }))
-        .filter((u) => u.lessons.length).map((u, i) => ({ index: i + 1, ...u }));
+    const tracks = TRACKS.map((t) => ({ t, lessons: all.filter(t.has) })).filter((x) => x.lessons.length);
+    return tracks.flatMap(({ t, lessons }, s) => {
+        const n = Math.ceil(lessons.length / UNIT_SIZE);
+        return Array.from({ length: n }, (_, k) => ({
+            order: null, kind: 'track', track: t.id, skill: s + 1, skills: tracks.length, skillTitle: t.title, trackPart: k + 1, trackParts: n,
+            title: n > 1 ? `${t.title} ${k + 1}` : t.title, note: t.note, lessons: lessons.slice(k * UNIT_SIZE, (k + 1) * UNIT_SIZE)
+        }));
+    }).map((u, i) => ({ index: i + 1, ...u }));
 };
 
 /** A level's lessons in topic units (Beginner's way, and Advanced's before 2026-10-29). */
@@ -74,7 +87,8 @@ const topicUnitsOf = (levelLessons) => {
     const byUnit = new Map();
     const levelReviews = [];
     for (const l of levelLessons) {
-        if (l.review && LEVEL_REVIEWS.includes(l.review)) { levelReviews.push(l); continue; }
+        // And the level review's new story (more.js, 2026-11-14).
+        if (l.review && (LEVEL_REVIEWS.includes(l.review) || require('./more').inLevelReview(l))) { levelReviews.push(l); continue; }
         // The Letters unit (alphabet.js) is unit 0, before the topics'.
         const order = l.review === 'letters' ? 0 : Number(l.order) || 1, part = parts.partOf(l), key = `${order}:${part}`;
         if (!byUnit.has(key)) byUnit.set(key, { order, part, lessons: [] });
@@ -83,11 +97,13 @@ const topicUnitsOf = (levelLessons) => {
     // A talk (talks.js) comes after the unit's Speaking lesson.
     // A section's assessment (2026-10-29) is its very last stop.
     // The Letters lessons (alphabet.js, 2026-10-31) in their groups' order.
-    const rank = (l) => (l.review === 'letters' ? (Number(String(l.seedKey || '').split('-').pop()) || 0) / 100 : l.review === 'assessment' ? 100 : l.review === 'unit' ? 99 : l.review === 'hear' ? 50 : l.review === 'talk' ? 3.5 : l.review === 'comic' ? MODULE_ORDER.indexOf('reading') + 0.5 : MODULE_ORDER.indexOf(l.module));
+    // A unit's new lessons (more.js) right after its Words lesson and its sentences.
+    const rank = (l) => (l.review === 'more' ? require('./more').rankOf(l, MODULE_ORDER) : l.review === 'letters' ? (Number(String(l.seedKey || '').split('-').pop()) || 0) / 100 : l.review === 'assessment' ? 100 : l.review === 'unit' ? 99 : l.review === 'hear' ? 50 : l.review === 'talk' ? 3.5 : l.review === 'comic' ? MODULE_ORDER.indexOf('reading') + 0.5 : MODULE_ORDER.indexOf(l.module));
     const units = [...byUnit.values()].sort((a, b) => a.order - b.order || a.part - b.part).map(({ order, part, lessons: ls }, i) => {
         const sorted = ls.sort((a, b) => rank(a) - rank(b) || String(a.direction || '').localeCompare(String(b.direction || '')));
         const words = sorted.find((l) => l.module === 'vocabulary' && !l.review);
-        const title = sorted.every((l) => l.review === 'letters') ? 'Letters' : parts.unitName(sorted[0].level, order, part) || (words ? topicOf(words.title) : topicOf(sorted.find((l) => !l.review)?.title)) || `Unit ${i + 1}`;
+        // A new section's unit (2026-11-14): its own name ("At home").
+        const title = sorted.every((l) => l.review === 'letters') ? 'Letters' : parts.unitName(sorted[0].level, order, part) || require('./more').unitName(sorted[0].level, order, part) || (words ? topicOf(words.title) : topicOf(sorted.find((l) => !l.review)?.title)) || `Unit ${i + 1}`;
         return { index: i + 1, order, part, kind: 'topic', title, lessons: sorted };
     });
     if (levelReviews.length) {
@@ -106,6 +122,8 @@ const typeOf = (l) => {
     if (l.review === 'write') return 'writing';
     // A picture story (comics.js, 2026-10-31).
     if (l.review === 'comic') return 'comic';
+    // A unit's new lesson (more.js, 2026-11-14): a lesson, not a review.
+    if (l.review === 'more') return { story: 'story', listen: 'speaking', write: 'writing' }[moreKind(l)] || 'lesson';
     if (l.review) return 'review';
     return { reading: 'story', speaking: 'speaking' }[l.module] || 'lesson';
 };
@@ -149,6 +167,17 @@ const unitSentencesOf = (doc, helper) => {
     return unit ? { items: unit.items || [], direction: unit.direction } : null;
 };
 
+/** All of its topic's sentences, both units' (2026-11-16, a short quiz made up to ten): as unitSentencesOf, not cut. */
+const topicSentencesOf = (doc, helper) => {
+    if (!doc) return null;
+    const { localize } = require('./languages');
+    const courses = require('./courses');
+    const base = CONTENT.find((l) => l.module === 'translation' && l.level === doc.level && (Number(l.order) || 1) === (Number(doc.order) || 1));
+    if (!base) return null;
+    const unit = doc.course ? courses.build(courses.stubOf(doc.course, base), helper) : localize(base, helper);
+    return unit ? { items: unit.items || [], direction: unit.direction } : null;
+};
+
 const warmupFor = (doc, helper) => {
     if (!doc || doc.module === 'vocabulary' || doc.review) return null;
     // Matching pairs once a unit (2026-10-29, the user: "why ask this question for every step?" — chose "once per
@@ -161,4 +190,4 @@ const warmupFor = (doc, helper) => {
         .map((w) => ({ word: w.word, kannada: w.kannada, audio: w.audio || null, locale: unit.locale, say: w.say || null }));
 };
 
-module.exports = { MODULE_ORDER, LEVEL_REVIEWS, TRACKS, TRACK_LEVELS, isTracked, unitsOf, pathOrder, warmupFor, unitWordsOf, unitSentencesOf, topicOf, typeOf };
+module.exports = { MODULE_ORDER, LEVEL_REVIEWS, TRACKS, TRACK_LEVELS, UNIT_SIZE, isTracked, unitsOf, pathOrder, warmupFor, unitWordsOf, unitSentencesOf, topicOf, typeOf, topicSentencesOf };

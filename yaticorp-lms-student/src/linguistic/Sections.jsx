@@ -46,9 +46,10 @@ export default function Sections() {
                                 <h2 className="text-xl font-extrabold text-[#3c3c3c] sm:text-2xl">{lv.section}</h2>
                                 <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm font-bold text-[#777]">
                                     <span className="rounded-lg px-2 py-0.5 text-xs font-extrabold text-white" style={{ background: s.open ? c.face : '#AFAFAF' }} data-cefr>{lv.cefr}</span>
-                                    {lv.label} · {units.length} {units.some((u) => u.kind === 'track') ? `skill${units.length === 1 ? '' : 's'}` : `unit${units.length === 1 ? '' : 's'}`} · {s.total} lessons
+                                    {/* A skill in units of six (2026-11-14): its units, and its skills. */}
+                                    {lv.named ? `${lv.label} · ` : ''}{units.length} unit{units.length === 1 ? '' : 's'}{units.some((u) => u.kind === 'track') ? ` · ${new Set(units.map((u) => u.skillTitle || u.title)).size} skills` : ''} · {s.total} lessons
                                 </p>
-                                <p className="mt-2 text-sm font-semibold text-[#4b4b4b] sm:text-[15px]">You will learn: {units.map((u) => u.title).join(' · ')}.</p>
+                                <p className="mt-2 text-sm font-semibold text-[#4b4b4b] sm:text-[15px]">You will learn: {[...new Set(units.map((u) => u.skillTitle || u.title))].join(' · ')}.</p>
                             </div>
                             <Mascot pose={POSES[i % POSES.length]} className={`h-14 w-14 shrink-0 sm:h-24 sm:w-24 ${s.open ? '' : 'opacity-40 grayscale'}`} />
                         </div>

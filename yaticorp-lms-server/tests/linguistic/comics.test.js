@@ -80,9 +80,12 @@ describe('picture stories', () => {
         assert.equal(r.body.comic.title, 'The Shared Well');
         assert.equal(r.body.comic.panels.length, 8);
         assert.match(r.body.learn.intro, /panel by panel/);
-        assert.equal(r.body.quiz.length, 5);
-        assert.ok(r.body.quiz.every((q) => q.answer === undefined && q.options.length === 4), 'no answers sent');
-        const answers = Object.fromEntries(comics.build(doc, 'kn').quiz.map((q) => [q.id, q.answer]));
+        // Its five questions, and since 2026-11-16 made up to ten (its own lines heard, …).
+        assert.equal(r.body.quiz.length, 10);
+        assert.ok(r.body.quiz.every((q) => q.answer === undefined), 'no answers sent');
+        assert.ok(r.body.quiz.slice(0, 5).every((q) => q.options.length === 4), 'its own five, four choices each');
+        const whole = svc.serve(doc, { language: 'kn', course: null, lessons: [], placement: { level: 'beginner' }, levelsCompleted: [], plans: [] });
+        const answers = Object.fromEntries(svc.quizOf(whole).map((q) => [q.id, svc.rightAnswerOf(whole, q)]));
         const done = await api('POST', `/lessons/${doc._id}/quiz`, { answers });
         assert.deepEqual([done.body.percent, done.body.passed], [100, true]);
     });

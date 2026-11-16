@@ -189,7 +189,8 @@ describe('a student who speaks Japanese', () => {
         assert.equal(page.words.find((w) => w.word === 'family').kannada, '家族');
         const meaning = page.quiz.find((q) => /はどういう意味ですか/.test(q.prompt));
         assert.ok(meaning && meaning.options.every((o) => /[぀-ヿ一-鿿]/.test(o)), 'options in Japanese');
-        const right = Object.fromEntries(svc.quizOf(svc.serve(l, { language: 'ja' })).map((q) => [q.id, q.answer]));
+        const served = svc.serve(l, { language: 'ja' });
+        const right = Object.fromEntries(svc.quizOf(served).map((q) => [q.id, svc.rightAnswerOf(served, q)]));
         const r = await api('POST', `/lessons/${l._id}/quiz`, { answers: right });
         assert.equal(r.body.percent, 100);
     });

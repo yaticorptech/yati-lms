@@ -21,6 +21,8 @@ import { linguisticApi, announceRewards } from './api';
 import { COLORS, MODULES, shortDirection, blurbOf, levelOf, hasAssessment, lastLesson } from './meta';
 import { Bar, Chunky, Loading, Mascot, Problem, Panel } from './ui';
 import JumpTest from './parts/JumpTest';
+import ChestArt from './parts/ChestArt';
+import JumpUnit from './parts/JumpUnit';
 
 /** How far each node sits from the middle, in turn: the path winds right, back, left, back. */
 const OFFSETS = [0, 44, 70, 44, 0, -44, -70, -44];
@@ -65,11 +67,13 @@ function Guidebook({ unit, section, language, target, onClose }) {
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
     return createPortal(
-        <div className="lingo fixed inset-0 z-[90] flex items-end justify-center bg-black/40 sm:items-center sm:p-6" onClick={onClose}>
-            <div className="lingo-sheet max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white sm:rounded-3xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="lingo-guide" data-guidebook={unit.id}>
+        // A popup on a phone too (2026-11-13, the user's picture: "give the popup in mobile view" — it was a sheet at the
+        // foot, cut off by the screen's edge): in the middle, rounded all round, a gap around it, scrolling inside.
+        <div className="lingo fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 sm:p-6" onClick={onClose}>
+            <div className="lingo-sheet max-h-[85dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-3xl bg-white" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="lingo-guide" data-guidebook={unit.id}>
                 <div className="sticky top-0 flex items-start gap-3 p-5 text-white" style={{ background: c.face }}>
                     <div className="min-w-0 flex-1">
-                        <p className="text-xs font-extrabold uppercase tracking-wider text-white/85">{section.label} · Guidebook</p>
+                        <p className="text-xs font-extrabold uppercase tracking-wider text-white/85">{levelOf(section.level).label} · Guidebook</p>
                         <h2 id="lingo-guide" className="text-2xl font-extrabold">{unit.title}</h2>
                         <p className="mt-1 text-[15px] font-semibold text-white/90">{unit.kind === 'review' ? `Everything from ${section.label} again, before the trophy.` : unit.kind === 'track' ? unit.note : `${[...new Set(unit.lessons.filter((l) => !l.review && !l.stop).map((l) => kindOf(l)))].join(' · ')}, then a review.`}</p>
                     </div>
@@ -79,7 +83,8 @@ function Guidebook({ unit, section, language, target, onClose }) {
                     {unit.lessons.map((l, i) => (
                         <li key={l.id} className="rounded-2xl border-2 border-[#E5E5E5] p-4">
                             <p className="text-xs font-extrabold uppercase tracking-wider" style={{ color: c.ink }}>Lesson {i + 1} · {kindOf(l)}{l.direction ? ` · ${shortDirection(l.direction, language, target)}` : ''}{l.status === 'completed' ? ` · Done${l.bestScore !== null ? `, best ${l.bestScore}%` : ''}` : ''}</p>
-                            {!l.review && <p className="text-sm font-semibold text-[#AFAFAF]">{blurbOf(l.module, language, target)}</p>}
+                            {/* Not on a stop (the treasure chest, practice): theirs is not a translation lesson's (2026-11-13). */}
+                            {(!l.review || l.review === 'more') && !l.stop && <p className="text-sm font-semibold text-[#AFAFAF]">{blurbOf(l.module, language, target)}</p>}
                             <p className="text-[17px] font-extrabold text-[#3c3c3c]">{l.title}</p>
                             {l.summary && <p className="mt-0.5 text-[15px] font-semibold text-[#777]">{l.summary}</p>}
                         </li>
@@ -155,7 +160,8 @@ function Node({ lesson, color, current, offset, open, onTap }) {
     // Open and not done: the stop's own sign (a star for a lesson, a book for a story…), as Duolingo's path shows.
     // A chest keeps its look, shut or opened; locked stops show a lock.
     const chest = lesson.stop === 'chest';
-    const Icon = chest ? (done ? PackageOpen : Gift) : !lesson.open ? Lock : perfect ? Crown : done ? Check : KindIcon(lesson);
+    // A lesson not reached yet shows its own sign in grey (2026-11-16, the user's picture: grey stars, a grey trophy), not a lock.
+    const Icon = chest ? (done ? PackageOpen : Gift) : !lesson.open ? KindIcon(lesson) : perfect ? Crown : done ? Check : KindIcon(lesson);
     return (
         <div className="relative mx-auto w-[78px]" style={{ transform: `translateX(${offset}px)` }}>
             {current && !open && (
@@ -164,12 +170,21 @@ function Node({ lesson, color, current, offset, open, onTap }) {
                     <span className="absolute -bottom-[7px] left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b-2 border-r-2 border-[#E5E5E5] bg-white" />
                 </span>
             )}
-            {current && <span className="pointer-events-none absolute -inset-2 left-1/2 w-[94px] -translate-x-1/2 rounded-[50%] border-[6px] border-[#E5E5E5]" aria-hidden="true" />}
+            {current && !chest && <span className="pointer-events-none absolute -inset-2 left-1/2 w-[94px] -translate-x-1/2 rounded-[50%] border-[6px] border-[#E5E5E5]" aria-hidden="true" />}
+            {/* The treasure chest drawn as a chest (2026-11-14, the user's picture), not a round button. */}
+            {chest ? (
+                <button type="button" onClick={onTap} aria-expanded={open} data-node={lesson.id} data-kind="chest" data-status={lesson.open ? lesson.status : 'locked'}
+                    aria-label={`${lesson.title}: ${!lesson.open ? 'locked' : done ? 'opened' : 'open it'}`}
+                    className="lingo-node relative -ml-[11px] flex h-[92px] w-[100px] items-center justify-center bg-transparent">
+                    <ChestArt opened={done} locked={!lesson.open} className="h-[92px] w-[100px]" />
+                </button>
+            ) : (
             <button type="button" onClick={onTap} aria-expanded={open} data-node={lesson.id} data-kind={lesson.review ? 'review' : lesson.module} data-status={lesson.open ? lesson.status : 'locked'}
                 aria-label={`${lesson.title}: ${!lesson.open ? 'locked' : done ? `done${lesson.bestScore !== null ? `, best ${lesson.bestScore}%` : ''}` : current ? 'start here' : 'open'}`}
                 className="lingo-node relative flex h-[70px] w-[78px] items-center justify-center rounded-[50%]" style={{ background: look.face, boxShadow: `0 8px 0 ${look.edge}` }}>
                 <Icon size={32} strokeWidth={3} fill={Icon === Crown ? 'currentColor' : 'none'} style={{ color: look.ink }} />
             </button>
+            )}
         </div>
     );
 }
@@ -189,7 +204,19 @@ function TrophyNode({ section, certificateMinAverage, courseName = 'English' }) 
     return (
         <div className="flex flex-col items-center pt-4" data-trophy={section.level} data-earned={got}>
             <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`${section.label} certificate: ${got ? 'earned' : 'not yet earned'}`}
-                className="lingo-node flex h-[86px] w-[94px] items-center justify-center rounded-[50%]" style={{ background: look.face, boxShadow: `0 8px 0 ${look.edge}` }}>
+                className="lingo-node relative flex h-[86px] w-[94px] items-center justify-center rounded-[50%]" style={{ background: look.face, boxShadow: `0 8px 0 ${look.edge}` }}>
+                {/* A small certificate on the circle's head (2026-11-14, the user: "give a small certificate icon there"): the
+                    section's certificate — in colour once earned, grey until then. */}
+                <svg viewBox="0 0 40 30" className="pointer-events-none absolute -top-5 left-1/2 h-[30px] w-[40px] -translate-x-1/2 drop-shadow-sm" style={got ? undefined : { filter: 'grayscale(1)', opacity: 0.7 }} aria-hidden="true" data-trophy-certificate>
+                    <rect x="2" y="2" width="34" height="23" rx="3" fill="#FFF8E1" stroke="#E0A92E" strokeWidth="2" />
+                    <rect x="7" y="7" width="18" height="2.4" rx="1.2" fill="#C9A15A" />
+                    <rect x="7" y="11.5" width="14" height="2.4" rx="1.2" fill="#D9BC86" />
+                    <rect x="7" y="16" width="10" height="2.4" rx="1.2" fill="#D9BC86" />
+                    <path d="M27 19 L25 28 L28.5 26 L31 29 L31.5 19 Z" fill="#E5484D" />
+                    <path d="M31 19 L34 27.5 L31 26.5 L29.5 29 L28.5 19 Z" fill="#C93B40" />
+                    <circle cx="30" cy="18" r="5.2" fill="#F6C13A" stroke="#D99A1C" strokeWidth="1.4" />
+                    <circle cx="30" cy="18" r="2.2" fill="#fff" opacity="0.85" />
+                </svg>
                 <Trophy size={40} strokeWidth={2.5} className={got ? 'text-white' : 'text-[#AFAFAF]'} fill={got ? 'currentColor' : 'none'} />
             </button>
             {open && (
@@ -212,7 +239,7 @@ function SectionHead({ section, si, path, small = false }) {
         <Panel className={small ? 'flex min-h-[4.5rem] flex-col justify-center px-4 py-2.5' : 'mb-6 p-4'} data-section-head>
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <p className={`font-extrabold uppercase tracking-wider text-[#AFAFAF] ${small ? 'text-[10px]' : 'text-xs'}`}>Section {si + 1} · {levelOf(section.level).cefr} · {section.label}</p>
+                    <p className={`font-extrabold uppercase tracking-wider text-[#AFAFAF] ${small ? 'text-[10px]' : 'text-xs'}`}>Section {si + 1} · {levelOf(section.level).cefr}{levelOf(section.level).named ? ` · ${levelOf(section.level).label}` : ''}</p>
                     <h2 id={`sec-${section.level}`} className={`font-extrabold text-[#3c3c3c] ${small ? 'text-[15px] leading-tight' : 'text-xl'}`} data-section-name>{levelOf(section.level).section}{section.level === path.level && <span className={`ml-2 align-middle font-extrabold uppercase tracking-wider ${small ? 'text-[10px]' : 'text-xs'}`} style={{ color: COLORS.blue.ink }}>· You are here</span>}</h2>
                 </div>
                 {/* No "Jump here?" button here (2026-10-28); the jump test (2026-10-31) is under the header. */}
@@ -328,8 +355,8 @@ export default function LinguisticHome() {
                 {path.levels[0] && <SectionHead section={path.levels[0]} si={0} path={path} small />}
             </div>
             {path.levels.map((section, si) => (
-                <section key={section.level} data-section={section.level} aria-labelledby={`sec-${section.level}`}>
-                    {si > 0 && <SectionHead section={section} si={si} path={path} />}
+                <section key={section.level} data-section={section.level} {...(levelOf(section.level).bare ? { 'aria-label': levelOf(section.level).section } : { 'aria-labelledby': `sec-${section.level}` })}>
+                    {si > 0 && !levelOf(section.level).bare && <SectionHead section={section} si={si} path={path} />}
 
                     {section.units.map((u, ui) => {
                         const [tone, pose] = lookOf(u);
@@ -344,11 +371,13 @@ export default function LinguisticHome() {
                         const mascotLeft = lean > 0 || (lean === 0 && ui % 2 === 0);
                         return (
                             <div key={u.id} className="relative mb-10" data-unit={u.id} data-unit-kind={u.kind} data-open={u.open}>
+                                {/* "Up next … Jump here?" (2026-11-13, the user's Duolingo picture): under the unit before, the shut unit and its test. */}
+                                {u.jump && <JumpUnit unit={u} upNext={ui > 0 && section.units[ui - 1].open} />}
                                 {/* A unit not open yet: its banner grey, with a lock (2026-10-28: it opens when the one before is finished). */}
                                 <div className="sticky top-[4.5rem] z-10 mb-10 flex items-center gap-3 rounded-2xl p-4 text-white" style={u.open ? { background: c.face, boxShadow: `0 4px 0 ${c.edge}` } : { background: '#C9CED6', boxShadow: '0 4px 0 #A9AFB8' }} data-unit-locked={u.open ? undefined : 'true'}>
                                     {!u.open && <Lock size={22} strokeWidth={2.8} className="shrink-0 text-white" aria-label="Locked" />}
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-xs font-extrabold uppercase tracking-wider text-white/85">{u.kind === 'review' ? `Section ${si + 1} · Review` : u.kind === 'track' ? `Section ${si + 1} · Skill ${u.index} of ${section.units.length}` : `Section ${si + 1}, Unit ${u.index}`}{!u.open && ' · Locked'}</p>
+                                        <p className="text-xs font-extrabold uppercase tracking-wider text-white/85">{u.kind === 'review' ? `Section ${si + 1} · Review` : `Section ${si + 1}, Unit ${u.index}`}{!u.open && ' · Locked'}</p>
                                         <h3 className="text-lg font-extrabold leading-tight sm:text-xl" data-unit-title>{u.title}</h3>
                                         {!u.open && <p className="mt-0.5 text-sm font-bold text-white/90">{ui > 0 && section.open ? `Finish ${section.units[ui - 1].title} to open it.` : `Finish ${si > 0 ? levelOf(path.levels[si - 1]?.level).section : 'the section before'} to open it.`}</p>}
                                     </div>

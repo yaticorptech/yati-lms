@@ -90,6 +90,38 @@
           setTimeout(function () { splash.remove(); }, 700);
         }
       };
+      // Stuck on "Loading..." (2026-11-12): the app never started — the browser held an old copy of it whose files are
+      // gone (the offline copy after a new release, or a load cut off). 20 s on, once a session: the old copies dropped
+      // (the downloaded voices kept) and the page loaded again; still not started, a note and a Reload button.
+      (function () {
+        var KEY = 'yati:boot-retry';
+        setTimeout(function () {
+          var splash = document.getElementById('splash-screen');
+          if (!splash || splash.classList.contains('hidden')) { try { sessionStorage.removeItem(KEY); } catch (e) { /* storage off */ } return; }
+          var tried = false;
+          try { tried = sessionStorage.getItem(KEY) === '1'; sessionStorage.setItem(KEY, '1'); } catch (e) { /* storage off */ }
+          if (!tried) {
+            var jobs = [];
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+              jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+            }
+            if (window.caches && caches.keys) {
+              jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('lingo-voice') !== 0; }).map(function (k) { return caches.delete(k); })); }));
+            }
+            Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+            return;
+          }
+          var note = splash.querySelector('p');
+          if (note) { note.style.animation = 'none'; note.textContent = 'Could not start. Check your connection.'; }
+          var again = document.createElement('button');
+          again.type = 'button';
+          again.textContent = 'Reload';
+          again.setAttribute('data-boot-reload', '');
+          again.style.cssText = 'margin-top:20px;padding:10px 28px;border:0;border-radius:12px;background:#3B82F6;color:#fff;font:700 15px system-ui,sans-serif;cursor:pointer';
+          again.onclick = function () { try { sessionStorage.removeItem(KEY); } catch (e) { /* storage off */ } location.reload(); };
+          splash.appendChild(again);
+        }, 20000);
+      })();
     </script>
   </body>
 </html>

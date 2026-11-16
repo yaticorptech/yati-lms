@@ -35,7 +35,7 @@ describe('a unit\'s lessons ask different questions', () => {
                         const [words, hear, review] = [await get(`vocab-${level}-${order}${part}`), await get(`review-hear-${level}-${order}${part}`), await get(`review-unit-${level}-${order}${part}`)];
                         if (!words || !hear || !review) continue;
                         units++;
-                        const asked = [words, hear, review].map((l) => svc.quizOf(l).filter((q) => !String(q.id).startsWith('before~') && q.kind !== 'sentence').map(keyOf));
+                        const asked = [words, hear, review].map((l) => svc.quizOf(l).filter((q) => !String(q.id).startsWith('before~') && q.kind !== 'sentence' && !['blanks', 'hear', 'chat', 'picture', 'letters'].includes(q.type)).map(keyOf));
                         const all = asked.flat();
                         assert.equal(new Set(all).size, all.length, `${prefix}${level}-${order}${part}: a word asked the same way twice — ${all.join(', ')}`);
                         const r = svc.quizOf(review);

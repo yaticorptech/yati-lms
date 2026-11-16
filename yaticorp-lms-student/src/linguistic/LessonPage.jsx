@@ -79,7 +79,9 @@ function LessonPage() {
     }
 
     // The unit's audio first (2026-11-06): downloaded once, then every lesson in the unit opens straight away.
-    if (!packed) return <SessionFrame label={lesson.title}><AudioPack lessonId={lessonId} onReady={() => setPacked(true)} onCancel={endSession} /></SessionFrame>;
+    // The Advanced entry test opens at once (2026-11-12, the user: "take the test — the test is not coming"): no audio pack
+    // first; its voices are made as each is played.
+    if (!packed && lesson.review !== 'entry') return <SessionFrame label={lesson.title}><AudioPack lessonId={lessonId} onReady={() => setPacked(true)} onCancel={endSession} /></SessionFrame>;
 
     const id = lesson.id;
     // The result's words in the student's language too (2026-11-05, "like Duolingo"): Kannada for a Kannada speaker.

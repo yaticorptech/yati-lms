@@ -122,11 +122,12 @@ export default function LanguagePicker({ languages, courses = [], current, cours
                     <Field label="I want to learn" code={learn} mark={learn === 'en' ? 'En' : langOf(learn).mark} tone={clash ? COLORS.red.face : COLORS.green.face} hint={courseNote}
                         attr={{ value: learn, onChange: (e) => { setLearn(e.target.value); setError(''); }, disabled: busy || locked, 'data-learn': learn, 'aria-label': 'I want to learn' }}>
                         <optgroup label="All five skills">{list.filter((c) => c.full).map((c) => <option key={c.code} value={c.code}>{c.name}{c.done ? ' · finished' : ''}</option>)}</optgroup>
+                        {/* A locked language (2026-11-13: only English, Kannada and Hindi, but for the developer cards): shown, not chosen. */}
                         <optgroup label="Words and sentences · languages of India">{list.filter((c) => !c.full && groupOf(c.code) !== 'world').map((c) => (
-                            <option key={c.code} value={c.code} disabled={c.code === speak}>{c.name}{c.code === speak ? ' (you speak it)' : c.done ? ' · finished' : c.begun ? ' · started' : ''}</option>
+                            <option key={c.code} value={c.code} disabled={c.code === speak || c.locked} data-locked={c.locked || undefined}>{c.name}{c.code === speak ? ' (you speak it)' : c.locked ? ' · locked' : c.done ? ' · finished' : c.begun ? ' · started' : ''}</option>
                         ))}</optgroup>
                         <optgroup label="Words and sentences · world languages">{list.filter((c) => !c.full && groupOf(c.code) === 'world').map((c) => (
-                            <option key={c.code} value={c.code} disabled={c.code === speak}>{c.name}{c.code === speak ? ' (you speak it)' : c.done ? ' · finished' : c.begun ? ' · started' : ''}</option>
+                            <option key={c.code} value={c.code} disabled={c.code === speak || c.locked} data-locked={c.locked || undefined}>{c.name}{c.code === speak ? ' (you speak it)' : c.locked ? ' · locked' : c.done ? ' · finished' : c.begun ? ' · started' : ''}</option>
                         ))}</optgroup>
                     </Field>
 

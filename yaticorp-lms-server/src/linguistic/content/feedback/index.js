@@ -32,6 +32,7 @@ const KEYS = {
     withDont: 'With I, you, we or they, use "don\'t" (do not).',
     withDoesnt: 'With he, she or it, use "doesn\'t" (does not).',
     thirdS: 'With he, she or it, the verb takes -s in the present: he goes, she has, it works.',
+    noThirdS: 'With I, you, we or they, the verb has no -s: I go, you have, they work.',
     thereAre: 'With more than one thing, use "there are" (or "there were").',
     participle: 'After have, has or had, use the past participle: have gone, has eaten, had done.',
     stative: 'Verbs like know, understand and want are not used with -ing: "I understand", not "I am understanding".',
