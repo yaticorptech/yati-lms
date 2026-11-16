@@ -21,6 +21,9 @@ const { getAnnouncementsForUser, clearUserNotifications } = require('../controll
 router.get('/profile', protectUser, getUserProfile);
 router.put('/profile', protectUser, updateUserProfile);
 router.put('/update-password', protectUser, updatePassword);
+// AI Passport: the book's QR links to the student's card and pays the welcome reward once.
+router.get('/passport', protectUser, require('../controllers/passportController').myPassport);
+router.post('/passport/claim', protectUser, authLimiter, require('../controllers/passportController').claimMine);
 // Profile picture upload (server-side → Bunny Storage → MongoDB). A file over
 // the limit, or not an image, gets a message the student can act on rather
 // than a bare server error.

@@ -9,8 +9,9 @@ import SupportDialog from '../components/SupportDialog';
 import { AuthContext } from '../context/AuthContext';
 import { safeNextPath } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession } from '../teacher/teacherSession';
-import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Loader2, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock, GraduationCap, ShieldCheck, Sparkles } from 'lucide-react';
+import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Loader2, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock, GraduationCap, ShieldCheck, Sparkles, Gift, BookMarked } from 'lucide-react';
 import AuthBrandPanel from '../components/AuthBrandPanel';
+import { cleanPassport, getPendingPassport, setPendingPassport, clearPendingPassport } from '../components/rewards/passportPending';
 
 // Password strength validator
 const getPasswordStrengthError = (pw) => {
@@ -69,6 +70,55 @@ const FieldError = ({ id, children }) => (children
 
 /** The same red edge on every field with a problem. */
 const invalidRing = (bad) => (bad ? ' !border-red-400/60 focus:ring-red-400' : '');
+
+/**
+ * The AI Passport step: the card is not verified yet, so the student scans
+ * the QR on the last page of their AI Passport book (or types the ID under
+ * it). The first scan links that book to this card for good.
+ */
+const PassportStep = ({ typed, setTyped, scanning, busy, scannerId, scanError, cardLabel, onScan, onBack }) => (
+    <div className="space-y-5">
+        <div className="relative overflow-hidden rounded-2xl border border-amber-300/25 bg-gradient-to-br from-amber-400/[0.12] via-transparent to-indigo-500/10 p-4">
+            <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-400/15 text-amber-200 ring-1 ring-amber-300/30"><BookMarked size={20} aria-hidden="true" /></span>
+                <div className="min-w-0 text-left">
+                    <p className="text-sm font-bold text-white">Verify with your AI Passport</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-300">Card <span className="font-mono text-slate-100">{cardLabel}</span> isn’t verified yet. Scan the QR on the <span className="font-semibold text-white">last page of your AI Passport book</span> — it verifies your card and unlocks your welcome reward.</p>
+                </div>
+            </div>
+        </div>
+        <div>
+            <label htmlFor="signup-passport" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><BookMarked size={15} className="text-slate-400" /> AI Passport ID</label>
+            <div className="relative">
+                <input id="signup-passport" type="text" autoComplete="off" autoCapitalize="characters" maxLength={64} value={typed}
+                    onChange={(e) => setTyped(e.target.value.toUpperCase())}
+                    className={`${inputClass} pr-14 font-mono tracking-widest`} placeholder="Scan, or type the ID under the QR" aria-describedby="signup-passport-hint" />
+                <button type="button" disabled={busy} onClick={onScan}
+                    aria-label={scanning ? 'Stop scanning' : 'Scan your AI Passport'} aria-pressed={scanning} title={scanning ? 'Stop scanning' : 'Scan your AI Passport'}
+                    className={`absolute top-1/2 right-1.5 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:opacity-60 ${scanning ? 'bg-amber-500 text-white' : 'bg-amber-400/15 text-amber-200 ring-1 ring-amber-300/30 hover:bg-amber-400/25'}`}>
+                    {busy && !typed ? <Loader2 size={18} className="animate-spin" /> : scanning ? <X size={18} /> : <ScanLine size={19} />}
+                </button>
+            </div>
+            <p id="signup-passport-hint" className="mt-1.5 text-xs text-slate-400">One passport links to one card, for good.</p>
+            <div className={scanning ? 'mt-3' : 'hidden'}>
+                <div id={scannerId} className="overflow-hidden rounded-xl bg-black ring-1 ring-white/10" />
+                <p className="mt-2 text-xs text-slate-400">Hold the QR on your passport’s last page up to the camera</p>
+            </div>
+        </div>
+        {scanError && (
+            <p className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200">
+                <CameraOff size={14} className="mt-0.5 shrink-0" /> {scanError}
+            </p>
+        )}
+        <div className="flex gap-3">
+            <button type="button" onClick={onBack} className={backBtn}><ArrowLeft size={15} /> Back</button>
+            <button type="submit" disabled={busy || !typed.trim()} className={primaryBtn}>
+                {busy ? 'Linking your passport…' : 'Link passport & verify'}
+                {!busy && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
+            </button>
+        </div>
+    </div>
+);
 
 const Signup = () => {
     const { user, enterApp } = useContext(AuthContext);
@@ -134,6 +184,26 @@ const Signup = () => {
        while `scanning` is true; a code it reads is checked at once. */
     const [scanning, setScanning] = useState(false);
     const [scanError, setScanError] = useState('');
+    /* AI Passport (2026-11-12): a card not verified yet is verified by the QR
+       on the last page of the student's AI Passport book. `passportFor` is the
+       card that needs it; the first scan links the book to that card for good,
+       and the welcome reward is paid when the account is made. */
+    const [passportFor, setPassportFor] = useState(null);
+    const [passportTyped, setPassportTyped] = useState('');
+    const [passportLinked, setPassportLinked] = useState(null);   // { code, reward }
+    useEffect(() => { const p = cleanPassport(searchParams.get('passport')); if (p) setPendingPassport(p); }, [searchParams]);
+    // From the passport page (card already linked and verified): check the card at once.
+    const cardFromLink = useRef(false);
+    useEffect(() => {
+        const digits = String(searchParams.get('card') || '').replace(/\D/g, '');
+        if (cardFromLink.current || digits.length !== 12 || asTeacher) return;
+        cardFromLink.current = true;
+        setTypedCard(digits.replace(/(\d{4})(?=\d)/g, '$1 '));
+        validateCard({ cardNumber: digits });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    const scanTargetRef = useRef('card');
+    scanTargetRef.current = passportFor ? 'passport' : 'card';
     /* A teacher with no AI card is added by their organization with their
        name and mobile number only (2026-10-30). "Verify as your
        organization's teacher" checks that number, then, for an account still
@@ -198,7 +268,8 @@ const Signup = () => {
                     // broke codes that carry punctuation, and URLs.
                     setScanError('');
                     setScanning(false);
-                    validateCard({ qrCodeNumber: decodedText.trim() });
+                    if (scanTargetRef.current === 'passport') linkPassport(decodedText.trim());
+                    else validateCard({ qrCodeNumber: decodedText.trim() });
                 },
                 () => {}   // a frame without a code is not an error
             );
@@ -206,7 +277,7 @@ const Signup = () => {
             if (cancelled) return;
             scannerRef.current = null;
             setScanning(false);
-            setScanError('The camera is not available. Type your card number instead.');
+            setScanError(scanTargetRef.current === 'passport' ? 'The camera is not available. Type the ID printed under the passport QR instead.' : 'The camera is not available. Type your card number instead.');
         });
         return () => { cancelled = true; stopScanner(); };
         // validateCard is the same each render in what it does; the camera restarts only with `scanning`.
@@ -243,6 +314,7 @@ const Signup = () => {
             setCardDetails({ CardNumber: res.data.cardNumber, CVV: res.data.cvv });
             // Registration needs the card's QR code: the server's, or the one just scanned.
             setQrCodeNumber(String(res.data.qrCodeNumber || body.qrCodeNumber || ''));
+            setPassportLinked(res.data.passportCode ? { code: res.data.passportCode, reward: res.data.passportReward || 0 } : null);
             setQrValidated(true);
             setStep(2);
             focusField('name');
@@ -250,11 +322,39 @@ const Signup = () => {
             if (err.response?.data?.code === 'CARD_USED') {
                 setCardUsed(true);
                 setError('This card already has an account — sign in instead.');
+            } else if (err.response?.data?.code === 'CARD_NOT_VERIFIED' && !asTeacher) {
+                // Not verified yet: the student's AI Passport verifies it.
+                setPassportFor(body);
+                // Arrived from the passport's QR link: its ID is already known.
+                setPassportTyped(cleanPassport(searchParams.get('passport')) || getPendingPassport());
             } else {
                 setError(err.response?.data?.message
                     || (!err.response ? 'Check your connection and try again.'
                         : byNumber ? 'That card number was not accepted. Please try again.' : 'Invalid QR Code. Please try again.'));
             }
+        } finally {
+            setQrValidating(false);
+        }
+    };
+    // The AI Passport QR, scanned or typed: links the book to the card and verifies it.
+    const linkPassport = async (raw) => {
+        const code = String(raw || '').trim();
+        if (!code || !passportFor) return;
+        setError(null);
+        setQrValidating(true);
+        try {
+            const res = await api.post('/auth/passport/link', { ...passportFor, passport: code });
+            setCardDetails({ CardNumber: res.data.cardNumber, CVV: res.data.cvv });
+            setQrCodeNumber(String(res.data.qrCodeNumber || passportFor.qrCodeNumber || ''));
+            setPassportLinked({ code: res.data.passportCode, reward: res.data.reward || 0 });
+            clearPendingPassport();
+            setPassportFor(null);
+            setQrValidated(true);
+            setStep(2);
+            focusField('name');
+        } catch (err) {
+            if (err.response?.data?.code === 'CARD_USED') { setCardUsed(true); setPassportFor(null); }
+            setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Your AI Passport could not be checked. Please try again.'));
         } finally {
             setQrValidating(false);
         }
@@ -307,6 +407,10 @@ const Signup = () => {
     };
     const handleValidateQR = (e) => {
         e.preventDefault();
+        if (passportFor) {
+            if (!passportTyped.trim()) return setError('Scan the QR on the last page of your AI Passport, or type the ID printed under it.');
+            return linkPassport(passportTyped);
+        }
         if (typedDigits.length !== 12) return setError('Please enter the 12-digit card number printed on your card, or scan its QR code.');
         return validateCard({ cardNumber: typedDigits });
     };
@@ -692,6 +796,13 @@ const Signup = () => {
                                         </>)}
 
                                     </>
+                                ) : passportFor ? (
+                                    <PassportStep
+                                        typed={passportTyped} setTyped={(v) => { setPassportTyped(v); setError(null); }}
+                                        scanning={scanning} busy={qrValidating} scannerId={SCANNER_ID} scanError={scanError}
+                                        cardLabel={passportFor.cardNumber ? String(passportFor.cardNumber).replace(/(\d{4})(?=\d)/g, '$1 ') : 'Your scanned card'}
+                                        onScan={() => { setScanError(''); setError(null); setScanning((on) => !on); }}
+                                        onBack={() => { setScanning(false); setPassportFor(null); setError(null); }} />
                                 ) : (
                                     <>
                                 {/* One box for the card number, the scanner inside it on the right,
@@ -747,6 +858,15 @@ const Signup = () => {
                                     </div>
                                     <CreditCard size={18} className="shrink-0 text-emerald-300/70" />
                                 </div>
+                                {passportLinked && (
+                                    <div className="flex items-center gap-3 rounded-2xl border border-amber-300/30 bg-gradient-to-r from-amber-500/15 to-amber-500/5 px-4 py-3">
+                                        <Gift size={20} className="shrink-0 text-amber-300" aria-hidden="true" />
+                                        <p className="min-w-0 flex-1 text-xs leading-relaxed text-amber-100">
+                                            <span className="font-bold">AI Passport {passportLinked.code} linked.</span>
+                                            {passportLinked.reward > 0 && <> Your <span className="font-bold">₹{Number(passportLinked.reward).toLocaleString('en-IN')}</span> welcome reward lands in your wallet when you finish.</>}
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div>
                                     <label htmlFor="signup-name" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200"><User size={15} className="text-slate-400" /> Full Name</label>

@@ -1,6 +1,6 @@
 {
   "appId": "com.yaticorp.lms",
-  "appName": "Yaticorp LMS",
+  "appName": "Yaticorp",
   "webDir": "dist",
   "server": {
     "androidScheme": "https",

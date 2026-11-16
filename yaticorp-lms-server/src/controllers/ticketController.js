@@ -29,10 +29,17 @@ const createTicket = async (req, res) => {
 
         // Always a student's: teachers and organizations write in from their own
         // routes (teacher/index.js, organizations/index.js), which set `from`.
-        const ticket = await Ticket.create({ name, email, cardNumber, subject, message, page, path, from: 'student' });
+        // To their organization (2026-11-14): only a member's, found by their card.
+        let toOrg = null;
+        if (req.body.to === 'organization') {
+            const owner = await findUserByCardNumber(cardNumber).catch(() => null);
+            if (!owner?.organizationId) return res.status(400).json({ message: 'You are not in an organization yet: send it to YATICORP support.' });
+            toOrg = owner.organizationId;
+        }
+        const ticket = await Ticket.create({ name, email, cardNumber, subject, message, page, path, from: 'student', ...(toOrg ? { to: 'organization', toOrganizationId: toOrg } : {}) });
 
-        // Email the admin
-        const adminEmail = process.env.ADMIN_EMAIL;
+        // Email the admin (not for one their organization answers)
+        const adminEmail = toOrg ? null : process.env.ADMIN_EMAIL;
         if (adminEmail) {
             await sendEmail({
                 to: adminEmail,
@@ -63,7 +70,8 @@ const createTicket = async (req, res) => {
 const getTickets = async (req, res) => {
     try {
         const { status, from } = req.query;
-        const query = {};
+        // Tickets a student sent to their own organization are the organization's, not YATICORP's (2026-11-14).
+        const query = { to: { $ne: 'organization' } };
         if (status) query.status = status;
         if (['student', 'teacher', 'organization'].includes(from)) query.from = from === 'student' ? { $in: ['student', null] } : from;
         const tickets = await Ticket.find(query).sort('-createdAt');

@@ -150,7 +150,7 @@ const collect = async (userId) => {
     const certificates = [
         ...shownCerts.map((c) => {
             const course = courses.find((x) => x.id === String(c.courseId));
-            return { id: String(c._id), title: course ? `${course.title} — Certificate of Completion` : 'Certificate of Completion', course: course?.title || '', issuer: 'YATI LMS', date: c.issuedAt, number: c.certificateNumber || '', url: c.pdfUrl, source: 'lms' };
+            return { id: String(c._id), title: course ? `${course.title} — Certificate of Completion` : 'Certificate of Completion', course: course?.title || '', issuer: 'YATICORP', date: c.issuedAt, number: c.certificateNumber || '', url: c.pdfUrl, source: 'lms' };
         }),
         ...uploads.filter((u) => u.kind === 'certificate').map((u) => ({ id: String(u._id), title: u.title, course: '', issuer: u.issuer || '', date: u.issuedOn || u.createdAt, number: '', url: u.fileUrl, source: 'uploaded' }))
     ];

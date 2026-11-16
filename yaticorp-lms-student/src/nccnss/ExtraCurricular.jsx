@@ -135,7 +135,7 @@ const JoinPage = ({ data, onDone }) => {
                 <span className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md ${choice.tone}`}><choice.icon size={21} /></span>
                 <div>
                     <h2 className="text-lg font-black text-slate-900">Join {choice.name}</h2>
-                    <p className="text-sm text-slate-500">Fill in your details. {data.organization.name} will confirm your request.</p>
+                    <p className="text-sm text-slate-500">Fill in your details. {scoutUnits.length ? 'Your unit leader or ' : ''}{data.organization.name} will confirm your request.</p>
                 </div>
             </div>
             {rejected && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">Your last request to join {choice.name} was not accepted. Check with your teacher or officer, then ask again.</p>}
@@ -143,9 +143,13 @@ const JoinPage = ({ data, onDone }) => {
                 {scoutUnits.length > 0 && (
                     <div><span className={LABEL}>Your unit</span>
                         <Select value={form.unitId} onChange={(e) => set('unitId', e.target.value)} aria-label="Your unit" title="Your unit" placeholder="Choose your unit" className={INPUT}>
-                            {scoutUnits.map((u) => <option key={u._id} value={u._id}>{u.name} · {u.sectionLabel}</option>)}
+                            {scoutUnits.map((u) => <option key={u._id} value={u._id}>{u.name} · {u.sectionLabel}{u.leaders?.length ? ` · ${u.leaders.join(', ')}` : ''}</option>)}
                         </Select>
+                        {(() => { const u = scoutUnits.find((x) => String(x._id) === String(form.unitId)); return u ? <p className="mt-1.5 text-xs text-slate-500">Goes to {u.leaders?.length ? <b className="text-slate-700">{u.leaders.join(', ')}</b> : 'the unit'} and {data.organization.name} — either can accept.</p> : null; })()}
                     </div>
+                )}
+                {choice.scheme === 'SCOUTS' && !scoutUnits.length && (
+                    <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800 ring-1 ring-amber-200 sm:col-span-2">{data.organization.name} hasn’t listed its Scouts & Guides units yet. Type your troop or company below, or ask your teacher to add the units.</p>
                 )}
                 {!club && !scoutUnits.length && <label><span className={LABEL}>{choice.scheme === 'SCOUTS' ? 'Troop / company' : 'Unit / company'}</span><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="As your officer calls it" /></label>}
                 <label><span className={LABEL}>{club ? 'Membership no. (if you have one)' : 'Enrolment no. (if you have one)'}</span><input className={INPUT} value={form.enrolmentNo} onChange={(e) => set('enrolmentNo', e.target.value)} /></label>

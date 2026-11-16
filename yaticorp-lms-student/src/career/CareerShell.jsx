@@ -91,16 +91,27 @@ function CareerFrame() {
   // Where the white folder sits: measured from the open tab, re-measured
   // when the route or the window width changes. The CSS springs it there.
   const [slider, setSlider] = useState(null);
+  // Which ends of the strip have more tabs past them, so the fade shows only where it can scroll.
+  const [edges, setEdges] = useState({ left: false, right: false });
   useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return undefined;
     const measure = () => {
-      const rail = railRef.current;
-      const active = rail?.querySelector('[aria-current="page"]');
-      if (!rail || !active) return;
-      setSlider({ left: active.offsetLeft, width: active.offsetWidth });
+      const active = rail.querySelector('[aria-current="page"]');
+      if (active) setSlider({ left: active.offsetLeft, width: active.offsetWidth });
+      const max = rail.scrollWidth - rail.clientWidth;
+      setEdges({ left: rail.scrollLeft > 4, right: rail.scrollLeft < max - 4 });
     };
     measure();
+    // Re-measured whenever the strip or its tabs change size — the menu opening, a rotation,
+    // the font arriving — not only on a window resize, so the white folder never drifts off its tab.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(rail);
+    if (rail.firstElementChild) ro?.observe(rail.firstElementChild);
+    rail.addEventListener('scroll', measure, { passive: true });
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    document.fonts?.ready?.then(measure).catch(() => {});
+    return () => { ro?.disconnect(); rail.removeEventListener('scroll', measure); window.removeEventListener('resize', measure); };
   }, [pathname]);
 
   // Which way the student moved along the band, so the page can arrive
@@ -223,12 +234,12 @@ function CareerFrame() {
               the box, as top padding, not outside it on the band. */}
           {/* On a phone only three or four tabs fit, so the strip fades at
               both edges to say there is more of it to scroll to. */}
-          <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-journey-100 to-transparent md:hidden" />
-          <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-journey-100 to-transparent md:hidden" />
+          <span aria-hidden className={`pointer-events-none absolute inset-y-0 left-0 z-20 w-8 bg-gradient-to-r from-journey-100 to-transparent transition-opacity ${edges.left ? 'opacity-100' : 'opacity-0'}`} />
+          <span aria-hidden className={`pointer-events-none absolute inset-y-0 right-0 z-20 w-8 bg-gradient-to-l from-journey-100 to-transparent transition-opacity ${edges.right ? 'opacity-100' : 'opacity-0'}`} />
           <nav
             ref={railRef}
             aria-label="Career Path sections"
-            className="relative snap-x overflow-x-auto pt-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pt-6"
+            className="relative snap-x snap-mandatory overflow-x-auto scroll-px-3 pt-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pt-6"
           >
             <div className="relative flex w-max min-w-full items-end gap-1 sm:gap-1.5">
               {slider && (
@@ -246,7 +257,7 @@ function CareerFrame() {
                   title={item.name}
                   data-mascot-target={GUIDE_TARGETS[item.path.split('/').pop()] || `tab-${item.path.split('/').pop() || 'overview'}`}
                   className={({ isActive }) =>
-                    `fp-press group relative z-10 flex min-w-[5.4rem] flex-1 flex-col items-center rounded-t-[1.1rem] px-1.5 pt-1 pb-2.5 text-center transition-all duration-300 sm:min-w-[6.2rem] ${
+                    `fp-press group relative z-10 flex min-w-[5.25rem] flex-1 snap-center flex-col items-center rounded-t-[1.1rem] px-1.5 pt-1 pb-2.5 text-center transition-all duration-300 md:min-w-[5.6rem] xl:min-w-[6.2rem] ${
                       isActive
                         ? '-mb-px text-ink-900'
                         : 'mb-1 bg-surface/55 text-journey-700 ring-1 ring-journey-200/70 ring-inset hover:-translate-y-1 hover:bg-surface/90'
@@ -265,7 +276,7 @@ function CareerFrame() {
                       >
                         <item.icon className="h-[18px] w-[18px] sm:h-5 sm:w-5" strokeWidth={2.4} />
                       </span>
-                      <span className="mt-1.5 max-w-full text-[0.66rem] leading-tight font-black sm:text-xs">
+                      <span className="mt-1.5 max-w-full whitespace-nowrap text-[0.66rem] leading-tight font-black sm:text-xs">
                         {item.short || item.name}
                       </span>
                     </>

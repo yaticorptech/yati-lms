@@ -33,6 +33,8 @@ const buildAllowedOrigins = () => {
     // Add from individual env vars
     if (process.env.FRONTEND_URL) origins.add(process.env.FRONTEND_URL.trim());
     if (process.env.ADMIN_URL) origins.add(process.env.ADMIN_URL.trim());
+    // The institution app (yaticorp-lms-institution): Campus for departments, the exam board and teachers.
+    if (process.env.INSTITUTION_URL) origins.add(process.env.INSTITUTION_URL.trim());
 
     // Add from comma-separated ALLOWED_ORIGINS env var
     if (process.env.ALLOWED_ORIGINS) {

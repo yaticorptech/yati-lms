@@ -199,7 +199,9 @@ const idOf = (x) => String(x?._id ?? x);
 /* ── Loading ──────────────────────────────────────────────────────────── */
 
 /** A course's published lessons: English (course null) unless another is named. */
-const publishedLessons = (course = null) => LinguisticLesson.find({ status: 'published', deletedAt: null, course: course && course !== 'en' ? course : null }).sort({ module: 1, level: 1, order: 1, createdAt: 1 }).lean();
+const publishedLessons = (course = null) => LinguisticLesson.find({ status: 'published', deletedAt: null, course: course && course !== 'en' ? course : null }).sort({ module: 1, level: 1, order: 1, createdAt: 1 }).lean()
+    // Lessons a course hides (units.js isHidden: Kannada keeps 5 Letters lessons) — off the path, the unlocking and the level's completion alike.
+    .then((rows) => rows.filter((l) => !require('./units').isHidden(l)));
 
 /** The student's progress record, made on first use. */
 const progressOf = async (userId) => LinguisticProgress.findOneAndUpdate({ userId }, { $setOnInsert: { userId } }, { upsert: true, returnDocument: 'after' });
@@ -595,7 +597,30 @@ const pay = async (userId, type, refId, meta = {}) => {
 
 /* ── Levels and certificates ──────────────────────────────────────────── */
 
+// The number before 2026-11-11 (YATI-ENG-B-<card>): kept as a fallback, and still checked on the verify page.
 const certificateNumber = (user, level, course = 'en') => `YATI-${course === 'en' ? 'ENG' : course.toUpperCase()}-${level[0].toUpperCase()}-${String(user.cardNumber || idOf(user._id).slice(-8)).toUpperCase()}`;
+/*
+ * In the student's one series of certificates since 2026-11-11 (the user: "every certificate id starts from the
+ * YATI card number, then the series"): YATI<card>-001, -002… with their course and competition certificates
+ * (services/certificateNumbers.js). A certificate earned before then, with the older number, takes the next
+ * numbers the first time it is shown; numbers already given never change.
+ */
+const certificateNumbers = () => require('../services/certificateNumbers');
+const seriesNumber = async (userId, cert) => {
+    const { numbersFor, lingoKey } = certificateNumbers();
+    const key = lingoKey(cert);
+    return (await numbersFor(userId, [{ key, added: cert.issuedAt || new Date() }]))[key] || null;
+};
+const numberCertificates = async (userId, progress) => {
+    const { numbersFor, lingoKey, FORMAT } = certificateNumbers();
+    const old = (progress?.certificates || []).filter((c) => !FORMAT.test(String(c.number || '')));
+    if (!old.length) return progress;
+    const numbers = await numbersFor(userId, old.map((c) => ({ key: lingoKey(c), added: c.issuedAt })));
+    let changed = false;
+    for (const c of old) { const n = numbers[lingoKey(c)]; if (n) { c.number = n; changed = true; } }
+    if (changed) { progress.markModified('certificates'); await progress.save(); }
+    return progress;
+};
 
 /**
  * After a lesson is passed: is its level now complete, and does it earn the
@@ -612,7 +637,8 @@ const checkLevel = async (user, progress, level, lessons, config) => {
     const course = courseOf(progress);
     if (!progress.levelsCompleted.some((x) => x.level === level && inCourse(x, course))) progress.levelsCompleted.push({ level, completedAt: new Date(), average, course });
     if (average < config.certificateMinAverage || progress.certificates.some((c) => c.level === level && inCourse(c, course))) return { events: [], certificate: null, average };
-    const certificate = { level, number: certificateNumber(user, level, course), issuedAt: new Date(), average, course };
+    const certificate = { level, number: '', issuedAt: new Date(), average, course };
+    certificate.number = (await seriesNumber(user._id, certificate).catch(() => null)) || certificateNumber(user, level, course);
     progress.certificates.push(certificate);
     const paid = await pay(user._id, 'linguistic_level', course === 'en' ? `level:${level}` : `level:${course}:${level}`, { level, course });
     return { events: paid.events, certificate, average };
@@ -995,7 +1021,7 @@ const ACHIEVEMENTS = [
 ];
 
 const dashboard = async (user) => {
-    const [progress, config] = await Promise.all([progressOf(user._id), getConfig()]);
+    const [progress, config] = await Promise.all([progressOf(user._id).then((p) => numberCertificates(user._id, p).catch(() => p)), getConfig()]);
     const lessons = await lessonsFor(progress);
     const { lessonOpen, levelOpen } = access(lessons, progress);
     const done = (l) => isDone(progress, l._id);
@@ -1599,6 +1625,7 @@ const moduleView = async (user, module) => {
 };
 
 module.exports = {
+    numberCertificates,
     MODULE_LABEL, LEVEL_LABEL, publishedLessons, progressOf, access, currentLevel, publicLesson, touchLesson, noteMistake, saveAttempt, pay,
     checkPractice, submitQuiz, submitTalk, submitWriting, saveSpeaking, placementPublic, submitPlacement, placementLevel, dailyQuestions, rebuildDaily,
     noteOpenAll, opensAll, startJump, jumpOf, entryAllowed, dashboard, moduleView, pathView, notesOf, withAnswerSay, setKnows, withSays, soundsIn, openChest, openMistakes, setPlan, autoPlan, AUTO_DAYS, roadmapView, planChoices, PLAN_DAYS, forStudent, lessonsFor, serve, setCourse, courseView, placedLevel, inCourse, checkQuizAnswer, bankFor, bankWords, setLanguage, chooseLevel, setGoal, setAbout, GOALS, REASONS, languageView, localize, languageOf, findQuestion, judge, streakOf, pointsOf, lessonEntry, isDone, publicQuestion, quizOf, certificateNumber, checkLevel

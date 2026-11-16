@@ -40,6 +40,7 @@
  *     *      /me/nccnss/…                NCC/NSS members, activities, events (src/nccnss/orgAdmin.js)
  *     *      /me/users, /me/audit        its users with full rights, and who did what (./users.js)
  *     *      /me/bsg/…                   BSG notices: an office publishes, everyone reads the feed (src/nccnss/notices.js)
+ *     *      /me/campus/…                Campus: the student management system (src/campus/orgAdmin.js)
  *
  *   Organization admin, before approval (protectOrgAdmin only)
  *     GET    /me/status                  where my application stands
@@ -80,6 +81,8 @@ router.get('/code-available', lookupLimiter, publicCtrl.checkOrgCodeAvailable);
 // Rate-limited with the same limiter as the other public credential-creating
 // endpoints, because this one creates an account.
 router.post('/register', authLimiter, publicCtrl.registerOrganization);
+// A college's public admission form (2026-11-16, src/campus/apply.js): read, and send an application.
+router.use('/apply', require('../campus/apply'));
 
 // ── Superadmin ──────────────────────────────────────────────────────────────
 // `options` fills the organization filter on the existing student list, so it is
@@ -97,6 +100,7 @@ router.post('/admin/:id/send-password-reset', superCtrl.sendAdminPasswordReset);
 router.put('/admin/:id/course-access', superCtrl.setCourseAccess);
 router.put('/admin/:id/competition-hosting', superCtrl.setCompetitionHosting);
 router.put('/admin/:id/three60', superCtrl.setThree60Access);
+router.put('/admin/:id/campus', superCtrl.setCampusAccess);
 router.get('/admin/:id/students', superCtrl.getOrganizationStudents);
 // Putting a student into an organization directly, and taking them back out.
 // Ahead of nothing else, but note the assignable list is a literal segment.
@@ -114,8 +118,21 @@ router.use('/me', protectOrgAdmin);
  * can reach. Without it the admin app would have nothing to show them but a
  * bare 403, and they would be left guessing whether their registration arrived.
  */
-router.get('/me/status', (req, res) => {
+router.get('/me/status', async (req, res) => {
+    // Campus (src/campus): whether it is on, and which department a department's sign-in belongs to.
+    let campus = null;
+    if (req.organization.campusAllowed) {
+        const role = req.viewingAsSuperAdmin || !req.admin.staff ? 'admin' : req.admin.campusExamBoard ? 'board' : req.admin.campusOffice ? 'admission' : req.admin.campusDepartmentId ? 'department' : 'teacher';
+        let department = null;
+        if (role === 'department') {
+            const org = await Organization.findById(req.organization._id).select('campus.departments').lean().catch(() => null);
+            const d = (org?.campus?.departments || []).find((x) => String(x._id) === String(req.admin.campusDepartmentId));
+            department = d ? { _id: d._id, name: d.name, code: d.code } : null;
+        }
+        campus = { role, department };
+    }
     res.json({
+        campus,
         organization: {
             orgCode: req.organization.orgCode,
             name: req.organization.name,
@@ -126,11 +143,13 @@ router.get('/me/status', (req, res) => {
             registeredAt: req.organization.createdAt,
             // A Bharat Scouts & Guides office: the app shows its own menu (notices first).
             bsgOffice: req.organization.bsgOffice || '',
+            // What it calls 360 (src/three60): its menu shows this.
+            rankingName: String(req.organization.three60?.title || '').trim() || 'Student Ranking',
             state: req.organization.state || ''
         },
         // A teacher signed in to the organization panel: the app shows them
         // only what they may use, and Research when they have the teacher dashboard too.
-        staff: req.admin.staff ? { name: req.admin.name, research: Boolean(req.admin.staffTeacherId) } : null
+        staff: req.admin.staff ? { name: req.admin.name, research: Boolean(req.admin.staffTeacherId), department: Boolean(req.admin.campusDepartmentId), board: Boolean(req.admin.campusExamBoard), office: Boolean(req.admin.campusOffice) } : null
     });
 });
 
@@ -187,6 +206,8 @@ router.put('/me/schedule', async (req, res) => {
         res.status(500).json({ message: 'The access hours could not be saved just now.' });
     }
 });
+// Games hours: when its students may play the games, and their requests to play (src/games/orgHours.js).
+router.use('/me/games-hours', require('../games/orgHours').orgAdmin);
 router.post('/me/cards/check', orgCards.checkCard);
 router.delete('/me/cards/:id', orgCards.unlinkCard);
 // A student's devices: list, residential card, reset (services/deviceRoutes.js). Only their own students.
@@ -209,6 +230,9 @@ router.use('/me/classes', require('../three60').orgAdmin);
 router.use('/me', require('./users'));
 // Bharat Scouts & Guides notices: an office publishes, every organization reads its feed (src/nccnss/notices.js).
 router.use('/me/bsg', require('../nccnss/notices'));
+// Campus: departments, admissions, subjects, attendance, marks, fees, exams,
+// admit cards, results and feedback (src/campus/orgAdmin.js) — once the superadmin switches it on.
+router.use('/me/campus', require('../campus/orgAdmin'));
 
 // ── Organization admin: its own courses ─────────────────────────────────────
 // The platform's course-building code, fenced: courses must be switched on by
@@ -231,6 +255,35 @@ router.get('/me/course-access', orgCourse.getCourseAccess);
     router.get('/me/tickets', listTickets(orgTickets));
     router.post('/me/tickets/:id/reopen', reopenTicket(orgTickets));
 }
+// Its students' requests (2026-11-14): tickets a student sent to this organization rather than to YATICORP.
+// GET /me/student-tickets?status=, POST /me/student-tickets/:id { reply?, status? }.
+router.get('/me/student-tickets', async (req, res) => {
+    try {
+        const Ticket = require('../models/Ticket');
+        const q = { to: 'organization', toOrganizationId: req.organization._id };
+        if (['open', 'in-progress', 'resolved'].includes(req.query.status)) q.status = req.query.status;
+        const rows = await Ticket.find(q).sort('-createdAt').limit(300).lean();
+        const open = await Ticket.countDocuments({ to: 'organization', toOrganizationId: req.organization._id, status: { $ne: 'resolved' } });
+        res.json({ open, tickets: rows.map((t) => ({ _id: t._id, ref: String(t._id).slice(-6).toUpperCase(), name: t.name, email: t.email, cardNumber: t.cardNumber || '', subject: t.subject, message: t.message, status: t.status, createdAt: t.createdAt, thread: (t.thread || []).map((m) => ({ by: m.by, text: m.text, at: m.at })) })) });
+    } catch (error) { console.error('[organizations] student tickets:', error.message); res.status(500).json({ message: 'Could not load the requests.' }); }
+});
+router.post('/me/student-tickets/:id', async (req, res) => {
+    try {
+        const Ticket = require('../models/Ticket');
+        if (!require('mongoose').isValidObjectId(req.params.id)) return res.status(404).json({ message: 'That request was not found.' });
+        const t = await Ticket.findOne({ _id: req.params.id, to: 'organization', toOrganizationId: req.organization._id });
+        if (!t) return res.status(404).json({ message: 'That request was not found.' });
+        const reply = String(req.body?.reply || '').trim().slice(0, 5000);
+        const status = ['open', 'in-progress', 'resolved'].includes(req.body?.status) ? req.body.status : null;
+        if (!reply && !status) return res.status(400).json({ message: 'Write a reply or change the status.' });
+        if (reply) t.thread.push({ by: 'admin', text: reply, at: new Date() });
+        if (status) t.status = status;
+        else if (reply && t.status === 'open') t.status = 'in-progress';
+        await t.save();
+        if (reply) require('../utils/emailService').sendEmail({ to: t.email, toName: t.name, subject: `Reply from ${req.organization.name}: ${t.subject}`, htmlContent: `<div style="font-family:sans-serif;padding:24px"><p>${reply.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])).replace(/\n/g, '<br>')}</p></div>` }).catch(() => {});
+        res.json({ message: reply ? 'Reply sent.' : `Marked ${t.status.replace('-', ' ')}.` });
+    } catch (error) { console.error('[organizations] student ticket reply:', error.message); res.status(500).json({ message: 'That did not go through.' }); }
+});
 // A support ticket from the panel: its name, ID and email come from the account, not the form.
 router.post('/me/tickets', async (req, res) => {
     try {
@@ -308,6 +361,8 @@ router.delete('/me/vdocipher/video/:videoId', vdoCipherController.requireVideoId
 router.use('/student', protectUser);
 // The student's own NCC/NSS record (src/nccnss/student.js).
 router.use('/student/nccnss', require('../nccnss/student'));
+// The Institution dashboard: the student's admission, attendance, marks, fees, exams… (src/campus/student.js).
+router.use('/student/campus', require('../campus/student'));
 // A student can leave only an organization that is no longer active (or no
 // longer exists); an active one answers 409. See the note at the top of
 // controllers/studentController.js.
@@ -321,6 +376,7 @@ router.get('/student/schedule', async (req, res) => {
 });
 router.get('/student/lookup/:code', lookupLimiter, studentCtrl.lookupOrganization);
 router.post('/student/leave', studentCtrl.leaveOrganization);
+router.post('/student/games-access', require('../games/orgHours').askToPlay);
 router.post('/student/requests', studentCtrl.createRequest);
 router.delete('/student/requests/:requestId', studentCtrl.cancelRequest);
 

@@ -35,17 +35,17 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'nume
 const merge = (certificates, achievements, competitions = [], holder = '', groupBrain = []) => [
     ...groupBrain.filter((c) => c.status === 'valid').map((c) => ({
         id: `groupbrain-${c.certId}`, source: 'groupbrain', raw: c, holder,
-        title: `${c.rank ? `${['', '1st', '2nd', '3rd'][c.rank] || `${c.rank}th`} place · ` : ''}${c.title}`, issuer: `YATI LMS · ${c.eventName}`,
+        title: `${c.rank ? `${['', '1st', '2nd', '3rd'][c.rank] || `${c.rank}th`} place · ` : ''}${c.title}`, issuer: `YATICORP · ${c.eventName}`,
         date: c.issuedAt, added: c.issuedAt, number: c.certId, thumbnailUrl: '', fileType: 'pdf'
     })),
     ...certificates.map((c) => ({
         id: `course-${c._id}`, source: 'course', raw: c, holder,
-        title: c.courseId?.title || 'Course certificate', issuer: 'YATI LMS',
+        title: c.courseId?.title || 'Course certificate', issuer: 'YATICORP',
         date: c.issuedAt || c.createdAt, added: c.createdAt || c.issuedAt, number: c.certificateNumber, thumbnailUrl: '', fileType: 'pdf'
     })),
     ...competitions.map((c) => ({
         id: `competition-${c.competitionId || `arena-${c.arenaId}`}`, source: 'competition', raw: c,
-        title: `${c.title} · ${c.name}`, issuer: 'YATI LMS · Games & Competitions',
+        title: `${c.title} · ${c.name}`, issuer: 'YATICORP · Games & Competitions',
         date: c.completedAt, added: c.completedAt, number: c.number || '', thumbnailUrl: '', fileType: 'pdf'
     })),
     ...achievements.map((a) => ({
@@ -59,9 +59,11 @@ const merge = (certificates, achievements, competitions = [], holder = '', group
  * A certificate the student uploaded, in YATICORP's frame with its number on
  * the frame's foot (2026-10-31) — as the View popup shows it.
  */
-const UploadedFrame = ({ src, title, number }) => (
+const UploadedFrame = ({ src, title, number, framed = false }) => (framed
+    // Framed with its number when it was uploaded (2026-11-11, server: services/certificateFrame.js): shown as it is.
+    ? <img src={src} alt={title} className="mx-auto max-h-[64dvh] w-auto max-w-full rounded-2xl shadow-xl ring-1 ring-slate-200" data-uploaded-frame />
     // A white frame (asked 2026-10-31: white, no yellow line), the number on its foot.
-    <div className="mx-auto w-fit max-w-full rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-slate-200 sm:p-3.5" data-uploaded-frame>
+    : <div className="mx-auto w-fit max-w-full rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-slate-200 sm:p-3.5" data-uploaded-frame>
         <img src={src} alt={title} className="mx-auto max-h-[58dvh] w-auto rounded-md object-contain" />
         {/* Only the number on the foot, to the right (no name there, 2026-10-31). */}
         {number && <p className="mt-2.5 px-1 text-right font-mono text-[11px] font-bold tracking-wide text-slate-700 sm:text-xs" data-frame-number>Certificate No. {number}</p>}
@@ -411,7 +413,7 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                 : await fetch(item.fileUrl).then((r) => { if (!r.ok) throw new Error('fetch'); return r.blob(); });
             const name = String(item.title || 'Certificate').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || 'Certificate';
             // A picture comes down in YATICORP's frame, its number on it; a PDF as it was uploaded.
-            const framed = item.fileType !== 'pdf' ? await framedPicture(blob, numberOf(item)).catch(() => null) : null;
+            const framed = item.fileType !== 'pdf' && !item.raw?.framed ? await framedPicture(blob, numberOf(item)).catch(() => null) : null;
             if (framed) await downloadWithDrive(framed, `${name}_${numberOf(item) || 'certificate'}.png`, { title: item.title, reason: DRIVE_REASON });
             else await downloadWithDrive(blob, `${name}.${item.fileType === 'pdf' ? 'pdf' : (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')}`, { title: item.title, reason: DRIVE_REASON });
         } catch { openExternal(item.fileUrl); }
@@ -611,7 +613,7 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                             </div>
                             <div className="min-h-0 overflow-auto bg-slate-50 p-3 sm:p-5">
                                 {viewing.source === 'upload'
-                                    ? <UploadedFrame src={viewing.inDrive ? viewing.thumbnailUrl : viewing.fileUrl || viewing.thumbnailUrl} title={viewing.title} number={numberOf(viewing)} />
+                                    ? <UploadedFrame src={viewing.inDrive ? viewing.thumbnailUrl : viewing.fileUrl || viewing.thumbnailUrl} title={viewing.title} number={numberOf(viewing)} framed={Boolean(viewing.raw?.framed)} />
                                     : viewing.source === 'competition'
                                         ? <div className="mx-auto max-w-2xl overflow-hidden rounded-lg shadow"><CompetitionCertificatePreview certificate={viewing.raw} number={numberOf(viewing)} /></div>
                                         : <div className="mx-auto max-w-2xl"><Framed item={viewing} large /></div>}

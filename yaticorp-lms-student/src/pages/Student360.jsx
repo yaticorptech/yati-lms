@@ -30,7 +30,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import { Link } from 'react-router-dom';
-import { Orbit, Landmark, UserRound, BarChart3, RotateCcw, ChevronRight, Upload, FileText, ImageIcon, CheckCircle2, Clock, XCircle, Trash2, X, Loader2, Plus, Camera, Search, MessageSquare, Paperclip } from 'lucide-react';
+import { Orbit, Landmark, UserRound, BarChart3, RotateCcw, ChevronRight, Upload, FileText, ImageIcon, Video, CheckCircle2, Clock, XCircle, Trash2, X, Loader2, Plus, Camera, Search, MessageSquare, Paperclip } from 'lucide-react';
 import api from '../utils/api';
 import YatiLoader from '../components/YatiLoader';
 import Portal from '../components/Portal';
@@ -42,7 +42,7 @@ import { getSnapshot, refresh, subscribe } from '../integrations/google/googleSt
 import GoogleConnectionCard from '../integrations/google/GoogleConnectionCard';
 
 // Proof is kept in the student's own Google Drive (2026-11-02), shared by link for their 360 teacher.
-const PROOF_DRIVE_REASON = 'Proof you upload is kept in your own Google Drive, shared by link so your 360 teacher can check it.';
+const PROOF_DRIVE_REASON = 'Proof you upload is kept in your own Google Drive, shared by link so your ranking teacher can check it.';
 
 const MAX_MB = 10;
 const SHOWN = 6;   // uploads listed before "Show all"
@@ -50,7 +50,8 @@ const fmt = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en
 const worth = (a) => (a.mode === 'each' ? `${fmt(a.marks)} mark${a.marks === 1 ? '' : 's'} per proof` : `Up to ${fmt(a.marks)} marks`);
 const day = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '');
 
-export default function Student360() {
+/** `embedded`: inside the Institution page, which already shows the college — only the mentor here. */
+export default function Student360({ embedded = false }) {
     const [data, setData] = useState(null);
     const [failed, setFailed] = useState(false);
     const [adding, setAdding] = useState(null);      // { activityId }: the Add proof popup
@@ -67,18 +68,18 @@ export default function Student360() {
     if (failed && !data) {
         return (
             <div role="alert" className="flex flex-col items-center py-16 text-center">
-                <p className="font-medium text-slate-500">360 could not be loaded just now.</p>
+                <p className="font-medium text-slate-500">{data?.title || 'Student Ranking'} could not be loaded just now.</p>
                 <button type="button" onClick={retry} className="mt-3 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">Try again</button>
             </div>
         );
     }
-    if (!data) return <YatiLoader label="Loading 360" />;
+    if (!data) return <YatiLoader label="Loading" />;
     if (!data.enabled) {
         return (
             <div className="mx-auto max-w-md py-16 text-center">
                 <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400"><Orbit size={22} /></span>
-                <p className="font-semibold text-slate-700">{data.notAdded ? 'Your 360 teacher has not added you yet.' : '360 is not open for you yet.'}</p>
-                <p className="mt-1 text-sm text-slate-500">{data.notAdded ? 'Once your mentor adds you to their 360 list, your activities show here.' : 'Your organization opens it when it is ready.'}</p>
+                <p className="font-semibold text-slate-700">{data.notAdded ? 'Your ranking teacher has not added you yet.' : `${data.title || 'Student Ranking'} is not open for you yet.`}</p>
+                <p className="mt-1 text-sm text-slate-500">{data.notAdded ? 'Once your mentor adds you to their ranking list, your activities show here.' : 'Your organization opens it when it is ready.'}</p>
                 <Link to="/" className="mt-4 inline-block text-sm font-bold text-indigo-600 hover:underline">Back to Dashboard</Link>
             </div>
         );
@@ -125,14 +126,14 @@ export default function Student360() {
 
             {/* One card (2026-11-05): the marks ring on the left; on the right the college (logo, name, mentor,
                 Add Proof) above the three counts. A faint 360° and slow orbit lines behind the right side. */}
-            <section aria-label="Your 360 marks" className="relative isolate overflow-hidden rounded-3xl bg-[radial-gradient(120%_140%_at_0%_0%,#4338ca_0%,#312e81_42%,#1e1b4b_100%)] p-5 text-white shadow-[0_24px_60px_-30px_rgba(49,46,129,0.8)] sm:p-7">
-                <span aria-hidden="true" className="pointer-events-none absolute -right-3 -top-10 -z-10 select-none text-[10rem] font-black leading-none tracking-tighter text-white/[0.06] sm:text-[13rem]">360°</span>
+            <section aria-label="Your ranking marks" className="relative isolate overflow-hidden rounded-3xl border border-indigo-100 bg-[radial-gradient(120%_140%_at_0%_0%,#eef2ff_0%,#f8faff_45%,#ffffff_100%)] p-5 text-slate-900 shadow-[0_18px_50px_-34px_rgba(67,56,202,0.45)] sm:p-7">
+                <span aria-hidden="true" className="pointer-events-none absolute -right-3 -top-10 -z-10 select-none text-[10rem] font-black leading-none tracking-tighter text-indigo-600/[0.05] sm:text-[13rem]">#1</span>
                 <svg aria-hidden="true" viewBox="0 0 400 400" className="pointer-events-none absolute -right-28 -top-36 -z-10 hidden h-[28rem] w-[28rem] md:block">
                     <g className="s360-hdr" fill="none" strokeWidth="1">
-                        <circle cx="200" cy="200" r="130" stroke="rgba(165,180,252,0.25)" />
-                        <circle cx="200" cy="200" r="168" stroke="rgba(125,211,252,0.2)" strokeDasharray="2 8" />
-                        <circle cx="200" cy="32" r="4" fill="#7dd3fc" stroke="none" />
-                        <circle cx="70" cy="200" r="3" fill="#a5b4fc" stroke="none" />
+                        <circle cx="200" cy="200" r="130" stroke="rgba(99,102,241,0.18)" />
+                        <circle cx="200" cy="200" r="168" stroke="rgba(14,165,233,0.2)" strokeDasharray="2 8" />
+                        <circle cx="200" cy="32" r="4" fill="#38bdf8" stroke="none" />
+                        <circle cx="70" cy="200" r="3" fill="#818cf8" stroke="none" />
                     </g>
                 </svg>
                 <style>{'@keyframes s360-hdr{to{transform:rotate(360deg)}}.s360-hdr{transform-origin:200px 200px;animation:s360-hdr 40s linear infinite}@media (prefers-reduced-motion:reduce){.s360-hdr{animation:none}}'}</style>
@@ -143,39 +144,39 @@ export default function Student360() {
                         {/* The college */}
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex min-w-0 items-center gap-4">
-                                <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg shadow-black/20 ring-4 ring-white/10 sm:h-[4.5rem] sm:w-[4.5rem]">
+                                {!embedded && <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md shadow-indigo-900/10 ring-1 ring-indigo-100 sm:h-[4.5rem] sm:w-[4.5rem]">
                                     {data.organizationLogo
                                         ? <img src={data.organizationLogo} alt={`${data.organization} logo`} className="h-full w-full object-contain p-2" />
                                         : <Landmark size={30} strokeWidth={2.25} className="text-indigo-600" aria-hidden="true" />}
-                                </span>
+                                </span>}
                                 <div className="min-w-0">
-                                    <p className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-sky-200 ring-1 ring-white/15">
-                                        <Orbit size={12} aria-hidden="true" />360 Student Record
+                                    {!embedded && <><p className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-indigo-700 ring-1 ring-indigo-100">
+                                        <Orbit size={12} aria-hidden="true" />{data.title || 'Student Ranking'}
                                     </p>
-                                    <h1 className="mt-1.5 text-xl font-black leading-tight tracking-tight text-white sm:text-2xl">{data.organization || '360'}</h1>
+                                    <h1 className="mt-1.5 text-xl font-black leading-tight tracking-tight text-slate-900 sm:text-2xl">{data.organization || data.title || 'Student Ranking'}</h1></>}
                                     {teachers.length > 0 && (
-                                        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-indigo-100/80">
-                                            <UserRound size={14} className="shrink-0 text-sky-300" aria-hidden="true" />
-                                            <span className="truncate"><span className="font-semibold text-white/90">{teachers.length > 1 ? 'Mentors' : 'Mentor'}:</span> {teachers.map((t) => t.name).join(', ')}</span>
+                                        <p className={`flex min-w-0 items-center gap-1.5 text-slate-600 ${embedded ? 'text-base' : 'mt-1 text-sm'}`}>
+                                            <UserRound size={14} className="shrink-0 text-indigo-500" aria-hidden="true" />
+                                            <span className="truncate"><span className="font-semibold text-slate-800">{teachers.length > 1 ? 'Mentors' : 'Mentor'}:</span> {teachers.map((t) => t.name).join(', ')}</span>
                                         </p>
                                     )}
                                 </div>
                             </div>
-                            {addButton('Add Proof', 'hidden shrink-0 rounded-2xl bg-white px-6 py-3.5 text-base text-indigo-700 shadow-lg shadow-black/20 hover:bg-indigo-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/60 sm:inline-flex')}
+                            {addButton('Upload activity', 'hidden shrink-0 rounded-2xl bg-indigo-600 px-6 py-3.5 text-base text-white shadow-lg shadow-indigo-600/25 hover:bg-indigo-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300/60 sm:inline-flex')}
                         </div>
 
                         {/* The three counts */}
                         <div className="grid grid-cols-3 gap-2 sm:gap-4">
                             {[
-                                ['Accepted', count('approved'), CheckCircle2, 'bg-white/[0.07]', 'bg-emerald-400/15 text-emerald-300'],
-                                ['Waiting', count('pending'), Clock, 'bg-white/[0.07]', 'bg-amber-400/15 text-amber-300'],
-                                ['Sent Back', count('rejected'), RotateCcw, 'bg-white/[0.07]', 'bg-rose-400/15 text-rose-300']
+                                ['Accepted', count('approved'), CheckCircle2, 'bg-white', 'bg-emerald-50 text-emerald-600'],
+                                ['Waiting', count('pending'), Clock, 'bg-white', 'bg-amber-50 text-amber-600'],
+                                ['Sent Back', count('rejected'), RotateCcw, 'bg-white', 'bg-rose-50 text-rose-600']
                             ].map(([label, n, Icon, bg, chip]) => (
-                                <div key={label} className={`flex flex-col items-start gap-2 rounded-2xl p-3 ring-1 ring-white/10 backdrop-blur-sm sm:flex-row sm:items-center sm:gap-3 sm:p-4 ${bg}`}>
+                                <div key={label} className={`flex flex-col items-start gap-2 rounded-2xl p-3 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-center sm:gap-3 sm:p-4 ${bg}`}>
                                     <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-14 sm:w-14 ${chip}`}><Icon size={24} strokeWidth={2.25} aria-hidden="true" /></span>
                                     <div className="min-w-0">
-                                        <p className="text-2xl font-black leading-none text-white tabular-nums sm:text-3xl"><CountUp to={n} /></p>
-                                        <p className="mt-1 truncate text-xs font-medium text-indigo-100/80 sm:text-base">{label}</p>
+                                        <p className="text-2xl font-black leading-none text-slate-900 tabular-nums sm:text-3xl"><CountUp to={n} /></p>
+                                        <p className="mt-1 truncate text-xs font-medium text-slate-500 sm:text-base">{label}</p>
                                     </div>
                                 </div>
                             ))}
@@ -184,14 +185,14 @@ export default function Student360() {
                 </div>
             </section>
 
-            {addButton('Add Proof', 'flex w-full rounded-2xl bg-indigo-600 py-3.5 text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 sm:hidden')}
+            {addButton('Upload activity', 'flex w-full rounded-2xl bg-indigo-600 py-3.5 text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 sm:hidden')}
 
             {/* What has been uploaded: sent back first, then newest first. */}
             <section aria-labelledby="s360-uploads" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                         <h2 id="s360-uploads" className="text-base font-black text-slate-900">Your uploads</h2>
-                        <p className="text-xs text-slate-500">{proofs.length ? `${proofs.length} proof${proofs.length === 1 ? '' : 's'} · your 360 teacher checks each and gives the marks` : 'Your 360 teacher checks each proof and gives the marks.'}</p>
+                        <p className="text-xs text-slate-500">{proofs.length ? `${proofs.length} proof${proofs.length === 1 ? '' : 's'} · your ranking teacher checks each and gives the marks` : 'Your ranking teacher checks each proof and gives the marks.'}</p>
                     </div>
                 </div>
                 {!all.length ? (
@@ -229,11 +230,12 @@ export default function Student360() {
             </section>
 
             {adding && (
-                <AddProof groups={groups} initialActivityId={adding.activityId} onClose={() => setAdding(null)}
-                    onDone={(proof) => {
+                <AddProof groups={groups} proofs={data?.proofs || []} initialActivityId={adding.activityId} onClose={() => setAdding(null)}
+                    onDone={(added) => {
+                        const list = Array.isArray(added) ? added : [added];
                         setAdding(null);
-                        setData((d) => ({ ...d, proofs: [...(d.proofs || []), proof] }));
-                        setNotice('Proof uploaded. Your teacher will check it.');
+                        setData((d) => ({ ...d, proofs: [...(d.proofs || []), ...list] }));
+                        setNotice(list.length > 1 ? `${list.length} proofs uploaded. Your teacher will check them.` : 'Proof uploaded. Your teacher will check it.');
                     }} />
             )}
             {confirmDialog}
@@ -281,9 +283,9 @@ function MarksRing({ total: target, possible }) {
             <svg viewBox="0 0 120 120" className="pointer-events-none absolute -inset-5 h-[calc(100%+2.5rem)] w-[calc(100%+2.5rem)] sm:-inset-6 sm:h-[calc(100%+3rem)] sm:w-[calc(100%+3rem)]">
                 <defs><path id="s360-text" d="M 60 60 m -55 0 a 55 55 0 1 1 110 0 a 55 55 0 1 1 -110 0" /></defs>
                 <g className="s360-spin">
-                    <text fontSize="5.2" fontWeight="800" fill="#c7d2fe" opacity="0.85">
+                    <text fontSize="5.2" fontWeight="800" fill="#6366f1" opacity="0.55">
                         {/* Stretched to exactly one turn (2π·55), so the words close the circle with no gap. */}
-                        <textPath href="#s360-text" textLength="345.4" lengthAdjust="spacing">{'360° • ACADEMICS • 360° • SKILLS • 360° • CAMPUS • 360° • GROWTH • 360° • LEADERSHIP • '}</textPath>
+                        <textPath href="#s360-text" textLength="345.4" lengthAdjust="spacing">{'RANKING • ACADEMICS • RANKING • SKILLS • RANKING • CAMPUS • RANKING • GROWTH • RANKING • LEADERSHIP • '}</textPath>
                     </text>
                 </g>
                 <g className="s360-spin-back">
@@ -313,9 +315,12 @@ function MarksRing({ total: target, possible }) {
     );
 }
 
+const KIND_WORDS = { pdf: 'a PDF', image: 'a picture', video: 'a video' };
+const KIND_LABEL = { pdf: 'PDF', image: 'Images', video: 'Video' };
+
 /** One uploaded proof: the file, its activity, where it stands, and the teacher's note. */
 function UploadRow({ proof: p, score, onRemove, onAgain }) {
-    const Icon = p.fileType === 'pdf' ? FileText : ImageIcon;
+    const Icon = p.fileType === 'pdf' ? FileText : p.fileType === 'video' ? Video : ImageIcon;
     const chip = p.status === 'approved'
         ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700"><CheckCircle2 size={12} aria-hidden="true" />Accepted</span>
         : p.status === 'rejected'
@@ -380,7 +385,7 @@ const matches = (query, choice) => {
 };
 
 /** The popup: find or choose the activity, take a photo or pick a file, submit. */
-function AddProof({ groups, initialActivityId, onClose, onDone }) {
+function AddProof({ groups, proofs = [], initialActivityId, onClose, onDone }) {
     // Every activity, even one at full marks: a student sends as much proof as they like (2026-11-04).
     const choices = useMemo(() => groups.flatMap((group) => group.activities.map((activity) => ({ group, activity }))), [groups]);
     const start = choices.find((c) => String(c.activity._id) === String(initialActivityId));
@@ -388,7 +393,10 @@ function AddProof({ groups, initialActivityId, onClose, onDone }) {
     const [activityId, setActivityId] = useState(start ? String(start.activity._id) : '');
     const [query, setQuery] = useState('');
     const [suggesting, setSuggesting] = useState(false);
-    const [file, setFile] = useState(null);
+    // The files chosen (2026-11-14): one, or several pictures for an images-only activity.
+    const [files, setFiles] = useState([]);
+    const file = files[0] || null;
+    const setFile = (f) => setFiles(f ? [f] : []);
     const [note, setNote] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
@@ -403,37 +411,61 @@ function AddProof({ groups, initialActivityId, onClose, onDone }) {
         document.body.style.overflow = 'hidden';
         return () => { document.body.style.overflow = before; };
     }, []);
-    const preview = useMemo(() => (file && file.type.startsWith('image/') ? URL.createObjectURL(file) : ''), [file]);
-    useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+    const previews = useMemo(() => files.map((f) => (f.type.startsWith('image/') ? URL.createObjectURL(f) : '')), [files]);
+    useEffect(() => () => previews.forEach((u) => u && URL.revokeObjectURL(u)), [previews]);
+    const preview = previews[0] || '';
 
     const group = groups.find((g) => String(g._id) === groupId);
     const activity = group?.activities.find((a) => String(a._id) === activityId);
+    const kinds = activity?.proofKinds?.length ? activity.proofKinds : ['image', 'pdf'];
+    const accept = kinds.map((k) => ({ pdf: 'application/pdf,.pdf', image: 'image/*', video: 'video/*' }[k])).join(',');
+    // Images only (2026-11-14): one slot per picture the organization asks for; the ones already sent count.
+    const imagesOnly = kinds.length === 1 && kinds[0] === 'image';
+    const maxImages = activity?.maxImages > 0 ? activity.maxImages : 0;
+    const sentImages = activity ? proofs.filter((p) => String(p.activityId) === String(activity._id) && p.fileType === 'image' && p.status !== 'rejected').length : 0;
+    const room = imagesOnly ? (maxImages ? Math.max(0, maxImages - sentImages) : 10) : 1;
     const suggestions = query.trim() ? choices.filter((c) => matches(query, c)).slice(0, 6) : [];
     // The dropdowns show only once the search has found the activity (filled in), or found nothing (2026-11-04).
     const showPickers = Boolean(activityId) || (query.trim() !== '' && suggestions.length === 0);
     const choose = (c) => { setGroupId(String(c.group._id)); setActivityId(String(c.activity._id)); setQuery(''); setSuggesting(false); setError(''); };
 
+    const pickMany = (list) => {
+        if (!imagesOnly) { pick(list?.[0]); return; }
+        setError('');
+        const add = [...(list || [])];
+        if (add.some((f) => !f.type.startsWith('image/'))) { setError('Choose pictures only.'); return; }
+        if (add.some((f) => f.size > MAX_MB * 1024 * 1024)) { setError(`A picture is over ${MAX_MB} MB — choose a lighter one.`); return; }
+        const next = [...files, ...add];
+        if (next.length > room) setError(maxImages ? `This activity takes ${maxImages} picture${maxImages === 1 ? '' : 's'}: ${room} more.` : 'Up to 10 at a time.');
+        setFiles(next.slice(0, room));
+    };
     const pick = (f) => {
         setError('');
         if (!f) return;
-        const ok = f.type.startsWith('image/') || f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
-        if (!ok) { setError('Choose a picture or a PDF.'); return; }
-        if (f.size > MAX_MB * 1024 * 1024) { setError(`That file is over ${MAX_MB} MB — choose a lighter one.`); return; }
+        // What this activity takes (2026-11-14): set by the organization, a picture or a PDF if not.
+        const kind = f.type === 'application/pdf' || /\.pdf$/i.test(f.name) ? 'pdf' : f.type.startsWith('video/') ? 'video' : f.type.startsWith('image/') ? 'image' : null;
+        if (!kind || !kinds.includes(kind)) { setError(`Choose ${kinds.map((k) => KIND_WORDS[k]).join(' or ')}.`); return; }
+        const mb = kind === 'video' ? 100 : MAX_MB;
+        if (f.size > mb * 1024 * 1024) { setError(`That file is over ${mb} MB — choose a lighter one.`); return; }
         setFile(f);
     };
     const submit = async (e) => {
         e.preventDefault();
         if (!activity) { setError('Search for the activity this proof is for.'); return; }
-        if (!file) { setError('Take a photo or choose a file first.'); return; }
+        if (!files.length) { setError(imagesOnly ? 'Add the pictures first.' : 'Take a photo or choose a file first.'); return; }
         setBusy(true); setError('');
+        const done = [];
         try {
-            const fd = new FormData();
-            fd.append('file', file);
-            fd.append('activityId', activity._id);
-            if (note.trim()) fd.append('note', note.trim());
-            const r = await api.post('/user/360/proofs', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-            onDone(r.data.proof);
+            for (const f of files) {
+                const fd = new FormData();
+                fd.append('file', f);
+                fd.append('activityId', activity._id);
+                if (note.trim()) fd.append('note', note.trim());
+                done.push((await api.post('/user/360/proofs', fd, { headers: { 'Content-Type': 'multipart/form-data' } })).data.proof);
+            }
+            onDone(done);
         } catch (err) {
+            if (done.length) { onDone(done); return; }
             if (isDriveRequired(err)) { refresh(true).catch(() => {}); setDriveNeeded(true); setBusy(false); return; }
             setError(err.response?.data?.message || 'The proof could not be uploaded. Please try again.');
             setBusy(false);
@@ -449,8 +481,8 @@ function AddProof({ groups, initialActivityId, onClose, onDone }) {
                     className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white text-slate-800 shadow-2xl animate-pop-in">
                     <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
                         <div className="min-w-0">
-                            <h2 id="proof-title" className="font-bold text-slate-800">Add proof</h2>
-                            <p className="mt-0.5 text-xs text-slate-500">Saved in your Google Drive; your 360 teacher checks it and gives the marks.</p>
+                            <h2 id="proof-title" className="font-bold text-slate-800">Upload activity</h2>
+                            <p className="mt-0.5 text-xs text-slate-500">Saved in your Google Drive; your ranking teacher checks it and gives the marks.</p>
                         </div>
                         <button type="button" onClick={close} disabled={busy} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
                     </div>
@@ -496,14 +528,45 @@ function AddProof({ groups, initialActivityId, onClose, onDone }) {
                                 </Select>
                             </div>
                         </div>
-                        {activity && <p className="-mt-2 text-xs font-semibold text-indigo-700">{group.name} › {activity.name} · {worth(activity)}</p>}
+                        {activity && <p className="-mt-2 text-xs font-semibold text-indigo-700">{group.name} › {activity.name} · {worth(activity)} · <span className="font-bold">{kinds.map((k) => KIND_LABEL[k]).join(', ')}</span>{kinds.includes('image') && activity.maxImages > 0 ? ` (up to ${activity.maxImages} image${activity.maxImages === 1 ? '' : 's'})` : ''}</p>}
                         </>
                         )}
 
                         {/* The proof: a photo taken now, or a file already on the device. */}
-                        <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" aria-label="Take a photo" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
-                        <input ref={device} type="file" accept="image/*,application/pdf,.pdf" className="hidden" aria-label="Proof file" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
-                        {file ? (
+                        <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" aria-label="Take a photo" onChange={(e) => { pickMany(e.target.files); e.target.value = ''; }} />
+                        <input ref={device} type="file" accept={accept} multiple={imagesOnly} className="hidden" aria-label="Proof file" onChange={(e) => { pickMany(e.target.files); e.target.value = ''; }} />
+                        {!activity ? (
+                            <p className="rounded-2xl border border-dashed border-slate-300 px-4 py-5 text-center text-sm text-slate-500">Choose the activity first: it says what proof to upload.</p>
+                        ) : imagesOnly ? (
+                            <div>
+                                <p className="mb-1.5 flex items-center justify-between text-xs font-bold text-slate-600">
+                                    <span>{maxImages ? `${maxImages} picture${maxImages === 1 ? '' : 's'}` : 'Pictures'}</span>
+                                    {maxImages > 0 && <span className="font-semibold text-slate-500">{sentImages + files.length} of {maxImages}</span>}
+                                </p>
+                                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                                    {Array.from({ length: Math.min(sentImages, maxImages || sentImages) }, (_, i) => (
+                                        <div key={`sent${i}`} className="flex aspect-square flex-col items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700">
+                                            <CheckCircle2 size={20} aria-hidden="true" /><span className="mt-1 text-[11px] font-bold">Sent</span>
+                                        </div>
+                                    ))}
+                                    {files.map((f, i) => (
+                                        <div key={`${f.name}${i}`} className="relative aspect-square overflow-hidden rounded-xl ring-1 ring-indigo-200">
+                                            <img src={previews[i]} alt="" className="h-full w-full object-cover" />
+                                            <button type="button" onClick={() => setFiles((x) => x.filter((_, j) => j !== i))} disabled={busy} aria-label={`Remove picture ${i + 1}`}
+                                                className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-slate-600 shadow hover:text-red-600"><X size={12} /></button>
+                                        </div>
+                                    ))}
+                                    {Array.from({ length: maxImages ? room - files.length : files.length < room ? 1 : 0 }, (_, i) => (
+                                        <button key={`empty${i}`} type="button" onClick={() => device.current?.click()} disabled={busy}
+                                            className="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 text-slate-400 transition-colors hover:border-indigo-400 hover:text-indigo-500">
+                                            <Plus size={20} aria-hidden="true" /><span className="mt-1 text-[11px] font-bold">Add</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                {room === 0 ? <p className="mt-2 text-xs font-semibold text-emerald-700">All {maxImages} pictures are sent for this activity.</p>
+                                    : files.length < room && <button type="button" onClick={() => camera.current?.click()} disabled={busy} className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50"><Camera size={14} aria-hidden="true" /> Take a photo</button>}
+                            </div>
+                        ) : file ? (
                             <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3">
                                 {preview ? <img src={preview} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover ring-1 ring-emerald-200" />
                                     : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-white text-emerald-600 ring-1 ring-emerald-200"><Paperclip size={22} /></span>}
@@ -516,18 +579,18 @@ function AddProof({ groups, initialActivityId, onClose, onDone }) {
                         ) : (
                             <div>
                                 <p className="mb-1 text-xs font-bold text-slate-600">The proof</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button type="button" onClick={() => camera.current?.click()} disabled={busy}
+                                <div className={`grid gap-3 ${kinds.includes('image') ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                    {kinds.includes('image') && <button type="button" onClick={() => camera.current?.click()} disabled={busy}
                                         className="flex flex-col items-center gap-1.5 rounded-2xl border-2 border-dashed border-slate-300 px-3 py-5 text-center transition-colors hover:border-indigo-400 hover:bg-indigo-50/40">
                                         <Camera size={22} className="text-indigo-500" aria-hidden="true" />
                                         <span className="text-sm font-bold text-slate-800">Take photo</span>
                                         <span className="text-[11px] text-slate-500">With your camera</span>
-                                    </button>
+                                    </button>}
                                     <button type="button" onClick={() => device.current?.click()} disabled={busy}
                                         className="flex flex-col items-center gap-1.5 rounded-2xl border-2 border-dashed border-slate-300 px-3 py-5 text-center transition-colors hover:border-indigo-400 hover:bg-indigo-50/40">
                                         <Upload size={22} className="text-indigo-500" aria-hidden="true" />
                                         <span className="text-sm font-bold text-slate-800">From device</span>
-                                        <span className="text-[11px] text-slate-500">Picture or PDF · up to {MAX_MB} MB</span>
+                                        <span className="text-[11px] text-slate-500">{kinds.map((k) => KIND_LABEL[k]).join(' or ')} · up to {kinds.includes('video') ? 100 : MAX_MB} MB</span>
                                     </button>
                                 </div>
                             </div>
@@ -542,9 +605,9 @@ function AddProof({ groups, initialActivityId, onClose, onDone }) {
                     </div>
                     <div className="flex gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3.5">
                         <button type="button" onClick={close} disabled={busy} className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50">Cancel</button>
-                        <button type="submit" disabled={busy}
+                        <button type="submit" disabled={busy || !activity || (imagesOnly && !files.length)}
                             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60">
-                            {busy ? <><Loader2 size={14} className="animate-spin" /> Submitting…</> : <><Upload size={14} /> Submit</>}
+                            {busy ? <><Loader2 size={14} className="animate-spin" /> Submitting…</> : <><Upload size={14} /> Submit{files.length > 1 ? ` ${files.length}` : ''}</>}
                         </button>
                     </div>
                 </form>
