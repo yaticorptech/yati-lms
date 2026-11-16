@@ -71,6 +71,15 @@ export default function SupportDialog({ onClose, page = 'other', path, user, ton
     const [loading, setLoading] = useState(false);
     const [ref, setRef] = useState('');
     const cardRef = useRef(null);
+    // Who answers (2026-11-14): YATICORP support, or the student's own organization when they are in one.
+    const [org, setOrg] = useState(null);           // { name } of their organization
+    const [to, setTo] = useState('platform');
+    useEffect(() => {
+        if (!signedIn) return undefined;
+        let live = true;
+        api.get('/organizations/student/me').then((r) => { if (live && r.data?.member && r.data.organization) setOrg({ name: r.data.organization.name }); }).catch(() => {});
+        return () => { live = false; };
+    }, [signedIn]);
 
     // Signed in, only what the account is missing can be typed.
     const locked = {
@@ -182,6 +191,7 @@ export default function SupportDialog({ onClose, page = 'other', path, user, ton
                 subject: form.subject.trim(),
                 message: where ? `${form.message.trim()}\n\n— Sent from ${where}` : form.message.trim(),
                 page,
+                ...(org && to === 'organization' ? { to: 'organization' } : {}),
                 ...(page === 'dashboard' && path ? { path } : {}),
             });
             setRef(data?.ticketId ? String(data.ticketId).slice(-6).toUpperCase() : '');
@@ -311,6 +321,21 @@ export default function SupportDialog({ onClose, page = 'other', path, user, ton
                                         {field('email', 'Email', { type: 'email', autoComplete: 'email', placeholder: 'your@email.com', readOnly: locked.email })}
                                     </div>
                                 </>
+                            )}
+
+                            {org && (
+                                <fieldset>
+                                    <legend className={`mb-1.5 block text-xs font-semibold ${t.label}`}>Send to</legend>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[['platform', 'YATICORP support', 'The app, your account, your card'], ['organization', org.name, 'Your institution: classes, admissions, staff']].map(([k, title, sub]) => (
+                                            <button key={k} type="button" aria-pressed={to === k} onClick={() => setTo(k)}
+                                                className={`min-w-0 rounded-xl border px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${to === k ? t.chipOn : t.chip}`}>
+                                                <span className="block truncate text-sm font-bold" title={title}>{title}</span>
+                                                <span className="mt-0.5 block text-[11px] leading-snug opacity-80">{sub}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </fieldset>
                             )}
 
                             {field('subject', 'Subject', { placeholder: 'Brief description of your issue', maxLength: 150 })}

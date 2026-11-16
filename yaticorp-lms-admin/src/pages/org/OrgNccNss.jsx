@@ -467,12 +467,10 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
         <div className="space-y-3">
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                {/* Which members: tabs on a wider screen, a dropdown on a phone (2026-11-02). */}
-                <div className="hidden sm:block">
-                    <Segmented options={memberFilters} value={filter} onChange={setFilter} counts={memberCounts} />
-                </div>
-                <div className="sm:hidden">
-                    <Select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Show members" className={INPUT}>
+                {/* Which members: a dropdown on every screen (2026-11-14) — tabs under the page's own tabs read as more tabs. */}
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Show</span>
+                    <Select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Show members" className={`${INPUT} sm:!w-56`}>
                         {memberFilters.map(([key, label]) => <option key={key || 'all'} value={key}>{memberCounts[key] ? `${label} (${memberCounts[key]})` : label}</option>)}
                     </Select>
                 </div>
@@ -1132,7 +1130,10 @@ const UnitsTab = () => {
     return (
         <div className="space-y-3">
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
-            <div className="flex justify-end"><button onClick={() => setEditing('new')} className={BTN}><Plus size={16} /> Add unit</button></div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-slate-500">Students choose one of these units when they ask to join. The unit’s leaders (teachers) and you can both accept the request.</p>
+                <button onClick={() => setEditing('new')} className={`${BTN} shrink-0`}><Plus size={16} /> Add unit</button>
+            </div>
             <div className={`${CARD} overflow-x-auto`}>
                 {loading ? <Rows count={3} /> : failed ? <LoadFailed what="the units" onRetry={reload} /> : rows.length === 0 ? (
                     <Empty icon={Users}>No units yet. Add your Cub pack, Bulbul flock, Scout troop, Guide company, Rover crew or Ranger team, then put members in them.</Empty>
@@ -1351,6 +1352,38 @@ const ClubsView = () => {
     );
 };
 
+/**
+ * Show Extra-curricular to every student (2026-11-16): on, all the organization's students get the
+ * Extra Curricular tab on their dashboard; off, only those already in a unit or club.
+ */
+const StudentVisibility = () => {
+    const staff = Boolean(useOutletContext()?.staff);
+    const [open, setOpen] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [note, setNote] = useState('');
+    useEffect(() => { api.get('/organizations/me/nccnss/visibility').then((r) => setOpen(Boolean(r.data?.open))).catch(() => setOpen(null)); }, []);
+    if (open === null) return null;
+    const toggle = async () => {
+        setBusy(true); setNote('');
+        try { const r = await api.put('/organizations/me/nccnss/visibility', { open: !open }); setOpen(r.data.open); setNote(r.data.message); }
+        catch (err) { setNote(err.response?.data?.message || 'That could not be saved. Please try again.'); }
+        finally { setBusy(false); }
+    };
+    return (
+        <div className={`${CARD} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
+            <div className="min-w-0">
+                <p className="font-bold text-slate-900">Show Extra-curricular to all students</p>
+                <p className="mt-0.5 text-sm text-slate-500">{open ? 'On: every student in your organization sees it on their dashboard and can ask to join NCC, NSS, Scouts or a club.' : 'Off: only students already in a unit or club see it.'}</p>
+                {note && <p role="status" className="mt-1.5 text-xs font-semibold text-indigo-600">{note}</p>}
+            </div>
+            <button type="button" role="switch" aria-checked={open} aria-label="Show Extra-curricular to all students" onClick={toggle} disabled={busy || staff}
+                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:opacity-60 ${open ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${open ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+        </div>
+    );
+};
+
 const OrgNccNss = () => {
     // A BSG office handles Scouts & Guides only: no NCC, NSS or clubs.
     const office = Boolean(useOutletContext()?.organization?.bsgOffice);
@@ -1365,9 +1398,20 @@ const OrgNccNss = () => {
     }
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            <PageHeader icon={Shield} title="Extra-curricular"
-                subtitle="NSS, NCC, Scouts & Guides and your clubs. Pick one to see its members, events and approvals." />
-            <Segmented options={SECTIONS} value={section} onChange={setSection} />
+            <h1 className="sr-only">Extra-curricular</h1>
+            <StudentVisibility />
+            {/* The section being run, set apart from the tabs inside it (2026-11-14): bold filled buttons. */}
+            <div role="tablist" aria-label="Extra-curricular" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                {SECTIONS.map(([key, label]) => {
+                    const on = section === key;
+                    return (
+                        <button key={key} type="button" role="tab" aria-selected={on} onClick={() => setSection(key)}
+                            className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:min-w-[9rem] ${on ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'border border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700'}`}>
+                            <Shield size={16} aria-hidden="true" className={on ? 'text-indigo-200' : 'text-slate-400'} /> {label}
+                        </button>
+                    );
+                })}
+            </div>
             {section === 'CLUB' ? <ClubsView /> : <SchemeView key={section} scheme={section} />}
         </div>
     );

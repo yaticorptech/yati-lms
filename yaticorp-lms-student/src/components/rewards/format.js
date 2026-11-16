@@ -13,7 +13,7 @@ export const balance = (available) => Number(available || 0);
 /** The line a ledger row is shown under. The starting credit always reads the
  *  same, whatever text it was booked with. */
 export const txTitle = (t) =>
-    t.source === 'starting_credit' ? 'Starting wallet credit' : t.description || SOURCE_LABEL[t.source] || t.source;
+    t.source === 'starting_credit' ? (t.description || 'Starting wallet credit') : t.description || SOURCE_LABEL[t.source] || t.source;
 
 export const when = (d) => {
     const date = new Date(d);

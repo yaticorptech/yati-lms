@@ -204,8 +204,8 @@ export default function Overview() {
               The quest button moved into the hero above, so this row is what
               the student has built up beside what it unlocks — rather than a
               large mission card competing with the panel directly over it. ---- */}
-      <div className="grid items-stretch gap-5 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid items-stretch gap-5 xl:grid-cols-3">
+        <div className="min-w-0 xl:col-span-2">
           <MomentumCard
             streak={streak}
             activity={activity}

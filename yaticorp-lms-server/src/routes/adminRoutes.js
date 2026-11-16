@@ -86,6 +86,14 @@ router.post('/cards/scan', protectAdmin, superAdminOnly, cardCtrl.scanAndVerify)
 router.post('/cards/verify-all', protectAdmin, superAdminOnly, cardCtrl.verifyAll);
 router.post('/cards/unverify-all', protectAdmin, superAdminOnly, cardCtrl.unverifyAll);
 router.post('/cards/:id/unverify', protectAdmin, superAdminOnly, cardCtrl.unverifyCard);
+// AI Passports (super admins): the QR IDs on the passport books, and which card each is linked to.
+const passportCtrl = require('../controllers/passportController');
+router.route('/passports').get(protectAdmin, superAdminOnly, passportCtrl.listPassports).post(protectAdmin, superAdminOnly, passportCtrl.addPassports);
+router.post('/passports/generate', protectAdmin, superAdminOnly, passportCtrl.generatePassports);
+router.get('/passports/batches', protectAdmin, superAdminOnly, passportCtrl.listBatches);
+router.get('/passports/stickers', protectAdmin, superAdminOnly, passportCtrl.downloadStickers);
+router.post('/passports/lookup', protectAdmin, superAdminOnly, passportCtrl.lookupPassport);
+router.post('/passports/:id/status', protectAdmin, superAdminOnly, passportCtrl.setStatus);
 router.route('/admins/:id').put(protectAdmin, superAdminOnly, updateAdmin).delete(protectAdmin, superAdminOnly, deleteAdmin);
 
 // Support Ticket Routes

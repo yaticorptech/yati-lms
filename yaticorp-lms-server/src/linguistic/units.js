@@ -31,6 +31,14 @@ const parts = require('./parts');
 
 const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'translation'];
 const LEVEL_REVIEWS = ['words', 'listen', 'sentences', 'checkpoint', 'assessment'];
+// How many Letters lessons a course's first unit shows (2026-11-14).
+const LETTERS_KEEP = { kn: 5 };
+/** A lesson a course hides (owner's call, 2026-11-14): Kannada's Letters lessons after its first 5. Not deleted. */
+const isHidden = (l) => {
+    if (l?.review !== 'letters') return false;
+    const m = String(l.seedKey || '').match(/^([a-z]+):letters-beginner-(\d+)/);
+    return Boolean(m && LETTERS_KEEP[m[1]] && Number(m[2]) > LETTERS_KEEP[m[1]]);
+};
 const WARMUP_WORDS = 4;
 // The warm-up of 2026-10-24, off since 2026-10-29 (pairs once a unit, in its Words lesson): true brings it back.
 const WARMUP_ON = false;
@@ -75,6 +83,7 @@ const topicUnitsOf = (levelLessons) => {
     const levelReviews = [];
     for (const l of levelLessons) {
         if (l.review && LEVEL_REVIEWS.includes(l.review)) { levelReviews.push(l); continue; }
+        if (isHidden(l)) continue;
         // The Letters unit (alphabet.js) is unit 0, before the topics'.
         const order = l.review === 'letters' || l.review === 'lettersExam' ? 0 : Number(l.order) || 1, part = parts.partOf(l), key = `${order}:${part}`;
         if (!byUnit.has(key)) byUnit.set(key, { order, part, lessons: [] });
@@ -162,4 +171,5 @@ const warmupFor = (doc, helper) => {
         .map((w) => ({ word: w.word, kannada: w.kannada, audio: w.audio || null, locale: unit.locale, say: w.say || null }));
 };
 
-module.exports = { MODULE_ORDER, LEVEL_REVIEWS, TRACKS, TRACK_LEVELS, isTracked, unitsOf, pathOrder, warmupFor, unitWordsOf, unitSentencesOf, topicOf, typeOf };
+module.exports = {
+    isHidden, MODULE_ORDER, LEVEL_REVIEWS, TRACKS, TRACK_LEVELS, isTracked, unitsOf, pathOrder, warmupFor, unitWordsOf, unitSentencesOf, topicOf, typeOf };

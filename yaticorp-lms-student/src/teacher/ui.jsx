@@ -11,17 +11,13 @@ import ProfileImage from '../components/ProfileImage';
 import { colorOf, initialsOf } from './kit';
 import useBackClose from '../native/useBackClose';
 
-export const PageHeader = ({ icon: Icon, title, subtitle, actions, color }) => (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
-        <div className="flex min-w-0 items-center gap-3.5">
-            {Icon && <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm ${colorOf(color).solid}`}><Icon size={20} aria-hidden="true" /></span>}
-            <div className="min-w-0">
-                <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{title}</h1>
-                {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
-            </div>
-        </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-    </header>
+// No page heading in the teacher dashboard (owner's call, 2026-11-14): the menu already names the page.
+// Only a page's own actions (a picker, a button) stay, at the top right; the title stays for screen readers.
+export const PageHeader = ({ title, actions }) => (
+    <>
+        {title && <h1 className="sr-only">{title}</h1>}
+        {actions && <div className="flex flex-wrap items-center justify-end gap-2">{actions}</div>}
+    </>
 );
 
 export const Card = ({ className = '', children, ...rest }) => (

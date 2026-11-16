@@ -46,7 +46,7 @@ const fail = (res, error, what) => {
 const myOrganization = async (userId) => {
     const user = await User.findById(userId).select('organizationId').lean();
     if (!user?.organizationId) return null;
-    return Organization.findOne({ _id: user.organizationId, status: 'active' }).select('name logo state').lean();
+    return Organization.findOne({ _id: user.organizationId, status: 'active' }).select('name logo state extraCurricularOpen').lean();
 };
 
 /** My ended memberships, anywhere, newest first: where, which unit, when, and how far I got. */
@@ -71,9 +71,10 @@ router.get('/', async (req, res) => {
         const [members, clubs, units] = await Promise.all([
             NccNssMember.find({ userId: req.user._id, organizationId: organization._id, status: { $nin: CLOSED_STATUSES } }).populate('clubId', 'name category description').sort({ createdAt: 1 }).lean(),
             NccNssClub.find({ organizationId: organization._id }).select('name category description').sort({ name: 1 }).lean(),
-            ScoutUnit.find({ organizationId: organization._id, status: 'active' }).select('name section').sort({ name: 1 }).lean()
+            ScoutUnit.find({ organizationId: organization._id, status: 'active' }).select('name section leaderTeacherIds').populate('leaderTeacherIds', 'name').sort({ name: 1 }).lean()
         ]);
-        const scoutUnits = units.map((u) => ({ ...u, sectionLabel: SCOUT_SECTION_LABELS[u.section] }));
+        // Each with its leaders' names (2026-11-16): the student sees who will accept their request.
+        const scoutUnits = units.map(({ leaderTeacherIds, ...u }) => ({ ...u, sectionLabel: SCOUT_SECTION_LABELS[u.section], leaders: (leaderTeacherIds || []).map((t) => t?.name).filter(Boolean) }));
         const targets = await targetsFor(organization._id);
         const active = members.filter((m) => m.status === 'active' || m.status === 'completed');
         const summaries = await summarise(active, organization._id, targets);

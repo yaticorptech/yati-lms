@@ -16,6 +16,10 @@ router.post('/validate-qr', cardLookupLimiter, validateQR);
 // Scanning the card at sign-in: the QR resolves to the card number to log in with.
 router.post('/card-scan', cardLookupLimiter, scanCard);
 router.post('/verify-card', authLimiter, verifyCard);
+// The AI Passport book's QR, scanned at sign-up: links it to the card and verifies the card.
+// The passport QR link, no sign-in: passport + card → linked, bonus paid (or on sign-up).
+router.post('/passport/claim', cardLookupLimiter, require('../controllers/passportController').claimByScan);
+router.post('/passport/link', cardLookupLimiter, require('../controllers/passportController').linkAtSignup);
 router.post('/register', authLimiter, registerStudent);
 
 // ── Student Login ────────────────────────────────────────────────────────────

@@ -18,7 +18,8 @@ import useGoBack from '../../hooks/useGoBack';
 import useStepParam from '../../hooks/useStepParam';
 import { X, Lock, Trophy, Users, CalendarClock, Check, Loader2, Send, Undo2, Swords, Search, Crown, ChevronDown, Gamepad2, Clock, Brain, ArrowLeft, Building2, Award, FileStack } from 'lucide-react';
 import api from '../../utils/api';
-import { Segmented, CARD, BTN, BTN2, INPUT, LABEL } from '../../components/orgUi';
+import { Segmented, CARD, BTN, BTN2, INPUT, LABEL, Dialog, DialogTitle } from '../../components/orgUi';
+import OrgSupportDialog from '../../components/OrgSupportDialog';
 import { CardGridSkeleton } from '../../competitions/Skeletons';
 
 const takePartSeen = {};
@@ -227,7 +228,6 @@ export default function OrgCompetitions() {
     // Host competitions button opens up when the platform admin switches
     // hosting on, and locks again when they switch it off, without a reload.
     const [canHost, setCanHost] = useState(null);
-    const [lockedNote, setLockedNote] = useState(false);
     useEffect(() => {
         let alive = true;
         const check = () => api.get('/competitions/org/hosting')
@@ -248,6 +248,8 @@ export default function OrgCompetitions() {
     }, []);
     const tab = params.get('tab') === 'host' && canHost !== false ? 'host' : 'enter';
     // Both buttons always show; Host competitions only opens once allowed.
+    // Clicking the locked Host competitions: what it is, and asking the platform to switch it on.
+    const [lockPopup, setLockPopup] = useState(null);   // null | 'info' | 'contact'
     const hostLocked = canHost === true ? null : "Your organization can't host competitions yet. The platform admin has to enable it.";
     return (
         <div className="space-y-6 pb-24 animate-fade-in">
@@ -259,9 +261,11 @@ export default function OrgCompetitions() {
                 <h1 className="mt-2 text-2xl font-black sm:text-3xl">Competition management</h1>
                 <p className="mt-1.5 max-w-2xl text-sm text-white/85">Enter your students in inter-college competitions, follow their approvals and entry fees, and — once allowed — host competitions of your own.</p>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                    <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold ring-1 ring-white/15">
-                        <span className={`h-2 w-2 rounded-full ${canHost ? 'bg-emerald-400' : 'bg-slate-300'}`} /> {canHost ? 'Hosting is on: you can run your own competitions' : 'Hosting is off: the platform admin can switch it on'}
-                    </p>
+                    {canHost ? (
+                        <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold ring-1 ring-white/15">
+                            <span className="h-2 w-2 rounded-full bg-emerald-400" /> Hosting is on: you can run your own competitions
+                        </p>
+                    ) : <span />}
                     {/* The Certificate Builder (2026-10-31). */}
 <div className="relative flex flex-wrap gap-2">
                         {/* Every certificate made here, saved and handed out (2026-11-02). */}
@@ -273,11 +277,29 @@ export default function OrgCompetitions() {
             <div className="space-y-2">
                 <Segmented options={[['enter', 'Take part'], ['host', 'Host competitions']]} value={tab}
                     onChange={(t) => setParams(t === 'host' ? { tab: 'host' } : {}, { replace: true })}
-                    locked={hostLocked ? { host: hostLocked } : {}} onLocked={() => setLockedNote(true)} />
-                {hostLocked && lockedNote && canHost === false && (
-                    <p role="status" className="text-sm text-slate-500">{hostLocked}</p>
-                )}
+                    locked={hostLocked ? { host: hostLocked } : {}} onLocked={() => setLockPopup('info')} />
             </div>
+            {lockPopup === 'info' && (
+                <Dialog onClose={() => setLockPopup(null)} size="max-w-md">
+                    <div className="relative overflow-hidden bg-gradient-to-br from-[#2d2693] via-[#3b31c4] to-[#5a3fd8] px-6 pb-6 pt-7 text-white">
+                        <Trophy size={110} aria-hidden className="pointer-events-none absolute -right-4 -top-4 text-white/10" />
+                        <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25"><Lock size={22} aria-hidden="true" /></span>
+                        <DialogTitle className="relative mt-4 text-xl font-bold text-white">Host competitions is locked</DialogTitle>
+                        <p className="relative mt-1 text-sm text-indigo-100">Run inter-college competitions of your own: set the game, dates and entry rules, and invite other colleges.</p>
+                    </div>
+                    <div className="space-y-3 p-6">
+                        <p className="text-sm text-slate-600">The platform admin switches this on for your organization. Send them a request and they'll get back to you.</p>
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <button type="button" onClick={() => setLockPopup(null)} className={BTN2}>Not now</button>
+                            <button type="button" onClick={() => setLockPopup('contact')} className={BTN}><Send size={16} /> Contact admin to enable</button>
+                        </div>
+                    </div>
+                </Dialog>
+            )}
+            {lockPopup === 'contact' && (
+                <OrgSupportDialog onClose={() => setLockPopup(null)}
+                    preset={{ topic: 'Competitions', subject: 'Please enable Host competitions', message: 'We would like to host our own competitions. Please switch on Host competitions for our organization.' }} />
+            )}
             {tab === 'host'
                 ? (canHost ? <Competitions apiBase="/competitions/org/host" linkBase="/organization/competitions/host" organizer="" embedded hosted /> : <div className="h-40 animate-pulse rounded-2xl bg-slate-100" />)
                 : <TakePart />}

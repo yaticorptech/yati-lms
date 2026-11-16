@@ -13,14 +13,15 @@ import api from '../utils/api';
 import { Dialog, DialogTitle, INPUT, LABEL, BTN, BTN2, Banner } from './orgUi';
 import SupportHistory from './SupportHistory';
 
-const SUBJECTS = ['Students and joining', 'Teachers', 'Courses', '360 activities', 'Competitions', 'Account and sign-in', 'Something else'];
+const SUBJECTS = ['Students and joining', 'Teachers', 'Courses', 'Student Ranking activities', 'Competitions', 'Account and sign-in', 'Something else'];
 
-const OrgSupportDialog = ({ organization, onClose }) => {
+// `preset`: { topic, subject, message } to start from (a locked feature's "Ask to enable").
+const OrgSupportDialog = ({ organization, onClose, preset }) => {
     const { pathname } = useLocation();
     const [email, setEmail] = useState(organization?.email || '');
-    const [topic, setTopic] = useState('');
-    const [subject, setSubject] = useState('');
-    const [message, setMessage] = useState('');
+    const [topic, setTopic] = useState(preset?.topic || '');
+    const [subject, setSubject] = useState(preset?.subject || '');
+    const [message, setMessage] = useState(preset?.message || '');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [sent, setSent] = useState(null);   // the ticket id

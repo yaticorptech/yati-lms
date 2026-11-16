@@ -144,7 +144,10 @@ const validateQR = async (req, res) => {
             message: 'Card is valid.',
             cardNumber: card.CardNumber,
             cvv: card.CVV,
-            qrCodeNumber: card.qrCodeNumber
+            qrCodeNumber: card.qrCodeNumber,
+            // Linked to an AI Passport book already: its reward is paid on sign-up.
+            passportCode: card.passportCode || null,
+            passportReward: card.passportCode ? Number((await require('../rewards/services/configService').getConfig()).startingCredit || 0) : 0
         });
 
     } catch (error) {
@@ -200,7 +203,10 @@ const scanCard = async (req, res) => {
         // A demo (presentation) card, or a developer card in DEVICE_LIMIT_EXEMPT_CARDS: its scan
         // is the sign-in — no password (services/demoCards.js, services/deviceGuard.js).
         // Only a scan: typing the number still asks for the password.
-        if (!typed && (require('../services/fullAccess').hasFullAccess(user) || require('../services/deviceGuard').isExemptCard(user.cardNumber))) {
+        // Only the card's QR code itself counts as a scan: the printed number (anyone can read it
+        // off the card) always asks for the password, however it is sent.
+        const viaQr = Boolean(card.qrCodeNumber) && scanCandidates(raw).some((c) => String(c) === String(card.qrCodeNumber));
+        if (!typed && viaQr && (require('../services/fullAccess').hasFullAccess(user) || require('../services/deviceGuard').isExemptCard(user.cardNumber) || require('../services/deviceGuard').isExemptCard(card.CardNumber))) {
             const full = await User.findById(user._id);
             return require('./userAuthController').finishLogin(req, res, full);
         }
@@ -377,6 +383,20 @@ const registerStudent = async (req, res) => {
             ? { requested: false, joined: true, reason: 'joined', orgCode: linked.orgCode, name: linked.name, message: `You are now a member of ${linked.name}.` }
             : await requestOrganizationAtSignup(user._id, orgCode);
 
+        // A card linked to an AI Passport book at sign-up: the welcome reward
+        // is paid now that the account exists. Never allowed to fail sign-up.
+        let passportReward = null;
+        if (card.passportCode) {
+            try {
+                const Passport = require('../models/Passport');
+                const passport = await Passport.findOne({ code: card.passportCode });
+                const r = await require('../services/passport').payReward(user._id, passport);
+                passportReward = { code: card.passportCode, amount: r.amount, paid: r.paid };
+            } catch (e) {
+                console.error('[registration] passport reward failed:', e.message);
+            }
+        }
+
         // The same shape as signing in, so the dashboard and My Profile have
         // the phone, picture, XP and level from the first screen — a new
         // account showed "Not added yet" for the phone it had just been given,
@@ -394,6 +414,7 @@ const registerStudent = async (req, res) => {
             loginCount: user.loginCount || 0,
             role: 'student',
             organization,
+            passportReward,
             token: generateToken(user._id, 'student', { did: require('../services/deviceGuard').deviceOf(req).deviceId, sid: await require('../services/deviceGuard').startSession(user) })
         });
 

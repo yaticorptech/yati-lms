@@ -32,7 +32,10 @@ const ticketSchema = new mongoose.Schema({
     // The conversation after the first message (2026-11-04): the admin's replies, and the
     // sender's "not resolved, again" on a resolved ticket, which opens the same ticket again.
     thread: [{ by: { type: String, enum: ['user', 'admin'] }, text: { type: String, maxlength: 5000 }, at: { type: Date, default: Date.now } }],
-    reopened: { type: Number, default: 0 }
+    reopened: { type: Number, default: 0 },
+    // Who answers it (2026-11-14): YATICORP's support (the admin panel), or the student's own organization.
+    to: { type: String, enum: ['platform', 'organization'], default: 'platform' },
+    toOrganizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null, index: true }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Ticket', ticketSchema);

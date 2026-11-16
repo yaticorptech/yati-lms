@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Wallet, ReceiptText, Info, Check, X, ShoppingBag, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../../utils/api';
+import PassportClaim from './PassportClaim';
 import { money, balance, dayLabel, timeOf, SOURCE_LABEL, STATUS_CLS, txTitle, iconOf } from './format';
 
 // No XP tab: XP is learning progress, not wallet money (2026-10-26).
@@ -109,6 +110,7 @@ export default function WalletSection({ initialTab = 'overview' }) {
                     </Notice>
                 )}
                 {!data && !error && <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 rounded-2xl" />)}</div>}
+                {data && tab === 'overview' && <div className="mb-5"><PassportClaim onClaimed={load} /></div>}
                 {data && tab === 'overview' && <Overview data={data} currency={currency} onAll={() => setTab('transactions')} />}
                 {data && tab === 'transactions' && <Transactions currency={currency} />}
             </div>

@@ -87,7 +87,15 @@ const adminSchema = new mongoose.Schema({
     staff: { type: Boolean, default: false },
     // The teacher account behind it, when they have the teacher dashboard too:
     // its research tools open inside the organization panel ("Research").
-    staffTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null }
+    staffTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null },
+    // A department's sign-in (Campus → Departments, 2026-11-13): staff, with only
+    // that department's Campus pages (departmentMay in organizations/middleware).
+    campusDepartmentId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    // The examination board's sign-in (Campus → Exam board): semester exams of every
+    // department — timetable, applications, admit cards, marks, marks cards, publishing.
+    campusExamBoard: { type: Boolean, default: false },
+    // The admission office's sign-in (Campus → Departments → Admission office): new admissions for every department.
+    campusOffice: { type: Boolean, default: false }
 }, { timestamps: true });
 
 // Email is unique across the single organization

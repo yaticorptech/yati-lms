@@ -14,7 +14,9 @@
  * Kept on the student (User.certificateSeq, the last one given, and
  * User.certificateNumbers, which certificate has which) — the cluster is at
  * its collection limit. Keys are what the profile calls each certificate:
- * course-<id>, competition-<id>, groupbrain-<id>, up-<id>.
+ * course-<id>, competition-<id>, groupbrain-<id>, up-<id>, and (2026-11-11)
+ * lingo-<course>-<level> for a Multilingo level certificate, whose number is
+ * kept on it too (LinguisticProgress.certificates[].number).
  *
  * Numbers given before this format (YATI<card>-01 on course certificates,
  * YATI<card>001 on the profile for a day) are put right by renumber():
@@ -25,13 +27,15 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
 
-const KEY = /^(course|competition|groupbrain|up)-[\w.:-]{1,100}$/;
+const KEY = /^(course|competition|groupbrain|up|lingo)-[\w.:-]{1,100}$/;
 const FORMAT = /^YATI.+-\d{3,}$/;
 const MAX_ITEMS = 300;
 
 const prefixOf = (user) => `YATI${user?.cardNumber ? String(user.cardNumber).replace(/\s/g, '') : String(user?._id || '').slice(-8).toUpperCase()}`;
 const format = (prefix, n) => `${prefix}-${String(n).padStart(3, '0')}`;
 const current = (number) => FORMAT.test(String(number || ''));
+/** A Multilingo level certificate's key in the series: lingo-en-beginner, lingo-kn-advanced… */
+const lingoKey = (c) => `lingo-${c.course || 'en'}-${c.level}`;
 
 /** The register as { key: number }; the first entry for a key wins. */
 const registerOf = (user) => {
@@ -61,11 +65,16 @@ const renumber = async (userId) => {
     ];
     // Competition (and Group Brain) certificates live with the games; the ones
     // already numbered keep their place by the day the competition ended.
-    const games = Object.keys(registerOf(user)).filter((k) => /^(competition|groupbrain)-/.test(k));
+    // Multilingo certificates (lingo-) the same way, by the day they were earned.
+    const games = Object.keys(registerOf(user)).filter((k) => /^(competition|groupbrain|lingo)-/.test(k));
     if (games.length) {
         const ids = games.filter((k) => k.startsWith('competition-')).map((k) => k.slice('competition-'.length)).filter((id) => mongoose.isValidObjectId(id));
         const comps = ids.length ? await require('../competitions/models/Competition').find({ _id: { $in: ids } }).select('completedAt').lean() : [];
         const ended = Object.fromEntries(comps.map((c) => [`competition-${c._id}`, c.completedAt]));
+        if (games.some((k) => k.startsWith('lingo-'))) {
+            const progress = await require('../linguistic/models').LinguisticProgress.findOne({ userId }).select('certificates').lean();
+            for (const c of progress?.certificates || []) ended[lingoKey(c)] = c.issuedAt;
+        }
         for (const key of games) entries.push({ key, at: ended[key] || null });
     }
     entries.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0) || a.key.localeCompare(b.key));
@@ -75,6 +84,17 @@ const renumber = async (userId) => {
         await Certificate.bulkWrite(register.filter((e) => e.courseId).map((e) => ({ updateOne: { filter: { _id: e.courseId }, update: { $set: { certificateNumber: e.number } } } })));
     }
     await User.updateOne({ _id: userId }, { $set: { certificateSeq: register.length, certificateNumbers: register.map(({ key, number }) => ({ key, number })) } });
+    // A Multilingo certificate carries its number too: the new one, so its PDF prints it.
+    const lingo = register.filter((e) => e.key.startsWith('lingo-'));
+    if (lingo.length) {
+        const { LinguisticProgress } = require('../linguistic/models');
+        const progress = await LinguisticProgress.findOne({ userId });
+        if (progress) {
+            for (const c of progress.certificates) { const e = lingo.find((x) => x.key === lingoKey(c)); if (e) c.number = e.number; }
+            progress.markModified('certificates');
+            await progress.save();
+        }
+    }
     return Object.fromEntries(register.map((e) => [e.key, e.number]));
 };
 
@@ -139,4 +159,4 @@ const numbersFor = async (userId, items) => {
     return Object.fromEntries(list.map((i) => [i.key, have[i.key]]).filter(([, n]) => n));
 };
 
-module.exports = { numbersFor, nextNumber, renumber, ensureCurrent, prefixOf, format, FORMAT };
+module.exports = { numbersFor, nextNumber, renumber, ensureCurrent, prefixOf, format, FORMAT, lingoKey, registerOf };

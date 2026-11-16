@@ -37,80 +37,17 @@ const RANKS = [
     { card: 'border-slate-200 bg-slate-50/80', badge: 'bg-slate-300 text-slate-800' },
     { card: 'border-orange-200 bg-orange-50/50', badge: 'bg-orange-300 text-orange-950' }
 ];
-const plural = (n, word, words = `${word}s`) => `${n} ${n === 1 ? word : words}`;
 const fmt = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-IN');
 const markText = (a, mark) => (a.mode === 'each' ? (a.cap != null ? `${fmt(a.got)} / ${fmt(a.cap)}` : `${fmt(a.got)} mark${a.got === 1 ? '' : 's'}`)
     : a.got > 0 || mark || (a.proofs || []).some((p) => p.status === 'approved') ? `${fmt(a.got ?? mark?.marks ?? 0)} / ${fmt(a.marks)}` : 'Not marked yet');
 
-/** Pick the organization's students to track; those already on the list are ticked and fixed. */
-const AddStudentsModal = ({ onClose, onDone }) => {
-    const [search, setSearch] = useState('');
-    const [students, setStudents] = useState(null);
-    const [picked, setPicked] = useState(() => new Set());
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState('');
-    useEffect(() => {
-        let live = true;
-        const t = setTimeout(() => {
-            teacherApi.get('/360/students', { params: { search: search.trim() || undefined } })
-                .then((r) => { if (live) setStudents(r.data.students || []); })
-                .catch((err) => { if (live) setError(messageOf(err, 'Your organization’s students could not be loaded.')); });
-        }, search ? 300 : 0);
-        return () => { live = false; clearTimeout(t); };
-    }, [search]);
-    const toggle = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-    const submit = async () => {
-        setBusy(true); setError('');
-        try { onDone((await teacherApi.post('/360/students', { studentIds: [...picked] })).data, `${plural(picked.size, 'student')} added.`); }
-        catch (err) { setError(messageOf(err, 'The students could not be added.')); setBusy(false); }
-    };
-    return (
-        <Modal title="Add students to track" onClose={onClose} wide
-            footer={(
-                <>
-                    <button type="button" onClick={onClose} className={btn.secondary}>Cancel</button>
-                    <button type="button" onClick={submit} disabled={busy || !picked.size} className={btn.primary}>{busy ? 'Adding…' : `Add ${picked.size || ''}`.trim()}</button>
-                </>
-            )}>
-            <div className="space-y-3">
-                <div className="relative">
-                    <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                    <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, card, mobile or email" aria-label="Search students" className={`${inputClass} pl-9`} />
-                </div>
-                <ErrorNote>{error}</ErrorNote>
-                {!students ? <Loading label="Loading students…" /> : students.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-slate-500">{search ? 'No student matches.' : 'Your organization has no students yet.'}</p>
-                ) : (
-                    <ul className="max-h-[50dvh] divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
-                        {students.map((st) => {
-                            const id = String(st._id);
-                            return (
-                                <li key={id}>
-                                    <label className={`flex items-center gap-3 px-3 py-2.5 ${st.mine ? 'opacity-60' : 'cursor-pointer hover:bg-slate-50'}`}>
-                                        <input type="checkbox" checked={st.mine || picked.has(id)} disabled={st.mine} onChange={() => toggle(id)} className="h-4 w-4 shrink-0 accent-emerald-600" />
-                                        <TeacherAvatar teacher={st} className="h-8 w-8 text-[11px]" />
-                                        <span className="min-w-0 flex-1">
-                                            <span className="block truncate text-sm font-semibold text-slate-900">{st.name}</span>
-                                            <span className="block truncate text-xs text-slate-500">{st.cardNumber || st.phone || st.email}</span>
-                                        </span>
-                                        {st.mine && <Badge tone="bg-emerald-50 text-emerald-700">On your list</Badge>}
-                                    </label>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                )}
-            </div>
-        </Modal>
-    );
-};
 
 /** The proof file: a picture shown small, a PDF as an icon; both open in full. */
 const ProofThumb = ({ proof: p, size = 'h-16 w-16' }) => {
     // Proof in the student's Drive (2026-11-02): Drive's picture of it (a PDF's first page too),
     // and the link opens it there. A picture Drive has not drawn yet shows the file icon.
     const [failed, setFailed] = useState(false);
-    const picture = !failed && (p.previewUrl || (p.fileType !== 'pdf' ? p.fileUrl : ''));
+    const picture = !failed && (p.previewUrl || (p.fileType === 'image' ? p.fileUrl : ''));
     return (
         <a href={p.fileUrl} target="_blank" rel="noreferrer" aria-label={`Open the proof ${p.fileName || ''}`}
             className={`flex ${size} shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 hover:ring-2 hover:ring-emerald-500/40`}>
@@ -156,11 +93,11 @@ const SHOW = [
     ['all', 'Every activity', () => true, () => 'Your organization has not listed any activities yet.']
 ];
 
-const StudentSheet = ({ student, onClose, onChanged }) => {
+const StudentSheet = ({ student, onClose, onChanged, initialShow = 'proof' }) => {
     const [sheet, setSheet] = useState(null);
     const [error, setError] = useState('');
     const [note, setNote] = useState('');
-    const [show, setShow] = useState('proof');
+    const [show, setShow] = useState(initialShow);
     const url = `/360/students/${student._id}/activities`;
     const load = useCallback(() => teacherApi.get(url)
         .then((r) => { setSheet(r.data); setError(''); })
@@ -172,7 +109,7 @@ const StudentSheet = ({ student, onClose, onChanged }) => {
     const [, , test, empty] = SHOW.find(([key]) => key === show);
     const groups = (sheet?.groups || []).map((g) => ({ ...g, activities: g.activities.filter(test) })).filter((g) => g.activities.length);
     return (
-        <Modal title={`${student.name} · 360 activities`} onClose={onClose} wide labelId="student-sheet-title"
+        <Modal title={`${student.name} · Student Ranking activities`} onClose={onClose} wide labelId="student-sheet-title"
             footer={<button type="button" onClick={onClose} className={btn.secondary}>Close</button>}>
             <ErrorNote onRetry={!sheet ? load : undefined}>{error}</ErrorNote>
             {!sheet ? (!error && <Loading label="Loading activities…" />) : (
@@ -204,7 +141,7 @@ const StudentSheet = ({ student, onClose, onChanged }) => {
     );
 };
 
-const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
+const SheetActivity = ({ studentId, who, activity: a, onChanged, onlyProof = null }) => {
     const each = a.mode === 'each';
     // "Up to N": marks for each proof, typed in its own box (2026-11-04).
     const [marks, setMarks] = useState(() => Object.fromEntries(a.proofs.map((p) => [p._id, p.status === 'approved' && p.marks ? String(p.marks) : ''])));
@@ -266,7 +203,7 @@ const SheetActivity = ({ studentId, who, activity: a, onChanged }) => {
             </div>
             {a.proofs.length > 0 && (
                 <ul className="mt-2 space-y-2">
-                    {a.proofs.map((p) => (
+                    {a.proofs.filter((p) => !onlyProof || String(p._id) === String(onlyProof)).map((p) => (
                         <li key={p._id} className="rounded-lg bg-slate-50 p-2">
                             <div className="flex items-start gap-2.5">
                                 <ProofThumb proof={p} size="h-12 w-12" />
@@ -382,33 +319,127 @@ const ProfileCard = ({ teacher, organization, classes, missing }) => {
     );
 };
 
+/** A small picture of the proof for the queue (no link: the whole row opens the review). */
+const QueueThumb = ({ proof: p }) => {
+    const [failed, setFailed] = useState(false);
+    const picture = !failed && (p.previewUrl || (p.fileType === 'image' ? p.fileUrl : ''));
+    return (
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+            {picture ? <img src={picture} alt="" loading="lazy" className="h-full w-full object-cover" onError={() => setFailed(true)} /> : <FileText size={18} className="text-slate-400" aria-hidden="true" />}
+        </span>
+    );
+};
+
+/** One proof from the queue, on its own: a large view of it, then marks and accept / send back. */
+const ProofReview = ({ item, student, onClose, onDone }) => {
+    const [sheet, setSheet] = useState(null);
+    const [error, setError] = useState('');
+    const [imgFailed, setImgFailed] = useState(false);
+    useEffect(() => {
+        let live = true;
+        teacherApi.get(`/360/students/${item.studentId}/activities`)
+            .then((r) => { if (live) setSheet(r.data); })
+            .catch((err) => { if (live) setError(messageOf(err, 'This proof could not be loaded.')); });
+        return () => { live = false; };
+    }, [item.studentId]);
+    const activity = (sheet?.groups || []).flatMap((g) => g.activities).find((a) => a.proofs.some((p) => String(p._id) === String(item._id)));
+    const proof = activity?.proofs.find((p) => String(p._id) === String(item._id)) || item;
+    const picture = !imgFailed && (proof.previewUrl || (proof.fileType === 'image' ? proof.fileUrl : ''));
+    return (
+        <Modal title={`${item.activity || 'Proof'} · ${student.name}`} onClose={onClose} wide labelId="proof-review-title"
+            footer={<button type="button" onClick={onClose} className={btn.secondary}>Close</button>}>
+            <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                    <TeacherAvatar teacher={student} className="h-10 w-10 text-xs" />
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-slate-900">{student.name}</p>
+                        <p className="truncate text-xs text-slate-500">{[item.group, `sent ${fmtAgo(item.createdAt)}`].filter(Boolean).join(' · ')}</p>
+                    </div>
+                    <a href={proof.fileUrl} target="_blank" rel="noreferrer" className={`${btn.secondary} !px-3 !py-1.5 !text-xs`}><FileText size={14} /> Open file</a>
+                </div>
+                <a href={proof.fileUrl} target="_blank" rel="noreferrer" aria-label="Open the proof full size"
+                    className="flex max-h-[26rem] min-h-[10rem] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    {picture
+                        ? <img src={picture} alt={`Proof: ${proof.fileName || item.activity}`} className="max-h-[26rem] w-full object-contain" onError={() => setImgFailed(true)} />
+                        : <span className="flex flex-col items-center gap-2 py-10 text-sm font-semibold text-emerald-700"><FileText size={36} className="text-slate-400" />{proof.fileName || 'Open the PDF'}</span>}
+                </a>
+                {item.note && <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700"><span className="font-semibold">Student’s note:</span> “{item.note}”</p>}
+                <ErrorNote>{error}</ErrorNote>
+                {!sheet ? (!error && <Loading label="Loading the activity…" />) : !activity ? (
+                    <p className="text-sm text-slate-500">This proof has already been checked.</p>
+                ) : (
+                    <ul><SheetActivity studentId={item.studentId} who={student.name} activity={activity} onlyProof={item._id} onChanged={(_, message) => onDone(message)} /></ul>
+                )}
+            </div>
+        </Modal>
+    );
+};
+
+/** Every proof waiting to be checked, from all students, oldest first: tap one to check it. */
+const ProofQueue = ({ queue, students, onOpen }) => {
+    const [all, setAll] = useState(false);
+    const byId = Object.fromEntries(students.map((st) => [String(st._id), st]));
+    const shown = all ? queue : queue.slice(0, 8);
+    return (
+        <Card className="lg:sticky lg:top-4">
+            <CardTitle icon={ClipboardCheck} color="amber" right={queue.length > 0 && <Badge tone="bg-amber-50 text-amber-700 !text-xs">{queue.length}</Badge>}>Proofs to check</CardTitle>
+            {queue.length === 0 ? (
+                <div className="py-6 text-center">
+                    <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 size={20} aria-hidden="true" /></span>
+                    <p className="mt-2 text-sm font-semibold text-slate-700">All caught up</p>
+                    <p className="text-xs text-slate-500">New proof from your students shows here.</p>
+                </div>
+            ) : (
+                <>
+                    <p className="-mt-1 mb-2 text-xs text-slate-500">From all your students, oldest first. Tap one to see the proof and give marks.</p>
+                    <ul className="max-h-[34rem] space-y-1.5 overflow-y-auto pr-0.5">
+                        {shown.map((q) => {
+                            const st = byId[String(q.studentId)] || { _id: q.studentId, name: 'Student' };
+                            return (
+                                <li key={q._id}>
+                                    <button type="button" onClick={() => onOpen(q, st)} aria-label={`Check ${st.name}'s proof for ${q.activity}`}
+                                        className="group flex w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-2 text-left transition-colors hover:border-amber-300 hover:bg-amber-50/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
+                                        <QueueThumb proof={q} />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-semibold text-slate-900">{q.activity || 'Activity'}</span>
+                                            <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
+                                                <TeacherAvatar teacher={st} className="h-4 w-4 text-[8px]" />
+                                                <span className="truncate">{st.name}</span>
+                                                <span className="shrink-0 text-slate-400">· {fmtAgo(q.createdAt)}</span>
+                                            </span>
+                                            {q.note && <span className="block truncate text-[11px] italic text-slate-500">“{q.note}”</span>}
+                                        </span>
+                                        <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-slate-300 group-hover:text-amber-600" />
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                    {queue.length > 8 && <button type="button" onClick={() => setAll(!all)} className={`${btn.ghost} mt-2 w-full`}>{all ? 'Show fewer' : `Show all ${queue.length}`}</button>}
+                </>
+            )}
+        </Card>
+    );
+};
+
 export default function Mentor360() {
     const { teacher } = useTeacher();
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
     const [note, setNote] = useState('');
-    const [adding, setAdding] = useState(false);
     const [opening, setOpening] = useState(null);       // a student whose activities are open
-    const [busy, setBusy] = useState('');
-    const [confirm, confirmDialog] = useConfirmDialog();
+    const [openShow, setOpenShow] = useState('proof');   // which of their activities the sheet shows first
+    const [reviewing, setReviewing] = useState(null);    // { item, student }: one proof from the queue
+    const [, confirmDialog] = useConfirmDialog();
     const closeSheet = useCallback(() => setOpening(null), []);
 
     const load = useCallback(() => teacherApi.get('/360')
         .then((r) => { setData(r.data); setError(''); })
-        .catch((err) => setError(messageOf(err, 'Could not load your 360 dashboard.'))), []);
+        .catch((err) => setError(messageOf(err, 'Could not load your Student Ranking dashboard.'))), []);
     // New proof from students shows without a refresh: asked again every 15s while on screen.
     useAutoRefresh(load, 15000);
-    const done = (next, message) => { setData(next); setAdding(false); setNote(message || ''); };
 
-    const removeStudent = async (st) => {
-        if (!(await confirm({ title: `Stop tracking ${st.name}?`, message: 'They come off your list of students.', confirmLabel: 'Remove', destructive: true }))) return;
-        setBusy(`student:${st._id}`); setNote('');
-        try { done((await teacherApi.delete(`/360/students/${st._id}`)).data, `${st.name} is off your list.`); }
-        catch (err) { setError(messageOf(err, 'The student could not be removed.')); }
-        finally { setBusy(''); }
-    };
-
-    if (!data && !error) return <Loading label="Loading your 360 dashboard…" />;
+    if (!data && !error) return <Loading label="Loading your Student Ranking dashboard…" />;
     const students = data?.students || [];
     const research = hasResearch(teacher);
     const missing = data ? missingOf(teacher, data.classes || [], data.courses) : [];
@@ -418,7 +449,7 @@ export default function Mentor360() {
 
     return (
         <div className="space-y-6">
-            <PageHeader icon={Orbit} title="360 Dashboard" color="teal"
+            <PageHeader icon={Orbit} title={data?.title || 'Student Ranking'} color="teal"
                 subtitle={data?.organization ? `${data.organization.name} · your students and their activities` : `Welcome, ${teacher?.name || 'teacher'}`} />
             <ErrorNote onRetry={!data ? load : undefined}>{error}</ErrorNote>
             <OkNote>{note}</OkNote>
@@ -445,8 +476,8 @@ export default function Mentor360() {
                     <div className="absolute inset-0 flex items-start justify-center p-4 pt-10">
                         <div role="status" className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-xl">
                             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-teal-50 text-teal-600"><Lock size={22} aria-hidden="true" /></span>
-                            <h2 className="mt-3 text-lg font-bold text-slate-800">360 is locked</h2>
-                            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">360 is not unlocked for {data.organization.name} yet. Ask your organization to have the YATICORP team unlock it. The classes you teach stay in your profile meanwhile.</p>
+                            <h2 className="mt-3 text-lg font-bold text-slate-800">{data.title || 'Student Ranking'} is locked</h2>
+                            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{data.title || 'Student Ranking'} is not unlocked for {data.organization.name} yet. Ask your organization to have the YATICORP team unlock it. The classes you teach stay in your profile meanwhile.</p>
                         </div>
                     </div>
                 </div>
@@ -454,78 +485,79 @@ export default function Mentor360() {
                 <>
                     <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                         <StatTile icon={Users} label="My students" value={students.length} color="emerald" />
-                        <StatTile icon={ClipboardCheck} label="Proofs to check" value={waiting} sub={waiting ? 'Tap a student below.' : 'All checked.'} color="amber" />
+                        <StatTile icon={ClipboardCheck} label="Proofs to check" value={waiting} sub={waiting ? 'All listed on the right.' : 'All checked.'} color="amber" />
                         <div className="col-span-2 lg:col-span-1">
                             <StatTile icon={Trophy} label="Highest marks" value={toppers.length ? fmt(toppers[0].marks) : '—'}
                                 sub={toppers.length ? toppers[0].name : 'No marks given yet.'} color="violet" />
                         </div>
                     </div>
-                    {toppers.length > 0 && (
-                        <Card>
-                            <CardTitle icon={Trophy} color="violet">Top scorers</CardTitle>
-                            <p className="-mt-1 mb-3 text-xs text-slate-500">Your students with the highest 360 marks so far. Tap one to open their proof.</p>
-                            <ol className="grid gap-2 sm:grid-cols-3">
-                                {toppers.map((st, i) => (
-                                    <li key={st._id}>
-                                        <button type="button" onClick={() => setOpening(st)} aria-label={`Rank ${i + 1}: ${st.name}, ${fmt(st.marks)} marks`}
-                                            className={`flex w-full min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${RANKS[i].card}`}>
-                                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${RANKS[i].badge}`}>{i + 1}</span>
-                                            <TeacherAvatar teacher={st} className="h-9 w-9 text-xs" />
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block truncate text-sm font-semibold text-slate-900">{st.name}</span>
-                                                <span className="block truncate text-[11px] text-slate-500 tabular-nums">{st.cardNumber || st.email}</span>
-                                            </span>
-                                            <span className="shrink-0 text-right">
-                                                <span className="block text-lg font-bold leading-none text-slate-900 tabular-nums">{fmt(st.marks)}</span>
-                                                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">marks</span>
-                                            </span>
-                                        </button>
-                                    </li>
-                                ))}
-                            </ol>
-                        </Card>
-                    )}
-                    <Card>
-                        <CardTitle icon={Users} color="emerald" right={<button type="button" onClick={() => setAdding(true)} className={btn.primary}><UserPlus size={15} /> Add students</button>}>
-                            My students
-                        </CardTitle>
-                        <p className="-mt-1 mb-2 text-xs text-slate-500">The students whose activities you track. Only they see 360; tap one to see all their proof and give marks.</p>
-                        {students.length === 0
-                            ? <p className="py-2 text-sm text-slate-500">No students yet. Add the ones you will track.</p>
-                            : (
-                                <ul className="max-h-[28rem] space-y-2 overflow-y-auto pr-0.5">
-                                    {students.map((st) => (
-                                        <li key={st._id} className={`flex items-center gap-2 rounded-xl border p-1.5 transition-colors ${st.waiting > 0 ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300' : 'border-emerald-100 bg-emerald-50/40 hover:border-emerald-300'}`}>
-                                            <button type="button" onClick={() => setOpening(st)} aria-label={`Open ${st.name}'s activities and proof`}
-                                                className="group flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
-                                                <TeacherAvatar teacher={st} className="h-8 w-8 text-[11px]" />
+                    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+                        <div className="min-w-0 space-y-6">
+                        {toppers.length > 0 && (
+                            <Card>
+                                <CardTitle icon={Trophy} color="violet">Top scorers</CardTitle>
+                                <p className="-mt-1 mb-3 text-xs text-slate-500">Your students with the highest ranking marks so far. Tap one to open their proof.</p>
+                                <ol className="grid gap-2 sm:grid-cols-3">
+                                    {toppers.map((st, i) => (
+                                        <li key={st._id}>
+                                            <button type="button" onClick={() => { setOpenShow('proof'); setOpening(st); }} aria-label={`Rank ${i + 1}: ${st.name}, ${fmt(st.marks)} marks`}
+                                                className={`flex w-full min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 ${RANKS[i].card}`}>
+                                                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${RANKS[i].badge}`}>{i + 1}</span>
+                                                <TeacherAvatar teacher={st} className="h-9 w-9 text-xs" />
                                                 <span className="min-w-0 flex-1">
                                                     <span className="block truncate text-sm font-semibold text-slate-900">{st.name}</span>
-                                                    <span className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-                                                        <span className="truncate">{st.cardNumber || st.phone || st.email}</span>
-                                                        <Badge tone="bg-emerald-50 text-emerald-700">{fmt(st.marks)} marks</Badge>
-                                                        {st.waiting > 0 && <Badge tone="bg-amber-50 text-amber-700">{st.waiting} to check</Badge>}
-                                                    </span>
+                                                    <span className="block truncate text-[11px] text-slate-500 tabular-nums">{st.cardNumber || st.email}</span>
                                                 </span>
-                                                <span className="hidden shrink-0 items-center gap-1 rounded-lg border border-emerald-600/30 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm group-hover:border-emerald-600 group-hover:bg-emerald-600 group-hover:text-white sm:inline-flex">
-                                                    {st.waiting > 0 ? 'Check proof' : 'Open'} <ChevronRight size={14} aria-hidden="true" />
+                                                <span className="shrink-0 text-right">
+                                                    <span className="block text-lg font-bold leading-none text-slate-900 tabular-nums">{fmt(st.marks)}</span>
+                                                    <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">marks</span>
                                                 </span>
-                                                <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-slate-400 sm:hidden" />
-                                            </button>
-                                            <button type="button" onClick={() => removeStudent(st)} disabled={busy === `student:${st._id}`} aria-label={`Stop tracking ${st.name}`} title="Remove from my list"
-                                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
-                                                {busy === `student:${st._id}` ? <Loader2 size={14} className="animate-spin" /> : <X size={15} />}
                                             </button>
                                         </li>
                                     ))}
-                                </ul>
-                            )}
-                    </Card>
+                                </ol>
+                            </Card>
+                        )}
+                        <Card>
+                            <CardTitle icon={Users} color="emerald">
+                                My students
+                            </CardTitle>
+                            <p className="-mt-1 mb-2 text-xs text-slate-500">The students your HOD assigned you to mentor. Tap one to see their proof and give marks.</p>
+                            {students.length === 0
+                                ? <p className="py-2 text-sm text-slate-500">No students yet. Your HOD assigns the students you mentor.</p>
+                                : (
+                                    <ul className="max-h-[28rem] space-y-2 overflow-y-auto pr-0.5">
+                                        {students.map((st) => (
+                                            <li key={st._id} className={`flex items-center gap-2 rounded-xl border p-1.5 transition-colors ${st.waiting > 0 ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300' : 'border-emerald-100 bg-emerald-50/40 hover:border-emerald-300'}`}>
+                                                <button type="button" onClick={() => { setOpenShow(st.waiting > 0 ? 'waiting' : 'proof'); setOpening(st); }} aria-label={`Open ${st.name}'s activities and proof`}
+                                                    className="group flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
+                                                    <TeacherAvatar teacher={st} className="h-8 w-8 text-[11px]" />
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block truncate text-sm font-semibold text-slate-900">{st.name}</span>
+                                                        <span className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                                                            <span className="truncate">{st.cardNumber || st.phone || st.email}</span>
+                                                            <Badge tone="bg-emerald-50 text-emerald-700">{fmt(st.marks)} marks</Badge>
+                                                            {st.waiting > 0 && <Badge tone="bg-amber-50 text-amber-700">{st.waiting} to check</Badge>}
+                                                        </span>
+                                                    </span>
+                                                    <span className="hidden shrink-0 items-center gap-1 rounded-lg border border-emerald-600/30 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm group-hover:border-emerald-600 group-hover:bg-emerald-600 group-hover:text-white sm:inline-flex">
+                                                        {st.waiting > 0 ? 'Check proof' : 'Open'} <ChevronRight size={14} aria-hidden="true" />
+                                                    </span>
+                                                    <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-slate-400 sm:hidden" />
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                        </Card>
+                        </div>
+                        <ProofQueue queue={data.queue || []} students={students} onOpen={(item, st) => setReviewing({ item, student: st })} />
+                    </div>
                 </>
             )}
 
-            {adding && <AddStudentsModal onClose={() => setAdding(false)} onDone={done} />}
-            {opening && <StudentSheet student={opening} onClose={closeSheet} onChanged={load} />}
+            {reviewing && <ProofReview key={reviewing.item._id} item={reviewing.item} student={reviewing.student} onClose={() => setReviewing(null)} onDone={(m) => { setReviewing(null); setNote(m || ''); load(); }} />}
+            {opening && <StudentSheet key={opening._id} student={opening} initialShow={openShow} onClose={closeSheet} onChanged={load} />}
             {confirmDialog}
         </div>
     );

@@ -46,8 +46,10 @@ const cardSchema = new mongoose.Schema({
     verifiedAt: { type: Date, default: null },
     verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null },
     // 'admin' (Verify cards, or added there), 'account' (verified by an admin
-    // adding its holder).
-    verifiedVia: { type: String, enum: ['admin', 'account', null], default: null },
+    // adding its holder), 'passport' (its AI Passport book was scanned with it).
+    verifiedVia: { type: String, enum: ['admin', 'account', 'passport', null], default: null },
+    // The AI Passport book linked to this card (models/Passport.js), once scanned.
+    passportCode: { type: String, default: null, index: true },
     // An organization's card (Students → Scan cards): whoever registers with
     // it joins that organization at once (organizations/services/cardLink.js).
     organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null, index: true },

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>YATI-LMS</title>
+    <title>YATICORP</title>
     <style>
       #splash-screen {
         position: fixed;
@@ -80,6 +80,23 @@
       <img src="/assets/YATICORP.png" alt="YATICORP" />
       <p>Loading...</p>
     </div>
+    <script>
+      // A college's admission link (/apply/<org ID>, 2026-11-16): its own logo while loading, never YATICORP.
+      (function () {
+        var m = location.pathname.match(/^\/apply\/([^/]+)/);
+        if (!m) return;
+        var img = document.querySelector('#splash-screen img');
+        var logo = null;
+        try { logo = localStorage.getItem('apply-logo:' + decodeURIComponent(m[1]).toLowerCase()); } catch (e) {}
+        if (img) {
+          if (logo) { img.src = logo; img.alt = ''; img.style.height = '80px'; img.style.width = '80px'; img.style.objectFit = 'contain'; }
+          else img.remove();
+        }
+        var t = document.querySelector('#splash-screen p');
+        if (t) t.textContent = 'Loading admission form…';
+        document.title = 'Admission';
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>

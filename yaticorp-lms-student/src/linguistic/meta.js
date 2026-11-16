@@ -303,7 +303,7 @@ export const downloadClips = async (items, on = {}) => {
         const key = clipKey(text, lang);
         if (!seen.has(key)) { seen.add(key); todo.push([text, lang, key]); }
     }
-    let done = 0, failed = 0; const missing = [];
+    let done = 0, failed = 0, serviceDown = false; const missing = [];
     on.onProgress?.(0, todo.length);
     const tick = () => { done++; on.onProgress?.(done, todo.length); };
     const run = async (list, n, fn) => {
@@ -311,7 +311,11 @@ export const downloadClips = async (items, on = {}) => {
         const worker = async () => {
             while (next < list.length && !on.signal?.stopped) {
                 const item = list[next++];
-                try { await fn(...item); } catch (e) { failed++; tick(); console.error("[voice] clip failed:", item[1], JSON.stringify(item[0]), e); }
+                try { await fn(...item); } catch (e) {
+                    failed++; tick(); console.error("[voice] clip failed:", item[1], JSON.stringify(item[0]), e);
+                    // 502/503 from /api/tts: the voice service itself is off, not the student's connection.
+                    if ([502, 503].includes(e?.response?.status)) serviceDown = true;
+                }
             }
         };
         await Promise.all(Array.from({ length: n }, worker));
@@ -328,7 +332,7 @@ export const downloadClips = async (items, on = {}) => {
     });
     // 2. Not made yet: made now, and kept on the server and the device.
     await run(missing, 8, async (text, lang) => { await serverClip(text, lang); tick(); });
-    return { total: todo.length, failed };
+    return { total: todo.length, failed, serviceDown };
 };
 
 /*

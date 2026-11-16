@@ -7,8 +7,7 @@
  *
  *   - on a laptop, a list under the field, flipping above it when there is no
  *     room below, never taller than the screen;
- *   - on a phone, a popup in the middle of the screen — where a thumb reaches
- *     easily — headed with the field's name, with large rows;
+ *   - on a phone too (since 2026-11-14), the same list under the field, with larger rows;
  *   - a search box once there are more than eight choices;
  *   - keyboard-complete, and announced as a listbox.
  *
@@ -89,7 +88,10 @@ export default function Select({
     const picked = useMemo(() => new Set(multiple ? (Array.isArray(value) ? value : []).map(String) : []), [multiple, value]);
     const pickedOptions = options.filter((o) => picked.has(o.value));
     const isSelected = (o) => (multiple ? picked.has(o.value) : o.value === String(value ?? ''));
-    const phone = usePhone();
+    // Always a list under the field, on phones too (owner's call, 2026-11-14) — never a popup.
+    // `touch` keeps the larger rows a thumb needs.
+    const touch = usePhone();
+    const phone = false;
     const listId = useId();
 
     const [open, setOpen] = useState(false);
@@ -262,7 +264,7 @@ export default function Select({
                         onMouseEnter={() => !o.disabled && setActive(i)}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => choose(o)}
-                        className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 text-sm transition-colors ${phone ? 'py-3' : 'py-2'} ${
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 text-sm transition-colors ${touch ? 'py-3' : 'py-2'} ${
                             o.disabled ? 'cursor-not-allowed text-slate-300'
                                 : i === active ? t.active
                                     : selected ? t.selected : 'text-slate-700'

@@ -16,6 +16,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, CalendarDays } from 'lucide-react';
 import ProfileImage from './ProfileImage';
+import OrganizationButton from '../organization/OrganizationButton';
 import './welcomeBanner.css';
 
 const R = 30;
@@ -178,6 +179,8 @@ export default function WelcomeBanner({
                         <p className="wb-in mt-1 max-w-md text-[13px] leading-snug text-slate-500 sm:mt-1.5 sm:text-base" style={{ animationDelay: '0.12s' }}>
                             Keep learning and make progress today!
                         </p>
+                        {/* Not in an organization yet (2026-11-14): join one from here — the school or college's ID. */}
+                        <div className="wb-in mt-3" style={{ animationDelay: '0.16s' }}><OrganizationButton joinOnly /></div>
                     </div>
                 </div>
 
