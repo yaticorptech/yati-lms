@@ -1,52 +1,46 @@
 /**
- * Kokoro-82M made off the page (2026-11-12, the user's "Page Unresponsive": the model ran on the page itself, and
- * while a unit's English audio was made — hundreds of clips — the page could not answer a tap). Here, in a worker,
- * it loads and speaks one clip at a time; the page only sends the text and gets the WAV back. The model is the same:
- * the 8-bit Kokoro (~80 MB) from the Hugging Face Hub, kept by transformers.js in the browser's Cache Storage.
+ * Kokoro-82M in a Web Worker (2026-11-13: "Page Unresponsive" while a unit's English audio was being made). The
+ * model ran on the page's own thread, so every clip froze the page — taps, Back and "Start now" did nothing until
+ * it finished. Here it runs beside the page instead: the page only sends text and gets a WAV back.
  *
- * In:  { id, type: 'load' } | { id, type: 'speak', text, voice, speed }
- * Out: { type: 'progress', value } (0..1, while the model downloads) | { id, type: 'ready' } |
- *      { id, type: 'done', blob } | { id, type: 'error', message }
+ * Messages in: { id, text, voice, speed }. Out: { id, blob } or { id, error }; and { progress } while the model
+ * downloads the first time.
  */
 import { KokoroTTS } from 'kokoro-js';
 
 const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
-const VOICE = 'af_heart'; // the model's best-rated voice
+let model = null;
 
-let ttsP = null;
 const load = () => {
-    if (!ttsP) {
+    if (!model) {
         const files = new Map();
-        const progress_callback = (p) => {
-            if (p?.status !== 'progress' || !p.total) return;
-            files.set(p.file, [p.loaded, p.total]);
-            let l = 0, t = 0;
-            for (const [a, b] of files.values()) { l += a; t += b; }
-            self.postMessage({ type: 'progress', value: t ? l / t : 0 });
-        };
-        // WASM + 8-bit: the path that works in every browser and the app's web view.
-        ttsP = KokoroTTS.from_pretrained(MODEL, { dtype: 'q8', device: 'wasm', progress_callback });
-        ttsP.catch(() => { ttsP = null; }); // tried again next time
+        model = KokoroTTS.from_pretrained(MODEL, {
+            dtype: 'q8',
+            device: 'wasm',
+            progress_callback: (p) => {
+                if (p?.status !== 'progress' || !p.total) return;
+                files.set(p.file, [p.loaded, p.total]);
+                let l = 0, t = 0;
+                for (const [a, b] of files.values()) { l += a; t += b; }
+                self.postMessage({ progress: t ? l / t : 0 });
+            }
+        });
+        model.catch(() => { model = null; }); // tried again with the next clip
     }
-    return ttsP;
+    return model;
 };
-
-const failed = (id, e) => self.postMessage({ id, type: 'error', message: String(e?.message || e || 'Kokoro failed') });
 
 // One clip at a time: an ONNX session cannot run two at once.
 let chain = Promise.resolve();
-self.onmessage = (event) => {
-    const { id, type, text, voice, speed } = event.data || {};
-    if (type === 'load') {
-        load().then(() => self.postMessage({ id, type: 'ready' }), (e) => failed(id, e));
-        return;
-    }
-    if (type !== 'speak') return;
+self.onmessage = (e) => {
+    const { id, text, voice, speed } = e.data || {};
     chain = chain.then(async () => {
         try {
             const tts = await load();
-            const audio = await tts.generate(String(text || ''), { voice: voice || VOICE, speed: speed || 1 });
-            self.postMessage({ id, type: 'done', blob: audio.toBlob() });
-        } catch (e) { failed(id, e); }
+            const audio = await tts.generate(text, { voice, speed: speed || 1 });
+            self.postMessage({ id, blob: audio.toBlob() });
+        } catch (err) {
+            self.postMessage({ id, error: String(err?.message || err) });
+        }
     });
 };

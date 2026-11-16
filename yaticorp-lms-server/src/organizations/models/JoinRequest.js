@@ -53,6 +53,12 @@ const joinRequestSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Admin',
         default: null
+    },
+    // Campus (2026-11-14): the department, semester and section the student chose when
+    // asking to join; on approval the office admits them there (src/campus).
+    campus: {
+        type: new mongoose.Schema({ departmentId: mongoose.Schema.Types.ObjectId, semester: Number, section: String }, { _id: false }),
+        default: undefined
     }
 }, { timestamps: true });
 
@@ -76,6 +82,9 @@ joinRequestSchema.index({ organizationId: 1, status: 1, createdAt: 1 });
 // "This student's latest request", which is what the student's own view asks
 // for. Compound rather than a plain userId index, so the sort is served too.
 joinRequestSchema.index({ userId: 1, createdAt: -1 });
+
+// A request sent, decided or cancelled: the student's open pages re-read it (services/orgEvents).
+require('../../services/orgEvents').watch(joinRequestSchema, ['status'], 'userId');
 
 const JoinRequest = mongoose.model('OrgJoinRequest', joinRequestSchema, 'org_join_requests');
 

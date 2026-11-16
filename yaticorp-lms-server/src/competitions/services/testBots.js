@@ -140,7 +140,7 @@ const decide = (game, i, now) => {
         return { type: 'place', cell, digit: wrong ? (s.solution[cell] % 9) + 1 : s.solution[cell] };
     }
 
-    // The adventures (The Final Vault, The Lost Kingdom): a chamber every so often, now and then a wrong try.
+    // The adventures (The Final Vault): a chamber every so often, now and then a wrong try.
     if (s.progress) {
         if (s.phase !== 'play' || now >= s.phaseEndsAt) return null;
         const p = s.progress[i];

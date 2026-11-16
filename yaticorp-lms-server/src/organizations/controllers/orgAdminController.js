@@ -528,64 +528,74 @@ const sendStudentWelcome = async (user, password, organization) => {
  *          one step. A problem comes back as a 400 naming the field.
  * @route   POST /api/organizations/me/students
  */
+/**
+ * Make a student account from an AI card, in `organization` — Students → Add
+ * student here, and Campus → New admission (src/campus/orgAdmin.js). Throws
+ * { status: 400, field, message, code } for anything the form should say.
+ * `password` blank: one is made up. Returns { user, password }.
+ */
+const createCardStudent = async (organization, body = {}) => {
+    const Card = require('../../models/Card');
+    const { isVerified, NOT_VERIFIED, FREE } = require('../../services/cardVerification');
+    const name = String(body.name || '').trim();
+    const email = String(body.email || '').trim().toLowerCase();
+    const phone = String(body.phone || '').trim();
+    const password = String(body.password || '') || `Yc${require('crypto').randomBytes(5).toString('hex')}!${Math.floor(Math.random() * 90 + 10)}`;
+    const bad = (field, message, code) => Object.assign(new Error(message), { status: 400, field, code });
+
+    if (!body.CardNumber || !body.CVV || !body.qrCodeNumber) throw bad('card', 'Enter the card number, CVV and QR code number from the student’s AI card.');
+    if (name.length < 2 || name.length > 80) throw bad('name', 'Enter the student’s full name.');
+    if (!EMAIL.test(email) || email.length > 254) throw bad('email', 'Enter a valid email address.');
+    const digits = phone.replace(/\D/g, '');
+    if (!/^\+?[\d\s().-]+$/.test(phone) || digits.length < 10 || digits.length > 15) throw bad('phone', 'Enter a phone number of 10–15 digits.');
+    const pwError = validatePasswordStrength(password);
+    if (pwError) throw bad('password', pwError);
+
+    // The three values together, as text: an object from the body never reaches the query.
+    const cardKey = { CardNumber: String(body.CardNumber).trim(), CVV: String(body.CVV).trim(), qrCodeNumber: String(body.qrCodeNumber).trim() };
+    const card = await Card.findOne(cardKey);
+    if (!card) throw bad('card', 'Those card details did not match. Check the card again.', 'CARD_INVALID');
+    if (card.status === 'used') throw bad('card', 'This card already has an account.', 'CARD_USED');
+    if (!FREE.includes(card.status)) throw bad('card', 'This card is inactive and cannot be used.', 'CARD_INACTIVE');
+    if (!isVerified(card)) throw bad('card', NOT_VERIFIED.message, NOT_VERIFIED.code);
+    if (card.organizationId && String(card.organizationId) !== String(organization._id)) throw bad('card', 'This card is linked to another organization.', 'CARD_OTHER_ORG');
+
+    const taken = await User.findOne({ $or: [{ email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }, { cardNumber: cardKey.CardNumber }] }).select('cardNumber').lean();
+    if (taken) {
+        throw String(taken.cardNumber) === cardKey.CardNumber
+            ? bad('card', 'This card already has an account.', 'CARD_USED')
+            : bad('email', 'An account already uses this email address. Use another one.', 'EMAIL_TAKEN');
+    }
+
+    // Claimed before the account exists, so two adds with one card cannot
+    // both get through; put back if the account cannot be made.
+    const claimed = await Card.findOneAndUpdate({ _id: card._id, status: { $in: FREE } }, { $set: { status: 'used' } });
+    if (!claimed) throw bad('card', 'This card already has an account.', 'CARD_USED');
+    try {
+        const user = await User.create({
+            name, email, phone, password,
+            cardNumber: cardKey.CardNumber,
+            serialNumber: card.SerialNumber || '',
+            qrNumber: card.qrCodeNumber || '',
+            organizationId: organization._id,
+            organizationJoinedAt: new Date()
+        });
+        return { user, password };
+    } catch (error) {
+        await Card.updateOne({ _id: card._id, status: 'used' }, { $set: { status: claimed.status } }).catch(() => {});
+        throw error;
+    }
+};
+
 const addStudent = async (req, res) => {
     try {
-        const Card = require('../../models/Card');
-        const { isVerified, NOT_VERIFIED, FREE } = require('../../services/cardVerification');
-        const body = req.body || {};
-        const name = String(body.name || '').trim();
-        const email = String(body.email || '').trim().toLowerCase();
-        const phone = String(body.phone || '').trim();
-        const password = String(body.password || '');
-        const bad = (field, message, code) => res.status(400).json({ field, message, ...(code ? { code } : {}) });
-
-        if (!body.CardNumber || !body.CVV || !body.qrCodeNumber) return bad('card', 'Check the card first.');
-        if (name.length < 2 || name.length > 80) return bad('name', 'Enter the student’s full name.');
-        if (!EMAIL.test(email) || email.length > 254) return bad('email', 'Enter a valid email address.');
-        const digits = phone.replace(/\D/g, '');
-        if (!/^\+?[\d\s().-]+$/.test(phone) || digits.length < 10 || digits.length > 15) return bad('phone', 'Enter a phone number of 10–15 digits.');
-        const pwError = validatePasswordStrength(password);
-        if (pwError) return bad('password', pwError);
-
-        // The three values together, as text: an object from the body never reaches the query.
-        const cardKey = { CardNumber: String(body.CardNumber), CVV: String(body.CVV), qrCodeNumber: String(body.qrCodeNumber) };
-        const card = await Card.findOne(cardKey);
-        if (!card) return bad('card', 'Those card details did not match. Check the card again.', 'CARD_INVALID');
-        if (card.status === 'used') return bad('card', 'This card already has an account.', 'CARD_USED');
-        if (!FREE.includes(card.status)) return bad('card', 'This card is inactive and cannot be used.', 'CARD_INACTIVE');
-        if (!isVerified(card)) return bad('card', NOT_VERIFIED.message, NOT_VERIFIED.code);
-        if (card.organizationId && String(card.organizationId) !== String(req.organization._id)) return bad('card', 'This card is linked to another organization.', 'CARD_OTHER_ORG');
-
-        const taken = await User.findOne({ $or: [{ email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }, { cardNumber: cardKey.CardNumber }] }).select('cardNumber').lean();
-        if (taken) {
-            return String(taken.cardNumber) === cardKey.CardNumber
-                ? bad('card', 'This card already has an account.', 'CARD_USED')
-                : bad('email', 'An account already uses this email address. Use another one.', 'EMAIL_TAKEN');
-        }
-
-        // Claimed before the account exists, so two adds with one card cannot
-        // both get through; put back if the account cannot be made.
-        const claimed = await Card.findOneAndUpdate({ _id: card._id, status: { $in: FREE } }, { $set: { status: 'used' } });
-        if (!claimed) return bad('card', 'This card already has an account.', 'CARD_USED');
-        let user;
-        try {
-            user = await User.create({
-                name, email, phone, password,
-                cardNumber: cardKey.CardNumber,
-                serialNumber: card.SerialNumber || '',
-                qrNumber: card.qrCodeNumber || '',
-                organizationId: req.organization._id,
-                organizationJoinedAt: new Date()
-            });
-        } catch (error) {
-            await Card.updateOne({ _id: card._id, status: 'used' }, { $set: { status: claimed.status } }).catch(() => {});
-            throw error;
-        }
-
+        if (!String(req.body?.password || '')) return res.status(400).json({ field: 'password', message: validatePasswordStrength('') || 'Set a password.' });
+        const { user, password } = await createCardStudent(req.organization, req.body);
         await OrgAuditLog.record({ orgId: req.organization._id, admin: req.admin, action: 'add-student', req, details: { studentId: user._id, studentName: user.name } });
         sendStudentWelcome(user, password, req.organization);
         res.status(201).json({ _id: user._id, name: user.name, message: `${user.name} was added to your organization. Their sign-in details were emailed to ${user.email}.` });
     } catch (error) {
+        if (error.status === 400) return res.status(400).json({ field: error.field, message: error.message, ...(error.code ? { code: error.code } : {}) });
         console.error('[org] add student failed:', error.message);
         res.status(500).json({ message: 'The student could not be added just now. Please try again.' });
     }
@@ -602,6 +612,8 @@ const removeStudent = async (req, res) => {
             return res.status(404).json({ message: 'No such student in your organization' });
         }
 
+        // Their Campus record (admission, attendance, marks, receipts) is kept in their history first.
+        await require('../../campus/core').archiveCampus(student._id, req.organization._id, 'Removed from the institution');
         student.organizationId = null;
         student.organizationJoinedAt = null;
         await student.save();
@@ -702,6 +714,34 @@ const getRequestCount = async (req, res) => {
  * Approving is what actually creates a membership: it is the only place in the
  * codebase that sets `User.organizationId`.
  */
+/**
+ * Campus (2026-11-14): on approval, admit the student to the class they asked for — or the one the
+ * office changed it to (departmentId, semester, section in the body). The message to show, or ''
+ * when Campus is off or no class was asked for; says so plainly when the admission could not be made.
+ */
+const admitFromRequest = async (req, request, student) => {
+    const C = require('../../campus/core');
+    const org = await Organization.findById(req.organization._id).select('campusAllowed').lean();
+    const b = req.body || {};
+    const wanted = b.departmentId ? { departmentId: b.departmentId, semester: b.semester, section: b.section } : request.campus;
+    if (!org?.campusAllowed || !wanted?.departmentId) return '';
+    const { campus } = await C.loadCampus(req.organization._id);
+    const dept = campus.departments.find((d) => String(d._id) === String(wanted.departmentId));
+    const semester = Math.round(Number(wanted.semester));
+    const sections = dept?.sections || [];
+    const asked = String(wanted.section || '').toUpperCase();
+    const section = sections.includes(asked) ? asked : sections.length === 1 ? sections[0] : '';
+    if (!dept || !(semester >= 1 && semester <= (dept.semesters || 1)) || (sections.length > 1 && !section)) {
+        return `${student.name} joined, but was not put in a class: add them to their class from Campus → Students.`;
+    }
+    // Existing students (2026-11-16): a join request puts them straight in their class, with an admission
+    // number — Admissions is for new students' full applications only.
+    const placed = await C.placeMember(req.organization._id, dept, student._id, { semester, section });
+    return placed
+        ? `${student.name} joined and was added to ${dept.name}, semester ${semester}${section && sections.length > 1 ? ` ${section}` : ''}.`
+        : `${student.name} joined; they already had a class, so it was left as it was.`;
+};
+
 const decideRequest = async (req, res) => {
     try {
         const { decision, reason } = req.body;
@@ -758,8 +798,9 @@ const decideRequest = async (req, res) => {
             const fresh = await User.findById(student._id).select('organizationId').lean();
             if (String(fresh?.organizationId || '') === String(req.organization._id)) {
                 // Already ours (assigned by a superadmin meanwhile): the
-                // approval simply agrees with what is true.
-                return res.json({ message: `${student.name} is now a member of your organization.` });
+                // approval simply agrees with what is true — and admits them to the class asked for.
+                const admitted = await admitFromRequest(req, request, student);
+                return res.json({ message: admitted || `${student.name} is now a member of your organization.` });
             }
             // They joined somewhere else while this sat in the queue. The
             // request is settled rather than left pending forever, and the
@@ -777,7 +818,9 @@ const decideRequest = async (req, res) => {
         // XP rule (optional): the student's first organization, once ever, so
         // leaving and rejoining pays nothing more.
         await require('../../rewards/services/xpHooks').recordIfRuled({ userId: student._id, type: 'organization_join', refId: 'organization' });
-        res.json({ message: `${student.name} is now a member of your organization.` });
+
+        const admitted = await admitFromRequest(req, request, student);
+        res.json({ message: admitted || `${student.name} is now a member of your organization.` });
     } catch (error) {
         if (error.name === 'CastError') {
             return res.status(404).json({ message: 'That request is no longer waiting for a decision' });
@@ -788,6 +831,8 @@ const decideRequest = async (req, res) => {
 };
 
 module.exports = {
+    createCardStudent,
+    sendStudentWelcome,
     uploadLogo,
     getMyOrganization,
     updateMyOrganization,

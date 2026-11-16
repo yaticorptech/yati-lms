@@ -5,7 +5,8 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
-export default function BioStrength({ percent = 0, nextStep, areas, compact = false }) {
+// `onDark`: on a coloured card (the Learning Bio header, 2026-11-16) — white words and a light track, so they read.
+export default function BioStrength({ percent = 0, nextStep, areas, compact = false, onDark = false }) {
     // Animate from zero on mount so the bar visibly fills.
     const [width, setWidth] = useState(0);
     const [open, setOpen] = useState(false);
@@ -14,11 +15,11 @@ export default function BioStrength({ percent = 0, nextStep, areas, compact = fa
     return (
         <div>
             <div className="flex items-center justify-between text-sm">
-                <p className="font-semibold text-slate-700">Profile Strength</p>
-                <p className="font-black tabular-nums text-slate-900">{percent}%</p>
+                <p className={`font-semibold ${onDark ? 'text-white/90' : 'text-slate-700'}`}>Profile Strength</p>
+                <p className={`font-black tabular-nums ${onDark ? 'text-white' : 'text-slate-900'}`}>{percent}%</p>
             </div>
-            <div className="mt-1.5 h-3 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Profile strength">
-                <div className={`h-full rounded-full bg-gradient-to-r ${tone} transition-[width] duration-1000 ease-out`} style={{ width: `${width}%` }} />
+            <div className={`mt-1.5 h-3 overflow-hidden rounded-full ${onDark ? 'bg-white/25' : 'bg-slate-200'}`} role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Profile strength">
+                <div className={`h-full rounded-full ${onDark ? 'bg-white' : `bg-gradient-to-r ${tone}`} transition-[width] duration-1000 ease-out`} style={{ width: `${width}%` }} />
             </div>
             {!compact && nextStep && <p className="mt-2 text-xs text-slate-600">Your profile is {percent}% complete. <span className="font-semibold text-indigo-700">{nextStep}</span></p>}
             {!compact && areas?.length > 0 && (

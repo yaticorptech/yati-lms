@@ -16,7 +16,16 @@
 module.exports = {
     beginner: {
         '1:1': {
-            phrases: false,
+            // English learners too (2026-11-16): Family had five lessons.
+            en: true,
+            // And its Phrases, for the Kannada and Hindi courses (2026-11-16: their Family had five lessons too).
+            phrases: [
+                { read: true, en: 'My grandmother tells stories.', kn: 'ನನ್ನ ಅಜ್ಜಿ ಕಥೆಗಳನ್ನು ಹೇಳುತ್ತಾರೆ.', hi: 'मेरी दादी कहानियाँ सुनाती हैं।' },
+                { en: 'This is my son.', kn: 'ಇವನು ನನ್ನ ಮಗ.', hi: 'यह मेरा बेटा है।' },
+                { read: true, en: 'My daughter goes to school.', kn: 'ನನ್ನ ಮಗಳು ಶಾಲೆಗೆ ಹೋಗುತ್ತಾಳೆ.', hi: 'मेरी बेटी स्कूल जाती है।' },
+                { en: 'My grandfather reads the newspaper.', kn: 'ನನ್ನ ಅಜ್ಜ ಪತ್ರಿಕೆ ಓದುತ್ತಾರೆ.', hi: 'मेरे दादा अख़बार पढ़ते हैं।', acc: { en: ['My grandfather reads a newspaper.', 'My grandfather reads newspaper.'] } },
+                { en: 'We live together.', kn: 'ನಾವು ಒಟ್ಟಿಗೆ ವಾಸಿಸುತ್ತೇವೆ.', hi: 'हम साथ रहते हैं।', acc: { en: ['We all live together.'] } }
+            ],
             words: [
                 { en: 'son', kn: 'ಮಗ', hi: 'बेटा', pic: '👦', def: 'a male child of a mother and father' },
                 { en: 'daughter', kn: 'ಮಗಳು', hi: 'बेटी', pic: '👧', def: 'a female child of a mother and father' },

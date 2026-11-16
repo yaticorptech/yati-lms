@@ -2,7 +2,7 @@
  * Group games are earned in the solo games (asked 2026-10-31): to play a group game a student must first have
  * cleared enough levels of the same game played solo — and the bigger the room, the more levels. Memory Matrix
  * in a room of 2 needs 20 levels of Grid Recall cleared, a room of 4 needs 30, and so on up to 100 for 20 players.
- * Chess, The Lost Kingdom and The Final Vault have no solo twin: the student's best solo game counts for them.
+ * Chess and The Final Vault have no solo twin: the student's best solo game counts for them.
  *
  * "Cleared" is the account's copy of the solo ladder (career/models/GameProgress: the level the student is on,
  * so cleared = level − 1). Checked when a room is made, joined, or a seat online is taken.
@@ -19,7 +19,7 @@ const needFor = (players) => {
 
 // Each group game's solo twin (null: the best of all of them).
 const SOLO = {
-    chess: null, lostkingdom: null, finalvault: null,
+    chess: null, finalvault: null,
     memorymatrix: 'grid-recall', sequence: 'sequence-recall', patternmaster: 'next-in-sequence', numberlogic: 'missing-operator',
     sudoku: 'mini-sudoku', deduction: 'deduction', wordlogic: 'word-scramble', spatialiq: 'spin-match',
     synonymmatch: 'synonym-match', antonymmatch: 'antonym-match', idiomsense: 'idiom-sense', sentencegap: 'sentence-gap',
@@ -30,7 +30,11 @@ const SOLO = {
     reverserecall: 'reverse-recall', seenbefore: 'seen-before', spotthechange: 'spot-the-change', matchback: 'match-back',
     runningtotal: 'running-total', memorymatch: 'memory-match', lightsout: 'lights-out', codebreaker: 'code-breaker',
     typingsprint: 'typing-sprint', speedsort: 'speed-sort', numberbonds: 'number-bonds', mathsprint: 'math-sprint',
-    tictactoe: 'tic-tac-toe', laststone: 'last-stone'
+    tictactoe: 'tic-tac-toe', laststone: 'last-stone',
+    // The 84-game catalogue's new room games (2026-11-14, games/catalogquiz.js).
+    animalpairs: 'animal-pair-safari', rhymes: 'rhyme-detective', numberhop: 'number-hop', missingnumber: 'missing-number-race',
+    analogies: 'analogy-master', equationrush: 'equation-rush', ratiorelay: 'ratio-relay', cipherlab: 'cipher-lab',
+    probability: 'probability-lab', quantarena: 'quantitative-arena', decisions: 'decision-theory-arena'
 };
 
 /**
@@ -38,7 +42,8 @@ const SOLO = {
  * 240100018860). More can be added with GROUP_GAMES_UNLOCKED (card numbers, comma-separated).
  */
 // Bhagyashree's card (240100045056) added 2026-11-07.
-const ALWAYS_OPEN = new Set(['240100018860', '240100045056', ...String(process.env.GROUP_GAMES_UNLOCKED || '').split(',').map((x) => x.trim()).filter(Boolean)]);
+// Akanksha's card (240100019664) added 2026-11-14: every group game, online and in rooms, open.
+const ALWAYS_OPEN = new Set(['240100018860', '240100045056', '240100019664', ...String(process.env.GROUP_GAMES_UNLOCKED || '').split(',').map((x) => x.trim()).filter(Boolean)]);
 const alwaysOpen = async (userId) => {
     const u = await require('../../models/User').findById(userId).select('cardNumber').lean();
     return Boolean(u?.cardNumber && ALWAYS_OPEN.has(String(u.cardNumber)));
@@ -80,4 +85,4 @@ const check = async (userId, groupGame, players, PlayError) => {
     throw Object.assign(new PlayError(`Locked: clear ${need} levels of ${what} to play it with ${players} players. You have cleared ${have}.`, 403), { locked: { need, have, solo: SOLO[groupGame] ?? null } });
 };
 
-module.exports = { NEED, SOLO, needFor, summary, check };
+module.exports = { NEED, SOLO, needFor, summary, check, alwaysOpen };

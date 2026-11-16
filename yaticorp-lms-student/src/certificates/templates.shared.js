@@ -471,13 +471,9 @@
          * the signatures left and right with the seal between them — three signatories share the row equally.
          */
         sealDefault: (d) => (d.allSignatories.length >= 3 ? { cx: 710, cy: 852, side: 88 } : { cx: 710, cy: 945, side: 160 }),
-        // On the organiser's own picture, the place ("1st", "2nd", "3rd") in bright pure gold where a medal usually is — the
-        // right side (2026-11-07); like any element it can be moved onto the picture's own medal.
-        draw: (d) => [{ t: 'bg', slot: 'background' }, ...customText(d),
-            ...(d.hasBg ? (['first', 'second', 'third'].includes(d.award.kind)
-                ? [at(1271, 313, d.award.short, 58, 'serifBold', '#f7c948', { maxW: 130, key: 'place' })]
-                // Participation (and a custom award): a gold star in its place, as on the built-in medals.
-                : [{ t: 'poly', key: 'place', fill: '#f7c948', pts: Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (Math.PI * i) / 5; const r = i % 2 ? 17 : 40; return [1271 + Math.cos(a) * r, 293 + Math.sin(a) * r]; }) }]) : [])]
+        // No gold place ("1st", "2nd", "3rd") or star on the organiser's own picture (removed 2026-11-11): the
+        // sentence already says the place.
+        draw: (d) => [{ t: 'bg', slot: 'background' }, ...customText(d)]
     });
 
     /**

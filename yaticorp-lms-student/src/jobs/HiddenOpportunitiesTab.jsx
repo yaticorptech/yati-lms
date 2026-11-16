@@ -33,7 +33,35 @@ const rolesFor = (roles, skills, pastRoles = []) => {
         .slice(0, 4);
 };
 
-export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location = '' }) {
+/**
+ * With a target role chosen, the page is about that role: the role itself
+ * first, then the roles closest to it (sharing its core skills). Without
+ * one, roles come from the student's skills alone.
+ */
+const rolesNear = (roles, target, skills) => {
+    const mine = new Set(skills.map(norm));
+    const want = norm(target);
+    const named = (r) => r.name || r.title || '';
+    const base = roles.find((r) => norm(named(r)) === want || (r.aliases || []).some((a) => norm(a) === want));
+    const baseCore = new Set((base?.core || []).map(norm));
+    const first = {
+        name: base ? named(base) : target.trim(),
+        target: true,
+        because: [...(base?.core || []), ...(base?.preferred || [])].filter((s) => mine.has(norm(s))).slice(0, 4),
+    };
+    const near = baseCore.size ? roles
+        .filter((r) => r !== base && named(r))
+        .map((r) => {
+            const shared = (r.core || []).filter((s) => baseCore.has(norm(s)));
+            return { name: named(r), near: base ? named(base) : target, shared: shared.length, score: shared.length / Math.max(1, (r.core || []).length), because: shared.slice(0, 4) };
+        })
+        .filter((r) => r.shared >= 2)
+        .sort((a, b) => b.score - a.score || b.shared - a.shared)
+        .slice(0, 3) : [];
+    return [first, ...near];
+};
+
+export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location = '', targetRole = '' }) {
     const [roles, setRoles] = useState(null);
     // Everything the student can show for: their resume, and what the LMS
     // taught them. A course finished here opens roles too.
@@ -47,7 +75,20 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
 
     useEffect(() => { jobsApi.roles().then((r) => setRoles(r.roles || [])).catch(() => setRoles([])); }, []);
 
-    const picks = useMemo(() => (roles ? rolesFor(roles, skills, pastRoles) : []), [roles, skills, pastRoles]);
+    const target = String(targetRole || '').trim();
+    const picks = useMemo(
+        () => {
+            if (!roles) return [];
+            const bySkills = rolesFor(roles, skills, pastRoles);
+            if (!target) return bySkills;
+            // Target role and the roles close to it first, then the roles the
+            // student's own skills point at (each role shown once).
+            const near = rolesNear(roles, target, skills).slice(0, 3);
+            const taken = new Set(near.map((r) => norm(r.name)));
+            return [...near, ...bySkills.filter((r) => !taken.has(norm(r.name))).slice(0, 3)];
+        },
+        [roles, skills, pastRoles, target]
+    );
 
     // One search per role, anywhere, then de-duplicated: a listing that fits
     // two roles is shown once, under the better fit. The answer is tagged with
@@ -109,7 +150,7 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
                 </div>
                 {picks.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
-                        <span className="text-xs font-semibold text-slate-500">You qualify for:</span>
+                        <span className="text-xs font-semibold text-slate-500">{target ? 'Your target role, roles close to it, and roles your skills fit:' : 'You qualify for:'}</span>
                         {picks.map((p) => <span key={p.name} className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">{p.name}</span>)}
                     </div>
                 )}
@@ -123,7 +164,7 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
                 <div key={g.role.name}>
                     <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <h3 className="text-base font-black text-slate-900">{g.role.name}</h3>
-                        <p className="text-xs text-slate-500">{g.role.held ? 'A role you have held' : `Because you know ${g.role.because.join(', ')}`}</p>
+                        <p className="text-xs text-slate-500">{g.role.target ? 'Your target role' : g.role.near ? `Close to ${g.role.near}${g.role.because.length ? ` · uses ${g.role.because.join(', ')}` : ''}` : g.role.held ? 'A role you have held' : `Because you know ${g.role.because.join(', ')}`}</p>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{g.jobs.map((job) => <MatchCard key={job.id} job={job} actionLabel="Apply" />)}</div>
                 </div>

@@ -5,7 +5,7 @@
  * the answer and why. The rules are quizCore.js's.
  */
 const { makeEngine } = require('./quizCore');
-const { PATTERNS } = require('./banks/iq');
+const { PATTERNS, PATTERNS_YOUNG, PATTERNS_MASTER } = require('./banks/iq');
 const { make } = require('./banks/generate');
 
 module.exports = makeEngine({
@@ -18,5 +18,8 @@ module.exports = makeEngine({
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 10, max: 60, fallback: 25 },
     revealMs: 5000,
-    pick: (count, rng, level) => make(PATTERNS, count, rng, level)
+    // By the room's age zone (./zones.js): Young Thinkers shapes, colours and counting; Master Minds the harder series.
+    pick: (count, rng, level, met, zone) => (zone === 'young' ? make(PATTERNS_YOUNG, count, rng, 'easy')
+        : zone === 'master' ? make(PATTERNS_MASTER, count, rng, 'hard')
+            : make(PATTERNS, count, rng, zone === 'smart' ? 'medium' : level))
 });

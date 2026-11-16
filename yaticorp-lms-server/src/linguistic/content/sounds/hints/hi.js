@@ -107,6 +107,12 @@ module.exports = {
     'कंपनी ने इस साल अच्छा मुनाफ़ा कमाया।': 'company/the company|(did)|this|year|good/nice|profit/gain|earned/made',
     'इस झील को गाँव के स्वयंसेवकों द्वारा साफ़ किया गया।': 'this|lake|(object)|village|of/\'s|volunteers|by|clean|done|was',
     // A unit's new "Phrases" (more.js, 2026-11-14).
+    // Family's Phrases (2026-11-16).
+    'मेरी दादी कहानियाँ सुनाती हैं।': 'my|grandmother|stories|tell/tells|are (respect)',
+    'यह मेरा बेटा है।': 'this|my|son|is',
+    'मेरी बेटी स्कूल जाती है।': 'my|daughter|school|goes/go|is',
+    'मेरे दादा अख़बार पढ़ते हैं।': 'my|grandfather|newspaper|read/reads|are (respect)',
+    'हम साथ रहते हैं।': 'we|together|live|are',
     'मैं पानी पीता हूँ।': 'I|water|drink/drinking|am',
     'चावल गरम है।': 'rice/the rice|hot/warm|is',
     'आम मीठा है।': 'mango/the mango|sweet|is',

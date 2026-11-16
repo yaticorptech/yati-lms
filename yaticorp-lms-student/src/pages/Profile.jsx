@@ -31,6 +31,8 @@ import { isShortOfFunds, serverMessage, isWalletCancel } from '../utils/walletCh
 import PhotoPicker from '../components/PhotoPicker';
 import WeeklyActivityCard from '../components/WeeklyActivityCard';
 import { MyClubsCard } from '../nccnss/ActivityCalendar';
+import PastInstitutions from '../campus/PastInstitutions';
+import MarksCards from '../campus/MarksCards';
 
 /**
  * The line under "Your account is ready" when the Organization ID given at
@@ -483,6 +485,10 @@ const Profile = ({ view = 'dashboard' }) => {
                 refresh={dashboard.refresh}
                 weeklyActivity={weeklyActivity}
             />}
+
+            {/* ── My Profile: marks cards the institution's examination board published (src/campus) ── */}
+            {onProfile && <MarksCards />}
+            {onProfile && <PastInstitutions />}
 
             {/* ── My Profile: certificates — course-issued and uploaded ── */}
             {onProfile && (

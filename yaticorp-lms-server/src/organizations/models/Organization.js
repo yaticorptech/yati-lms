@@ -178,6 +178,27 @@ const organizationSchema = new mongoose.Schema({
     // (Games & Competitions). Only a superadmin changes it. Off until they
     // switch it on; any organization can still enter its team in others'.
     canHostCompetitions: { type: Boolean, default: false },
+    // Games hours (2026-11-14, src/games/orgHours.js): when its students may play the brain and
+    // group games — the days that are open, each with an optional window and an optional number of
+    // minutes. Off: games follow the platform's own rules only.
+    gamesSchedule: {
+        enabled: { type: Boolean, default: false },
+        days: [new mongoose.Schema({
+            day: { type: Number, min: 0, max: 6, required: true },      // 0 = Sunday
+            start: { type: String, default: '' },                         // HH:MM; '' = from midnight
+            end: { type: String, default: '' },                           // HH:MM; '' = to midnight
+            minutes: { type: Number, min: 0, max: 1440, default: 0 }      // 0 = no daily limit
+        }, { _id: false })]
+    },
+    // Students asking to play outside those hours, and what the organization answered (newest kept).
+    gamesRequests: [new mongoose.Schema({
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        note: { type: String, trim: true, maxlength: 200, default: '' },
+        status: { type: String, enum: ['pending', 'granted', 'declined'], default: 'pending' },
+        until: { type: Date, default: null },                             // a grant, until then
+        at: { type: Date, default: Date.now },
+        decidedAt: { type: Date, default: null }
+    })],
     // Access hours: when this organization's students may use the platform
     // (services/accessSchedule.js). Off until the organization sets them.
     accessSchedule: {
@@ -200,6 +221,9 @@ const organizationSchema = new mongoose.Schema({
         // see 360. The organization's own switch below counts only once this is on.
         allowed: { type: Boolean, default: false },
         enabled: { type: Boolean, default: false },
+        // What the institution calls it (2026-11-13): shown to its teachers and students in
+        // place of "Student Ranking" — e.g. "Star Scholar", "Merit Index". Blank: Student Ranking.
+        title: { type: String, trim: true, maxlength: 40, default: '' },
         programs: [new mongoose.Schema({
             name: { type: String, required: true, trim: true, maxlength: 80 },
             sections: [new mongoose.Schema({
@@ -238,12 +262,133 @@ const organizationSchema = new mongoose.Schema({
                 bonusMax: { type: Number, min: 0, max: 1000, default: 0 },
                 // Extra (2026-11-06): bonus or year-specific (Mock Interview, final year):
                 // adds to the student's score, but not to the organization's maximum.
-                bonus: { type: Boolean, default: false }
+                bonus: { type: Boolean, default: false },
+                // "Per proof" (2026-11-14): what a proof may be — pdf, image, video — and the most
+                // pictures a student can send for it (0: no limit). Empty: a picture or a PDF, as before.
+                proofKinds: { type: [String], default: undefined },
+                maxImages: { type: Number, min: 0, max: 100, default: 0 }
             })]
         })],
         // The maximum the organization means its list to add up to, e.g. 360 (2026-11-06).
         // Only a check: the 360 Activities page warns while the list does not add up to it.
         targetTotal: { type: Number, min: 0, max: 100000, default: null }
+    },
+    // Campus (2026-11-13, src/campus): the student management system — departments
+    // with their own sign-ins, admissions, subjects, attendance, internal marks,
+    // fees, exam applications, admit cards, results and feedback. Off until the
+    // platform's superadmin switches it on. Its set-up lives here (the cluster is at
+    // its collection limit); each student's own record is on the student (User.campus).
+    campusAllowed: { type: Boolean, default: false },
+    // Extra-curricular for every student (2026-11-16): on (the default — not set counts as on), all its students get
+    // the Extra Curricular tab, to ask to join its NCC, NSS, Scouts and clubs. Off: only those already in one see it.
+    extraCurricularOpen: { type: Boolean, default: true },
+    campus: {
+        type: new mongoose.Schema({
+            departments: [new mongoose.Schema({
+                name: { type: String, required: true, trim: true, maxlength: 100 },
+                code: { type: String, trim: true, maxlength: 12, default: '' },
+                semesters: { type: Number, min: 1, max: 12, default: 6 },
+                sections: { type: [String], default: ['A'] },
+                head: { type: String, trim: true, maxlength: 100, default: '' },
+                // The head's teacher account: they set the timetable and post announcements from the teacher dashboard.
+                headId: { type: mongoose.Schema.Types.ObjectId, default: null }
+            }, { timestamps: true })],
+            subjects: [new mongoose.Schema({
+                departmentId: { type: mongoose.Schema.Types.ObjectId, required: true },
+                semester: { type: Number, min: 1, max: 12, required: true },
+                code: { type: String, trim: true, maxlength: 20, default: '' },
+                name: { type: String, required: true, trim: true, maxlength: 120 },
+                credits: { type: Number, min: 0, max: 20, default: 4 },
+                kind: { type: String, enum: ['theory', 'practical'], default: 'theory' },
+                // The staff sign-ins (Teachers → Organisation dashboard) who teach it.
+                teacherIds: { type: [mongoose.Schema.Types.ObjectId], default: [] }
+            })],
+            fees: [new mongoose.Schema({
+                departmentId: { type: mongoose.Schema.Types.ObjectId, required: true },
+                semester: { type: Number, min: 0, max: 12, default: 0 },   // 0: every semester
+                kind: { type: String, enum: ['admission', 'tuition', 'exam', 'hostel', 'transport', 'other'], default: 'tuition' },
+                title: { type: String, required: true, trim: true, maxlength: 120 },
+                amount: { type: Number, min: 0, required: true },
+                dueDate: { type: String, default: '' }
+            })],
+            exams: [new mongoose.Schema({
+                departmentId: { type: mongoose.Schema.Types.ObjectId, required: true },
+                semester: { type: Number, min: 1, max: 12, required: true },
+                name: { type: String, required: true, trim: true, maxlength: 120 },
+                kind: { type: String, enum: ['internal', 'semester'], default: 'internal' },
+                maxMarks: { type: Number, min: 1, max: 1000, default: 100 },
+                passMarks: { type: Number, min: 0, max: 1000, default: 35 },
+                fee: { type: Number, min: 0, default: 0 },
+                applyUntil: { type: String, default: '' },
+                applicationsOpen: { type: Boolean, default: false },
+                hallTickets: { type: Boolean, default: false },
+                published: { type: Boolean, default: false },
+                publishedAt: { type: Date, default: null },
+                venue: { type: String, trim: true, maxlength: 200, default: '' },
+                instructions: { type: String, trim: true, maxlength: 2000, default: '' },
+                schedule: [{ _id: false, subjectId: mongoose.Schema.Types.ObjectId, date: String, start: String, end: String }]
+            }, { timestamps: true })],
+            feedback: [new mongoose.Schema({
+                departmentId: { type: mongoose.Schema.Types.ObjectId, required: true },
+                semester: { type: Number, min: 0, max: 12, default: 0 },
+                title: { type: String, required: true, trim: true, maxlength: 150 },
+                perSubject: { type: Boolean, default: true },
+                open: { type: Boolean, default: true },
+                questions: [{ _id: false, text: { type: String, maxlength: 300 }, kind: { type: String, enum: ['rating', 'text'], default: 'rating' } }]
+            }, { timestamps: true })],
+            // A class's weekly timetable, set by its department (HOD): the period times and
+            // which subject is taught in each period of each day (1 Monday … 6 Saturday).
+            timetables: [new mongoose.Schema({
+                departmentId: { type: mongoose.Schema.Types.ObjectId, required: true },
+                semester: { type: Number, min: 1, max: 12, required: true },
+                section: { type: String, default: '' },
+                periods: [{ _id: false, n: Number, start: String, end: String }],
+                slots: [{ _id: false, day: Number, p: Number, subjectId: mongoose.Schema.Types.ObjectId, room: String }]
+            }, { timestamps: true })],
+            // Notices from a department (its HOD or office) to its students; semester 0 / section '' mean all.
+            announcements: [new mongoose.Schema({
+                departmentId: { type: mongoose.Schema.Types.ObjectId, required: true },
+                semester: { type: Number, min: 0, max: 12, default: 0 },
+                section: { type: String, default: '' },
+                title: { type: String, required: true, trim: true, maxlength: 150 },
+                body: { type: String, trim: true, maxlength: 3000, default: '' },
+                pinned: { type: Boolean, default: false },
+                // Who it is for: the department's students, its teachers (those teaching its subjects), or both.
+                toStudents: { type: Boolean, default: true },
+                toTeachers: { type: Boolean, default: false },
+                by: { type: String, default: '' }
+            }, { timestamps: true })],
+            // Online admission applications (2026-11-16): sent from the college's public admission link
+            // (src/campus/apply.js). Removed once admitted or rejected, so only those waiting are kept here.
+            applications: [new mongoose.Schema({
+                departmentId: { type: mongoose.Schema.Types.ObjectId, required: true },
+                section: { type: String, default: '' },
+                name: { type: String, required: true, trim: true, maxlength: 100 },
+                email: { type: String, trim: true, lowercase: true, maxlength: 120, default: '' },
+                phone: { type: String, trim: true, maxlength: 20, default: '' },
+                details: { type: mongoose.Schema.Types.Mixed, default: {} }
+            }, { timestamps: true })],
+            // The public admission link takes applications while this is on.
+            admissionsOpen: { type: Boolean, default: true },
+            // The college's own version of that form (2026-11-16): a note on top, and each detail field
+            // 'off', 'optional' or 'required' (missing: the default in src/campus/apply.js FORM_DEFAULTS).
+            admissionForm: {
+                intro: { type: String, trim: true, maxlength: 1000, default: '' },
+                fields: { type: mongoose.Schema.Types.Mixed, default: {} },
+                // Its own questions (2026-11-16): [{ id: 'q_…', label, type, options[], required }] — see campus/core.js.
+                custom: { type: [mongoose.Schema.Types.Mixed], default: [] },
+                // Its own words on the page and its own names for the fields (campus/apply.js cleanText, cleanLabels).
+                text: { type: mongoose.Schema.Types.Mixed, default: {} },
+                labels: { type: mongoose.Schema.Types.Mixed, default: {} }
+            },
+            receiptSeq: { type: Number, default: 0 },
+            admissionSeq: { type: Number, default: 0 },
+            // Admission numbers (2026-11-14, Settings): prefix + a running number from `start`, `digits` long.
+            // Not set: the old DEPT/YEAR/0001.
+            admissionFormat: { prefix: { type: String, default: '' }, start: { type: Number, default: 0 }, digits: { type: Number, default: 4 } }
+        }, { _id: false }),
+        default: undefined,
+        select: false
     }
 }, { timestamps: true });
 

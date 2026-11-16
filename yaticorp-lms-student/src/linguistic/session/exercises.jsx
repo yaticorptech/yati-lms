@@ -14,7 +14,7 @@ import { tr, line, writeWord } from '../say';
 import Dialogue from '../parts/Dialogue';
 import TalkRecorder from '../parts/TalkRecorder';
 import { ticksOf, needOf, canTranscribe, writeTicksOf } from '../parts/speakTicks';
-import { KeysPopup } from '../parts/LetterKeys';
+import LetterKeys, { KeysPopup } from '../parts/LetterKeys';
 import { hasLetters } from '../parts/letters';
 import Comic from '../parts/Comic';
 import StoryFilm, { FilmScript } from '../parts/StoryFilm';
@@ -62,12 +62,13 @@ const Bubble = ({ pose = 'point-right', children, lang, speaker }) => (
 );
 
 /** A typed answer, in the grey box. Enter checks it (the session listens), except where noted `multiline`. */
-function AnswerBox({ value, onChange, locked, placeholder, rows = 3, lang, multiline = false, label, center = false, inputRef, wrong = false }) {
+// `keysOnly`: answered on the keys on the screen (the letters test) — the device's own keyboard does not open over them.
+function AnswerBox({ value, onChange, locked, placeholder, rows = 3, lang, multiline = false, label, center = false, inputRef, wrong = false, keysOnly = false }) {
     const own = useRef(null);
     const ref = inputRef || own;
     useEffect(() => { if (!locked) ref.current?.focus({ preventScroll: true }); }, [locked, ref]);
     return (
-        <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} disabled={locked} rows={rows} lang={lang} dir={isRtl(lang) ? 'rtl' : undefined} aria-label={label || placeholder}
+        <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} disabled={locked} rows={rows} lang={lang} inputMode={keysOnly ? 'none' : undefined} dir={isRtl(lang) ? 'rtl' : undefined} aria-label={label || placeholder}
             data-multiline={multiline ? '' : undefined} autoCapitalize={lang && lang !== 'en' && !['es', 'fr', 'de', 'pt', 'ru'].includes(lang) ? 'none' : 'sentences'} autoCorrect="off" spellCheck={false} placeholder={placeholder}
             className={`w-full resize-none rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-[17px] font-semibold text-[#4b4b4b] placeholder:text-[#AFAFAF] focus:border-[#84D8FF] focus:bg-white focus:outline-none disabled:opacity-80 ${center ? 'text-center text-xl tracking-wide' : ''}`}
             style={wrong ? { borderColor: COLORS.red.face, background: COLORS.red.light, color: COLORS.red.ink, opacity: 1 } : undefined} data-wrong={wrong || undefined} />
@@ -514,22 +515,30 @@ const isTyping = (e) => ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagNa
 const spokenOf = (o) => String(o).replace(/^(?:\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}]|\uFE0F|\u200D|\s)+/u, '').trim();
 /**
  * `voice` (a question's optionsSay, 2026-11-12): each choice read aloud in it as it is chosen; `speak` (optionsSpeak)
- * what to say for a choice when not its text — a letter by its name once ("u" for U).
+ * what to say for a choice when not its text — a letter by its name once ("u" for U). With no voice given (2026-11-16,
+ * "it should pronounce this"), in the language of its letters. Not a listening question's (`silent`): its choices heard
+ * would give away what was played.
  */
-function Choices({ options, value, onChange, locked, result, language, says = null, meanings = null, hint = null, meaningLang = 'en', voice = null, speak = null }) {
+function Choices({ options, value, onChange, locked, result, language, says = null, meanings = null, hint = null, meaningLang = 'en', voice = null, speak = null, silent = false }) {
     const sayOf = (o) => speak?.[o] || spokenOf(o);
-    const choose = (o) => { onChange(o); if (voice && soundOn()) play(null, sayOf(o), voice); };
+    const sayIt = (o) => {
+        if (silent || !soundOn()) return;
+        if (voice) { play(null, sayOf(o), voice); return; }
+        const said = String(sayOf(o) || '').replace(/[^\p{L}\p{M}\p{N}\s,'’-]/gu, ' ').trim();
+        if (said) play(null, said, tileVoice(said, language || 'en'), { any: true });
+    };
+    const choose = (o) => { onChange(o); sayIt(o); };
     useEffect(() => {
         if (locked) return undefined;
         const onKey = (e) => {
             if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
             const n = Number(e.key);
-            if (n >= 1 && n <= options.length) { e.preventDefault(); onChange(options[n - 1]); if (voice && soundOn()) play(null, sayOf(options[n - 1]), voice); }
+            if (n >= 1 && n <= options.length) { e.preventDefault(); onChange(options[n - 1]); sayIt(options[n - 1]); }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sayOf reads `speak`, listed
-    }, [locked, options, onChange, voice, speak]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sayIt reads `voice`, `speak`, `silent` and `language`, listed
+    }, [locked, options, onChange, voice, speak, silent, language]);
     return (
         <div className="grid gap-2.5" role="radiogroup">
             {options.map((o, i) => {
@@ -724,7 +733,7 @@ function ListenPrompt({ q }) {
             {shown
                 ? <p className="rounded-2xl bg-[#F7F7F7] px-4 py-2 text-center text-lg font-extrabold text-[#4b4b4b]" dir="auto" data-listen-meaning>{q.written || q.meaning}</p>
                 : <button type="button" onClick={() => setShown(true)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2 text-sm font-extrabold uppercase tracking-wide" style={{ color: COLORS.blue.ink }} data-listen-show>
-                    <Eye size={16} /> {q.written ? 'Can’t hear it? Show the word' : 'Can’t hear it? Show the meaning'}
+                    <Eye size={16} /> {q.written ? 'Can’t hear it? Show the word' : q.kind === 'letterType' ? 'Can’t hear it? Show its sound' : 'Can’t hear it? Show the meaning'}
                 </button>}
         </div>
     );
@@ -802,7 +811,8 @@ function BlanksBody({ q, value, onChange, locked, tone, lang, locale, hintLang, 
  * a course's own letters on the keys (its sound in English letters counts too). English's letter-count hint under it.
  */
 function WriteWord({ q, step, value, onChange, locked, wrong, T }) {
-    const [keys, setKeys] = useState(false);
+    // The letters test (2026-11-12, "its keyboard should come"): the language's keys open with the question.
+    const [keys, setKeys] = useState(!!q.keysOpen);
     const ref = useRef(null);
     const writeIn = q.writeIn || 'en';
     const lang = step.language || 'kn';
@@ -811,7 +821,9 @@ function WriteWord({ q, step, value, onChange, locked, wrong, T }) {
         <>
             <Title>{q.kannada ? writeWord(lang, q.kannada, writeIn, langOf(writeIn).name) : q.prompt}</Title>
             <div className="flex items-center gap-4 sm:gap-6" data-write-word>
-                {q.pic
+                {/* A letter to hear and type (the letters test): its speaker in the mascot's place. */}
+                {q.say ? <div className="shrink-0"><ListenPrompt q={q} /></div>
+                    : q.pic
                     ? <span className="flex h-28 w-28 shrink-0 items-center justify-center rounded-3xl bg-[#F7F7F7] text-[64px] leading-none sm:h-36 sm:w-36 sm:text-[84px]" aria-hidden="true" data-word-pic>{q.pic}</span>
                     : <MoodMascot pose="thinking" className="h-28 w-24 shrink-0 sm:h-36 sm:w-32" />}
                 <div className="min-w-0 flex-1">
@@ -826,6 +838,39 @@ function WriteWord({ q, step, value, onChange, locked, wrong, T }) {
                 </button>
             )}
             {keys && !locked && keysIn && <KeysPopup code={keysIn} title={line(lang, 'letters', langOf(keysIn).name, false)} onClose={() => setKeys(false)} inputRef={ref} value={value} onChange={onChange} />}
+        </>
+    );
+}
+
+/**
+ * The letters test (2026-11-12, user: "voice will come and the learning language's keyboard will come, and the user will
+ * recognise the sound of the letter and choose the correct letter from the keyboard"): the letter is heard (again on the
+ * speaker), and tapped on the language's keyboard, always on the screen. A language with no keyboard here (English,
+ * Chinese): its own letters as the keys, one tap the answer.
+ */
+function LetterTest({ q, value, onChange, locked, wrong }) {
+    const ref = useRef(null);
+    const code = q.writeIn || 'en';
+    const own = hasLetters(code);
+    return (
+        <>
+            <Title>{q.prompt}</Title>
+            <ListenPrompt q={q} />
+            <div className="mx-auto w-full max-w-[14rem]">
+                <AnswerBox inputRef={ref} value={value} onChange={onChange} locked={locked} rows={1} lang={code} wrong={wrong} placeholder="?" label={q.prompt} center keysOnly />
+            </div>
+            {!locked && (own
+                ? <LetterKeys code={code} inputRef={ref} value={value} onChange={onChange} />
+                : (
+                    <div className="grid grid-cols-6 gap-1.5 rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] p-2.5 sm:grid-cols-9" lang={code} data-letter-keys={code}>
+                        {(q.keys || []).map((k) => (
+                            <button key={k} type="button" onClick={() => onChange(k)} aria-pressed={value === k}
+                                className="lingo-tile flex min-h-11 items-center justify-center text-xl text-[#4b4b4b]" style={value === k ? { borderColor: COLORS.blue.face, background: COLORS.blue.light } : undefined} data-letter-key={k}>
+                                {k}
+                            </button>
+                        ))}
+                    </div>
+                ))}
         </>
     );
 }
@@ -1077,7 +1122,7 @@ export function QuestionStep({ step, value, onChange, locked, result, correction
                         <Speaker text={withoutChoices(sentence).replace(/_{3,}/, value || '…')} lang={learntVoice} size="sm" />
                     </div>
                 )}
-                <Choices options={q.options || []} value={value} onChange={onChange} locked={locked} result={result} language={step.language} says={q.says} meanings={q.optionMeanings} hint={hint} meaningLang={q.meaningLang} voice={learntVoice} speak={q.optionsSpeak} />
+                <Choices options={q.options || []} value={value} onChange={onChange} locked={locked} result={result} language={step.language} says={q.says} meanings={q.optionMeanings} hint={hint} meaningLang={q.meaningLang} voice={learntVoice} speak={q.optionsSpeak} silent={!!q.say} />
             </>
         );
     } else if (q.type === 'letters') {
@@ -1097,6 +1142,8 @@ export function QuestionStep({ step, value, onChange, locked, result, correction
         body = <><Title>{q.prompt}</Title><Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={tone} language={step.language} correction={correction} /></>;
     } else if (q.type === 'blanks') {
         body = <BlanksBody q={q} value={value} onChange={onChange} locked={locked} tone={tone} lang={step.target && step.target !== 'en' ? step.target : 'en'} locale={step.targetLocale || 'en-IN'} hintLang={step.language} correction={correction} T={T} />;
+    } else if (q.kind === 'letterType') {
+        body = <LetterTest q={q} value={value} onChange={onChange} locked={locked} wrong={tone === 'wrong'} />;
     } else if (q.type === 'fill') {
         body = <FillBody q={q} value={value} onChange={onChange} locked={locked} tone={tone} T={T} locale={step.targetLocale || 'en-IN'} />;
     } else if (q.type === 'correction') {
@@ -1523,9 +1570,10 @@ export function PairsStep({ step, done, onDone }) {
     const tap = (side, i) => {
         if (done || matched.includes(i)) return;
         // The word heard as it is tapped: its recording, or the browser's voice (sound on).
-        if (side === 'en' && (words[i].audio || soundOn())) play(words[i].audio, words[i].speak || words[i].word, words[i].locale || step.targetLocale || 'en-IN');
+        // Both sides are read (2026-11-16, "pronounce the left side word also"), each in the language of its own letters.
+        if (side === 'en' && (words[i].audio || soundOn())) { const said = words[i].speak || words[i].word; play(words[i].audio, said, words[i].locale || tileVoice(said, step.target && step.target !== 'en' ? step.target : 'en'), { any: true }); }
         // Its meaning heard too, in the student's language (2026-11-06, "the voice for all tile words"; a letter's picture left out).
-        if (side === 'kn' && soundOn()) { const said = String(words[i].kannada || '').replace(/[^\p{L}\p{M}\p{N}\s'’-]/gu, ' ').trim(); if (said) play(null, said, tileVoice(said, step.language || 'kn')); }
+        if (side === 'kn' && soundOn()) { const said = String(words[i].kannada || '').replace(/[^\p{L}\p{M}\p{N}\s'’-]/gu, ' ').trim(); if (said) play(null, said, tileVoice(said, step.language || 'kn'), { any: true }); }
         if (!pick || pick.side === side) { setPick({ side, i }); return; }
         const en = side === 'en' ? i : pick.i;
         const kn = side === 'kn' ? i : pick.i;

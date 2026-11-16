@@ -68,6 +68,32 @@ Rules:
 const PLACEHOLDER_URL = /(?:^|[/-])(?:123456|1234567?|000000|xxxx+|abc123)(?:[/?#]|$)|example\.(?:com|org)|localhost/i;
 const looksReal = (url) => /^https?:\/\/[^/\s]+\/\S+/i.test(url) && !PLACEHOLDER_URL.test(url);
 
+/**
+ * Google's search answers hand back links of the form
+ * vertexaisearch.cloud.google.com/grounding-api-redirect/… that stop working
+ * after a while (a Google 404 page). Swap each for the page it points at now,
+ * while it still works; a link that no longer points anywhere is dropped.
+ */
+const REDIRECT_URL = /grounding-api-redirect|vertexaisearch\.cloud\.google\.com/i;
+async function resolveUrl(url) {
+  if (!REDIRECT_URL.test(url)) return url;
+  for (let hop = 0; hop < 3 && REDIRECT_URL.test(url); hop++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const res = await fetch(url, { redirect: "manual", signal: ctrl.signal });
+      const next = res.headers.get("location");
+      if (!next || res.status < 300 || res.status >= 400) return "";
+      url = new URL(next, url).toString();
+    } catch {
+      return "";
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return REDIRECT_URL.test(url) ? "" : url;
+}
+
 /** Pull a JSON array out of a model answer that may wrap it in text or fences. */
 function parseRows(text) {
   const cleaned = String(text || "").replace(/```(?:json)?/gi, "").trim();
@@ -113,18 +139,19 @@ async function discoverJobs({ search, place, limit = MAX_ROWS } = {}) {
       const data = await res.json();
       const text = (data?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text || "").join("\n");
       const rows = parseRows(text).filter((r) => r && r.title && r.company && looksReal(String(r.url || "").trim()));
-      return rows.slice(0, limit).map((r) => ({
+      const leads = await Promise.all(rows.slice(0, limit).map(async (r) => ({
         title: String(r.title).trim().slice(0, 160),
         company: String(r.company).trim().slice(0, 120),
-        companyUrl: /^https?:\/\//i.test(String(r.companyUrl || "")) ? String(r.companyUrl).trim() : "",
-        url: String(r.url).trim(),
+        companyUrl: /^https?:\/\//i.test(String(r.companyUrl || "")) ? await resolveUrl(String(r.companyUrl).trim()) : "",
+        url: await resolveUrl(String(r.url).trim()),
         location: String(r.location || `${place.city}, ${place.country}`).trim().slice(0, 160),
         type: String(r.type || "").trim(),
         remote: !!r.remote,
         salary: String(r.salary || "").trim().slice(0, 80),
         description: String(r.description || "").trim().slice(0, 600),
         skills: Array.isArray(r.skills) ? r.skills.map((s) => String(s).trim()).filter(Boolean).slice(0, 8) : []
-      }));
+      })));
+      return leads.filter((r) => r.url);
     } catch (err) {
       // A timeout is the model being slow, not this key being spent: the
       // next key would wait just as long, so stop here rather than burn
@@ -139,4 +166,4 @@ async function discoverJobs({ search, place, limit = MAX_ROWS } = {}) {
   return [];
 }
 
-module.exports = { discoverJobs, discoveryEnabled: enabled, DISCOVERY_MODEL: MODEL };
+module.exports = { discoverJobs, resolveUrl, REDIRECT_URL, discoveryEnabled: enabled, DISCOVERY_MODEL: MODEL };

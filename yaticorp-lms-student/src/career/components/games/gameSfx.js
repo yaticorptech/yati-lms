@@ -37,5 +37,11 @@ export const sfx = {
     const c = audio();
     if (!c) return;
     [0, 0.18].forEach((at) => { tone(c, 'sawtooth', [200, 110], 0.16, 0.12, at); tone(c, 'square', 92, 0.16, 0.04, at); });
+  },
+  /** A right answer (2026-11-14, the 84 games): a short bright rising chime. */
+  right() {
+    const c = audio();
+    if (!c) return;
+    [0, 0.09].forEach((at, i) => tone(c, 'sine', i ? 880 : 660, 0.12, 0.08, at));
   }
 };

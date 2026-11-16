@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/* YATICORP Institution — "the register": porcelain paper, petrol-teal ink,
+   brass for what is official (receipts, admit cards, published marks). */
+@theme {
+    --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-display: "Fraunces", Georgia, serif;
+
+    --color-porcelain: #f5f3ee;
+    --color-paper: #fbfaf7;
+    --color-line: #e4e0d6;
+    --color-line-2: #d3cdbf;
+    --color-ink: #17201f;
+    --color-ink-2: #4b5755;
+    --color-ink-3: #7c8785;
+
+    --color-petrol-50: #eef6f4;
+    --color-petrol-100: #d6ebe7;
+    --color-petrol-200: #acd5ce;
+    --color-petrol-500: #23847f;
+    --color-petrol-600: #1b6a66;
+    --color-petrol-700: #145250;
+    --color-petrol-800: #0e3b3a;
+    --color-petrol-900: #0a2928;
+
+    --color-brass-50: #f8f1e2;
+    --color-brass-100: #efdfba;
+    --color-brass-500: #b08a3e;
+    --color-brass-700: #7d602a;
+
+    --animate-rise: rise .32s cubic-bezier(.22,1,.36,1) backwards;
+}
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .animate-rise { animation: none; } }
+
+html, body, #root { height: 100%; }
+body { background: var(--color-porcelain); color: var(--color-ink); -webkit-font-smoothing: antialiased; }
+/* The register's ruled paper behind the work area. */
+.ruled { background-image: repeating-linear-gradient(to bottom, transparent 0 31px, rgb(23 32 31 / .035) 31px 32px); }
+.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { scrollbar-width: none; }
+:focus-visible { outline: 2px solid var(--color-petrol-500); outline-offset: 2px; }
+input[type=number]::-webkit-inner-spin-button { opacity: .4; }

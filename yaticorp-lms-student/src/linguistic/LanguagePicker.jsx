@@ -13,27 +13,97 @@
  * Offered by itself once, when the device is set to one of the languages: it
  * then opens with the device's language already picked in the first dropdown.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2, ChevronDown } from 'lucide-react';
+import { X, Loader2, ChevronDown, Check } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, langOf, SHOWN_LEVELS as LEVELS } from './meta';
 import { Chunky, Mascot } from './ui';
 
-const SELECT = 'w-full appearance-none rounded-2xl border-2 border-b-4 border-[#E5E5E5] bg-white py-3 pl-14 pr-10 text-[17px] font-extrabold text-[#3c3c3c] focus:border-[#84D8FF] focus:outline-none disabled:opacity-60';
-
-/** One dropdown, with the chosen language's letter beside it. */
-const Field = ({ label, code, mark, tone, hint, children, attr = {} }) => (
-    <label className="block">
-        <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-wider text-[#777]">{label}</span>
-        <span className="relative block">
-            <span className="pointer-events-none absolute left-2.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-sm font-black text-white" style={{ background: tone }} lang={code} aria-hidden="true">{mark}</span>
-            <select className={SELECT} {...attr}>{children}</select>
-            <ChevronDown size={20} strokeWidth={3} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#AFAFAF]" aria-hidden="true" />
-        </span>
-        {hint && <span className="mt-1.5 block text-sm font-semibold text-[#777]">{hint}</span>}
-    </label>
+/** A language's letter in its colour (grey when it cannot be chosen). */
+const Mark = ({ item, tone, size = 'h-9 w-9' }) => (
+    <span className={`flex ${size} shrink-0 items-center justify-center rounded-xl text-sm font-black text-white`} style={{ background: item?.disabled ? '#C9CED6' : tone }} aria-hidden="true">{item?.mark}</span>
 );
+
+/**
+ * One dropdown, the app's own (2026-11-12, user: "make this drop down proper" — the browser's grey list): a button with
+ * the chosen one's letter, opening its list in the popup (groups, each with its letter, the chosen one ticked, those that
+ * cannot be chosen greyed with why). A hidden <select> keeps the value, as the page and its tests read it.
+ * `groups`: [{ label, items: [{ value, title, sub, mark, disabled, note }] }].
+ */
+const Field = ({ label, value, onChange, disabled, groups, tone, hint, attr = {} }) => {
+    const [open, setOpen] = useState(false);
+    const box = useRef(null);
+    const items = groups.flatMap((g) => g.items);
+    const chosen = items.find((i) => i.value === value) || items[0];
+    const sheet = useRef(null);
+    useEffect(() => {
+        if (!open) return undefined;
+        // Escape shuts the list, not the languages popup under it.
+        const esc = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); setOpen(false); } };
+        window.addEventListener('keydown', esc, true);
+        sheet.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'center' });
+        return () => window.removeEventListener('keydown', esc, true);
+    }, [open]);
+    const pick = (v) => { onChange(v); setOpen(false); };
+    return (
+        <label className="block" ref={box}>
+            <span className="mb-1.5 block text-xs font-extrabold uppercase tracking-wider text-[#777]">{label}</span>
+            <select className="sr-only" tabIndex={-1} aria-hidden="true" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} {...attr}>
+                {groups.map((g) => (
+                    <optgroup key={g.label} label={g.label}>
+                        {g.items.map((i) => <option key={i.value} value={i.value} disabled={i.disabled} data-locked={i.locked || undefined}>{i.option || i.title}</option>)}
+                    </optgroup>
+                ))}
+            </select>
+            <button type="button" onClick={() => setOpen((o) => !o)} disabled={disabled} aria-haspopup="listbox" aria-expanded={open} aria-label={`${label}: ${chosen?.title || ''}`}
+                className={`flex w-full items-center gap-3 rounded-2xl border-2 border-b-4 bg-white py-2 pl-2.5 pr-3.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${open ? 'border-[#84D8FF]' : 'border-[#E5E5E5] hover:bg-[#F7F7F7]'}`}>
+                <Mark item={chosen} tone={tone} />
+                <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[17px] font-extrabold text-[#3c3c3c]">{chosen?.title}</span>
+                    {chosen?.sub && <span className="block truncate text-xs font-bold text-[#AFAFAF]">{chosen.sub}</span>}
+                </span>
+                <ChevronDown size={20} strokeWidth={3} className={`shrink-0 text-[#AFAFAF] transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
+            {/* The list as a popup of its own (2026-11-12, "make the drop down as a popup, the background blank"): in the middle
+                of the screen over a dark veil, its name and a close button at the top; a tap on the veil shuts it. */}
+            {open && createPortal(
+                <div className="lingo fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/85 p-4 backdrop-blur-sm sm:p-6" onClick={(e) => { e.stopPropagation(); setOpen(false); }} data-dropdown-popup>
+                    <div ref={sheet} className="lingo-pop flex max-h-[min(36rem,calc(100dvh-2rem))] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={label}>
+                        <div className="flex items-center gap-3 border-b-2 border-[#F2F2F2] px-5 py-4">
+                            <p className="flex-1 text-lg font-extrabold text-[#3c3c3c]">{label}</p>
+                            <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-xl text-[#AFAFAF] hover:bg-[#F7F7F7]"><X size={20} strokeWidth={3} /></button>
+                        </div>
+                <div role="listbox" aria-label={label} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+                    {groups.filter((g) => g.items.length).map((g) => (
+                        <div key={g.label} role="group" aria-label={g.label}>
+                            {g.label && <p className="px-2.5 pb-1 pt-2.5 text-[11px] font-extrabold uppercase tracking-wider text-[#AFAFAF]">{g.label}</p>}
+                            {g.items.map((i) => {
+                                const on = i.value === value;
+                                return (
+                                    <button key={i.value} type="button" role="option" aria-selected={on} aria-disabled={i.disabled || undefined} disabled={i.disabled} onClick={() => pick(i.value)}
+                                        className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed ${on ? '' : 'hover:bg-[#F7F7F7]'}`}
+                                        style={on ? { background: COLORS.blue.light } : undefined} data-option={i.value}>
+                                        <Mark item={i} tone={tone} size="h-8 w-8" />
+                                        <span className="min-w-0 flex-1">
+                                            <span className={`block truncate text-[15px] font-extrabold ${i.disabled ? 'text-[#AFAFAF]' : 'text-[#3c3c3c]'}`}>{i.title}</span>
+                                            {(i.sub || i.note) && <span className="block truncate text-xs font-bold text-[#AFAFAF]">{[i.sub, i.note].filter(Boolean).join(' · ')}</span>}
+                                        </span>
+                                        {on && <Check size={18} strokeWidth={3.5} className="shrink-0" style={{ color: COLORS.blue.ink }} aria-hidden="true" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+            {hint && <span className="mt-1.5 block text-sm font-semibold text-[#777]">{hint}</span>}
+        </label>
+    );
+};
 
 /**
  * @param {Array}    props.languages  [{ code, name, native, group }]
@@ -69,10 +139,28 @@ export default function LanguagePicker({ languages, courses = [], current, cours
     const groupOf = (code) => languages.find((l) => l.code === code)?.group;
     const india = languages.filter((l) => l.group !== 'world'), world = languages.filter((l) => l.group === 'world');
     // With the course kept, its language cannot be the one they speak.
-    const speakOption = (l) => {
+    const speakItem = (l) => {
         const off = locked && l.code !== 'en' && l.code === course.code;
-        return <option key={l.code} value={l.code} disabled={off}>{l.native} — {l.name}{off ? ' (you are learning it)' : ''}</option>;
+        return { value: l.code, title: l.native, sub: l.native === l.name ? null : l.name, mark: langOf(l.code).mark, disabled: off, note: off ? 'you are learning it' : null, option: `${l.native} — ${l.name}${off ? ' (you are learning it)' : ''}` };
     };
+    const speakGroups = [
+        ...(suggested ? [{ label: 'Your device’s language', items: languages.filter((l) => l.code === suggested).map(speakItem) }] : []),
+        { label: 'Languages of India', items: india.filter((l) => l.code !== suggested).map(speakItem) },
+        { label: 'World languages', items: world.filter((l) => l.code !== suggested).map(speakItem) }
+    ];
+    const learnItem = (c) => ({
+        value: c.code, title: c.name, sub: c.native && c.native !== c.name ? c.native : null, mark: c.code === 'en' ? 'En' : langOf(c.code).mark,
+        // A locked language (2026-11-13: only English, Kannada and Hindi, but for the developer cards): shown, not chosen.
+        disabled: (!c.full && c.code === speak) || !!c.locked, locked: !!c.locked,
+        note: !c.full && c.code === speak ? 'you speak it' : c.locked ? 'locked' : c.done ? 'finished' : !c.full && c.begun ? 'started' : null,
+        option: `${c.name}${!c.full && c.code === speak ? ' (you speak it)' : c.locked ? ' · locked' : c.done ? ' · finished' : !c.full && c.begun ? ' · started' : ''}`
+    });
+    const learnGroups = [
+        { label: 'All five skills', items: list.filter((c) => c.full).map(learnItem) },
+        { label: 'Words and sentences · languages of India', items: list.filter((c) => !c.full && groupOf(c.code) !== 'world').map(learnItem) },
+        { label: 'Words and sentences · world languages', items: list.filter((c) => !c.full && groupOf(c.code) === 'world').map(learnItem) }
+    ];
+    const startGroups = [{ label: '', items: LEVELS.map((l, i) => ({ value: l.id, title: i === 0 ? 'Start from scratch' : `Start at ${l.label}`, sub: i === 0 ? 'Beginner' : null, mark: l.label[0], option: i === 0 ? 'Start from scratch (Beginner)' : `Start at ${l.label}` })) }];
 
     /**
      * Saved in an order the server accepts: the course is never the language
@@ -111,32 +199,15 @@ export default function LanguagePicker({ languages, courses = [], current, cours
                 </div>
 
                 <div className="mt-5 space-y-4">
-                    <Field label="I speak" code={speak} mark={langOf(speak).mark} tone={COLORS.blue.face}
-                        hint="Word meanings, translations and tips are shown in it."
-                        attr={{ value: speak, onChange: (e) => { setSpeak(e.target.value); setError(''); }, disabled: busy, 'data-speak': speak, 'aria-label': 'I speak' }}>
-                        {suggested && <optgroup label="Your device’s language">{languages.filter((l) => l.code === suggested).map(speakOption)}</optgroup>}
-                        <optgroup label="Languages of India">{india.filter((l) => l.code !== suggested).map(speakOption)}</optgroup>
-                        <optgroup label="World languages">{world.filter((l) => l.code !== suggested).map(speakOption)}</optgroup>
-                    </Field>
+                    <Field label="I speak" value={speak} onChange={(v) => { setSpeak(v); setError(''); }} disabled={busy} groups={speakGroups} tone={COLORS.blue.face}
+                        hint="Word meanings, translations and tips are shown in it." attr={{ 'data-speak': speak, 'aria-label': 'I speak' }} />
 
-                    <Field label="I want to learn" code={learn} mark={learn === 'en' ? 'En' : langOf(learn).mark} tone={clash ? COLORS.red.face : COLORS.green.face} hint={courseNote}
-                        attr={{ value: learn, onChange: (e) => { setLearn(e.target.value); setError(''); }, disabled: busy || locked, 'data-learn': learn, 'aria-label': 'I want to learn' }}>
-                        <optgroup label="All five skills">{list.filter((c) => c.full).map((c) => <option key={c.code} value={c.code}>{c.name}{c.done ? ' · finished' : ''}</option>)}</optgroup>
-                        {/* A locked language (2026-11-13: only English, Kannada and Hindi, but for the developer cards): shown, not chosen. */}
-                        <optgroup label="Words and sentences · languages of India">{list.filter((c) => !c.full && groupOf(c.code) !== 'world').map((c) => (
-                            <option key={c.code} value={c.code} disabled={c.code === speak || c.locked} data-locked={c.locked || undefined}>{c.name}{c.code === speak ? ' (you speak it)' : c.locked ? ' · locked' : c.done ? ' · finished' : c.begun ? ' · started' : ''}</option>
-                        ))}</optgroup>
-                        <optgroup label="Words and sentences · world languages">{list.filter((c) => !c.full && groupOf(c.code) === 'world').map((c) => (
-                            <option key={c.code} value={c.code} disabled={c.code === speak || c.locked} data-locked={c.locked || undefined}>{c.name}{c.code === speak ? ' (you speak it)' : c.locked ? ' · locked' : c.done ? ' · finished' : c.begun ? ' · started' : ''}</option>
-                        ))}</optgroup>
-                    </Field>
+                    <Field label="I want to learn" value={learn} onChange={(v) => { setLearn(v); setError(''); }} disabled={busy || locked} groups={learnGroups} tone={clash ? COLORS.red.face : COLORS.green.face}
+                        hint={courseNote} attr={{ 'data-learn': learn, 'aria-label': 'I want to learn' }} />
 
                     {fresh && !clash && (
-                        <Field label="Where to start" code="lv" mark={LEVELS.find((l) => l.id === start)?.label[0]} tone={COLORS.purple.face}
-                            hint={start === 'beginner' ? 'The first words and sentences.' : `If you already know some ${chosen.name}.`}
-                            attr={{ value: start, onChange: (e) => setStart(e.target.value), disabled: busy, 'data-start-level': start, 'aria-label': 'Where to start' }}>
-                            {LEVELS.map((l, i) => <option key={l.id} value={l.id}>{i === 0 ? 'Start from scratch (Beginner)' : `Start at ${l.label}`}</option>)}
-                        </Field>
+                        <Field label="Where to start" value={start} onChange={setStart} disabled={busy} groups={startGroups} tone={COLORS.purple.face}
+                            hint={start === 'beginner' ? 'The first words and sentences.' : `If you already know some ${chosen.name}.`} attr={{ 'data-start-level': start, 'aria-label': 'Where to start' }} />
                     )}
                 </div>
 

@@ -21,17 +21,51 @@ import { useWalletCost } from '../context/useRewards';
 import { serverMessage, isShortOfFunds, isWalletCancel } from '../utils/walletCharge';
 import { openExternal } from '../native/saveFile';
 
+export const CLOSED_JOB = 'This job has closed. The employer took the listing down.';
+
+/** Ask the server whether the employer's page is still up. Unsure counts as up. */
+export async function jobStillOpen(job) {
+    try {
+        const { data } = await api.post('/jobs/check-link', job?.id && /^[a-f0-9]{24}$/i.test(String(job.id)) ? { id: job.id } : { url: job.url });
+        return data?.open !== false;
+    } catch {
+        return true;
+    }
+}
+
+/**
+ * Open a job's page only once it is known to be up. The tab is opened at the
+ * click (so the browser does not block it) and sent on after the check, or
+ * closed again when the job is gone. Resolves false when the job has closed.
+ */
+export async function openCheckedJob(job) {
+    const native = Capacitor.isNativePlatform();
+    const tab = native ? null : window.open('', '_blank');
+    const open = await jobStillOpen(job);
+    if (!open) { tab?.close(); return false; }
+    if (native) await openExternal(job.url);
+    else if (tab) { tab.opener = null; tab.location.href = job.url; }
+    else window.open(job.url, '_blank', 'noopener');
+    return true;
+}
+
 export default function usePricedJobLink() {
     const { amount } = useWalletCost('find_job');
     const [error, setError] = useState('');
     // Paid for during this visit: from then on the link opens as a plain link.
     const paid = useRef(new Set());
     const open = useCallback(async (event, job) => {
-        if (!amount || !job?.url) return; // free: the <a> opens it as usual
-        const ref = String(job.id || job.url);
-        if (paid.current.has(ref)) return;
+        if (!job?.url) return;
         event.preventDefault();
         setError('');
+        const ref = String(job.id || job.url);
+        // Free, or already paid for: just check the job is still up and open it.
+        if (!amount || paid.current.has(ref)) {
+            if (!(await openCheckedJob(job))) setError(CLOSED_JOB);
+            return;
+        }
+        // Priced: never charge for a job that has closed.
+        if (!(await jobStillOpen(job))) { setError(CLOSED_JOB); return; }
         const native = Capacitor.isNativePlatform();
         let tab = null;
         try {

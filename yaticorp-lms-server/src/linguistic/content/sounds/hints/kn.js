@@ -107,6 +107,12 @@ module.exports = {
     'ಕಂಪನಿಯು ಈ ವರ್ಷ ಉತ್ತಮ ಲಾಭ ಗಳಿಸಿತು.': 'the company/company|this|year|good/excellent|profit/gain|earned/made',
     'ಈ ಕೆರೆಯನ್ನು ಹಳ್ಳಿಯ ಸ್ವಯಂಸೇವಕರಿಂದ ಸ್ವಚ್ಛಗೊಳಿಸಲಾಯಿತು.': 'this|lake/the lake|village\'s/of the village|by volunteers/by the volunteers|was cleaned',
     // A unit's new "Phrases" (more.js, 2026-11-14).
+    // Family's Phrases (2026-11-16).
+    'ನನ್ನ ಅಜ್ಜಿ ಕಥೆಗಳನ್ನು ಹೇಳುತ್ತಾರೆ.': 'my|grandmother|stories|tells/tell',
+    'ಇವನು ನನ್ನ ಮಗ.': 'this (he)/he|my|son',
+    'ನನ್ನ ಮಗಳು ಶಾಲೆಗೆ ಹೋಗುತ್ತಾಳೆ.': 'my|daughter|to school|goes/go',
+    'ನನ್ನ ಅಜ್ಜ ಪತ್ರಿಕೆ ಓದುತ್ತಾರೆ.': 'my|grandfather|newspaper|reads/read',
+    'ನಾವು ಒಟ್ಟಿಗೆ ವಾಸಿಸುತ್ತೇವೆ.': 'we|together|live',
     'ನಾನು ನೀರು ಕುಡಿಯುತ್ತೇನೆ.': 'I|water|drink/am drinking',
     'ಅನ್ನ ಬಿಸಿಯಾಗಿದೆ.': 'rice/cooked rice|is hot/is warm',
     'ಮಾವಿನಹಣ್ಣು ಸಿಹಿಯಾಗಿದೆ.': 'mango/the mango|is sweet/sweet',

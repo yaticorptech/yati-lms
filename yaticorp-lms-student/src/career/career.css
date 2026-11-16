@@ -1540,3 +1540,77 @@
   appearance: none;
   display: none;
 }
+
+/* ---- Number Hop pond (2026-11-16) ------------------------------------------
+   Lily pads bob on the water, the frog jumps in an arc, splashes ring out. */
+@keyframes nh-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-4px) rotate(2deg); }
+}
+@keyframes nh-hop {
+  0% { transform: translate(-50%, 0) scale(1, 1); }
+  20% { transform: translate(-50%, 0) scale(1.12, 0.86); }
+  55% { transform: translate(-50%, -34px) scale(0.92, 1.1); }
+  85% { transform: translate(-50%, 0) scale(1.1, 0.9); }
+  100% { transform: translate(-50%, 0) scale(1, 1); }
+}
+@keyframes nh-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.1); }
+}
+@keyframes nh-ripple {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+}
+@keyframes nh-drift {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(14px); }
+}
+@keyframes nh-cheer {
+  0% { transform: translate(-50%, 0) scale(0.4); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: translate(-50%, -46px) scale(1.2); opacity: 0; }
+}
+.nh-pad { animation: nh-bob 3.2s ease-in-out infinite; animation-delay: calc(var(--nh-i, 0) * -0.55s); }
+.nh-frog { animation: nh-hop 0.32s ease-out; transform: translate(-50%, 0); }
+.nh-frog-eye { transform-box: fill-box; transform-origin: center; animation: nh-blink 4s infinite; }
+.nh-ripple { animation: nh-ripple 2.6s ease-out infinite; }
+.nh-splash { animation: nh-ripple 0.7s ease-out 2; }
+.nh-drift { animation: nh-drift 6s ease-in-out infinite; }
+.nh-cheer { animation: nh-cheer 1s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .nh-pad, .nh-frog, .nh-frog-eye, .nh-ripple, .nh-splash, .nh-drift, .nh-cheer { animation: none; }
+}
+
+/* ---- Balloon Pop Sums (2026-11-16) ---- */
+@keyframes bp-float {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-3deg); }
+  50% { transform: translate(-50%, calc(-50% - 10px)) rotate(3deg); }
+}
+@keyframes bp-pop {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  60% { transform: translate(-50%, -50%) scale(1.35); opacity: 0.6; }
+  100% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+}
+.bp-float { animation: bp-float 3.4s ease-in-out infinite; animation-delay: calc(var(--bp-i, 0) * -0.6s); }
+.bp-pop { animation: bp-pop 0.45s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .bp-float { animation: none; transform: translate(-50%, -50%); }
+}
+
+/* ---- Audio Echo (2026-11-16): sound-wave bars while a sound plays ---- */
+@keyframes ae-wave {
+  0%, 100% { height: 20%; }
+  50% { height: 100%; }
+}
+.ae-wave { height: 30%; animation: ae-wave 0.55s ease-in-out infinite; animation-delay: calc(var(--ae-i, 0) * -0.11s); }
+.ae-wave-idle { animation-duration: 1.6s; opacity: 0.55; }
+@media (prefers-reduced-motion: reduce) {
+  .ae-wave { animation: none; height: 60%; }
+}
+
+/* ---- Chef's Memory (2026-11-16): the study bar runs out ---- */
+@keyframes chef-drain {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}

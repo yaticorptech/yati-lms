@@ -33,6 +33,7 @@ import {
 import organizationApi from './api';
 import Portal from '../components/Portal';
 import useBackClose from '../native/useBackClose';
+import Select from '../components/Select';
 
 // Its own colours: the button lives in a banner with white text, and a box that
 // inherited it would show what is typed as white on white.
@@ -91,7 +92,8 @@ const PLAIN_TONE = {
     member: 'text-slate-900 hover:text-indigo-600'
 };
 
-const OrganizationButton = ({ variant = 'pill' }) => {
+// `joinOnly` (2026-11-14, the dashboard's welcome): no placeholder while loading, nothing if it cannot load.
+const OrganizationButton = ({ variant = 'pill', joinOnly = false }) => {
     const plain = variant === 'plain';
     const [state, setState] = useState(null);      // { member, organization, request }
     const [loading, setLoading] = useState(true);
@@ -101,6 +103,8 @@ const OrganizationButton = ({ variant = 'pill' }) => {
     const [code, setCode] = useState('');
     const [searching, setSearching] = useState(false);
     const [found, setFound] = useState(null);
+    // Campus on (2026-11-14): the department, semester and section asked for with the request.
+    const [pick, setPick] = useState({ departmentId: '', semester: '', section: '' });
     const [joining, setJoining] = useState(false);
     const [busy, setBusy] = useState(false);       // withdrawing a request
     const [confirmLeave, setConfirmLeave] = useState(false);
@@ -128,6 +132,13 @@ const OrganizationButton = ({ variant = 'pill' }) => {
     };
 
     useEffect(() => { load(); }, []);
+    // Accepted, rejected or removed while on screen (2026-11-16, organization/orgVersion): re-read at once.
+    useEffect(() => {
+        const on = () => load();
+        window.addEventListener('yati:organization-changed', on);
+        return () => window.removeEventListener('yati:organization-changed', on);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Escape closes the popup, the way the app's other popups behave.
     useEffect(() => {
@@ -147,6 +158,7 @@ const OrganizationButton = ({ variant = 'pill' }) => {
         setSearching(true); setNotice(null); setFound(null);
         try {
             setFound(await organizationApi.lookup(entered));
+            setPick({ departmentId: '', semester: '', section: '' });
         } catch (err) {
             setNotice({
                 type: 'error',
@@ -160,7 +172,7 @@ const OrganizationButton = ({ variant = 'pill' }) => {
     const join = async () => {
         setJoining(true); setNotice(null);
         try {
-            const res = await organizationApi.requestJoin(found.organization.orgCode);
+            const res = await organizationApi.requestJoin(found.organization.orgCode, found.departments?.length ? { departmentId: pick.departmentId, semester: Number(pick.semester), section: pick.section } : {});
             setNotice({ type: 'ok', text: res.message });
             setFound(null);
             setCode('');
@@ -211,6 +223,7 @@ const OrganizationButton = ({ variant = 'pill' }) => {
 
     /* ── The button ───────────────────────────────────────────────────────── */
 
+    if (loading && joinOnly) return null;   // no placeholder flashing on the welcome banner
     if (loading) {
         if (plain) return <span className="inline-block h-4 w-28 animate-pulse rounded bg-slate-200" aria-hidden="true" />;
         // A placeholder of roughly the right size, so the pill row does not jump
@@ -223,6 +236,8 @@ const OrganizationButton = ({ variant = 'pill' }) => {
     }
 
     const failed = Boolean(state.failed);
+    // On the welcome banner: their organization once they are in one, "Add organization" until then.
+    if (joinOnly && failed && !open) return null;
     const label = failed
         ? 'Organization'
         : state.member
@@ -483,13 +498,38 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                                                     </p>
                                                 ) : (
                                                     <>
-                                                        <button onClick={join} disabled={joining}
+                                                        {found.departments?.length > 0 && (() => {
+                                                            const dept = found.departments.find((d) => d._id === pick.departmentId);
+                                                            const sel = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
+                                                            return (
+                                                                <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+                                                                    <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-slate-600">Department / course</span>
+                                                                        <Select value={pick.departmentId} onChange={(e) => setPick({ departmentId: e.target.value, semester: '', section: '' })} className={sel} aria-label="Department">
+                                                                            <option value="" disabled>Choose your department</option>
+                                                                            {found.departments.map((d) => <option key={d._id} value={d._id}>{d.name}{d.code ? ` (${d.code})` : ''}</option>)}
+                                                                        </Select></label>
+                                                                    <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Semester</span>
+                                                                        <Select value={pick.semester} onChange={(e) => setPick({ ...pick, semester: e.target.value })} disabled={!dept} className={sel} aria-label="Semester">
+                                                                            <option value="" disabled>Choose</option>
+                                                                            {Array.from({ length: dept?.semesters || 0 }, (_, i) => i + 1).map((n) => <option key={n} value={String(n)}>Semester {n}</option>)}
+                                                                        </Select></label>
+                                                                    {dept?.sections?.length > 1 && (
+                                                                        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Section</span>
+                                                                            <Select value={pick.section} onChange={(e) => setPick({ ...pick, section: e.target.value })} className={sel} aria-label="Section">
+                                                                                <option value="" disabled>Choose</option>
+                                                                                {dept.sections.map((x) => <option key={x} value={x}>Section {x}</option>)}
+                                                                            </Select></label>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                        <button onClick={join} disabled={joining || (found.departments?.length > 0 && (!pick.departmentId || !pick.semester || ((found.departments.find((d) => d._id === pick.departmentId)?.sections?.length || 0) > 1 && !pick.section)))}
                                                             className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
                                                             {joining && <Loader2 size={16} className="animate-spin" />}
                                                             Send Join Request
                                                         </button>
                                                         <p className="mt-2 text-xs text-slate-500">
-                                                            They will be asked to approve you. Nothing changes on your account until they do.
+                                                            {found.departments?.length ? 'Their office checks your department and semester and approves you.' : 'They will be asked to approve you.'} Nothing changes on your account until they do.
                                                         </p>
                                                     </>
                                                 )}

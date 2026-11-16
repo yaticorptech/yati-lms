@@ -1,148 +1,113 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 import { sfx } from './gameSfx';
+import { SHAPES, boxOf, clashes, isSolvedGrid, makeSudoku, peersOf, sudokuConfig } from '../../data/bands/sudoku';
 
-const shuffle = (list) => {
-  const out = [...list];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-};
+const FRUITS = ['🍎', '🍌', '🍇', '🍓'];
 
 /**
- * A 4×4 sudoku: every row, column and 2×2 box holds 1 to 4 once. Built by
- * relabelling the digits of one valid grid and shuffling rows and columns
- * within their bands, which keeps it valid, then hiding cells.
+ * 🧩 Logic: sudoku sized to the age band (data/bands/sudoku.js) — 4×4 fruit for Classes 1–2, 4×4 numbers for 3–5,
+ * 6×6 for 6–8, harder 6×6 then easy 9×9 for 9–10, and 9×9 for 11–12. Every puzzle has
+ * exactly one solution; a full grid is still judged by the rules.
  */
-const BASE = [
-  [1, 2, 3, 4],
-  [3, 4, 1, 2],
-  [2, 1, 4, 3],
-  [4, 3, 2, 1]
-];
-
-const makePuzzle = (hidden) => {
-  const digits = shuffle([1, 2, 3, 4]);
-  const rowOrder = [...shuffle([0, 1]), ...shuffle([2, 3])];
-  const colOrder = [...shuffle([0, 1]), ...shuffle([2, 3])];
-  const solution = rowOrder.map((r) => colOrder.map((c) => digits[BASE[r][c] - 1]));
-  const blanks = new Set(shuffle([...Array(16).keys()]).slice(0, hidden));
-  const given = solution.map((row, r) => row.map((v, c) => (blanks.has(r * 4 + c) ? null : v)));
-  return { solution, given };
-};
-
-/**
- * Whether a grid is full and every row, column and 2×2 box holds 1 to 4 once.
- * Judged by the rules rather than against the generated solution: with up to
- * twelve cells hidden a grid can have more than one valid fill, and a correct
- * one that differed from the stored solution used to be left unaccepted.
- */
-const isSolved = (grid) => {
-  const ok = (cells) => cells.every(Boolean) && new Set(cells).size === 4;
-  for (let i = 0; i < 4; i++) {
-    const br = Math.floor(i / 2) * 2;
-    const bc = (i % 2) * 2;
-    if (!ok(grid[i]) || !ok(grid.map((row) => row[i]))) return false;
-    if (!ok([grid[br][bc], grid[br][bc + 1], grid[br + 1][bc], grid[br + 1][bc + 1]])) return false;
-  }
-  return true;
-};
-
-const configFor = (difficulty, levelNo) => ({
-  hidden: between(5, 8, levelNo) + (difficulty - 1) * 2,
-  puzzles: between(2, 4, levelNo),
-  seconds: between(120, 80, levelNo) + (difficulty - 1) * 20
-});
-
-/** 🧩 Logic: a four-by-four sudoku, solved against the clock. */
-export default function MiniSudoku({ onExit }) {
-  const progress = useGameProgress('mini-sudoku');
-  return <Round key={`${progress.level}-${progress.attempt}`} progress={progress} onExit={onExit} />;
+export default function MiniSudoku({ onExit, gameId = 'mini-sudoku', bands, title = 'Mini Sudoku' }) {
+  const progress = useGameProgress(gameId, { bands });
+  return <Round key={`${progress.level}-${progress.attempt}`} progress={progress} onExit={onExit} title={title} />;
 }
 
-function Round({ progress, onExit }) {
-  const config = configFor(progress.difficulty, progress.levelNo);
-  const hidden = Math.min(config.hidden, 12);
-  const [puzzle, setPuzzle] = useState(() => makePuzzle(hidden));
-  const [grid, setGrid] = useState(() => puzzle.given.map((row) => [...row]));
+function Round({ progress, onExit, title }) {
+  const band = progress.ageBand || 'analytical';
+  const config = useMemo(() => sudokuConfig(band, progress.difficulty, progress.levelNo), [band, progress.difficulty, progress.levelNo]);
+  const { size } = config;
+  const [br, bc] = SHAPES[size];
+  const limit = Math.round(20 + config.blanks * config.perBlank * config.puzzles);
+  const [puzzle, setPuzzle] = useState(() => makeSudoku(size, config.blanks));
+  const [grid, setGrid] = useState(() => [...puzzle.given]);
   const [selected, setSelected] = useState(null);
   const [solved, setSolved] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
+  const [tip, setTip] = useState(null);
   const [started, setStarted] = useState(false);
   const complete = solved >= config.puzzles;
-  // The clock stops once every grid is solved, so the time to spare (and the
-  // stars read off it) cannot keep draining while the result is on screen.
-  const { seconds, over: timedOut } = useTimedRound(config.seconds, started, complete);
+  const { seconds, over: timedOut } = useTimedRound(limit, started, complete);
 
   const over = started && (timedOut || complete);
   const passed = complete;
-  // Stars by time left, so a fast solve is worth more than a scrape — but a
-  // solve in time is always at least one: it clears the level.
-  const stars = over ? (passed ? Math.max(1, starsFor(seconds + 1, Math.max(1, Math.round(config.seconds * 0.15)))) : 0) : 0;
-  useRecordStars(progress, over, stars);
+  const stars = over ? (passed ? Math.max(1, starsFor(seconds + 1, Math.max(1, Math.round(limit * 0.15)))) : 0) : 0;
+  useRecordStars(progress, over, stars, { correct: solved, wrong: mistakes, score: solved, limitMs: limit * 1000 });
 
-  const conflicts = useMemo(() => {
-    const bad = new Set();
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) {
-        const v = grid[r][c];
-        if (!v) continue;
-        for (let k = 0; k < 4; k++) {
-          if (k !== c && grid[r][k] === v) bad.add(r * 4 + c);
-          if (k !== r && grid[k][c] === v) bad.add(r * 4 + c);
-        }
-        const br = Math.floor(r / 2) * 2;
-        const bc = Math.floor(c / 2) * 2;
-        for (let i = br; i < br + 2; i++) {
-          for (let j = bc; j < bc + 2; j++) {
-            if ((i !== r || j !== c) && grid[i][j] === v) bad.add(r * 4 + c);
-          }
-        }
+  const bad = useMemo(() => clashes(grid, size), [grid, size]);
+  const peers = peersOf(size);
+  const label = (v) => (config.symbols ? FRUITS[v - 1] : String(v));
+
+  const place = (value) => {
+    if (over || selected === null || puzzle.given[selected]) return;
+    const next = [...grid];
+    next[selected] = value;
+    setGrid(next);
+    setTip(null);
+    if (value) {
+      const r = Math.floor(selected / size);
+      const c = selected % size;
+      const same = peers[selected].filter((p) => next[p] === value);
+      if (same.length) {
+        sfx.wrong();
+        setMistakes((m) => m + 1);
+        const p = same[0];
+        const where = Math.floor(p / size) === r ? 'row' : p % size === c ? 'column' : 'box';
+        setTip(`${label(value)} is already in this ${where}.`);
       }
     }
-    return bad;
-  }, [grid]);
-
-  const place = (digit) => {
-    if (over || selected === null) return;
-    const [r, c] = selected;
-    if (puzzle.given[r][c]) return;
-    const next = grid.map((row) => [...row]);
-    next[r][c] = digit;
-    setGrid(next);
-    // A digit that clashes in its row, column or box: the buzz (the cell already turns red).
-    if (digit) {
-      const br = Math.floor(r / 2) * 2;
-      const bc = Math.floor(c / 2) * 2;
-      const clash = [0, 1, 2, 3].some(
-        (k) =>
-          (k !== c && next[r][k] === digit) ||
-          (k !== r && next[k][c] === digit) ||
-          ((br + (k >> 1) !== r || bc + (k & 1) !== c) && next[br + (k >> 1)][bc + (k & 1)] === digit)
-      );
-      if (clash) sfx.wrong();
-    }
-    const done = isSolved(next);
-    if (done) {
+    if (isSolvedGrid(next, size)) {
       const count = solved + 1;
       setSolved(count);
       if (count < config.puzzles) {
-        const fresh = makePuzzle(hidden);
+        const fresh = makeSudoku(size, config.blanks);
         setPuzzle(fresh);
-        setGrid(fresh.given.map((row) => [...row]));
+        setGrid([...fresh.given]);
         setSelected(null);
+        setTip('Solved! Here is the next one.');
       }
     }
   };
 
+  // Keyboard: arrows move, digits place, Backspace/Delete/0 clear.
+  useEffect(() => {
+    if (!started || over) return undefined;
+    const onKey = (e) => {
+      if (e.target instanceof HTMLElement && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+      const moves = { ArrowUp: -size, ArrowDown: size, ArrowLeft: -1, ArrowRight: 1 };
+      if (moves[e.key] !== undefined) {
+        e.preventDefault();
+        setSelected((s) => {
+          const at = s === null ? 0 : s + moves[e.key];
+          return at >= 0 && at < size * size ? at : s;
+        });
+        return;
+      }
+      const n = Number(e.key);
+      if (Number.isInteger(n) && n >= 1 && n <= size) place(n);
+      else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') place(0);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  const values = Array.from({ length: size }, (_, i) => i + 1);
+  const width = size === 4 ? 'max-w-[300px]' : size === 6 ? 'max-w-[330px]' : 'max-w-[360px]';
+  const text = size === 4 ? 'text-3xl' : size === 6 ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg';
+  const ruleName = size === 4 ? '2×2 box' : size === 6 ? '2×3 box' : '3×3 box';
+  const objective = config.symbols
+    ? `Fill the grid with fruit. Each row, each column and each 2×2 box needs ${FRUITS.join(' ')} — one of each. Tap a square, then a fruit. Solve ${config.puzzles} grids.`
+    : `Every row, column and ${ruleName} must hold 1 to ${size} once each. Tap a blank cell, then a number (or type it). Solve ${config.puzzles} grid${config.puzzles === 1 ? '' : 's'} in time. Each puzzle has one answer.`;
+
   return (
     <GameShell
-      title="Mini Sudoku"
-      blurb={`Solve ${config.puzzles} grids before the clock runs out.`}
+      title={title}
+      blurb={`Solve ${config.puzzles} ${size}×${size} grid${config.puzzles === 1 ? '' : 's'} before the clock runs out.`}
       tone="bg-gradient-to-br from-blue-500 to-indigo-700"
       score={`${solved}/${config.puzzles}`}
       scoreLabel="Solved"
@@ -155,8 +120,8 @@ function Round({ progress, onExit }) {
           ? {
               gameId: progress.gameId,
               level: progress.level,
-              objective: `Every row, column and 2×2 box must hold 1, 2, 3 and 4 once each. Tap a blank cell, then a digit. Solve ${config.puzzles} grids in time.`,
-              seconds: config.seconds,
+              objective,
+              seconds: limit,
               stars: starsOn(progress.gameId, progress.level),
               onStart: () => setStarted(true)
             }
@@ -175,54 +140,68 @@ function Round({ progress, onExit }) {
             }
           : null
       }
-      footer={<p className="text-center text-sm text-ink-500">A red cell clashes with its row, column or box</p>}
+      footer={
+        <p className={`text-center text-sm ${tip ? 'font-bold text-indigo-700' : 'text-ink-500'}`} role="status" aria-live="polite">
+          {tip || 'A red cell clashes with its row, column or box'}
+        </p>
+      }
     >
       {started && !over && (
-        <div className="mx-auto max-w-[280px]">
-          <div className="grid grid-cols-4 gap-1.5 rounded-2xl bg-line-200 p-1.5">
-            {grid.map((row, r) =>
-              row.map((v, c) => {
-                const given = !!puzzle.given[r][c];
-                const isSel = selected && selected[0] === r && selected[1] === c;
-                const clash = conflicts.has(r * 4 + c);
-                const thickR = r === 1 ? 'mb-1' : '';
-                const thickC = c === 1 ? 'mr-1' : '';
-                return (
-                  <button
-                    key={`${r}-${c}`}
-                    type="button"
-                    onClick={() => !given && setSelected([r, c])}
-                    aria-label={`Row ${r + 1} column ${c + 1}${v ? `, ${v}` : ', empty'}`}
-                    className={`flex aspect-square items-center justify-center rounded-xl text-2xl font-black transition-all ${thickR} ${thickC} ${
-                      given
-                        ? 'bg-surface-100 text-ink-500'
-                        : clash
-                          ? 'bg-rose-100 text-rose-700 ring-2 ring-rose-300'
-                          : isSel
-                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/40'
-                            : 'bg-surface text-ink-900 hover:bg-blue-50'
-                    }`}
-                  >
-                    {v || ''}
-                  </button>
-                );
-              })
-            )}
+        <div className={`mx-auto w-full ${width}`}>
+          <div
+            className="grid overflow-hidden rounded-2xl border-2 border-ink-700 bg-line-200"
+            style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}
+            role="grid"
+            aria-label={`${size} by ${size} sudoku`}
+          >
+            {grid.map((v, i) => {
+              const r = Math.floor(i / size);
+              const c = i % size;
+              const given = !!puzzle.given[i];
+              const isSel = selected === i;
+              const clash = bad.has(i) && !given;
+              const sameBoxTint = size === 9 && boxOf(size, i) % 2 === 1;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setSelected(i)}
+                  aria-label={`Row ${r + 1} column ${c + 1}${v ? `, ${config.symbols ? ['apple', 'banana', 'grapes', 'strawberry'][v - 1] : v}` : ', empty'}${given ? ', given' : ''}`}
+                  aria-selected={isSel}
+                  className={`flex aspect-square items-center justify-center font-black transition-colors ${text} ${
+                    isSel
+                      ? 'bg-blue-600 text-white'
+                      : clash
+                        ? 'bg-rose-100 text-rose-700'
+                        : given
+                          ? `${sameBoxTint ? 'bg-surface-200' : 'bg-surface-100'} text-ink-700`
+                          : `${sameBoxTint ? 'bg-surface-100' : 'bg-surface'} text-blue-700 hover:bg-blue-50`
+                  }`}
+                  style={{
+                    borderRight: c < size - 1 ? `${(c + 1) % bc === 0 ? 2 : 1}px solid ${(c + 1) % bc === 0 ? 'var(--color-ink-700, #334155)' : 'var(--color-line-200, #e2e8f0)'}` : undefined,
+                    borderBottom: r < size - 1 ? `${(r + 1) % br === 0 ? 2 : 1}px solid ${(r + 1) % br === 0 ? 'var(--color-ink-700, #334155)' : 'var(--color-line-200, #e2e8f0)'}` : undefined
+                  }}
+                >
+                  {v ? label(v) : ''}
+                </button>
+              );
+            })}
           </div>
-          <div className="mt-4 grid grid-cols-5 gap-2">
-            {[1, 2, 3, 4].map((d) => (
+          <div className="mt-4 grid gap-1.5 sm:gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(size + 1, 5)}, minmax(0, 1fr))` }}>
+            {values.map((d) => (
               <button
                 key={d}
                 type="button"
                 onClick={() => place(d)}
-                className="fp-press min-h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-xl font-black text-white shadow-md shadow-blue-500/30"
+                aria-label={config.symbols ? `Place ${['apple', 'banana', 'grapes', 'strawberry'][d - 1]}` : `Place ${d}`}
+                className={`fp-press min-h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-xl font-black text-white shadow-md shadow-blue-500/30 ${config.symbols ? 'text-3xl' : ''}`}
               >
-                {d}
+                {label(d)}
               </button>
             ))}
             <button
               type="button"
-              onClick={() => place(null)}
+              onClick={() => place(0)}
               aria-label="Clear cell"
               className="fp-press min-h-12 rounded-xl bg-surface text-sm font-black text-ink-500 ring-1 ring-line-200 ring-inset hover:bg-rose-50 hover:text-rose-600"
             >

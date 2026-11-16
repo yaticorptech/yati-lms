@@ -21,13 +21,19 @@ const TONE = ['blue', 'green', 'purple', 'orange', 'red'];
  * One letter: its sound in English letters above it, the letter big; tapped, heard. `wide`: a few characters long.
  * `pinyin` (Chinese A–Z, 2026-10-31): how the characters are said, under them.
  */
+/*
+ * English letters said by their names (2026-11-13, every card alike): the AI voice (Kokoro) is given the letter
+ * itself, not its spelling above it — read as a word, "ay" came out as "eye". Kokoro says A /eɪ/, W /dʌbəljuː/.
+ * (The 2026-11-12 card-only setup — no spellings, the device's voice — is gone: one experience for every card.)
+ */
+
 function Letter({ char, say, speak, pinyin = '', locale, color, small = false, wide = false, onHear, heard }) {
     const c = COLORS[color];
     return (
         <button type="button" onClick={() => onHear(char, speak)} aria-label={`${char}: ${say}${pinyin ? `, ${pinyin}` : ''}. Tap to hear it.`}
             className={`lingo-tile flex flex-col items-center justify-center gap-0.5 px-1 transition-transform active:scale-95 ${small ? 'min-h-16 min-w-16 py-1.5' : 'min-h-20 py-2'}`}
             style={heard ? { borderColor: c.face, background: c.light } : undefined} data-letter-tile={char}>
-            <span className={`font-extrabold leading-none ${small ? 'text-[11px]' : 'text-xs sm:text-[13px]'}`} style={{ color: c.ink }} lang="en">{say}</span>
+            {<span className={`font-extrabold leading-none ${small ? 'text-[11px]' : 'text-xs sm:text-[13px]'}`} style={{ color: c.ink }} lang="en">{say}</span>}
             <span className={`font-bold leading-tight text-[#3c3c3c] ${small ? 'text-2xl' : wide ? 'text-lg min-[420px]:text-xl sm:text-2xl' : 'text-3xl sm:text-4xl'}`} lang={locale.split('-')[0]}>{char}</span>
             {pinyin && <span className="text-center text-[11px] font-bold leading-tight text-[#777] sm:text-xs" lang="zh-Latn" data-letter-pinyin>{pinyin}</span>}
         </button>
@@ -52,7 +58,8 @@ export default function LettersChart() {
     setVoiceCourse(chart.course.code);
     // Every letter's sound downloaded first, as a unit's audio is (2026-11-11).
     if (!packed && needsPack(lettersPackId(chart.course.code))) return <AudioPack chart={chart} onReady={() => setPacked(true)} onCancel={() => navigate('/linguistic')} />;
-    const hear = (char, speak) => { setHeard(char); play(null, speak || char, chart.locale); };
+    const english = chart.course.code === 'en';
+    const hear = (char, speak) => { setHeard(char); play(null, english ? char : speak || char, chart.locale); };
     const voice = canSpeakIn(chart.locale);
     // The vowel signs' own lessons (ಕ ಖ, ಗ ಘ… since 2026-11-13) repeat the kagunita's rows: the table has them all.
     const groups = chart.table ? chart.groups.filter((g) => !String(g.id).startsWith('signs')) : chart.groups;

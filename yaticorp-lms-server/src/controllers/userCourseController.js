@@ -305,7 +305,7 @@ const lessonKind = (lesson) => {
 const getCourseOutline = async (req, res) => {
     try {
         const course = await Course.findById(req.params.id)
-            .select('title description thumbnail instructor price isPublished organizationId').lean();
+            .select('title description thumbnail instructor price isPublished organizationId isPrivate privateTo').lean();
         if (!course || !course.isPublished || !canAccessCourse(req.user, course)) {
             return res.status(404).json({ message: 'Course not found' });
         }

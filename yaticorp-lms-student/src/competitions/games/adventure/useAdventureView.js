@@ -2,7 +2,7 @@ import { useState } from 'react';
 import usePhone, { useLandscapePhone } from './usePhone';
 
 /**
- * How The Lost Kingdom and The Final Vault lay out (2026-11-05: "on a phone it should open sideways at once, and
+ * How The Final Vault lays out (2026-11-05: "on a phone it should open sideways at once, and
  * fit the screen"). On a phone, while the game is on, the wide layout — the whole picture with everything on it —
  * is the default: drawn turned a quarter (`rotated`) while the phone is upright, so it is read by turning the
  * phone; filling the screen (`landscape`) once it is sideways. The upright layout (`stacked`: the picture, the

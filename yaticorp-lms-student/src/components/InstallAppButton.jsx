@@ -80,7 +80,7 @@ function InstallHelpDialog({ onClose }) {
                         </div>
                         <h2 id={titleId} className="mb-1 text-center text-lg font-bold text-slate-800">Download App</h2>
                         <p className="mb-4 text-center text-sm leading-relaxed text-slate-500">
-                            Add YATI LMS to your home screen to use it like an app.
+                            Add Yaticorp to your home screen to use it like an app.
                         </p>
                         <ol className="space-y-3">
                             {steps.map(({ icon: Icon, text }, i) => (

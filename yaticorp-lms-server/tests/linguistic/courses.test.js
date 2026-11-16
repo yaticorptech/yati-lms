@@ -76,12 +76,12 @@ describe('courses', () => {
         // And the Level review's story (more.js, 2026-11-14: six lessons a unit) — the only reading.
         // And the new sections' conversations (2026-11-14).
         assert.deepEqual([...modules].sort(), ['reading', 'speaking', 'translation', 'vocabulary']);
-        // And the picture stories in Kannada, in Advanced (2026-11-02).
-        assert.deepEqual(lessonsOf(path.levels.find((l) => l.level === 'advanced')).filter((x) => x.review === 'comic').map((x) => x.title), ['ಚಿತ್ರಕಥೆ: ಹಂಚಿಕೊಂಡ ಬಾವಿ', 'ಚಿತ್ರಕಥೆ: ಮೂರು ಬೆಳ್ಳಿ ನಾಣ್ಯಗಳು', 'ಚಿತ್ರಕಥೆ: ರಸ್ತೆ ಮತ್ತು ಆಲದ ಮರ', 'ಚಿತ್ರಕಥೆ: ಪ್ರಾಮಾಣಿಕ ದೋಣಿಯವನು']);
+        // And the picture stories in Kannada, in Advanced (2026-11-02); the second a story film since 2026-11-07.
+        assert.deepEqual(lessonsOf(path.levels.find((l) => l.level === 'advanced')).filter((x) => x.review === 'comic').map((x) => x.title), ['ಚಿತ್ರಕಥೆ: ಹಂಚಿಕೊಂಡ ಬಾವಿ', 'ಕಥಾಚಿತ್ರ: ಎಲ್ಲವನ್ನೂ ಬದಲಿಸಿದ ಅಪರಿಚಿತ', 'ಚಿತ್ರಕಥೆ: ರಸ್ತೆ ಮತ್ತು ಆಲದ ಮರ', 'ಚಿತ್ರಕಥೆ: ಪ್ರಾಮಾಣಿಕ ದೋಣಿಯವನು']);
         assert.equal(path.levels.find((l) => l.level === 'beginner').open, true);
         assert.equal(path.levels.find((l) => l.level === 'advanced').open, false);
         assert.deepEqual(path.levels[0].units.map((u) => u.title), ['Letters', 'Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Time and days', 'My day', 'Level review'], 'the same units as English, the Kannada letters first (2026-10-31)');
-        assert.deepEqual(path.levels[0].units[0].lessons.map((x) => x.title), ['All letters', 'Letters: Vowels', 'Letters: Consonants 1', 'Letters: Consonants 2', 'Letters: ಕ ಖ with vowel signs', 'Letters: Joined letters 1: ಕ್ಕ ತ್ತ ಪ್ಪ', 'Letters: Joined letters 2: ಕ್ರ ಪ್ರ ತ್ರ'], 'the varnamala, first all on one page; then ka and kha with their vowel signs (2026-11-13; ga, gha … la taken out 2026-11-14), then the joined letters (2026-11-14)');
+        assert.deepEqual(path.levels[0].units[0].lessons.map((x) => x.title), ['All letters', 'Letters test', 'Letters: Vowels', 'Letters: Consonants 1', 'Letters: Consonants 2', 'Letters: ಕ ಖ with vowel signs', 'Letters: Joined letters 1: ಕ್ಕ ತ್ತ ಪ್ಪ', 'Letters: Joined letters 2: ಕ್ರ ಪ್ರ ತ್ರ'], 'the varnamala, first all on one page, then its test (2026-11-13), then the lessons — the joined letters too (2026-11-16)');
         assert.deepEqual(path.levels[0].units[1].lessons.map((x) => x.stop || x.review || x.module), ['vocabulary', 'translation', 'chest', 'hear', 'practice', 'unit']);
         assert.ok(lessonsOf(path.levels[0]).some((x) => /write in Kannada/.test(x.title)));
     });

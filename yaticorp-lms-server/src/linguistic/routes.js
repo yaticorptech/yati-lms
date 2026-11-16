@@ -60,6 +60,16 @@ router.use(async (_req, _res, next) => { await ensureSeeded(); next(); });
 router.use((req, _res, next) => { svc.noteOpenAll(req.user); svc.noteAllCourses(req.user); next(); });
 
 /** A published lesson the student may open — in their own language — or a reply saying why not. */
+/** A lesson of the student's own course, open or not (the audio pack ahead): 404 for any other. */
+const courseLesson = async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) { bad(res, 'That lesson was not found.', 404); return null; }
+    const lesson = await LinguisticLesson.findOne({ _id: req.params.id, status: 'published', deletedAt: null }).lean();
+    if (!lesson) { bad(res, 'That lesson was not found.', 404); return null; }
+    const progress = await svc.progressOf(req.user._id);
+    const lessons = await svc.lessonsFor(progress);
+    if (!lessons.some((l) => idOf(l._id) === idOf(lesson._id))) { res.status(404).json({ code: 'NOT_IN_COURSE', message: 'That lesson is not part of your course.' }); return null; }
+    return svc.serve(lesson, progress);
+};
 const openLesson = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) { bad(res, 'That lesson was not found.', 404); return null; }
     const lesson = await LinguisticLesson.findOne({ _id: req.params.id, status: 'published', deletedAt: null }).lean();
@@ -228,7 +238,9 @@ router.get('/lessons/:id', async (req, res, next) => {
  */
 router.get('/lessons/:id/pack', async (req, res, next) => {
     try {
-        const lesson = await openLesson(req, res);
+        // ?ahead=1 (2026-11-13): the audio of a unit not open yet, for the student's own course only — fetched in the
+        // background so a unit is ready the moment it opens. Its lessons stay locked: this only lists what they say.
+        const lesson = req.query.ahead === '1' ? await courseLesson(req, res) : await openLesson(req, res);
         if (!lesson) return;
         const progress = await svc.progressOf(req.user._id);
         const [lessons, config] = await Promise.all([svc.lessonsFor(progress), getConfig()]);
@@ -242,7 +254,7 @@ router.get('/lessons/:id/pack', async (req, res, next) => {
         const key = unit ? `${lesson.level}-${unit.kind === 'track' ? unit.track : `${unit.order}-${unit.part || 1}`}` : `lesson-${idOf(lesson._id)}`;
         res.json({
             key: `${courseOf(progress)}:${svc.languageOf(progress)}:${key}`,
-            title: unit?.title || lesson.title, letters: lesson.review === 'letters',
+            title: unit?.title || lesson.title, letters: lesson.review === 'letters' || lesson.review === 'lettersExam',
             lessonIds: docs.map((x) => idOf(x._id)), lessons: out
         });
     } catch (err) { next(err); }
@@ -515,7 +527,7 @@ router.get('/history', async (req, res, next) => {
 
 router.get('/certificates', async (req, res, next) => {
     try {
-        const progress = await svc.progressOf(req.user._id);
+        const progress = await svc.numberCertificates(req.user._id, await svc.progressOf(req.user._id));
         res.json({ certificates: progress.certificates.filter((c) => !c.hiddenAt).map((c) => ({ level: c.level, label: svc.LEVEL_LABEL[c.level], course: c.course || 'en', courseName: courseInfo(c.course || 'en').name, number: c.number, issuedAt: c.issuedAt, average: c.average })) });
     } catch (err) { next(err); }
 });
@@ -523,7 +535,7 @@ router.get('/certificates', async (req, res, next) => {
 router.get('/certificates/:level/pdf', require('../integrations/google/driveStore').requireDriveForDownload, async (req, res, next) => {
     try {
         if (!LEVELS.includes(req.params.level)) return bad(res, 'That certificate was not found.', 404);
-        const progress = await svc.progressOf(req.user._id);
+        const progress = await svc.numberCertificates(req.user._id, await svc.progressOf(req.user._id));
         // ?course= for another course's; the course the student is on otherwise.
         const course = String(req.query.course || courseOf(progress));
         const c = progress.certificates.find((x) => x.level === req.params.level && svc.inCourse(x, course));

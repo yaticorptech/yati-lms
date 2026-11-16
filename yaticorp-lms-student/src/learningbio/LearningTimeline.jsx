@@ -28,7 +28,7 @@ export default function LearningTimeline({ events = [] }) {
                                 className={`w-full rounded-xl border px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm ${on ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white'}`}>
                                 <p className="text-sm font-semibold text-slate-800">{e.title}</p>
                                 <p className="text-xs text-slate-500">{fmtDate(e.date)}{e.detail ? ` · ${e.detail}` : ''}</p>
-                                {on && <p className="mt-1 text-xs text-indigo-700">{{ course: 'A course finished end to end.', certificate: 'Issued by YATI LMS on completion.', project: 'A completed build task on your Career Path roadmap.', achievement: 'An achievement unlocked by your activity.', goal: 'Where your Career Path roadmap is heading.', joined: 'Where it all began.', started: 'In progress — keep going.' }[e.kind]}</p>}
+                                {on && <p className="mt-1 text-xs text-indigo-700">{{ course: 'A course finished end to end.', certificate: 'Issued by YATICORP on completion.', project: 'A completed build task on your Career Path roadmap.', achievement: 'An achievement unlocked by your activity.', goal: 'Where your Career Path roadmap is heading.', joined: 'Where it all began.', started: 'In progress — keep going.' }[e.kind]}</p>}
                             </button>
                         </li>
                     );

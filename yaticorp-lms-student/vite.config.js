@@ -5,7 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
-  // Kokoro's worker (src/lib/kokoro.worker.js, 2026-11-12) loads its model with dynamic imports: an ES-module worker.
+  // The voice model's Web Worker (src/lib/kokoro.worker.js) is an ES module: it loads the model's own code in parts.
   worker: { format: 'es' },
   plugins: [
     react(),
@@ -20,8 +20,8 @@ export default defineConfig(({ mode }) => ({
             registerType: 'autoUpdate',
             includeAssets: ['assets/favicon.ico', 'assets/apple-touch-icon.png', 'assets/YATICORP.png'],
             manifest: {
-              name: 'YATI LMS',
-              short_name: 'YATI LMS',
+              name: 'Yaticorp',
+              short_name: 'Yaticorp',
               description: 'YATICORP Learning Management System',
               start_url: '/',
               scope: '/',
@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => ({
               globPatterns: ['**/*.{js,css,html,woff2}'],
               // three.min.js and the walker are only needed on the screens that
               // show the 3D mascot; fetched (and cached) on first use instead.
-              globIgnores: ['loop-walker/**', 'assets/kokoro*.js'],
+              globIgnores: ['loop-walker/**', 'assets/kokoro-*.js', 'assets/kokoro.worker-*.js'],
               maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
               // No runtime route touches the API (api.learn.yaticorp.in) or the
               // Bunny video CDN: those requests pass straight through to the

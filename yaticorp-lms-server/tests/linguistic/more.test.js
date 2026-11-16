@@ -46,14 +46,16 @@ describe('six lessons a unit', () => {
             // Five sections since 2026-11-14 (the user: "add more sections, six units in each … don't repeat"): Beginner,
             // Daily life, Intermediate (shown again), Advanced, Work and the world — every unit of each with six lessons.
             assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional']);
-            for (const lv of path.levels) for (const u of lv.units) assert.equal(real(u).length, 6, `${lv.level} ${u.title}: ${real(u).map((x) => x.title).join(', ')}`);
+            // (The Letters unit's letters test, 2026-11-12, is its test, not one of its six lessons.)
+            const six = (u) => real(u).filter((x) => x.review !== 'lettersExam');
+            for (const lv of path.levels) for (const u of lv.units) assert.equal(six(u).length, 6, `${lv.level} ${u.title}: ${real(u).map((x) => x.title).join(', ')}`);
             for (const lv of path.levels.filter((l) => ['elementary', 'professional'].includes(l.level))) {
                 assert.equal(lv.units.length, 6, `${lv.level}: six units`);
                 for (const u of lv.units) assert.deepEqual(real(u).map((x) => x.title.split(':')[0]), ['Words', 'Sentences', 'Words', 'Sentences', 'Story', 'Conversation'], `${lv.level} ${u.title}`);
             }
             const s1 = path.levels[0], s2 = path.levels.find((l) => l.level === 'advanced');
             // Every unit: the Letters unit and the Level review too (2026-11-14, the user chose new lessons for both).
-            for (const u of s1.units) assert.equal(real(u).length, 6, `${u.title}: ${real(u).map((x) => x.title).join(', ')}`);
+            for (const u of s1.units) assert.equal(six(u).length, 6, `${u.title}: ${six(u).map((x) => x.title).join(', ')}`);
             assert.equal(real(s1.units.at(-1)).find((x) => x.type === 'story')?.title, 'Story: A day at the fair', 'the Level review\'s new story');
             for (const u of s2.units) assert.equal(real(u).length, 6, `${u.title}: ${real(u).map((x) => x.title).join(', ')}`);
             // The new ones after the lessons that were there: a unit's Words lesson, then "More words".

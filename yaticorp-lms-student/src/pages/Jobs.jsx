@@ -766,7 +766,7 @@ export default function Jobs() {
             ) : tab === 'match' ? (
                 <CareerMatchTab profile={resumeProfile} onProfile={setResumeProfile} onSwitchTab={switchTab} location={form.location} />
             ) : tab === 'hidden' ? (
-                <HiddenOpportunitiesTab profile={resumeProfile} onSwitchTab={switchTab} location={form.location} />
+                <HiddenOpportunitiesTab profile={resumeProfile} onSwitchTab={switchTab} location={form.location} targetRole={form.role} />
             ) : (
             <div className={`grid grid-cols-1 gap-6 items-start ${tab === 'saved' ? '' : 'lg:grid-cols-[340px_1fr]'}`}>
                 {/* ── Filters ─────────────────────────────────────────────

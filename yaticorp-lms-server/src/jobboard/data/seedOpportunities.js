@@ -22,7 +22,7 @@ const at = (daysFromNow, hour = 9) => {
 const span = (from, to, startHour, endHour) => ({ startsAt: at(from, startHour), endsAt: at(to ?? from, endHour) });
 const org = (name, verified = true, about = "") => ({ name, verified, about });
 
-const rows = [
+const build = () => [
   // ── Open to 14–17 (verified, youth-safe / supervised, daytime) ─────────
   {
     slug: "flyer-distribution-crumbs-bakery",
@@ -916,7 +916,84 @@ const rows = [
     verified: true, safetyClassification: "youth-safe", guardianApprovalRequired: true,
     supervision: "A parent volunteer on the stand at all times.",
     safetyNotes: "Cycles only, inside the compound. Never on the road or near cars."
-  }
+  },
+  // ── North and coastal Karnataka towns (added 2026-11-14) ──────────────
+  { slug: "hubballi-wedding-serving", title: "Wedding lunch serving helper",
+    organization: org("Annapoorna Caterers", true, "Wedding caterers in Hubballi."),
+    description: "Serve plates and refill the buffet at a daytime wedding lunch. Uniform provided; serving only, no kitchen work.",
+    category: "catering", icon: "🍽️", opportunityType: "event-support", interests: ["catering", "events"],
+    location: { area: "Vidyanagar", city: "Hubballi", landmark: "Shri Kalyana Mantapa" },
+    ...span(4, 4, 11, 15), timeLabel: "11:00–15:00", hoursPerSession: "2-4", slots: 6,
+    minimumAge: 16, maximumAge: null, compensation: { kind: "paid", label: "₹600 · lunch" },
+    verified: true, safetyClassification: "supervised", guardianApprovalRequired: true,
+    supervision: "Catering supervisor on the floor.", safetyNotes: "Daytime, indoors. No hot-surface or knife work." },
+  { slug: "hubballi-sweet-box-packing", title: "Sweet box packing for Deepavali orders",
+    organization: org("Hubli Sweet Mart", true, "Family sweet shop on Koppikar Road."),
+    description: "Fold boxes, pack sweets and stick labels for festival orders in the shop's back room.",
+    category: "packing", icon: "📦", opportunityType: "part-time", interests: ["packing"],
+    location: { area: "Koppikar Road", city: "Hubballi", landmark: "Near Durgadbail" },
+    ...span(2, 12, 10, 14), timeLabel: "10:00–14:00", hoursPerSession: "2-4", slots: 5,
+    minimumAge: 15, maximumAge: null, compensation: { kind: "paid", label: "₹250/day" },
+    verified: true, safetyClassification: "youth-safe", guardianApprovalRequired: true,
+    supervision: "Shop owner in the room.", safetyNotes: "Seated work, no lifting over 5 kg." },
+  { slug: "hubballi-data-entry-clinic", title: "Data entry for a clinic (part-time)",
+    organization: org("Sanjeevini Clinic", true, "A family clinic digitising patient registers."),
+    description: "Type old appointment registers into a spreadsheet at the clinic's front desk. Afternoons, your own pace.",
+    category: "dataentry", icon: "⌨️", opportunityType: "part-time", interests: ["dataentry"],
+    location: { area: "Gokul Road", city: "Hubballi", landmark: "Gokul Road bus stop" },
+    ...span(1, 20, 14, 17), timeLabel: "14:00–17:00", hoursPerSession: "2-4", slots: 2,
+    minimumAge: 16, maximumAge: null, compensation: { kind: "paid", label: "₹200/afternoon" },
+    verified: true, safetyClassification: "youth-safe", guardianApprovalRequired: true,
+    supervision: "Receptionist at the same desk.", safetyNotes: "Office work, daytime. No patient contact." },
+  { slug: "bailhongal-fair-decoration", title: "Stage decoration for the village fair",
+    organization: org("Bailhongal Utsav Samiti", true, "Organisers of the yearly town fair."),
+    description: "Tie marigold strings and buntings on the fair stage and entrance arch with the decoration team.",
+    category: "decoration", icon: "🎀", opportunityType: "event-support", interests: ["decoration", "events"],
+    location: { area: "Fair grounds", city: "Bailhongal", landmark: "Near Kittur Rani Chennamma statue" },
+    ...span(6, 7, 9, 13), timeLabel: "09:00–13:00", hoursPerSession: "2-4", slots: 8,
+    minimumAge: 14, maximumAge: null, compensation: { kind: "paid", label: "₹300/day · snacks" },
+    verified: true, safetyClassification: "youth-safe", guardianApprovalRequired: true,
+    supervision: "Decoration lead with the group.", safetyNotes: "Ground level only — no ladders." },
+  { slug: "bailhongal-shop-flyers", title: "Flyer distribution for a new mobile shop",
+    organization: org("Sri Mobiles Bailhongal", true, "A new phone and recharge shop."),
+    description: "Hand out opening-week flyers at the bus stand and market road with the shop's staff.",
+    category: "promotion", icon: "📣", opportunityType: "gig", interests: ["promotion"],
+    location: { area: "Market Road", city: "Bailhongal", landmark: "Bailhongal bus stand" },
+    ...span(3, 3, 8, 11), timeLabel: "08:00–11:00", hoursPerSession: "2-4", slots: 4,
+    minimumAge: 14, maximumAge: null, compensation: { kind: "paid", label: "₹250/morning" },
+    verified: true, safetyClassification: "youth-safe", guardianApprovalRequired: true,
+    supervision: "Shop staff member with the group.", safetyNotes: "Footpath only, daylight hours, no cash." },
+  { slug: "mangaluru-event-photo-assist", title: "Photography assistant at a college fest",
+    organization: org("Coastal Clicks Studio", true, "Event photographers in Mangaluru."),
+    description: "Carry spare batteries and reflectors, and take crowd photos on a second camera at a college cultural fest.",
+    category: "photography", icon: "📷", opportunityType: "event-support", interests: ["photography", "events"],
+    location: { area: "Hampankatta", city: "Mangaluru", landmark: "Town Hall" },
+    ...span(5, 5, 10, 16), timeLabel: "10:00–16:00", hoursPerSession: "4+", slots: 2,
+    minimumAge: 16, maximumAge: null, compensation: { kind: "paid", label: "₹800/day" },
+    verified: true, safetyClassification: "supervised", guardianApprovalRequired: true,
+    supervision: "Lead photographer throughout.", safetyNotes: "Daytime, indoors and campus grounds." },
+  { slug: "mangaluru-banquet-serving", title: "Banquet serving, evening reception",
+    organization: org("Karavali Banquets", true, "Banquet hall near Kadri."),
+    description: "Serve welcome drinks and starters at an early-evening reception. Ends by 8 pm; transport home arranged.",
+    category: "catering", icon: "🍽️", opportunityType: "event-support", interests: ["catering", "events"],
+    location: { area: "Kadri", city: "Mangaluru", landmark: "Kadri Park" },
+    ...span(9, 9, 16, 20), timeLabel: "16:00–20:00", hoursPerSession: "2-4", slots: 6,
+    minimumAge: 18, maximumAge: null, compensation: { kind: "paid", label: "₹700 · dinner" },
+    verified: true, safetyClassification: "supervised", guardianApprovalRequired: false,
+    supervision: "Banquet captain on the floor.", safetyNotes: "Ends by 8 pm; drop-off provided." },
+  { slug: "shivamogga-exhibition-stall", title: "Stall helper at a handloom exhibition",
+    organization: org("Malnad Handloom Mela", true, "A weekend handloom and crafts exhibition."),
+    description: "Fold and arrange sarees, greet visitors and note enquiries at a weaver's stall.",
+    category: "events", icon: "🎪", opportunityType: "event-support", interests: ["events", "shop"],
+    location: { area: "Nehru Stadium", city: "Shivamogga", landmark: "Exhibition grounds" },
+    ...span(7, 8, 10, 15), timeLabel: "10:00–15:00", hoursPerSession: "4+", slots: 4,
+    minimumAge: 15, maximumAge: null, compensation: { kind: "paid", label: "₹400/day" },
+    verified: true, safetyClassification: "youth-safe", guardianApprovalRequired: true,
+    supervision: "Stall owner beside you.", safetyNotes: "Daytime, inside the hall. No cash handling." }
 ];
 
-module.exports = { SEED_VERSION, rows: rows.map((r) => ({ ...r, source: "seed", seedVersion: SEED_VERSION, status: "open" })) };
+// Dates are worked out when called, so sample jobs can be moved forward
+// once their days have passed (see ensureSeeded in routes/opportunities.js).
+const freshRows = () => build().map((r) => ({ ...r, source: "seed", seedVersion: SEED_VERSION, status: "open" }));
+
+module.exports = { SEED_VERSION, rows: freshRows(), freshRows };

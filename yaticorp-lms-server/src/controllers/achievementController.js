@@ -15,7 +15,11 @@ const { Readable } = require('stream');
 const cloudinary = require('../config/cloudinary');
 const { uploadToBunny } = require('../utils/bunnyStorage');
 const { assertDriveLinked, storeInDrive, sendDriveError, sendFromDrive, removeFile } = require('../integrations/google/driveStore');
+const mongoose = require('mongoose');
 const Achievement = require('../models/Achievement');
+const User = require('../models/User');
+const { numbersFor } = require('../services/certificateNumbers');
+const { frame } = require('../services/certificateFrame');
 
 const bunnyConfigured = () => !!(process.env.BUNNY_STORAGE_ZONE && process.env.BUNNY_STORAGE_API_KEY && process.env.BUNNY_CDN_HOST);
 
@@ -59,6 +63,20 @@ const thumbnailFor = (result, isPdf) => {
     return cloudinary.url(result.public_id, { secure: true, format: 'jpg', page: 1, width: 800, crop: 'limit', quality: 'auto' });
 };
 
+/** One file kept where the student's certificates go: their Drive, else Bunny, else Cloudinary. */
+const keep = async (userId, toDrive, buffer, name, mimeType, isPdf, title, number) => {
+    if (toDrive) {
+        const d = await storeInDrive(userId, buffer, { name, mimeType, description: `Certificate ${number}: ${title} — uploaded to YATICORP.` });
+        return { storage: 'drive', driveFileId: d.driveFileId, fileUrl: d.viewUrl, thumbnailUrl: d.previewUrl, objectPath: '' };
+    }
+    if (bunnyConfigured()) {
+        const url = await uploadToBunny(buffer, name, 'lms_achievements');
+        return { storage: 'bunny', fileUrl: url, objectPath: url.split('/').slice(3).join('/'), thumbnailUrl: isPdf ? '' : url };
+    }
+    const result = await uploadToCloudinary(buffer, isPdf);
+    return { storage: 'cloudinary', fileUrl: result.secure_url, publicId: result.public_id, thumbnailUrl: thumbnailFor(result, isPdf) };
+};
+
 const publicView = (a) => ({
     id: String(a._id),
     title: a.title,
@@ -71,16 +89,66 @@ const publicView = (a) => ({
     originalName: a.originalName,
     // In the student's Drive: the file comes through GET /achievements/:id/file for a download.
     inDrive: a.storage === 'drive',
+    framed: Boolean(a.framed),
+    certificateNumber: a.certificateNumber || '',
     createdAt: a.createdAt
 });
 
 const parseDay = (v) => { if (!v) return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d; };
+
+/*
+ * A certificate uploaded before framing (2026-11-11): framed now with its number, as a new upload is — the framed
+ * picture kept in the student's Drive (where it was, or where their uploads go now), the file as uploaded kept
+ * beside it. Resolves to 'framed', or why not ('no-picture', 'no-number', 'not-read', 'kept-elsewhere').
+ */
+const framing = new Set();
+const frameExisting = async (row) => {
+    const id = String(row._id);
+    if (row.framed || framing.has(id)) return 'skipped';
+    framing.add(id);
+    try {
+        const drive = require('../integrations/google/drive');
+        const fetchBytes = async (url) => Buffer.from((await axios.get(url, { responseType: 'arraybuffer', timeout: 30000, maxContentLength: 15 * 1024 * 1024 })).data);
+        // The picture to frame: the image itself, or a PDF's page-one picture.
+        let picture = null;
+        if (row.fileType === 'image') {
+            if (row.storage === 'drive' && row.driveFileId) { const f = await drive.readFile(row.userId, row.driveFileId); picture = f.ok ? f.buffer : null; }
+            else picture = await fetchBytes(row.fileUrl).catch(() => null);
+        } else if (row.thumbnailUrl) {
+            picture = await fetchBytes(row.thumbnailUrl).catch(() => null);
+        }
+        if (!picture) return 'no-picture';
+        const key = `up-${id}`;
+        const certificateNumber = (await numbersFor(row.userId, [{ key, added: row.createdAt }]))[key];
+        if (!certificateNumber) return 'no-number';
+        const framedPicture = await frame(picture, { number: certificateNumber });
+        if (!framedPicture) return 'not-read';
+        // Their Drive when it is linked (or the file is there already); else where uploads go without it.
+        let toDrive = row.storage === 'drive';
+        if (!toDrive) { try { toDrive = await assertDriveLinked(row.userId); } catch { toDrive = false; } }
+        const base = `${certificateNumber} - ${row.title}`.replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 150);
+        const main = await keep(row.userId, toDrive, framedPicture, `${base}.png`, 'image/png', false, row.title, certificateNumber);
+        await Achievement.updateOne({ _id: row._id, framed: { $ne: true } }, {
+            $set: {
+                ...main, fileType: 'image', originalName: `${base}.png`, framed: true, certificateNumber,
+                original: { fileUrl: row.fileUrl, fileType: row.fileType, storage: row.storage, driveFileId: row.driveFileId || '', objectPath: row.objectPath || '', publicId: row.publicId || '' }
+            }
+        });
+        return 'framed';
+    } finally { framing.delete(id); }
+};
+/** Frames, in the background, a student's uploads from before framing. */
+const frameMissing = (userId) => Achievement.find({ userId, framed: { $ne: true } }).lean()
+    .then(async (rows) => { for (const r of rows) await frameExisting(r).catch((e) => console.warn('[achievements] framing failed:', String(r._id), e.message)); })
+    .catch(() => {});
 
 // @route GET /api/user/achievements
 const listAchievements = async (req, res) => {
     try {
         const rows = await Achievement.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean();
         res.json({ achievements: rows.map(publicView), max: MAX_PER_USER });
+        // Any from before framing are framed now, for the next time they are shown.
+        if (rows.some((r) => !r.framed)) frameMissing(req.user._id);
     } catch (error) {
         res.status(500).json({ message: 'Could not load your achievements.', error: error.message });
     }
@@ -93,6 +161,7 @@ const createAchievement = (req, res) => {
     upload.fields([{ name: 'file', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }])(req, res, async (uploadErr) => {
         req.file = req.files?.file?.[0];
         const pageOne = req.files?.thumbnail?.[0];
+        let numberKey = null;
         try {
             if (uploadErr) {
                 const message = uploadErr.code === 'LIMIT_FILE_SIZE' ? 'That file is over 10 MB — export a lighter one.' : uploadErr.message;
@@ -110,7 +179,33 @@ const createAchievement = (req, res) => {
             const isPdf = req.file.mimetype === 'application/pdf' || /\.pdf$/i.test(req.file.originalname || '');
             const originalName = String(req.file.originalname || (isPdf ? 'certificate.pdf' : 'certificate.png')).slice(0, 200);
 
+            // Its number in the student's series (YATI<card>-001), and the certificate framed with it (2026-11-11):
+            // the framed picture is what is kept, shown and checked; the file as uploaded is kept beside it.
+            const _id = new mongoose.Types.ObjectId();
+            const key = `up-${_id}`;
+            numberKey = key;
+            const certificateNumber = (await numbersFor(req.user._id, [{ key, added: new Date() }]))[key] || '';
+            const picture = !isPdf ? req.file.buffer : (pageOne && /^image\/(jpeg|png)$/.test(pageOne.mimetype) ? pageOne.buffer : null);
+            const framedPicture = certificateNumber && picture ? await frame(picture, { number: certificateNumber }) : null;
+
             let stored;
+            if (framedPicture) {
+                const base = `${certificateNumber} - ${title}`.replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 150);
+                const main = await keep(req.user._id, toDrive, framedPicture, `${base}.png`, 'image/png', false, title, certificateNumber);
+                const orig = await keep(req.user._id, toDrive, req.file.buffer, originalName, isPdf ? 'application/pdf' : req.file.mimetype, isPdf, title, certificateNumber)
+                    .catch((e) => { console.warn('[achievements] original not kept:', e.message); return null; });
+                const row = await Achievement.create({
+                    _id, userId: req.user._id, title,
+                    issuer: String(req.body.issuer || '').trim().slice(0, 120),
+                    kind: ['certificate', 'award', 'other'].includes(req.body.kind) ? req.body.kind : 'certificate',
+                    issuedOn: parseDay(req.body.issuedOn),
+                    fileType: 'image', originalName: `${base}.png`, framed: true, certificateNumber,
+                    ...main,
+                    original: orig ? { fileUrl: orig.fileUrl, fileType: isPdf ? 'pdf' : 'image', storage: orig.storage, driveFileId: orig.driveFileId || '', objectPath: orig.objectPath || '', publicId: orig.publicId || '' } : null
+                });
+                return res.status(201).json({ achievement: publicView(row) });
+            }
+
             if (toDrive) {
                 // Their Drive, shared by link: the link opens it, Drive draws its picture (a PDF's first page too).
                 const d = await storeInDrive(req.user._id, req.file.buffer, {
@@ -138,7 +233,9 @@ const createAchievement = (req, res) => {
             }
 
             const row = await Achievement.create({
+                _id,
                 userId: req.user._id,
+                certificateNumber,
                 title,
                 issuer: String(req.body.issuer || '').trim().slice(0, 120),
                 kind: ['certificate', 'award', 'other'].includes(req.body.kind) ? req.body.kind : 'certificate',
@@ -149,6 +246,8 @@ const createAchievement = (req, res) => {
             });
             res.status(201).json({ achievement: publicView(row) });
         } catch (error) {
+            // Not uploaded: the number it was given goes back off the student's list.
+            if (numberKey) User.updateOne({ _id: req.user._id }, { $pull: { certificateNumbers: { key: numberKey } } }).catch(() => {});
             if (sendDriveError(res, error)) return;
             console.error('Achievement upload error:', error);
             res.status(error.status === 502 ? 502 : 500).json({ message: error.status === 502 ? error.message : 'Upload failed. Please try again.', error: error.message });
@@ -202,10 +301,17 @@ const deleteAchievement = async (req, res) => {
             : row.objectPath ? deleteFromBunny(row.objectPath) : Promise.resolve();
         cleanup.catch((e) => console.warn('[achievements] storage delete failed:', e.message));
         if (row.thumbnailObjectPath) deleteFromBunny(row.thumbnailObjectPath).catch((e) => console.warn('[achievements] thumbnail delete failed:', e.message));
+        // The file as uploaded, kept beside the framed one.
+        const o = row.original;
+        if (o) {
+            (o.storage === 'drive' && o.driveFileId ? removeFile(req.user._id, o.driveFileId)
+                : o.storage === 'cloudinary' && o.publicId ? cloudinary.uploader.destroy(o.publicId, { resource_type: 'image' })
+                    : o.objectPath ? deleteFromBunny(o.objectPath) : Promise.resolve()).catch((e) => console.warn('[achievements] original delete failed:', e.message));
+        }
         res.json({ ok: true });
     } catch (error) {
         res.status(500).json({ message: 'Could not remove the certificate.', error: error.message });
     }
 };
 
-module.exports = { listAchievements, createAchievement, updateAchievement, deleteAchievement, achievementFile };
+module.exports = { listAchievements, createAchievement, updateAchievement, deleteAchievement, achievementFile, frameExisting };

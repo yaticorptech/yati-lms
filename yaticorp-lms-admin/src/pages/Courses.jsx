@@ -330,6 +330,10 @@ const Courses = () => {
                             <span className={`absolute left-3 top-3 rounded-md px-2 py-0.5 text-[11px] font-bold shadow-sm ${course.isPublished ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-amber-950'}`}>
                                 {course.isPublished ? 'Published' : 'Draft'}
                             </span>
+                            {/* A private course (2026-11-12): only the students chosen on the Private courses page see it. */}
+                            {course.isPrivate && (
+                                <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-indigo-600 to-violet-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-md ring-2 ring-indigo-300"><Lock size={12} strokeWidth={2.75} /> Private</span>
+                            )}
                         </Link>
 
 

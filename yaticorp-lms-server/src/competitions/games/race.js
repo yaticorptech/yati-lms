@@ -10,6 +10,7 @@
  */
 const { GameError } = require('./contract');
 const { makeStageEngine } = require('./stageCore');
+const { zoneOf } = require('./zones');
 
 const int = (rng, lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
 const pickOne = (rng, list) => list[Math.floor(rng() * list.length)];
@@ -19,7 +20,11 @@ const D = { easy: 1, medium: 2, hard: 3 };
 /** The shared parts: points, progress, the clock. */
 const race = (def) => makeStageEngine({
     id: def.id, label: def.label, emoji: def.emoji, summary: def.summary, firstFinishWins: Boolean(def.firstFinishWins),
-    setup: (o, rng) => ({ seconds: def.seconds[o.difficulty] || def.seconds.medium, stages: def.make(rng, D[o.difficulty] || 2), kind: def.id }),
+    // A room's age zone (./zones.js, 2026-11-13), when it has one, goes to the game's maker and may set its clock.
+    setup: (o, rng) => {
+        const zone = zoneOf(o);
+        return { seconds: def.zoneSeconds?.[zone] || def.seconds[o.difficulty] || def.seconds.medium, stages: def.make(rng, D[o.difficulty] || 2, zone), kind: def.id };
+    },
     start: (shared) => ({ stage: 0, ...(def.begin ? def.begin(shared.stages[0]) : {}) }),
     actions: {
         [def.action]: (s, seat, action, ctx) => {
@@ -106,19 +111,27 @@ const feedback = (secret, guess) => {
 const codebreaker = race({
     id: 'codebreaker', label: 'Code Breaker', emoji: '🔐', summary: 'Crack the same colour codes from the clues — fewer guesses, more points.',
     seconds: { easy: 240, medium: 300, hard: 360 }, action: 'guess',
-    make: (rng, d) => Array.from({ length: 3 }, () => ({ colours: 3 + d, secret: Array.from({ length: 4 }, () => pickOne(rng, PEGS.slice(0, 3 + d))) })),
+    // By zone (./zones.js): Rising Brains the standard five colours and ten guesses; Master Minds all six colours,
+    // four codes and eight guesses each. (`tries` is new: a code without it has ten.)
+    zoneSeconds: { master: 420 },
+    make: (rng, d, zone) => {
+        const colours = zone === 'master' ? 6 : zone === 'smart' ? 5 : zone === 'young' ? 4 : 3 + d;
+        const codes = zone === 'master' ? 4 : 3;
+        return Array.from({ length: codes }, () => ({ colours, ...(zone === 'master' ? { tries: 8 } : {}), secret: Array.from({ length: 4 }, () => pickOne(rng, PEGS.slice(0, colours))) }));
+    },
     begin: () => ({ guesses: [] }),
     play: (st, p, a) => {
+        const tries = st.tries || 10;
         const code = Array.isArray(a.code) ? a.code.map(String) : [];
         if (code.length !== 4 || code.some((c) => !PEGS.slice(0, st.colours).includes(c))) throw new GameError('Pick four colours.');
-        if (p.guesses.length >= 10) throw new GameError('No guesses left for this code.');
+        if (p.guesses.length >= tries) throw new GameError('No guesses left for this code.');
         const f = feedback(st.secret, code);
         p.guesses.push({ code, ...f });
-        if (f.exact === 4) return { solved: true, points: 60 + 10 * Math.max(0, 10 - p.guesses.length) };
-        if (p.guesses.length >= 10) { p.guesses = []; return { solved: true, points: 0 }; }
+        if (f.exact === 4) return { solved: true, points: 60 + 10 * Math.max(0, tries - p.guesses.length) };
+        if (p.guesses.length >= tries) { p.guesses = []; return { solved: true, points: 0 }; }
         return { wrong: true, penalty: 0 };
     },
-    show: (st, p) => ({ colours: PEGS.slice(0, st.colours), guesses: p.guesses, left: 10 - p.guesses.length }),
+    show: (st, p) => ({ colours: PEGS.slice(0, st.colours), guesses: p.guesses, left: (st.tries || 10) - p.guesses.length }),
     review: (st) => ({ title: 'Code', solution: st.secret.join(' · ') })
 });
 
@@ -178,7 +191,18 @@ const numberbonds = race({
 const mathsprint = race({
     id: 'mathsprint', label: 'Math Sprint', emoji: '🧮', summary: 'The same sums for everyone, typed against the clock.',
     seconds: { easy: 60, medium: 60, hard: 75 }, action: 'answer',
-    make: (rng, d) => Array.from({ length: 15 }, () => {
+    zoneSeconds: { young: 75, master: 90 },
+    make: (rng, d, zone) => Array.from({ length: zone === 'young' ? 12 : 15 }, () => {
+        // Young Thinkers (./zones.js, 2026-11-13): adding and taking away within 20 — no answer, and no number, past 20.
+        if (zone === 'young') {
+            if (rng() < 0.5) { const a = int(rng, 1, 19); const b = int(rng, 1, 20 - a); return { text: `${a} + ${b}`, answer: a + b }; }
+            const a = int(rng, 2, 20); const b = int(rng, 1, a); return { text: `${a} − ${b}`, answer: a - b };
+        }
+        // Master Minds: one in three is two steps, multiplying first.
+        if (zone === 'master' && rng() < 1 / 3) {
+            const a = int(rng, 3, 12); const b = int(rng, 3, 12); const c = int(rng, 2, 30);
+            return rng() < 0.5 ? { text: `${a} × ${b} + ${c}`, answer: a * b + c } : { text: `${a} × ${b} − ${Math.min(c, a * b)}`, answer: a * b - Math.min(c, a * b) };
+        }
         const op = pickOne(rng, d === 1 ? ['+', '−'] : d === 2 ? ['+', '−', '×'] : ['+', '−', '×', '÷']);
         let a = int(rng, 2, d === 1 ? 20 : d === 2 ? 50 : 99); let b = int(rng, 2, d === 1 ? 20 : 12);
         if (op === '−' && b > a) [a, b] = [b, a];
@@ -197,7 +221,9 @@ const mathsprint = race({
 });
 
 /* ── Memory Match ───────────────────────────────────────────────────── */
-const FACES = ['🍎', '🚀', '🎸', '🐼', '⚽', '🌈', '🍕', '🦋', '🎲', '🌵', '🐙', '🍩'];
+const FACES_ALL = ['🍎', '🚀', '🎸', '🐼', '⚽', '🌈', '🍕', '🦋', '🎲', '🌵', '🐙', '🍩'];
+// Young Thinkers' picture cards: animals they can name.
+const ANIMALS = ['🐶', '🐱', '🐼', '🦁', '🐸', '🐵', '🐰', '🐘'];
 const memorymatch = race({
     id: 'memorymatch', label: 'Memory Match', emoji: '🃏', summary: 'The same deck for everyone: turn two cards at a time — the first to pair them all wins.',
     // A race against the clock (2026-11-07): whoever pairs every card first wins, the next to finish is second, and so
@@ -207,9 +233,12 @@ const memorymatch = race({
     firstFinishWins: true,
     score: (s, p) => (p.done ? 1000 + 10 * Math.max(0, Math.floor((s.runMs - (p.doneMs ?? s.runMs)) / 1000)) : 100 * (p.stage || 0)),
     seconds: { easy: 120, medium: 150, hard: 180 }, action: 'flip',
-    // One stage per pair, on one deck: the stage counts the pairs found.
-    make: (rng, d) => {
-        const pairs = d === 1 ? 6 : d === 2 ? 8 : 10;
+    zoneSeconds: { young: 90 },
+    // One stage per pair, on one deck: the stage counts the pairs found. Young Thinkers (./zones.js): four pairs of
+    // animal pictures; Rising Brains eight; Master Minds ten.
+    make: (rng, d, zone) => {
+        const pairs = zone === 'young' ? 4 : zone === 'smart' ? 8 : zone === 'master' ? 10 : d === 1 ? 6 : d === 2 ? 8 : 10;
+        const FACES = zone === 'young' ? shuffle(ANIMALS, rng) : FACES_ALL;
         // Pairs kept apart (2026-11-07: "only one pair near by, not more"): shuffled again until at most one pair
         // touches — side by side, one above the other, or corner to corner — on the board as drawn (4 across; 5 above
         // 16 cards). The best of the tries is kept.

@@ -11,6 +11,7 @@
  * Read-only until "Edit details" is pressed, and the save bar appears only once
  * something has actually changed, so the page cannot be saved by accident.
  */
+import AdmissionNumbersCard from '../../components/AdmissionNumbersCard';
 import React, { useState, useEffect, useId } from 'react';
 import { Pencil, Lock, Loader2, Check, Copy, KeyRound, ImagePlus, RotateCw, Camera } from 'lucide-react';
 import api from '../../utils/api';
@@ -22,7 +23,6 @@ import { formatDate } from '../../utils/dates';
 import { useAuth } from '../../context/AuthContext';
 import { getViewedOrganization } from '../../utils/viewOrganization';
 import { INDIA_STATES } from '../../utils/bsg';
-import OrgClasses from '../../components/teachers/OrgClasses';
 
 /** The fields this page owns. Anything else the server sends is left alone. */
 // The logo is not among them: it has its own card, uploaded as an image.
@@ -128,10 +128,6 @@ const OrgSettings = () => {
     };
 
     useEffect(() => { load(); }, []);
-    // From the dashboard's "Add courses": once the page is drawn, to Institution.
-    useEffect(() => {
-        if (!loading && window.location.hash === '#courses') setTimeout(() => document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-    }, [loading]);
 
     const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
@@ -321,11 +317,8 @@ const OrgSettings = () => {
                 )}
             </form>
 
-            {/* ── Institution: the courses and their sections (from Teachers, 2026-11-04) ── */}
-            <div id="courses" className="scroll-mt-24">
-                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Institution</h2>
-                <OrgClasses onNotice={(m) => { setNotice(m); setTimeout(() => setNotice(''), 5000); }} />
-            </div>
+            {/* Admission numbers for Campus (2026-11-14): shown when Campus is on. */}
+            <AdmissionNumbersCard />
 
             {/* A superadmin managing this organization signs in with their own
                 account, so the organization's password is not theirs to change

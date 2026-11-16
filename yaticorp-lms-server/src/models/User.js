@@ -157,7 +157,7 @@ const userSchema = new mongoose.Schema({
             activityName: { type: String, default: '' },
             groupName: { type: String, default: '' },
             fileUrl: { type: String, required: true },
-            fileType: { type: String, enum: ['image', 'pdf'], default: 'image' },
+            fileType: { type: String, enum: ['image', 'pdf', 'video'], default: 'image' },
             fileName: { type: String, default: '' },
             objectPath: { type: String, default: '' },
             // In the student's own Google Drive (2026-11-02): fileUrl is the view link teachers open,
@@ -257,8 +257,70 @@ const userSchema = new mongoose.Schema({
     // still what sign-in checks. Written alongside the hash by the hooks
     // below, and at sign-in for a password hashed before this field existed.
     // Never selected by default, so no API response can carry it by accident.
-    passwordSealed: { type: String, default: '', select: false }
+    passwordSealed: { type: String, default: '', select: false },
+
+    // Campus (2026-11-13, src/campus): the student's admission to a department of
+    // their organization and everything the institution records about them there:
+    // attendance, internal and semester marks, fee payments, exam applications and
+    // feedback. Kept on the student, not a collection of its own (the cluster is at
+    // its collection limit), and never selected by default: it only grows.
+    campus: {
+        type: new mongoose.Schema({
+            departmentId: { type: mongoose.Schema.Types.ObjectId, default: null },
+            semester: { type: Number, min: 1, max: 12, default: 1 },
+            section: { type: String, default: '', maxlength: 10 },
+            rollNo: { type: String, default: '', maxlength: 40 },
+            admissionNo: { type: String, default: '', maxlength: 40 },
+            academicYear: { type: String, default: '', maxlength: 20 },
+            admittedAt: { type: Date, default: null },
+            // 'accepted' (2026-11-14): the office accepted the application; no admission number and no
+            // class lists until they are admitted ('studying').
+            status: { type: String, enum: ['accepted', 'studying', 'completed', 'left'], default: 'studying' },
+            acceptedAt: { type: Date, default: null },
+            // When they passed out (completed) or left, and the history of the class they were in.
+            endedAt: { type: Date, default: null },
+            endReason: { type: String, default: '', maxlength: 300 },
+            // Semester by semester: when they moved up (or passed out), by whom.
+            journey: { type: [{ _id: false, semester: Number, to: Number, at: Date, by: String, note: String }], default: [] },
+            // The admission form's answers: parents, address, previous school… (campus/core.js DETAILS).
+            details: { type: mongoose.Schema.Types.Mixed, default: {} },
+            // One row per class taken: subject, day (YYYY-MM-DD), period, present.
+            // A class taken: subject, day, period, present (ok); x: excused (leave granted, counts as attended);
+            // r: a remedial (extra) class — not counted as conducted, attending it makes up for one missed.
+            attendance: { type: [{ _id: false, s: mongoose.Schema.Types.ObjectId, d: String, p: Number, ok: Boolean, x: Boolean, r: Boolean }], default: [] },
+            // Marks in an exam (internal assessment or semester exam) for a subject; m null: absent.
+            marks: { type: [{ _id: false, e: mongoose.Schema.Types.ObjectId, s: mongoose.Schema.Types.ObjectId, m: Number }], default: [] },
+            // Fees received at the office, each with its receipt number.
+            payments: {
+                type: [{
+                    fee: { type: mongoose.Schema.Types.ObjectId, default: null },
+                    exam: { type: mongoose.Schema.Types.ObjectId, default: null },
+                    title: { type: String, default: '' },
+                    amount: { type: Number, min: 0 },
+                    mode: { type: String, default: 'cash' },
+                    ref: { type: String, default: '' },
+                    receipt: { type: String, default: '' },
+                    at: { type: Date, default: Date.now },
+                    by: { type: String, default: '' }
+                }],
+                default: []
+            },
+            // Exam applications: applied, then approved or rejected by the department.
+            applications: { type: [{ _id: false, e: mongoose.Schema.Types.ObjectId, at: Date, status: String, note: String }], default: [] },
+            // Feedback given (the form, and the subject for a per-subject form). Shown to the
+            // department only as totals and unsigned comments.
+            feedback: { type: [{ _id: false, f: mongoose.Schema.Types.ObjectId, s: mongoose.Schema.Types.ObjectId, ans: [mongoose.Schema.Types.Mixed], at: Date }], default: [] }
+        }, { _id: false }),
+        default: undefined,
+        select: false
+    },
+    // Past admissions (2026-11-14): the whole Campus record of an institution the student left
+    // (removed, or left it) — kept for good, for them and for that institution's alumni list.
+    campusHistory: { type: [mongoose.Schema.Types.Mixed], default: undefined, select: false }
 }, { timestamps: true });
+
+// A department's class lists (campus): its students by semester.
+userSchema.index({ organizationId: 1, 'campus.departmentId': 1, 'campus.semester': 1 }, { partialFilterExpression: { 'campus.departmentId': { $exists: true } } });
 
 // ─── Passwords ───────────────────────────────────────────────────────────────
 // Student passwords used to be stored as typed (the website sync sends its
@@ -394,5 +456,8 @@ userSchema.methods.tokenPredatesPassword = function (iat) {
     if (!this.passwordChangedAt || typeof iat !== 'number') return false;
     return iat * 1000 < this.passwordChangedAt.getTime() - 1000;
 };
+
+// The student's organization or Campus class changed: their open pages re-read it (services/orgEvents).
+require('../services/orgEvents').watch(userSchema, ['organizationId', 'campus']);
 
 module.exports = mongoose.model('User', userSchema);

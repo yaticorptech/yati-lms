@@ -35,4 +35,24 @@ router.get('/', async (req, res) => {
     }
 });
 
+/*
+ * POST /prepare { items: [{ text, lang, voice }] } (2026-11-14): make these clips, answered at once. The app used to
+ * wait on one request per clip for minutes while the model made it — six of those filled the browser's connections
+ * to this server, and answer checks and pages waited behind them ("Checking…" for ever, "You appear to be offline").
+ * Now it asks here once, then fetches each clip with ?cached=1 when it is ready. Made ahead of the background script.
+ */
+router.post('/prepare', (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 80) : [];
+    if (!store.URL_BASE()) return res.status(503).json({ message: 'Indic speech is not set up on this server.', code: 'TTS_OFF' });
+    let ready = 0, queued = 0;
+    for (const it of items) {
+        const clip = store.clean(it?.text, it?.lang, it?.voice);
+        if (clip.error) continue;
+        if (store.has(clip)) { ready += 1; continue; }
+        queued += 1;
+        store.make(clip).catch((e) => console.error('[tts prepare]', e.code || e.response?.status || '', e.message));
+    }
+    res.json({ ready, queued });
+});
+
 module.exports = router;

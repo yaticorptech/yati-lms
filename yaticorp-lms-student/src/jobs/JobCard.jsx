@@ -7,7 +7,9 @@
  * took a wrong answer to find.
  */
 import { Building2, MapPin, Clock, Compass, ExternalLink, Bookmark } from 'lucide-react';
+import { useState } from 'react';
 import { comparePay } from './pay';
+import { openCheckedJob, CLOSED_JOB } from './usePricedJobLink';
 
 const postedLabel = (daysAgo) => {
     if (daysAgo == null) return null;
@@ -58,6 +60,17 @@ export default function JobCard({ job, expected, saved = false, onToggleSave }) 
     // Null whenever an honest comparison isn't possible — no figure on the
     // listing, none expected, or two currencies that would need a live rate.
     const verdict = expected?.amount ? comparePay(job.salary, expected.amount, expected.currency) : null;
+    // The employer's page is checked before it opens; a closed job says so here.
+    const [gone, setGone] = useState(false);
+    const [checking, setChecking] = useState(false);
+    const openJob = async (e) => {
+        e.preventDefault();
+        if (gone || checking) return;
+        setChecking(true);
+        const open = await openCheckedJob(job);
+        setChecking(false);
+        if (!open) setGone(true);
+    };
 
     const ring = m && (m.total >= 75 ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
         : m.total >= 50 ? 'text-indigo-600 bg-indigo-50 border-indigo-200'
@@ -111,7 +124,7 @@ export default function JobCard({ job, expected, saved = false, onToggleSave }) 
             </div>
 
             <h3 className="font-bold text-lg text-slate-800 leading-snug mb-2">
-                <a href={job.url} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition-colors">
+                <a href={job.url} target="_blank" rel="noopener noreferrer" onClick={openJob} className="hover:text-indigo-600 transition-colors">
                     {job.title}
                 </a>
             </h3>
@@ -177,11 +190,16 @@ export default function JobCard({ job, expected, saved = false, onToggleSave }) 
                         </p>
                     )}
                 </div>
-                <a href={job.url} target="_blank" rel="noopener noreferrer"
-                    className="shrink-0 inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
-                    Apply <ExternalLink size={14} />
-                </a>
+                {gone ? (
+                    <span className="shrink-0 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-500">Job closed</span>
+                ) : (
+                    <a href={job.url} target="_blank" rel="noopener noreferrer" onClick={openJob} aria-busy={checking}
+                        className={`shrink-0 inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors ${checking ? 'opacity-70' : ''}`}>
+                        Apply <ExternalLink size={14} />
+                    </a>
+                )}
             </div>
+            {gone && <p className="mt-2 text-xs font-medium text-amber-700">{CLOSED_JOB}</p>}
         </article>
     );
 }

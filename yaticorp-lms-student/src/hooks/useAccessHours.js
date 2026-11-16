@@ -11,6 +11,7 @@
  * them through. The screen itself is components/PlatformClosed.jsx.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { useOrgVersion } from '../organization/orgVersion';
 import api from '../utils/api';
 import { ADMIN_VIEW_KEY } from '../utils/sessionExpiry';
 
@@ -26,7 +27,8 @@ export default function useAccessHours(signedIn) {
         return api.get('/organizations/student/schedule').then((r) => setAccess(r.data)).catch(() => {});
     }, [signedIn]);
 
-    useEffect(() => { check(); }, [check]);
+    const orgVersion = useOrgVersion();
+    useEffect(() => { check(); }, [check, orgVersion]);
 
     // Re-asked at the next change (a second after it), and when the app returns to the front.
     useEffect(() => {

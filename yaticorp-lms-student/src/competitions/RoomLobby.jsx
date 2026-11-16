@@ -159,6 +159,11 @@ function ShareSheet({ game, info, sizeText, onClose }) {
     );
 }
 
+// The room's age zone (2026-11-13): made in one, its difficulty from it (server: services/zoneGate.js).
+const ZONE_LABEL = { young: 'Young Thinkers', smart: 'Rising Brains', master: 'Master Minds' };
+const ZONE_STYLE = { young: 'bg-amber-400/20 text-amber-200 ring-amber-300/40', smart: 'bg-sky-400/20 text-sky-200 ring-sky-300/40', master: 'bg-fuchsia-400/20 text-fuchsia-200 ring-fuchsia-300/40' };
+const LEVEL_LABEL = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+
 export default function RoomLobby({ game, live, onUpdate, onLeft }) {
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
@@ -178,6 +183,8 @@ export default function RoomLobby({ game, live, onUpdate, onLeft }) {
             : notReady.length ? `Waiting for ${notReady.map((s) => s.name).join(', ')} to be ready.`
                 : away.length ? `${away.map((s) => s.name).join(', ')} lost connection — wait, or remove them.` : 'Everyone is ready.';
     const [art, setArt] = useState(true);
+    const zone = game.zone || game.options?.zone || null;
+    const zoneName = game.zoneName || ZONE_LABEL[zone] || null;
 
     const run = (key, fn) => {
         setBusy(key); setError('');
@@ -221,6 +228,13 @@ export default function RoomLobby({ game, live, onUpdate, onLeft }) {
                     <div className="text-center sm:text-left">
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-300 sm:text-[11px] sm:tracking-[0.25em]">Group game · {sizeText}</p>
                         <h2 className="mt-0.5 text-2xl font-black tracking-tight sm:mt-1 drop-shadow-[0_4px_12px_rgba(139,92,246,.6)] sm:text-4xl">{info.label || 'Group Brain'}</h2>
+                        {zoneName && (
+                            <p className="mt-1.5 flex justify-center sm:justify-start">
+                                <span data-room-zone={zone} className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 sm:text-xs ${ZONE_STYLE[zone] || 'bg-white/10 text-slate-200 ring-white/15'}`}>
+                                    {zoneName}{LEVEL_LABEL[game.options?.difficulty] ? ` · ${LEVEL_LABEL[game.options.difficulty]}` : ''}
+                                </span>
+                            </p>
+                        )}
                         {info.blurb && <p className="mx-auto mt-1 max-w-xs text-xs leading-snug text-slate-300 sm:mx-0 sm:mt-1.5 sm:max-w-none sm:text-sm">{info.blurb}</p>}
 
                         <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300 sm:mt-4 sm:text-[11px] sm:tracking-[0.25em]">Room code</p>
@@ -288,7 +302,7 @@ export default function RoomLobby({ game, live, onUpdate, onLeft }) {
                     </ul>
 
                     {why && <p className="mt-3 text-center text-xs font-semibold sm:mt-4 sm:text-sm text-slate-200" data-start-why>{why}</p>}
-                    {error && <p role="alert" className="mt-3 rounded-xl bg-rose-500/20 px-3 py-2 text-center text-sm font-semibold text-rose-200">{error}</p>}
+                    {error && <p role="alert" data-room-error className="mt-3 break-words rounded-xl bg-rose-500/20 px-3 py-2 text-center text-sm font-semibold leading-snug text-rose-200">{error}</p>}
 
                     <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:mt-4 sm:gap-3">
                         {game.host ? (

@@ -705,6 +705,22 @@ router.delete('/events/:id', async (req, res) => {
     } catch (error) { fail(res, error, 'delete the event'); }
 });
 
+// Whether every student of the organization sees Extra-curricular (2026-11-16). Its own sign-in only.
+router.get('/visibility', async (req, res) => {
+    try {
+        const org = await Organization.findById(req.organization._id).select('extraCurricularOpen').lean();
+        res.json({ open: org?.extraCurricularOpen !== false });
+    } catch (error) { fail(res, error, 'read the setting'); }
+});
+router.put('/visibility', async (req, res) => {
+    try {
+        if (req.admin?.staff) return res.status(403).json({ message: 'Only your organization’s administrator can change this.' });
+        const open = Boolean(req.body?.open);
+        await Organization.updateOne({ _id: req.organization._id }, { $set: { extraCurricularOpen: open } });
+        res.json({ open, message: open ? 'All your students now see Extra-curricular on their dashboard.' : 'Only students already in a unit or club see Extra-curricular now.' });
+    } catch (error) { fail(res, error, 'save the setting'); }
+});
+
 router.put('/settings', async (req, res) => {
     try {
         const b = req.body || {};

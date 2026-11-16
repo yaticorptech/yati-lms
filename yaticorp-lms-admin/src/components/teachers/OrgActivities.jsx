@@ -33,7 +33,7 @@
  * and refuses changes with a 403). The 60-second refresh opens it once unlocked.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Trash2, Loader2, ListChecks, FolderPlus, ChevronRight, Lock, Download, Upload, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Loader2, ListChecks, FolderPlus, ChevronRight, Lock, Download, Upload, AlertTriangle, CheckCircle2, Pencil, Check, X } from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import Select from '../Select';
@@ -49,18 +49,23 @@ const RED = 'border-red-400 ring-2 ring-red-200';
 let nextKey = 0;
 const groupsOf = (list) => list.map((g) => ({
     key: `g${nextKey++}`, _id: g._id, name: g.name,
-    activities: (g.activities || []).map((a) => ({ key: `a${nextKey++}`, _id: a._id, name: a.name, mode: a.mode || 'max', marks: String(a.marks ?? 0), cap: a.cap == null ? '' : String(a.cap), bonus: Boolean(a.bonus), bonusMax: a.bonusMax ? String(a.bonusMax) : '' }))
+    activities: (g.activities || []).map((a) => ({ key: `a${nextKey++}`, _id: a._id, name: a.name, mode: a.mode || 'max', marks: String(a.marks ?? 0), cap: a.cap == null ? '' : String(a.cap), bonus: Boolean(a.bonus), bonusMax: a.bonusMax ? String(a.bonusMax) : '', proofKinds: a.proofKinds?.length ? a.proofKinds : ['image', 'pdf'], maxImages: a.maxImages ? String(a.maxImages) : '' }))
 }));
 const capOf = (a) => (a.mode === 'each' && String(a.cap).trim() !== '' ? Number(a.cap) : null);
-const shape = (groups, target = '') => JSON.stringify([String(target).trim(), groups.map((g) => [g._id || null, g.name.trim(), g.activities.map((a) => [a._id || null, a.name.trim(), a.mode, Number(a.marks), capOf(a), Boolean(a.bonus), Number(a.bonusMax) || 0])])]);
+const shape = (groups, target = '') => JSON.stringify([String(target).trim(), groups.map((g) => [g._id || null, g.name.trim(), g.activities.map((a) => [a._id || null, a.name.trim(), a.mode, Number(a.marks), capOf(a), Boolean(a.bonus), Number(a.bonusMax) || 0, [...(a.proofKinds || [])].sort().join(','), Number(a.maxImages) || 0])])]);
 const fmt = (n) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
 const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
-const NEW_ACTIVITY = { name: '', mode: 'max', marks: '10', cap: '', bonus: false, bonusMax: '' };
+const NEW_ACTIVITY = { name: '', mode: 'max', marks: '10', cap: '', bonus: false, bonusMax: '', proofKinds: ['image', 'pdf'], maxImages: '' };
+// What a proof may be (2026-11-14): one choice per activity, its own column. "Image or PDF" is how
+// every activity worked before, so it stays the default.
+const PROOF_OPTIONS = [['image+pdf', 'Image or PDF', ['image', 'pdf']], ['pdf', 'PDF', ['pdf']], ['image', 'Images', ['image']], ['video', 'Video', ['video']]];
+const FIELD_LABEL = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500';
+const kindKey = (kinds = []) => (kinds.length === 1 ? kinds[0] : 'image+pdf');
 // How 360 works, on the note shown while it is locked.
 const LOCKED_STEPS = [
     ['You set the activities', 'in categories, such as Presentations or an NSS camp, and the most marks each can give.'],
     ['Students upload proof', 'for each activity: a certificate, a marks card or a photo.'],
-    ['Their 360 teacher checks it', 'and gives the marks, so each student builds up a 360 score.']
+    ['Their ranking teacher checks it', 'and gives the marks, so each student builds up a ranking score.']
 ];
 
 const OrgActivities = ({ onNotice }) => {
@@ -73,6 +78,9 @@ const OrgActivities = ({ onNotice }) => {
     const fileInput = useRef(null);
     const [chosen, setChosen] = useState('');       // the key of the category on the right
     const [open360, setOpen360] = useState(false);
+    // What the institution calls this (Student Ranking by default): its teachers and students see it.
+    const [title, setTitle] = useState('Student Ranking');
+    const [naming, setNaming] = useState(null);   // the name being typed, or null
     const [allowed, setAllowed] = useState(true);   // unlocked by the platform
     const [failed, setFailed] = useState(false);
     const [error, setError] = useState('');
@@ -81,11 +89,7 @@ const OrgActivities = ({ onNotice }) => {
     const [switching, setSwitching] = useState(false);
     const [newGroup, setNewGroup] = useState('');
     const [groupNote, setGroupNote] = useState('');
-    const [draft, setDraft] = useState(NEW_ACTIVITY);
-    const [draftNote, setDraftNote] = useState('');
-    const draftName = useRef(null);
-    const [focusDraft, setFocusDraft] = useState(0);
-    useEffect(() => { if (focusDraft) draftName.current?.focus(); }, [focusDraft]);
+    const [openKey, setOpenKey] = useState('');    // the activity open for editing
 
     // The latest list, for the background refresh: it never throws away what is being typed.
     const now = useRef({ groups: null, saved: null, chosen: '', target: '', savedTarget: '' });
@@ -96,6 +100,7 @@ const OrgActivities = ({ onNotice }) => {
         const was = before?.groups?.find((x) => x.key === before.chosen);
         const match = was && (g.find((x) => was._id && String(x._id) === String(was._id)) || g.find((x) => same(x.name, was.name)));
         setSaved(g); setGroups(g); setOpen360(Boolean(data.enabled));
+        if (data.title) setTitle(data.title);
         const t = data.summary?.target == null ? '' : String(data.summary.target);
         setSavedTarget(t); setTarget(t);
         if (typeof data.allowed === 'boolean') setAllowed(data.allowed);
@@ -120,7 +125,7 @@ const OrgActivities = ({ onNotice }) => {
         setGroups((gs) => gs.map((g) => (g.key === gKey ? { ...g, activities: g.activities.map((a) => (a.key === aKey ? { ...a, ...patch } : a)) } : g)));
         edited();
     };
-    const choose = (key) => { setChosen(key); setDraft(NEW_ACTIVITY); setDraftNote(''); };
+    const choose = (key) => { setChosen(key); setOpenKey(''); };
 
     const addGroup = (e) => {
         e?.preventDefault();
@@ -131,7 +136,6 @@ const OrgActivities = ({ onNotice }) => {
         setGroups((gs) => [...gs, g]);
         setNewGroup(''); setGroupNote(''); edited();
         choose(g.key);
-        setFocusDraft((n) => n + 1);
     };
     const removeGroup = (g) => {
         const named = g.activities.filter((a) => a.name.trim()).length;
@@ -141,19 +145,11 @@ const OrgActivities = ({ onNotice }) => {
         setGroups(rest); edited();
         choose(rest[Math.min(at, rest.length - 1)]?.key || '');
     };
-    const addActivity = (g) => (e) => {
-        e?.preventDefault();
-        const name = draft.name.trim();
-        const marks = Number(draft.marks);
-        if (!name) { setDraftNote('Type the activity name first.'); draftName.current?.focus(); return; }
-        if (g.activities.some((a) => same(a.name, name))) { setDraftNote(`${name} is already in ${g.name || 'this category'}.`); return; }
-        if (draft.marks === '' || !Number.isFinite(marks) || marks < 0 || marks > 1000) { setDraftNote('Marks from 0 to 1000.'); return; }
-        const cap = draft.mode === 'each' ? String(draft.cap).trim() : '';
-        if (cap !== '' && (!Number.isFinite(Number(cap)) || Number(cap) < marks)) { setDraftNote('Most it can give: a number at least the marks of one proof, or blank for no limit.'); return; }
-        changeGroup(g.key, { activities: [...g.activities, { key: `a${nextKey++}`, name, mode: draft.mode, marks: String(marks), cap, bonus: Boolean(draft.bonus), bonusMax: String(draft.bonusMax).trim() }] });
-        // The name clears for the next one; how it is marked stays, as the next is often the same.
-        setDraft((d) => ({ ...d, name: '' })); setDraftNote('');
-        setFocusDraft((n) => n + 1);
+    // A new activity opens straight in its editor, name first (2026-11-14).
+    const addActivity = (g) => {
+        const a = { key: `a${nextKey++}`, ...NEW_ACTIVITY, fresh: true };
+        changeGroup(g.key, { activities: [...g.activities, a] });
+        setOpenKey(a.key);
     };
     const removeActivity = (gKey, aKey) => { setGroups((gs) => gs.map((g) => (g.key === gKey ? { ...g, activities: g.activities.filter((a) => a.key !== aKey) } : g))); edited(); };
 
@@ -162,8 +158,20 @@ const OrgActivities = ({ onNotice }) => {
         try {
             const r = await api.put(BASE, { enabled: !open360 });
             setOpen360(Boolean(r.data.enabled));
-            onNotice(r.data.enabled ? '360 is open: students added by your 360 teachers now see these activities.' : '360 is closed to your students.');
+            onNotice(r.data.enabled ? `${title} is open: students added by your ranking teachers now see these activities.` : `${title} is closed to your students.`);
         } catch (err) { setError(errorOf(err, 'That did not go through.')); }
+        finally { setSwitching(false); }
+    };
+    /** Rename it for this institution (blank: back to Student Ranking). The menu follows at once. */
+    const saveName = async (e) => {
+        e?.preventDefault();
+        setSwitching(true); setError('');
+        try {
+            const r = await api.put(BASE, { title: naming || '' });
+            setTitle(r.data.title); setNaming(null);
+            window.dispatchEvent(new CustomEvent('organization-ranking-name', { detail: r.data.title }));
+            onNotice(`Renamed. Your teachers and students now see “${r.data.title}”.`);
+        } catch (err) { setError(errorOf(err, 'The name could not be saved.')); }
         finally { setSwitching(false); }
     };
     const save = async () => {
@@ -171,7 +179,8 @@ const OrgActivities = ({ onNotice }) => {
         try {
             const body = groups.map((g) => ({ ...(g._id ? { _id: g._id } : {}), name: g.name.trim(),
                 activities: g.activities.map((a) => ({ ...(a._id ? { _id: a._id } : {}), name: a.name.trim(), mode: a.mode, marks: a.marks === '' ? NaN : Number(a.marks),
-                    cap: capOf(a), bonus: Boolean(a.bonus), bonusMax: String(a.bonusMax).trim() === '' ? 0 : Number(a.bonusMax) })) }));
+                    cap: capOf(a), bonus: Boolean(a.bonus), bonusMax: String(a.bonusMax).trim() === '' ? 0 : Number(a.bonusMax),
+                    proofKinds: a.proofKinds, maxImages: (a.proofKinds || []).includes('image') ? Number(a.maxImages) || 0 : 0 })) }));
             const r = await api.put(`${BASE}/activities`, { groups: body, targetTotal: String(target).trim() === '' ? null : Number(target) });
             take({ activityGroups: r.data.activityGroups, enabled: open360, summary: r.data.summary || { target: String(target).trim() === '' ? null : Number(target) } }, { groups, chosen });
             onNotice('Activities saved.');
@@ -190,18 +199,18 @@ const OrgActivities = ({ onNotice }) => {
     const loadStandard = async () => {
         const { keepIds } = await import('./activitiesExcel');
         const { groups: next, kept, dropped } = keepIds(STANDARD.map((g) => ({ ...g, activities: g.activities.map((a) => ({ ...a })) })), plain(groups));
-        const lines = ['Replace the list on this page with the standard 360 list (10 categories, adding up to 360, plus extra)?'];
+        const lines = ['Replace the list on this page with the standard ranking list (10 categories, adding up to 360, plus extra)?'];
         if (kept) lines.push(`${plural(kept, 'activity', 'activities')} already here keep their proof and marks.`);
         if (dropped) lines.push(`${plural(dropped, 'activity', 'activities')} not in it will be removed when you save: marks given for them stop counting.`);
         if (count && !window.confirm(lines.join('\n\n'))) return;
         const g = groupsOf(next);
         setGroups(g); setTarget(String(STANDARD_TARGET)); setExcelErrors([]); edited();
         choose(g[0]?.key || '');
-        onNotice('Standard 360 list loaded. Check it, then press Save.');
+        onNotice('Standard ranking list loaded. Check it, then press Save.');
     };
 
     // ── Excel: the list out to edit, and back in to check and Save ────────
-    const plain = (list) => list.map((g) => ({ _id: g._id, name: g.name.trim(), activities: g.activities.map((a) => ({ _id: a._id, name: a.name.trim(), mode: a.mode, marks: Number(a.marks) || 0, cap: capOf(a) ?? '', bonus: Boolean(a.bonus), bonusMax: Number(a.bonusMax) || 0 })) }));
+    const plain = (list) => list.map((g) => ({ _id: g._id, name: g.name.trim(), activities: g.activities.map((a) => ({ _id: a._id, name: a.name.trim(), mode: a.mode, marks: Number(a.marks) || 0, cap: capOf(a) ?? '', bonus: Boolean(a.bonus), bonusMax: Number(a.bonusMax) || 0, proofKinds: a.proofKinds, maxImages: Number(a.maxImages) || 0 })) }));
     // Always the standard 360 template (2026-11-06): the organization edits it and uploads it back.
     const downloadExcel = async () => {
         try {
@@ -245,28 +254,39 @@ const OrgActivities = ({ onNotice }) => {
     const badHere = current && bad?.group === gi ? bad : null;
     const sum = sumOf(groups);
     const currentSum = current ? sumOf([current]) : null;
-    const aim = String(target).trim() === '' ? null : Number(target);
-    const onTarget = aim == null || sum.possible === aim;
 
     const page = (
         <section className={CARD} aria-labelledby="org-activities-title">
             <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
                 <div className="min-w-0">
-                    <h1 id="org-activities-title" className="text-lg font-bold text-slate-800">360 Activities</h1>
-                    <p className="mt-1 text-sm text-slate-500">What your students earn marks for, and the most each can give. Students upload proof for each activity and their <strong>360</strong> teacher checks it and gives the marks.</p>
+                    {naming === null ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h1 id="org-activities-title" className="text-lg font-bold text-slate-800">{title}</h1>
+                            <button type="button" onClick={() => setNaming(title === 'Student Ranking' ? '' : title)} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm shadow-indigo-600/30 transition-colors hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400" aria-label="Rename">
+                                <Pencil size={13} aria-hidden="true" /> Rename
+                            </button>
+                        </div>
+                    ) : (
+                        <form onSubmit={saveName} className="flex flex-wrap items-center gap-2">
+                            <input autoFocus value={naming} maxLength={40} onChange={(e) => setNaming(e.target.value)} placeholder="Student Ranking" aria-label="Name your students and teachers see"
+                                onKeyDown={(e) => { if (e.key === 'Escape') setNaming(null); }} className={`${INPUT} !w-64 !py-1.5`} />
+                            <button type="submit" disabled={switching} className={`${BTN} !py-1.5 text-xs`}><Check size={14} />Save</button>
+                            <button type="button" onClick={() => setNaming(null)} className={`${BTN2} !py-1.5 text-xs`}><X size={14} />Cancel</button>
+                        </form>
+                    )}
                     <p className="mt-1 text-xs text-slate-400 tabular-nums">{plural(groups.length, 'category', 'categories')} · {plural(count, 'activity', 'activities')}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                         <button type="button" onClick={downloadExcel} className={`${BTN2} !py-1.5 text-xs`}><Download size={14} />Download template</button>
                         <button type="button" onClick={() => fileInput.current?.click()} disabled={reading} className={`${BTN2} !py-1.5 text-xs`}>
                             {reading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}Upload Excel
                         </button>
-                        <button type="button" onClick={loadStandard} className={`${BTN2} !py-1.5 text-xs`} title="The college score sheet: 10 categories adding up to 360">Use the standard 360 list</button>
+                        <button type="button" onClick={loadStandard} className={`${BTN2} !py-1.5 text-xs`} title="The college score sheet: 10 categories adding up to 360">Use the standard ranking list</button>
                         <input ref={fileInput} type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={uploadExcel} aria-label="Upload the activities Excel file" />
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2">
-                    <span className="text-sm font-semibold text-slate-700">Open 360 to students</span>
-                    <button type="button" role="switch" aria-checked={open360} aria-label="Open 360 to students" onClick={toggle360} disabled={switching}
+                    <span className="text-sm font-semibold text-slate-700">Open to students</span>
+                    <button type="button" role="switch" aria-checked={open360} aria-label={`Open ${title} to students`} onClick={toggle360} disabled={switching}
                         className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${open360 ? 'bg-indigo-600' : 'bg-slate-300'}`}>
                         <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${open360 ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
                     </button>
@@ -276,27 +296,21 @@ const OrgActivities = ({ onNotice }) => {
             <p className={`flex items-start gap-2 border-b px-4 py-2 text-xs sm:px-5 ${open360 ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-amber-100 bg-amber-50 text-amber-800'}`}>
                 <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${open360 ? 'bg-emerald-500' : 'bg-amber-500'}`} aria-hidden />
                 {open360
-                    ? 'Open: the students your 360 teachers have added to their list see these activities and upload proof. Other students do not see 360.'
-                    : 'Closed: students do not see 360 yet. Switch it on when the list is ready; only students added by your 360 teachers will see it.'}
+                    ? `Open: the students your ranking teachers have added to their list see these activities and upload proof. Other students do not see ${title}.`
+                    : `Closed: students do not see ${title} yet. Switch it on when the list is ready; only students added by your ranking teachers will see it.`}
             </p>
 
-            {/* What the list adds up to, against the total aimed for (e.g. 360). */}
-            <div className={`flex flex-col gap-2 border-b px-4 py-3 text-sm sm:flex-row sm:items-center sm:px-5 ${onTarget ? 'border-slate-100' : 'border-amber-100 bg-amber-50'}`}>
-                <p className="flex min-w-0 flex-1 items-start gap-2" role="status">
-                    {onTarget ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden /> : <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" aria-hidden />}
-                    <span>
-                        Your list adds up to <strong className="tabular-nums text-slate-800">{fmt(sum.possible)}</strong>
-                        {sum.extra > 0 && <> <span className="tabular-nums">(+{fmt(sum.extra)} extra)</span></>}
-                        {aim != null && (onTarget ? <span className="text-emerald-700">, the total you aim for.</span>
-                            : <span className="text-amber-800">, not {fmt(aim)}: {sum.possible > aim ? `${fmt(sum.possible - aim)} over` : `${fmt(aim - sum.possible)} short`}.</span>)}
-                        {sum.uncapped > 0 && <span className="block text-xs text-amber-800">{plural(sum.uncapped, '“per proof” activity has', '“per proof” activities have')} no most-it-can-give: a student can go past the total with more proof.</span>}
-                    </span>
+            {/* The total (2026-11-14): worked out from the activities added, not typed in. */}
+            <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
+                <div className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 px-5 py-3 text-white shadow-lg shadow-indigo-600/20">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-100">Total</span>
+                    <span className="text-3xl font-black leading-none tabular-nums" aria-label={`Total ${fmt(sum.possible)} marks`}>{fmt(sum.possible)}</span>
+                    {sum.extra > 0 && <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold tabular-nums ring-1 ring-white/25">+{fmt(sum.extra)} extra</span>}
+                </div>
+                <p className="min-w-0 flex-1 text-sm text-slate-600">
+                    The sum of every activity’s marks{sum.extra > 0 ? ', with extra activities on top' : ''}.
+                    {sum.uncapped > 0 && <span className="mt-1 flex items-start gap-1.5 text-xs font-medium text-amber-800"><AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden />{plural(sum.uncapped, '“per proof” activity has', '“per proof” activities have')} no “Most proofs counted”, so a student can go past the total.</span>}
                 </p>
-                <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-600">
-                    Total to aim for
-                    <input type="number" inputMode="numeric" min={0} max={100000} value={target} onChange={(e) => { setTarget(e.target.value); edited(); }} placeholder="e.g. 360"
-                        aria-label="Total to aim for" className={`${INPUT} !w-24 tabular-nums`} />
-                </label>
             </div>
             {excelErrors.length > 0 && (
                 <div className="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800 sm:px-5" role="alert">
@@ -374,77 +388,125 @@ const OrgActivities = ({ onNotice }) => {
                             </div>
 
                             <p className="mt-2 text-xs text-slate-500 tabular-nums">{current.name || 'This category'} gives up to <strong className="text-slate-700">{fmt(currentSum.possible)}</strong>{currentSum.extra > 0 ? ` (+${fmt(currentSum.extra)} extra)` : ''}.</p>
+                            {/* The activities (redesigned 2026-11-14): one plain line each — name, how it is marked,
+                                what proof it takes — and a labelled editor that opens under the line clicked. */}
                             <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
-                                <div aria-hidden className="hidden grid-cols-[2rem_minmax(0,1fr)_7rem_4.5rem_5rem_4.5rem_3rem_2.75rem] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 sm:grid">
-                                    <span>#</span><span>Activity</span><span>Marks are</span><span>Marks</span><span title="Per proof only: the most it can give however many proofs">Most</span><span title="The teacher may add up to this much bonus, in all, when accepting proof. Not part of the total">Bonus</span><span title="Bonus or one year only: adds to the score, not to the total">Extra</span><span />
-                                </div>
                                 {current.activities.length === 0 ? (
-                                    <p className="px-4 py-6 text-center text-sm text-slate-500">No activities in {current.name || 'this category'} yet. Add the first one below.</p>
+                                    <p className="px-4 py-8 text-center text-sm text-slate-500">No activities in {current.name || 'this category'} yet.</p>
                                 ) : (
                                     <ul className="divide-y divide-slate-100">
                                         {current.activities.map((a, ai) => {
                                             const here = badHere && badHere.activity === ai ? badHere : null;
-                                            const label = a.name || `activity ${ai + 1}`;
+                                            const open = openKey === a.key || Boolean(here);
+                                            const set = (patch) => changeActivity(current.key, a.key, patch);
+                                            // Per proof (2026-11-14): "most" is how many proofs count; the cap is marks × that.
+                                            const per = Number(a.marks) || 0;
+                                            const count = String(a.cap).trim() === '' || !per ? '' : String(Math.round((Number(a.cap) / per) * 100) / 100);
+                                            const setCount = (v) => set({ cap: String(v).trim() === '' ? '' : String(Math.round(Number(v) * per * 100) / 100) });
+                                            const setMarks = (v) => set(a.mode === 'each' && count !== '' && String(v).trim() !== '' ? { marks: v, cap: String(Math.round(Number(count) * Number(v) * 100) / 100) } : { marks: v });
+                                            const gives = a.mode === 'each' ? (String(a.cap).trim() === '' ? '∞' : fmt(Number(a.cap) || 0)) : fmt(Number(a.marks) || 0);
+                                            const images = (a.proofKinds || []).includes('image');
                                             return (
-                                                <li key={a.key} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem] items-center gap-x-2 gap-y-1.5 px-3 py-2.5 sm:grid-cols-[2rem_minmax(0,1fr)_7rem_4.5rem_5rem_4.5rem_3rem_2.75rem] sm:py-2">
-                                                    <span className="hidden text-xs font-semibold text-slate-400 tabular-nums sm:block">{ai + 1}</span>
-                                                    <input value={a.name} onChange={(e) => changeActivity(current.key, a.key, { name: e.target.value })} maxLength={120} aria-label={`${current.name || 'Category'}: activity ${ai + 1} name`}
-                                                        aria-invalid={here?.field === 'name' ? 'true' : undefined}
-                                                        className={`${INPUT} col-span-2 font-medium sm:col-span-1 sm:font-normal ${here?.field === 'name' ? RED : ''}`} />
-                                                    <Select value={a.mode} onChange={(e) => changeActivity(current.key, a.key, { mode: e.target.value })} aria-label={`How ${label} is marked`} className={INPUT}>
-                                                        <option value="max">Up to</option>
-                                                        <option value="each">Per proof</option>
-                                                    </Select>
-                                                    <input type="number" inputMode="decimal" min={0} max={1000} step="any" value={a.marks} onChange={(e) => changeActivity(current.key, a.key, { marks: e.target.value })}
-                                                        aria-label={`Marks for ${label}`} aria-invalid={here?.field === 'marks' ? 'true' : undefined}
-                                                        className={`${INPUT} tabular-nums ${here?.field === 'marks' ? RED : ''}`} />
-                                                    <input type="number" inputMode="decimal" min={0} max={100000} step="any" value={a.mode === 'each' ? a.cap : ''} disabled={a.mode !== 'each'}
-                                                        onChange={(e) => changeActivity(current.key, a.key, { cap: e.target.value })} placeholder={a.mode === 'each' ? 'No limit' : '—'}
-                                                        title={a.mode === 'each' ? 'The most it can give however many proofs are accepted. Blank: no limit.' : 'Only for “Per proof”: “Up to” already stops at its marks.'}
-                                                        aria-label={`Most ${label} can give`} aria-invalid={here?.field === 'cap' ? 'true' : undefined}
-                                                        className={`${INPUT} tabular-nums disabled:bg-slate-50 disabled:text-slate-300 ${here?.field === 'cap' ? RED : ''}`} />
-                                                    <input type="number" inputMode="decimal" min={0} max={1000} step="any" value={a.bonusMax} onChange={(e) => changeActivity(current.key, a.key, { bonusMax: e.target.value })}
-                                                        placeholder="0" title="The teacher may add up to this much bonus, in all, when accepting proof. Not part of the total."
-                                                        aria-label={`Bonus for ${label}`} aria-invalid={here?.field === 'bonusMax' ? 'true' : undefined}
-                                                        className={`${INPUT} tabular-nums ${here?.field === 'bonusMax' ? RED : ''}`} />
-                                                    <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 sm:justify-center" title="Bonus or one year only: adds to the score, not to the total">
-                                                        <input type="checkbox" checked={a.bonus} onChange={(e) => changeActivity(current.key, a.key, { bonus: e.target.checked })} aria-label={`${label} is extra`} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
-                                                        <span className="sm:hidden">Extra</span>
-                                                    </label>
-                                                    <button type="button" onClick={() => removeActivity(current.key, a.key)} aria-label={`Remove ${label}`}
-                                                        className="col-start-3 row-start-1 inline-flex h-[42px] w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 sm:col-start-auto sm:row-start-auto"><Trash2 size={16} /></button>
+                                                <li key={a.key} className={open ? 'bg-indigo-50/30' : ''}>
+                                                    {/* The line: click to edit. */}
+                                                    <div className="flex items-center gap-3 px-3 py-3 sm:px-4">
+                                                        <span className="w-5 shrink-0 text-xs font-semibold tabular-nums text-slate-400">{ai + 1}</span>
+                                                        <button type="button" onClick={() => setOpenKey(open && !here ? '' : a.key)} aria-expanded={open}
+                                                            className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                                                            <span className="min-w-0 flex-1">
+                                                                <span className={`block truncate text-sm font-semibold ${a.name ? 'text-slate-800' : 'italic text-slate-400'}`}>{a.name || 'New activity'}</span>
+                                                                <span className="mt-1 flex flex-wrap gap-1.5">
+                                                                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                                                        {a.mode === 'each' ? `${fmt(per)} per proof${count !== '' ? ` × ${count} = ${fmt(Number(a.cap) || 0)}` : ' · no limit'}` : `Teacher gives up to ${fmt(Number(a.marks) || 0)}`}
+                                                                    </span>
+                                                                    <span className="rounded-md bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                                                                        {PROOF_OPTIONS.find(([k]) => k === kindKey(a.proofKinds))[1]}{images && Number(a.maxImages) > 0 ? ` · max ${a.maxImages} images` : ''}
+                                                                    </span>
+                                                                    {Number(a.bonusMax) > 0 && <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">+{fmt(Number(a.bonusMax))} bonus</span>}
+                                                                    {a.bonus && <span className="rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">Extra</span>}
+                                                                    {here && <span className="rounded-md bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">Needs a fix</span>}
+                                                                </span>
+                                                            </span>
+                                                            <span className="shrink-0 text-right">
+                                                                <span className="block text-lg font-black leading-none tabular-nums text-slate-800">{gives}</span>
+                                                                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">marks</span>
+                                                            </span>
+                                                            <ChevronRight size={16} aria-hidden className={`shrink-0 text-slate-300 transition-transform ${open ? 'rotate-90 text-indigo-500' : ''}`} />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* The editor: every field with its own label. */}
+                                                    {open && (
+                                                        <div className="grid gap-4 border-t border-indigo-100 px-4 pb-4 pt-4 sm:grid-cols-2 sm:pl-12">
+                                                            <label className="sm:col-span-2">
+                                                                <span className={FIELD_LABEL}>Activity name</span>
+                                                                <input value={a.name} autoFocus={a.fresh} onChange={(e) => set({ name: e.target.value })} maxLength={120} placeholder="e.g. Presentations"
+                                                                    aria-invalid={here?.field === 'name' ? 'true' : undefined} className={`${INPUT} ${here?.field === 'name' ? RED : ''}`} />
+                                                            </label>
+                                                            <label>
+                                                                <span className={FIELD_LABEL}>How marks are given</span>
+                                                                <Select value={a.mode} onChange={(e) => set({ mode: e.target.value })} className={INPUT}>
+                                                                    <option value="max">Teacher gives one mark, up to a limit</option>
+                                                                    <option value="each">Marks for each accepted proof</option>
+                                                                </Select>
+                                                            </label>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <label>
+                                                                    <span className={FIELD_LABEL}>{a.mode === 'each' ? 'Marks per proof' : 'Up to (marks)'}</span>
+                                                                    <input type="number" inputMode="decimal" min={0} max={1000} step="any" value={a.marks} onChange={(e) => setMarks(e.target.value)}
+                                                                        aria-invalid={here?.field === 'marks' ? 'true' : undefined} className={`${INPUT} tabular-nums ${here?.field === 'marks' ? RED : ''}`} />
+                                                                </label>
+                                                                {a.mode === 'each' && (
+                                                                    <label>
+                                                                        <span className={FIELD_LABEL}>Most proofs counted</span>
+                                                                        <input type="number" inputMode="numeric" min={1} max={1000} step={1} value={count} onChange={(e) => setCount(e.target.value)} placeholder="No limit"
+                                                                            aria-invalid={here?.field === 'cap' ? 'true' : undefined} className={`${INPUT} tabular-nums ${here?.field === 'cap' ? RED : ''}`} />
+                                                                    </label>
+                                                                )}
+                                                                {a.mode === 'each' && (
+                                                                    <p className="col-span-2 -mt-1 text-sm text-slate-600">
+                                                                        {count !== '' ? <><span className="tabular-nums">{fmt(per)} × {count}</span> = <strong className="tabular-nums text-indigo-700">{fmt(Number(a.cap) || 0)} marks</strong> in all</> : <>{fmt(per)} marks for every accepted proof, <strong className="text-amber-700">no limit</strong></>}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            <label>
+                                                                <span className={FIELD_LABEL}>Proof the student uploads</span>
+                                                                <Select value={kindKey(a.proofKinds)} onChange={(e) => set({ proofKinds: PROOF_OPTIONS.find(([k]) => k === e.target.value)[2] })} className={INPUT}>
+                                                                    {PROOF_OPTIONS.map(([k, word]) => <option key={k} value={k}>{word}</option>)}
+                                                                </Select>
+                                                            </label>
+                                                            {images ? (
+                                                                <label>
+                                                                    <span className={FIELD_LABEL}>Most pictures</span>
+                                                                    <input type="number" inputMode="numeric" min={0} max={100} value={a.maxImages} onChange={(e) => set({ maxImages: e.target.value })} placeholder="Any number"
+                                                                        className={`${INPUT} tabular-nums`} />
+                                                                </label>
+                                                            ) : <span className="hidden sm:block" />}
+                                                            <label>
+                                                                <span className={FIELD_LABEL}>Bonus the teacher can add</span>
+                                                                <input type="number" inputMode="decimal" min={0} max={1000} step="any" value={a.bonusMax} onChange={(e) => set({ bonusMax: e.target.value })} placeholder="None"
+                                                                    aria-invalid={here?.field === 'bonusMax' ? 'true' : undefined} className={`${INPUT} tabular-nums ${here?.field === 'bonusMax' ? RED : ''}`} />
+                                                            </label>
+                                                            <label className="flex cursor-pointer items-center gap-3 self-end rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                                                                <input type="checkbox" checked={a.bonus} onChange={(e) => set({ bonus: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
+                                                                <span className="text-sm font-semibold text-slate-700">Extra <span className="font-normal text-slate-500">— on top of the total</span></span>
+                                                            </label>
+                                                            {here?.message && <p className="text-sm font-medium text-red-600 sm:col-span-2" role="alert">{here.message}</p>}
+                                                            <div className="flex items-center justify-between gap-2 sm:col-span-2">
+                                                                <button type="button" onClick={() => removeActivity(current.key, a.key)} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"><Trash2 size={15} /> Delete activity</button>
+                                                                <button type="button" onClick={() => setOpenKey('')} className={BTN2}><Check size={16} /> Done</button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </li>
                                             );
                                         })}
                                     </ul>
                                 )}
-
-                                {/* Add an activity: Enter adds it, and the cursor stays for the next. */}
-                                <form onSubmit={addActivity(current)} noValidate className="border-t border-dashed border-indigo-200 bg-indigo-50/40 px-3 py-3">
-                                    <div className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[2rem_minmax(0,1fr)_7rem_4.5rem_5rem_4.5rem_3rem_auto]">
-                                        <span className="hidden text-indigo-400 sm:block"><Plus size={16} aria-hidden /></span>
-                                        <input ref={draftName} value={draft.name} onChange={(e) => { setDraft((d) => ({ ...d, name: e.target.value })); setDraftNote(''); }} maxLength={120}
-                                            placeholder="New activity, e.g. Presentations" aria-label="New activity name" className={`${INPUT} col-span-2 sm:col-span-1`} />
-                                        <Select value={draft.mode} onChange={(e) => setDraft((d) => ({ ...d, mode: e.target.value }))} aria-label="How the new activity is marked" className={INPUT}>
-                                            <option value="max">Up to</option>
-                                            <option value="each">Per proof</option>
-                                        </Select>
-                                        <input type="number" inputMode="decimal" min={0} max={1000} step="any" value={draft.marks} onChange={(e) => { setDraft((d) => ({ ...d, marks: e.target.value })); setDraftNote(''); }}
-                                            aria-label="Marks for the new activity" className={`${INPUT} tabular-nums`} />
-                                        <input type="number" inputMode="decimal" min={0} max={100000} step="any" value={draft.mode === 'each' ? draft.cap : ''} disabled={draft.mode !== 'each'}
-                                            onChange={(e) => { setDraft((d) => ({ ...d, cap: e.target.value })); setDraftNote(''); }} placeholder={draft.mode === 'each' ? 'No limit' : '—'}
-                                            aria-label="Most the new activity can give" className={`${INPUT} tabular-nums disabled:bg-slate-50 disabled:text-slate-300`} />
-                                        <input type="number" inputMode="decimal" min={0} max={1000} step="any" value={draft.bonusMax} onChange={(e) => { setDraft((d) => ({ ...d, bonusMax: e.target.value })); setDraftNote(''); }}
-                                            placeholder="Bonus" aria-label="Bonus for the new activity" className={`${INPUT} tabular-nums`} />
-                                        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 sm:justify-center" title="Bonus or one year only: adds to the score, not to the total">
-                                            <input type="checkbox" checked={draft.bonus} onChange={(e) => setDraft((d) => ({ ...d, bonus: e.target.checked }))} aria-label="The new activity is extra" className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
-                                            <span className="sm:hidden">Extra</span>
-                                        </label>
-                                        <button type="submit" className={`${BTN} col-span-2 sm:col-span-1`}><Plus size={16} />Add activity</button>
-                                    </div>
-                                    {draftNote ? <p className="mt-1.5 text-xs font-medium text-red-600 sm:pl-10" role="alert">{draftNote}</p>
-                                        : <p className="mt-1.5 text-[11px] text-slate-500 sm:pl-10">“Up to 10”: the teacher gives 0–10 for the activity. “Per proof”: each accepted proof adds the marks, up to “Most” (e.g. 1 each, most 5). “Bonus”: the teacher may add up to this much on accepting proof. “Extra”: a bonus or one-year activity, on top of the total.</p>}
-                                </form>
+                                <button type="button" onClick={() => addActivity(current)}
+                                    className="flex w-full items-center justify-center gap-2 border-t border-dashed border-indigo-200 bg-indigo-50/40 px-4 py-3 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-50">
+                                    <Plus size={16} /> Add activity
+                                </button>
                             </div>
                         </>
                     )}
@@ -471,8 +533,8 @@ const OrgActivities = ({ onNotice }) => {
                 <div role="status" className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl sm:p-7">
                     <div className="text-center">
                         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><Lock size={22} aria-hidden="true" /></span>
-                        <h1 className="mt-3 text-lg font-bold text-slate-800">360 is locked</h1>
-                        <p className="mt-1.5 text-sm leading-relaxed text-slate-600"><strong className="text-slate-800">360</strong> tracks each student’s growth beyond the classroom (academics, campus involvement, skills, internships and more) and turns it into marks.</p>
+                        <h1 className="mt-3 text-lg font-bold text-slate-800">Student Ranking is locked</h1>
+                        <p className="mt-1.5 text-sm leading-relaxed text-slate-600"><strong className="text-slate-800">Student Ranking</strong> tracks each student’s growth beyond the classroom (academics, campus involvement, skills, internships and more) and turns it into marks.</p>
                     </div>
                     <ol className="mt-5 space-y-3">
                         {LOCKED_STEPS.map(([title, text], i) => (
@@ -482,7 +544,7 @@ const OrgActivities = ({ onNotice }) => {
                             </li>
                         ))}
                     </ol>
-                    <p className="mt-5 rounded-xl bg-indigo-50 px-4 py-3 text-center text-sm font-medium text-indigo-800">This section is not unlocked for your organization yet. Ask the YATICORP team to unlock 360.</p>
+                    <p className="mt-5 rounded-xl bg-indigo-50 px-4 py-3 text-center text-sm font-medium text-indigo-800">This section is not unlocked for your organization yet. Ask the YATICORP team to unlock Student Ranking.</p>
                 </div>
             </div>
         </div>

@@ -89,6 +89,8 @@ router.use('/admin', require('./routes/adminRoutes'));
 // Competitions rather than a Career Path screen, so closing Career Path must
 // not close them. The address stays under /api/career, where the code is.
 router.use('/games', require('./routes/gameRoutes'));
+// Progress, daily challenge and fair leaderboards for the brain games (2026-11-13).
+router.use('/games', require('./routes/gameStatsRoutes'));
 
 // The bell. Ahead of the lock too: it is not only Career Path's — the rewards
 // module posts its notices here (XP, levels, badges, wallet), and with Career

@@ -21,6 +21,8 @@ const FilmStage3D = lazy(() => import('./film3d/FilmStage3D'));
 const USE_3D = false;
 const webgl = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } };
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { aiClip, usePrefetch } from '../meta';
+import { filmVoice, voiceSpec } from '../speechText';
 import { Captions, ChevronLeft, ChevronRight, Expand, Mic, MicOff, Music, Pause, Play, RotateCcw, Repeat, ScrollText, Shrink } from 'lucide-react';
 
 /* ── Motion ───────────────────────────────────────────────────────────── */
@@ -143,6 +145,45 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
         a.play().catch(end);
         later(((recorded?.[key] || 20) + 4) * 1000, end);
     };
+    /**
+     * Say a line (2026-11-12, "the subtitles show but there is no audio"): its recording if there is one, else the AI
+     * voice (Indic Parler-TTS — Kannada and the other Indian languages, which the browser has no voice for), else the
+     * device's voice, else it is only shown long enough to read. `onEnd` once, however it ends.
+     */
+    // The narrator in a woman's voice, each man in a man's (2026-11-12, "it must feel like a conversation").
+    // Each line with its speaker's voice and feeling (2026-11-12): speechText.js filmVoice, as the audio pack downloaded it.
+    const sayLine = (key, text, who, onWord, onEnd) => {
+        let ended = false;
+        const end = () => { if (ended) return; ended = true; onEnd(); };
+        const device = () => {
+            if (!canSpeak) { later(1400 + text.length * 62, end); return; }
+            const u = new SpeechSynthesisUtterance(text);
+            const v = voiceFor(film.locale); if (v) u.voice = v;
+            u.lang = film.locale || 'en-IN'; Object.assign(u, VOICE[who] || VOICE.narrator);
+            u.onboundary = (e) => { if (typeof e.charIndex === 'number') onWord?.(e.charIndex); };
+            u.onend = end; u.onerror = end;
+            window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+            later(1400 + text.length * 62 + 9000, end);    // a voice that never says it has ended
+        };
+        // The recording when there is one, so the film plays line after line with nothing to wait for. English was
+        // recorded again with Kokoro (2026-11-13, scripts/storyFilmKokoro.mjs: each person in their own voice, and
+        // "résumé", "certificates" said right); Hindi and Kannada keep their Indic Parler recordings.
+        if (key && recorded?.[key]) { playRecording(key, text, onWord, end); return; }
+        const clip = aiClip(text, film.locale || 'en-IN', key === 'moral' || !key ? voiceSpec(null) : filmVoice(film, scenes[+key.split('-')[0] - 1]?.lines[+key.split('-')[1]] || { who, text }));
+        if (!clip) { device(); return; }
+        const mine = {};
+        audio.current = mine;                              // a clear() meanwhile drops this line
+        clip.then((url) => {
+            if (audio.current !== mine) return;
+            const a = new Audio(url);
+            audio.current = a;
+            a.ontimeupdate = () => { if (a.duration) onWord?.(Math.floor((a.currentTime / a.duration) * text.length)); };
+            a.onended = end; a.onerror = end;
+            a.play().catch(end);
+        }).catch(() => { if (audio.current === mine) { audio.current = null; device(); } });
+    };
+    // Every line's AI voice made ahead while the film is open, so each plays the moment its turn comes.
+    usePrefetch([...scenes.flatMap((s) => s.lines.map((l) => [l.text, film.locale || 'en-IN', filmVoice(film, l)])), ...(film.moral ? [[`${film.moralLabel || 'The moral of the story:'} ${film.moral}`, film.locale || 'en-IN', voiceSpec(null)]] : [])], [film]);
     const [full, setFull] = useState(false);
     const box = useRef(null);
     const score = useRef(null);
@@ -151,7 +192,7 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
     const clear = () => {
         timers.current.forEach(clearTimeout); timers.current = [];
         if (window.speechSynthesis) window.speechSynthesis.cancel();
-        if (audio.current) { audio.current.onended = null; audio.current.onerror = null; audio.current.pause(); audio.current = null; }
+        if (audio.current) { audio.current.onended = null; audio.current.onerror = null; audio.current.pause?.(); audio.current = null; }
     };
     useEffect(() => () => { clear(); score.current?.close(); }, []);
 
@@ -186,19 +227,8 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
         const stop = () => clearInterval(flap);
         const readMs = 1400 + line.text.length * 62;
         const key = `${si + 1}-${li}`;
-        if (voice && sound && recorded?.[key]) {
-            playRecording(key, line.text, setWord, () => { stop(); done(); });
-        } else if (voice && sound && canSpeak) {
-            const u = new SpeechSynthesisUtterance(line.text);
-            const v = voiceFor(film.locale); if (v) u.voice = v;
-            u.lang = film.locale || 'en-IN'; Object.assign(u, VOICE[line.who] || VOICE.narrator);
-            let ended = false;
-            const end = () => { if (ended) return; ended = true; stop(); done(); };
-            u.onboundary = (e) => { if (typeof e.charIndex === 'number') setWord(e.charIndex); };
-            u.onend = end; u.onerror = end;
-            window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
-            later(readMs + 9000, end);                     // a voice that never says it has ended
-        } else later(readMs, () => { stop(); done(); });
+        if (voice && sound) sayLine(key, line.text, line.who, setWord, () => { stop(); done(); });
+        else later(readMs, () => { stop(); done(); });
         return () => { stop(); clear(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [phase, si, li, paused, waiting, voice, recorded]);
@@ -207,13 +237,8 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
     useEffect(() => {
         if (phase !== 'moral' || paused) return undefined;
         const go = () => { if (autoplay) later(2600, () => onFinish?.()); };
-        if (voice && sound && recorded?.moral) playRecording('moral', film.moral, null, go);
-        else if (voice && sound && canSpeak && film.moral) {
-            const u = new SpeechSynthesisUtterance(`${film.moralLabel || 'The moral of the story:'} ${film.moral}`);
-            const v = voiceFor(film.locale); if (v) u.voice = v; u.lang = film.locale || 'en-IN'; u.rate = 0.9;
-            u.onend = go; u.onerror = go; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
-            later(20000, go);
-        } else later(5000, go);
+        if (voice && sound && film.moral) sayLine(recorded?.moral ? 'moral' : null, recorded?.moral ? film.moral : `${film.moralLabel || 'The moral of the story:'} ${film.moral}`, 'narrator', null, go);
+        else later(5000, go);
         return clear;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [phase, paused]);
@@ -228,21 +253,10 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
     const tapped = (who) => {
         const theirs = line?.who === who ? line : scene.lines.find((l) => l.who === who);
         const key = theirs ? `${si + 1}-${scene.lines.indexOf(theirs)}` : null;
-        if (!theirs || !(voice && sound && (canSpeak || recorded?.[key]))) return;
+        if (!theirs || !(voice && sound)) return;
         clear(); setPaused(true); setTalking(who);
         const flap = setInterval(() => setMouth((m) => (m === 2 ? 1 : m === 1 ? 0 : 2)), 130);
-        if (recorded?.[key]) {
-            playRecording(key, theirs.text, null, () => { clearInterval(flap); setTalking(null); setMouth(0); setPaused(false); });
-            return;
-        }
-        const u = new SpeechSynthesisUtterance(theirs.text);
-        const v = voiceFor(film.locale); if (v) u.voice = v;
-        u.lang = film.locale || 'en-IN'; Object.assign(u, VOICE[who] || VOICE.narrator);
-        let ended = false;
-        const end = () => { if (ended) return; ended = true; clearInterval(flap); setTalking(null); setMouth(0); setPaused(false); };
-        u.onend = end; u.onerror = end;
-        window.speechSynthesis.speak(u);
-        later(1400 + theirs.text.length * 62 + 9000, end);
+        sayLine(key, theirs.text, who, null, () => { clearInterval(flap); setTalking(null); setMouth(0); setPaused(false); });
     };
     const back = () => (li > 0 ? go(si, li - 1) : si > 0 ? go(si - 1, scenes[si - 1].lines.length - 1) : go(0, 0));
     const forward = () => { clear(); nextLine(); };

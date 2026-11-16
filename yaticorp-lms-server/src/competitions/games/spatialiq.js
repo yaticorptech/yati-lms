@@ -18,5 +18,5 @@ module.exports = makeEngine({
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 10, max: 60, fallback: 30 },
     revealMs: 5000,
-    pick: (count, rng, level) => make(SPATIAL, count, rng, level)
+    pick: (count, rng, level, met, zone) => make(SPATIAL, count, rng, zone === 'master' ? 'hard' : zone === 'smart' ? 'medium' : zone === 'young' ? 'easy' : level)
 });

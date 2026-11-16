@@ -690,18 +690,26 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         test(`the notes at the top of the learning path on a ${name} (2026-11-02): a card beside the roadmap and all sections, opening the notes`, async () => {
             const { result, errors } = await screen({ entry: app('/linguistic'), api: apiModule({ '/linguistic/learnt': LEARNT, ...SHELL_API }), styles: true, ...size, script: `
                 await sleep(1500);
-                const cards = [...$('[data-path-top]').children];
+                // 2026-11-12 redesign: the section card first, then the three icon tiles in one row.
+                const cards = [$('[data-path-top] [data-section-head]'), ...$('[data-path-shortcuts]').children];
                 const box = (el) => { const r = el.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.height)]; };
-                const out = { cards: cards.map((c) => c.dataset.roadmapLink !== undefined ? 'roadmap' : c.dataset.allSections !== undefined ? 'sections' : c.dataset.notesLink !== undefined ? 'notes' : 'section'), boxes: cards.map(box), card: text($('[data-notes-link]')) };
+                const out = { first: $('[data-path-top]').firstElementChild.matches('[data-section-head]'), cards: cards.map((c) => c.dataset.roadmapLink !== undefined ? 'roadmap' : c.dataset.allSections !== undefined ? 'sections' : c.dataset.notesLink !== undefined ? 'notes' : 'section'), boxes: cards.map(box), tiles: cards.slice(1).map(box), card: $('[data-notes-link]').getAttribute('aria-label'), lefts: cards.map((c) => Math.round(c.getBoundingClientRect().left)), wideNotes: $('[data-notes-link]').innerText.split('\\n').map((s) => s.trim()).filter(Boolean).join('') };
                 out.wide = (() => { ${WIDE} })();
                 $('[data-notes-link]').click(); await sleep(1200);
                 out.page = [!!$('[data-notes-page]'), $$('[data-notes-topic]').length];
                 return out;` });
             assert.deepEqual(errors, []);
             assert.equal(result.__error, undefined, result.__error);
-            assert.deepEqual(result.cards, ['roadmap', 'sections', 'notes', 'section']);
-            assert.match(result.card, /^Your notes (From \d+ lessons? you finished|What you learn is written here)$/);
-            if (name === 'laptop') assert.equal(new Set(result.boxes.map(String)).size, 1, `four in one row, one height (${JSON.stringify(result.boxes)})`);
+            assert.equal(result.first, true, 'the section card comes first');
+            assert.deepEqual(result.cards, ['section', 'roadmap', 'sections', 'notes']);
+            assert.match(result.card, /^Your notes: (\d+ lessons?|Nothing yet)$/);
+            assert.equal(new Set(result.tiles.map(String)).size, 1, `the three tiles in one row, one height (${JSON.stringify(result.tiles)})`);
+            if (name === 'laptop') {
+                // The desktop view as before the phone redesign: four in one row — roadmap, all sections, notes, section.
+                assert.equal(new Set(result.boxes.map(String)).size, 1, `all four in one row, one height (${JSON.stringify(result.boxes)})`);
+                assert.deepEqual([...result.lefts].sort((a, b) => a - b), [result.lefts[1], result.lefts[2], result.lefts[3], result.lefts[0]], 'the section card last, on the right');
+                assert.match(result.wideNotes, /^Your notes(From \d+ lessons? you finished|What you learn is written here)$/);
+            }
             assert.deepEqual(result.page, [true, 3], 'tapped: the notes, every topic there');
             assert.ok(result.wide <= 1, `nothing wider than the screen (${result.wide}px)`);
         });
@@ -1204,7 +1212,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
 
     // 2026-11-16, the user's "ಅನಿಲ್ ಏನು ಕೊಳ್ಳುತ್ತಾನೆ?" with Grapes, Mangoes, Bananas, Apples: "add the voice of these options, to all
     // this type of question".
-    test('a question in Kannada with English choices: each choice heard in English as it is tapped; Kannada choices are not', async () => {
+    test('a question in Kannada with English choices: each choice heard in English as it is tapped; Kannada choices in Kannada', async () => {
         const LESSON = { id: 'vo', module: 'grammar', moduleLabel: 'Grammar Practice', level: 'beginner', title: 'At the market', direction: null, passingScore: 60, language: 'kn', languageName: 'Kannada',
             learn: { intro: 'Shopping.' }, quiz: [], progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 },
             practice: [{ id: 'g1', type: 'mcq', prompt: 'ಅನಿಲ್ ಏನು ಕೊಳ್ಳುತ್ತಾನೆ?', options: ['Grapes', 'Mangoes', 'Bananas', 'Apples'] },
@@ -1231,7 +1239,8 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.equal(result.__error, undefined, result.__error);
         assert.deepEqual(result.english, ['Apples', 'en-IN'], 'the English choice heard in English');
         assert.equal(result.at, 'g2');
-        assert.deepEqual(result.kannada, [], 'a choice in the student\'s own language: not read in English');
+        // Since the merge with test (2026-11-16, "it should pronounce this"): read too, in its own (Kannada) voice — never in English.
+        assert.deepEqual(result.kannada, [['ಸೇಬು', 'kn-IN']], 'a choice in the student\'s own language: read in its own voice, not in English');
     });
 
     // 2026-11-16, the user's "He cut the onions with sharp knife and his eyes watered" marked wrong: "I put the correct

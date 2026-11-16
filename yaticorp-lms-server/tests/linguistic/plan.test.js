@@ -45,7 +45,7 @@ describe('the learning plan', () => {
         assert.equal(r.status, 200);
         const p = r.body.plan;
         assert.deepEqual([p.days, p.day, p.schedule.length], [90, 1, 90], '90 days, not the 14 sent');
-        assert.equal(p.schedule[0].lessons[0].title, 'Letters A–I', 'from Section 1, Unit 1');
+        assert.equal(p.schedule[0].lessons[0].title, 'Letters test', 'from Section 1, Unit 1: the letters test first (2026-11-13)');
         assert.equal(p.schedule.reduce((n, d) => n + d.lessons.length, 0), p.total, 'every lesson has its day');
         assert.equal((await svc.progressOf(asha.user._id)).plans[0].auto, true);
         assert.equal((await call('POST', '/plan', { days: 180 })).body.plan.days, 90, 'made once: asked again, it stays');
@@ -86,7 +86,7 @@ describe('the learning plan', () => {
         assert.equal(p.schedule.length, 14);
         assert.equal(p.schedule.reduce((n, d) => n + d.lessons.length, 0), p.total, 'every lesson has its day');
         assert.ok(p.schedule[0].today && p.schedule[0].lessons.length >= 4, 'today: four or five lessons');
-        assert.equal(p.schedule[0].lessons[0].title, 'Letters A–I', 'starting with the letters (2026-10-31)');
+        assert.equal(p.schedule[0].lessons[0].title, 'Letters test', 'starting with the letters (2026-10-31): their test first (2026-11-13)');
 
         const path = (await api('GET', '/path')).body;
         const types = typesOf(path);

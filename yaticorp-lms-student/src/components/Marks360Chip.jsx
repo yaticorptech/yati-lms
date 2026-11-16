@@ -18,7 +18,7 @@ const fmt = (n) => n.toLocaleString('en-IN', { maximumFractionDigits: 1 });
 export default function Marks360Chip({ user, compact = false }) {
     const m = read360(user);
     if (!m) return null;
-    const label = `360° marks: ${fmt(m.total)}${m.max ? ` of ${fmt(m.max)}` : ''}`;
+    const label = `Ranking marks: ${fmt(m.total)}${m.max ? ` of ${fmt(m.max)}` : ''}`;
 
     if (compact) {
         return (
@@ -33,7 +33,7 @@ export default function Marks360Chip({ user, compact = false }) {
         <span title={label} aria-label={label}
             className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-indigo-200 bg-indigo-50 py-1 pl-1 pr-3 text-sm font-bold text-indigo-700 tabular-nums">
             <span aria-hidden="true" className="inline-flex h-6 items-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-extrabold tracking-tight text-white">
-                360°
+                Ranking
             </span>
             <span>
                 {fmt(m.total)}

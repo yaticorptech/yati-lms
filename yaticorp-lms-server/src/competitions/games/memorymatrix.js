@@ -13,8 +13,19 @@
  */
 const { makeRoundEngine } = require('./roundCore');
 const { GameError } = require('./contract');
+const { zoneOf } = require('./zones');
 
 const START = { easy: 3, medium: 4, hard: 5 };
+/**
+ * By the room's age zone (./zones.js, 2026-11-13): Young Thinkers 3×3 growing to 4×4, two to four cells, six rounds;
+ * Rising Brains as medium; Master Minds ten rounds from 5×5 to 7×7, two more cells each. A room made before zones
+ * goes by its difficulty (no `maxSize`/`extra` kept: 7 and 0).
+ */
+const ZONE = {
+    young: { rounds: 6, startSize: 3, maxSize: 4, extra: -2 },
+    smart: { rounds: 8, startSize: 4, maxSize: 7, extra: 0 },
+    master: { rounds: 10, startSize: 5, maxSize: 7, extra: 1 }
+};
 
 /** `k` different cells of an n×n grid, in order. */
 const pickCells = (rng, n, k) => {
@@ -32,10 +43,10 @@ module.exports = makeRoundEngine({
     emoji: '🟦',
     summary: 'Cells light up, then go dark: pick the same ones. The grid grows as you go.',
     maxSeats: 20,
-    setup: (o) => ({ rounds: 8, startSize: START[o.difficulty] }),
+    setup: (o) => ZONE[zoneOf(o)] || { rounds: 8, startSize: START[o.difficulty] },
     round: (g, index, rng) => {
-        const size = Math.min(7, g.startSize + Math.floor(index / 3));
-        const count = Math.min(size * size - 2, size + 1 + (index % 3));
+        const size = Math.min(g.maxSize || 7, g.startSize + Math.floor(index / 3));
+        const count = Math.max(2, Math.min(size * size - 2, size + 1 + (index % 3) + (g.extra || 0)));
         return { size, count, cells: pickCells(rng, size, count), showMs: 1500 + 250 * count, answerMs: 8000 + 1000 * count };
     },
     // Others' taps stay hidden while answering (only how many): everyone's show at the reveal (asked 2026-10-29).
