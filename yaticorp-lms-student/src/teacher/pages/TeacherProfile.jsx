@@ -84,6 +84,8 @@ export default function TeacherProfile() {
     // What I teach, as WhatITeach loads it: for the set-up checklist (no card).
     const [teach, setTeach] = useState(null);
     const onTeachLoaded = useCallback((d) => setTeach({ classes: d.classes || [], courses: d.courses || [] }), []);
+    // The organization's departments, for the department picker (2026-11-14: What I teach no longer loads them).
+    useEffect(() => { if (!card && teacher?.organizationId) teacherApi.get('/360').then((r) => onTeachLoaded(r.data)).catch(() => {}); }, [card, teacher?.organizationId, onTeachLoaded]);
     const gateMissing = card ? [] : missingOf(teacher, teacher?.mentor360 ? teach?.classes ?? null : null, teach?.courses);
     const detailsLeft = gateMissing.filter((m) => m !== 'what you teach');
     const goTo = (id) => { const el = document.getElementById(id); el?.scrollIntoView({ behavior: 'smooth', block: 'start' }); el?.querySelector?.('input:not([readonly]), button[aria-haspopup]')?.focus({ preventScroll: true }); };
@@ -128,8 +130,10 @@ export default function TeacherProfile() {
     ] : [];
 
     // Without a card, What I teach sits in the details card, with Save details after it.
-    const merged = !card && Boolean(teacher?.mentor360);
-    const saveButton = <button type="submit" form="profile-details-form" disabled={saving} className={btn.primary}>{saving && <Loader2 size={15} className="animate-spin" />} Save details</button>;
+    // What I teach is gone from the profile (2026-11-14): the department only; the HOD assigns the subjects.
+    const merged = false;
+    const allLocked = fields.every(([k]) => String(teacher?.[k] || '').trim());
+    const saveButton = allLocked && !card ? null : <button type="submit" form="profile-details-form" disabled={saving} className={btn.primary}>{saving && <Loader2 size={15} className="animate-spin" />} Save details</button>;
 
     const save = async (e) => {
         e.preventDefault();
@@ -277,14 +281,17 @@ export default function TeacherProfile() {
                         <form id="profile-details-form" onSubmit={save} className="space-y-3" noValidate>
                             {!merged && <><ErrorNote>{error}</ErrorNote><OkNote>{note}</OkNote></>}
                             <div className="grid gap-3 sm:grid-cols-2">
-                                {fields.map(([k, label, max]) => (
+                                {fields.map(([k, label, max]) => {
+                                    // Saved once, view only (2026-11-14): the organization changes it if it is wrong.
+                                    const locked = Boolean(String(teacher?.[k] || '').trim());
+                                    return (
                                     <div key={k} className={!card && k === 'email' ? 'sm:col-span-2' : ''}>
                                         <Field id={`me-${k}`} label={label} error={errors[k]} optional={(card ? ['designation', 'institution', 'department'] : []).includes(k)}
                                             hint={!card && k === 'phone' ? 'You sign in with this number and your password.' : undefined}>
-                                            <input id={`me-${k}`} type={k === 'email' ? 'email' : k === 'phone' ? 'tel' : 'text'} maxLength={max} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} className={inputClass}
+                                            <input id={`me-${k}`} type={k === 'email' ? 'email' : k === 'phone' ? 'tel' : 'text'} maxLength={max} value={f[k]} readOnly={locked} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} className={`${inputClass} ${locked ? 'cursor-default bg-slate-50 text-slate-600 focus:ring-0' : ''}`}
                                                 placeholder={!card && k === 'department' && teach?.courses?.length ? 'Pick your courses below, or type' : undefined} />
                                             {/* The organization's courses, one tap each; more than one can be picked ("B.Com, BBA"). */}
-                                            {!card && k === 'department' && teach?.courses?.length > 0 && (
+                                            {!locked && !card && k === 'department' && teach?.courses?.length > 0 && (
                                                 <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Your organization's courses (choose one or more)">
                                                     {teach.courses.map((c) => {
                                                         const list = String(f.department || '').split(',').map((x) => x.trim()).filter(Boolean);
@@ -301,7 +308,8 @@ export default function TeacherProfile() {
                                             )}
                                         </Field>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                             {card && (
                                 <>
@@ -327,7 +335,6 @@ export default function TeacherProfile() {
                             </>
                         )}
                     </Card>
-                    {card && teacher?.mentor360 && <WhatITeach department={teacher?.department} onLoaded={onTeachLoaded} />}
                 </div>
                 <div className="space-y-4">
                     <Card>

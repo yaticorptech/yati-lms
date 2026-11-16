@@ -47,27 +47,36 @@ const { Teacher } = require('../teacher/models');
 const { assertDriveLinked, storeInDrive, sendDriveError, removeFile } = require('../integrations/google/driveStore');
 
 const MAX_BYTES = 10 * 1024 * 1024;
+// A video may be larger (2026-11-14).
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 // As many as the student likes (2026-11-04); this only keeps the student record a safe size.
 const MAX_PROOFS = 5000;
 const idOk = (id) => mongoose.isValidObjectId(id);
 const bad = (res, message, extra = {}) => res.status(400).json({ message, ...extra });
 const fail = (res, what, error) => {
-    console.error(`[360 activities] ${what} failed:`, error.message);
+    console.error(`[Student Ranking activities] ${what} failed:`, error.message);
     return res.status(500).json({ message: 'Something went wrong. Please try again.' });
 };
 /** Whether the platform's superadmin has unlocked 360 for the organization (2026-11-04). A 403, never a 401: that signs the panel out. */
 const unlocked = (org) => Boolean(org?.three60?.allowed);
-const locked = (res) => res.status(403).json({ code: 'THREE60_LOCKED', message: '360 is locked for your organization. Ask the YATICORP team to unlock it.' });
+const locked = (res) => res.status(403).json({ code: 'THREE60_LOCKED', message: 'Student Ranking is locked for your organization. Ask the YATICORP team to unlock it.' });
 const same = (a, b) => String(a) === String(b);
 const round = (n) => Math.round(n * 100) / 100;
 const MAX_CAP = 100000;
+
+/** What a proof for this activity may be (2026-11-14): set per activity, else a picture or a PDF. */
+const KINDS = ['pdf', 'image', 'video'];
+const kindsOf = (a) => { const k = (a?.proofKinds || []).filter((x) => KINDS.includes(x)); return k.length ? k : ['image', 'pdf']; };
+const kindOfFile = (file) => (file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname || '') ? 'pdf' : file.mimetype.startsWith('video/') ? 'video' : file.mimetype.startsWith('image/') ? 'image' : null);
+const KIND_WORDS = { pdf: 'a PDF', image: 'a picture', video: 'a video' };
 
 /** The categories as the pages show them. */
 const groupsView = (org) => (org?.three60?.activityGroups || []).map((g) => ({
     _id: g._id, name: g.name,
     activities: (g.activities || []).map((a) => ({
         _id: a._id, name: a.name, mode: a.mode || 'max', marks: a.marks ?? 0,
-        cap: a.mode === 'each' && a.cap != null ? a.cap : null, bonus: Boolean(a.bonus), bonusMax: a.bonusMax || 0
+        cap: a.mode === 'each' && a.cap != null ? a.cap : null, bonus: Boolean(a.bonus), bonusMax: a.bonusMax || 0,
+        proofKinds: kindsOf(a), maxImages: a.maxImages || 0
     }))
 }));
 /** The most one activity can give: N for "up to N", the cap for "per proof" (null when it has none). */
@@ -189,7 +198,12 @@ const cleanGroups = (given) => {
             seenAll.set(an.toLowerCase(), name);
             const bonusMax = a?.bonusMax == null || a.bonusMax === '' ? 0 : Number(a.bonusMax);
             if (!Number.isFinite(bonusMax) || bonusMax < 0 || bonusMax > 1000) return { error: { group: gi, activity: ai, field: 'bonusMax', message: `${an}: bonus from 0 to 1000.` } };
-            activities.push({ ...(idOk(a?._id) ? { _id: a._id } : {}), name: an, mode, marks: round(marks), cap, bonus: a?.bonus === true || a?.bonus === 'true', bonusMax: round(bonusMax) });
+            const proofKinds = [...new Set((Array.isArray(a?.proofKinds) ? a.proofKinds : []).filter((x) => KINDS.includes(x)))];
+            if (Array.isArray(a?.proofKinds) && !proofKinds.length) return { error: { group: gi, activity: ai, field: 'proofKinds', message: `${an}: allow at least one kind of proof.` } };
+            const maxImages = Math.round(Number(a?.maxImages) || 0);
+            if (maxImages < 0 || maxImages > 100) return { error: { group: gi, activity: ai, field: 'maxImages', message: `${an}: pictures from 0 (no limit) to 100.` } };
+            activities.push({ ...(idOk(a?._id) ? { _id: a._id } : {}), name: an, mode, marks: round(marks), cap, bonus: a?.bonus === true || a?.bonus === 'true', bonusMax: round(bonusMax),
+                ...(proofKinds.length ? { proofKinds } : {}), maxImages: proofKinds.includes('image') || !proofKinds.length ? maxImages : 0 });
         }
         groups.push({ ...(idOk(g?._id) ? { _id: g._id } : {}), name, activities });
     }
@@ -205,10 +219,10 @@ const cleanTarget = (given) => {
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: MAX_BYTES },
+    limits: { fileSize: MAX_VIDEO_BYTES },
     fileFilter: (_req, file, cb) => {
-        const ok = file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname || '');
-        cb(ok ? null : new Error('Upload a picture or a PDF.'), ok);
+        const ok = Boolean(kindOfFile(file));
+        cb(ok ? null : new Error('Upload a picture, a PDF or a video.'), ok);
     }
 });
 const storeFile = async (buffer, name) => {
@@ -219,7 +233,7 @@ const storeFile = async (buffer, name) => {
 const dropFile = (objectPath) => {
     if (!objectPath || !process.env.BUNNY_STORAGE_ZONE) return Promise.resolve();
     return axios.delete(`https://${process.env.BUNNY_STORAGE_HOST || 'storage.bunnycdn.com'}/${process.env.BUNNY_STORAGE_ZONE}/${objectPath}`, { headers: { AccessKey: process.env.BUNNY_STORAGE_API_KEY } })
-        .catch((e) => console.warn('[360 activities] proof file not removed:', e.message));
+        .catch((e) => console.warn('[Student Ranking activities] proof file not removed:', e.message));
 };
 
 /** The teacher's mark for an "up to N" activity: replaced if there is one, added if not. */
@@ -279,7 +293,7 @@ const install = ({ orgAdmin, mentor, student }) => {
     orgAdmin.get('/toppers', async (req, res) => {
         try {
             const org = await Organization.findById(req.organization._id).select('three60').lean();
-            if (!unlocked(org)) return res.json({ departments: [] });
+            if (!unlocked(org)) return res.json({ departments: [], mentors: [] });
             const programs = org.three60?.programs || [];
             const teachers = await Teacher.find({ organizationId: org._id, mentor360: true }).select('name students360').lean();
             const nameOf = new Map(teachers.map((t) => [String(t._id), t.name || '']));
@@ -297,7 +311,8 @@ const install = ({ orgAdmin, mentor, student }) => {
                 return byStudent;
             });
             const studentsOf = mentorsOf.map((m) => new Set(m.keys()));
-            const all = [...new Set(studentsOf.flatMap((ids) => [...ids]))];
+            // Mentor-wise too (2026-11-14): every mentor's own list, course or not.
+            const all = [...new Set([...studentsOf.flatMap((ids) => [...ids]), ...teachers.flatMap((t) => (t.students360 || []).map(String))])];
             const users = all.length
                 ? await User.find({ _id: { $in: all }, organizationId: org._id }).select('name cardNumber profilePicture +activityProofs +activityMarks').lean()
                 : [];
@@ -314,7 +329,12 @@ const install = ({ orgAdmin, mentor, student }) => {
                     top: rows.filter((r) => r.score > 0).sort((x, y) => y.score - x.score || x.name.localeCompare(y.name)).slice(0, 3)
                 };
             });
-            res.json({ departments });
+            const topOf = (rows) => rows.filter((r) => r.score > 0).sort((x, y) => y.score - x.score || x.name.localeCompare(y.name)).slice(0, 3);
+            const mentors = teachers.map((t) => {
+                const rows = (t.students360 || []).map((id) => scored.get(String(id))).filter(Boolean);
+                return { _id: t._id, name: t.name || 'Teacher', students: rows.length, top: topOf(rows) };
+            }).sort((a, b) => (b.top[0]?.score || 0) - (a.top[0]?.score || 0) || a.name.localeCompare(b.name));
+            res.json({ departments, mentors });
         } catch (error) { fail(res, 'toppers', error); }
     });
 
@@ -322,27 +342,36 @@ const install = ({ orgAdmin, mentor, student }) => {
     student.post('/proofs', (req, res) => {
         upload.single('file')(req, res, async (uploadErr) => {
             try {
-                if (uploadErr) return bad(res, uploadErr.code === 'LIMIT_FILE_SIZE' ? 'That file is over 10 MB — choose a lighter one.' : uploadErr.message);
+                if (uploadErr) return bad(res, uploadErr.code === 'LIMIT_FILE_SIZE' ? 'That file is over 100 MB — choose a lighter one.' : uploadErr.message);
                 if (!req.file) return bad(res, 'Attach the proof: a picture or a PDF.');
                 const user = await User.findById(req.user._id).select('organizationId +activityProofs').lean();
                 const org = user?.organizationId ? await Organization.findById(user.organizationId).select('three60').lean() : null;
-                if (!org?.three60?.enabled || !unlocked(org)) return res.status(403).json({ message: '360 is not open for you yet.' });
-                if (!(await isTracked(org._id, req.user._id))) return res.status(403).json({ code: 'NOT_ADDED', message: 'Your 360 teacher has not added you yet.' });
+                if (!org?.three60?.enabled || !unlocked(org)) return res.status(403).json({ message: 'Student Ranking is not open for you yet.' });
+                if (!(await isTracked(org._id, req.user._id))) return res.status(403).json({ code: 'NOT_ADDED', message: 'Your ranking teacher has not added you yet.' });
                 const { group, activity } = idOk(req.body?.activityId) ? findActivity(org, req.body.activityId) : {};
                 if (!activity) return bad(res, 'Choose the activity this proof is for.');
                 if ((user.activityProofs || []).length >= MAX_PROOFS) return bad(res, `You can keep up to ${MAX_PROOFS} proofs.`);
+                // What this activity takes (2026-11-14): its kinds, and the most pictures.
+                const kind = kindOfFile(req.file);
+                const allowed = kindsOf(activity);
+                if (!allowed.includes(kind)) return bad(res, `${activity.name} takes ${allowed.map((k) => KIND_WORDS[k]).join(' or ')} only.`);
+                if (kind !== 'video' && req.file.size > MAX_BYTES) return bad(res, 'That file is over 10 MB — choose a lighter one.');
+                if (kind === 'image' && activity.maxImages > 0) {
+                    const pics = (user.activityProofs || []).filter((p) => same(p.activityId, activity._id) && p.fileType === 'image' && p.status !== 'rejected').length;
+                    if (pics >= activity.maxImages) return bad(res, `${activity.name} takes up to ${activity.maxImages} picture${activity.maxImages === 1 ? '' : 's'}; you have sent ${pics}.`);
+                }
                 // Kept in the student's own Google Drive (2026-11-02): linked first, or no upload.
                 const toDrive = await assertDriveLinked(req.user._id);
-                const isPdf = req.file.mimetype === 'application/pdf' || /\.pdf$/i.test(req.file.originalname || '');
-                const fileName = String(req.file.originalname || (isPdf ? 'proof.pdf' : 'proof.jpg')).slice(0, 200);
+                const isPdf = kind === 'pdf';
+                const fileName = String(req.file.originalname || (isPdf ? 'proof.pdf' : kind === 'video' ? 'proof.mp4' : 'proof.jpg')).slice(0, 200);
                 // Their Drive, shared by link: the view link is what their 360 teacher opens to check it.
                 const stored = toDrive
-                    ? await storeInDrive(req.user._id, req.file.buffer, { name: fileName, mimeType: isPdf ? 'application/pdf' : req.file.mimetype, description: `360 proof: ${group.name} › ${activity.name}` })
+                    ? await storeInDrive(req.user._id, req.file.buffer, { name: fileName, mimeType: isPdf ? 'application/pdf' : req.file.mimetype, description: `ranking proof: ${group.name} › ${activity.name}` })
                         .then((d) => ({ fileUrl: d.viewUrl, previewUrl: d.previewUrl, driveFileId: d.driveFileId, objectPath: '' }))
                     : await storeFile(req.file.buffer, fileName);
                 const proof = {
                     _id: new mongoose.Types.ObjectId(), activityId: activity._id, activityName: activity.name, groupName: group.name,
-                    ...stored, fileType: isPdf ? 'pdf' : 'image', fileName, note: String(req.body?.note || '').trim().slice(0, 300), status: 'pending', marks: 0, createdAt: new Date(), updatedAt: new Date()
+                    ...stored, fileType: kind, fileName, note: String(req.body?.note || '').trim().slice(0, 300), status: 'pending', marks: 0, createdAt: new Date(), updatedAt: new Date()
                 };
                 await User.updateOne({ _id: req.user._id }, { $push: { activityProofs: proof } });
                 res.status(201).json({ proof: proofView(proof) });
@@ -366,7 +395,7 @@ const install = ({ orgAdmin, mentor, student }) => {
 
     // ── A teacher: the proof of the students on their list ───────────────
     const mine = (req, studentId) => (req.teacher.students360 || []).some((id) => same(id, studentId));
-    const notMine = (res) => res.status(403).json({ message: 'Only this student\'s 360 teachers check their proof.' });
+    const notMine = (res) => res.status(403).json({ message: 'Only this student\'s ranking teachers check their proof.' });
     const orgOf = (req) => Organization.findById(req.teacher.organizationId).select('three60').lean();
 
     mentor.get('/proofs', async (req, res) => {

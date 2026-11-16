@@ -48,7 +48,7 @@ export default function AudioPack({ lessonId, chart, onReady, onCancel }) {
             setState({ phase: 'downloading', done: 0, total: items.length });
             const out = await downloadClips(items, { signal: signal.current, onProgress: (done, total) => setState({ phase: 'downloading', done, total }) });
             if (signal.current.stopped) return;
-            if (out.failed) { setState({ phase: 'failed', failed: out.failed, total: out.total }); return; }
+            if (out.failed) { setState({ phase: 'failed', failed: out.failed, total: out.total, ...(out.serviceDown ? { message: `${out.failed} of ${out.total} clips could not be made: the voice service is not running right now. Please try again in a little while.` } : {}) }); return; }
             markPack(pack.key, pack.lessonIds);
             setState({ phase: 'done' });
             setTimeout(onReady, 600);

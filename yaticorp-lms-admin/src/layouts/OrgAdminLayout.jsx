@@ -16,7 +16,8 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical, UserCog, Megaphone, Orbit, LifeBuoy, MessageCircleQuestion
+    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical, UserCog, Megaphone, Orbit, LifeBuoy, MessageCircleQuestion, School, ExternalLink,
+    ChevronDown, UserPlus, CalendarCheck, ClipboardList, Wallet, Landmark, MessageSquareText, Building2, Radio, Inbox, Lock
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
@@ -31,6 +32,9 @@ import { Dialog, DialogTitle } from '../components/orgUi';
 import OrgProfileLock from '../components/OrgProfileLock';
 import OrgSupportDialog from '../components/OrgSupportDialog';
 import { useOrgProfile } from '../utils/orgProfile';
+import { campusUrl } from '../utils/campus';
+import { CAMPUS_HOME, CAMPUS_ITEMS, MOVED_INTO_CAMPUS, REPLACED_BY_CAMPUS, labelOf } from '../campus/menu';
+import { useCampusCounts, countOf } from '../campus/counts';
 
 // `short` is the bottom bar's label on a phone. The bar scrolls (2026-11-02), so
 // every section is in it, the sidebar-only ones too.
@@ -42,13 +46,15 @@ const NAV = [
     { to: '/organization/teachers', label: 'Teachers', short: 'Teachers', icon: Presentation, badge: 'pendingTeacherRequests' },
     { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },
     // The 360 activities, their marks and "Open 360 to students" (src/pages/org/Org360Activities.jsx).
-    { to: '/organization/360-activities', label: '360 Activities', short: '360 Activities', icon: Orbit },
+    { to: '/organization/360-activities', label: 'Student Ranking', short: 'Student Ranking', icon: Orbit },
     // Extra-curricular: NCC, NSS, Scouts & Guides and clubs (src/pages/org/OrgNccNss.jsx).
     { to: '/organization/ncc-nss', label: 'Extra-curricular', short: 'Extra-curricular', icon: Shield },
     // Inter-college competitions: register the college's team, pick players.
     { to: '/organization/competitions', label: 'Competitions', short: 'Competitions', icon: Trophy },
     // Who signs in to this dashboard with full access (src/pages/org/OrgUsers.jsx).
     // No Audit log here since 2026-10-30: changes are still recorded, for the platform's admins.
+    // Students' help requests sent to the organization (2026-11-14).
+    { to: '/organization/student-requests', label: 'Student requests', short: 'Requests', icon: LifeBuoy },
     { to: '/organization/users', label: 'Users', short: 'Users', icon: UserCog },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
@@ -56,6 +62,47 @@ const NAV = [
 // only what they may use — the server refuses the rest (staffMay in
 // organizations/middleware/authMiddleware.js) — and Research, their teacher
 // dashboard, when they have that too.
+// Campus — the student management system (src/campus) — as a dropdown in the menu (2026-11-14).
+const CampusMenu = ({ isActive, pathname, counts }) => {
+    const waiting = (counts?.requests || 0) + (counts?.applications || 0);
+    const here = [CAMPUS_HOME, ...MOVED_INTO_CAMPUS].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    const [open, setOpen] = useState(() => { try { return here || localStorage.getItem('org-campus-open') === '1'; } catch { return here; } });
+    useEffect(() => { if (here) setOpen(true); }, [here]);
+    const toggle = () => setOpen((o) => { try { localStorage.setItem('org-campus-open', o ? '0' : '1'); } catch { /* storage unavailable */ } return !o; });
+    return (
+        <div>
+            <button type="button" onClick={toggle} aria-expanded={open} aria-controls="org-campus-menu"
+                className={`flex w-full items-center justify-between rounded-xl p-3 transition-all duration-200 ${here && !open ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : here ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                <span className="flex items-center space-x-3"><School size={20} /> <span className="font-medium">Campus</span></span>
+                <span className="flex items-center gap-2">
+                    {waiting > 0 && !open && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${here ? 'bg-white/20 text-white' : 'bg-red-500 text-white'}`} aria-label={`${waiting} waiting`}>{waiting}</span>}
+                    <ChevronDown size={16} aria-hidden="true" className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                </span>
+            </button>
+            <div id="org-campus-menu" className={`grid transition-[grid-template-rows] duration-200 ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                <div className="min-h-0 overflow-hidden">
+                    <div className="ml-5 mt-1 space-y-0.5 border-l border-slate-200 pl-3">
+                        {CAMPUS_ITEMS.map((item) => {
+                            const { to, icon: Icon, exact, soon, badge } = item;
+                            const count = countOf(counts || {}, badge);
+                            const label = labelOf(item);
+                            const active = isActive(to, exact);
+                            return (
+                                <Link key={to} to={to} tabIndex={open ? undefined : -1} aria-current={active ? 'page' : undefined}
+                                    className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${active ? (soon ? 'bg-slate-200 font-semibold text-slate-600' : 'bg-indigo-600 font-semibold text-white') : soon ? 'text-slate-400 grayscale hover:bg-slate-50' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+                                    <span className="flex min-w-0 items-center gap-2.5"><Icon size={16} className="shrink-0" /> <span className="truncate">{label}</span></span>
+                                    {soon && <Lock size={12} className="shrink-0 text-slate-400" aria-label="Locked" />}
+                                    {!soon && count > 0 && <span className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-bold ${active ? 'bg-white/25 text-white' : 'bg-red-500 text-white'}`} aria-label={`${count} new`}>{count}</span>}
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const STAFF_HIDDEN = ['/organization/teachers', '/organization/360-activities', '/organization/users', '/organization/settings'];
 const RESEARCH = { to: '/organization/research', label: 'Research', short: 'Research', icon: FlaskConical };
 // No requests badge for them either: they have no Requests tab to act on it.
@@ -197,7 +244,11 @@ const OrgAdminLayout = () => {
 
     const [organization, setOrganization] = useState(null);
     const [staff, setStaff] = useState(null);
-    const nav = organization?.bsgOffice ? officeNav(organization.bsgOffice) : navFor(staff);
+    // Campus (the Institution app): on when the platform switched it on for this organization.
+    const [campus, setCampus] = useState(null);
+    // Student Ranking (360) goes by the name the organization gave it.
+    const nav = (organization?.bsgOffice ? officeNav(organization.bsgOffice) : navFor(staff))
+        .map((n) => (n.to === '/organization/360-activities' && organization?.rankingName ? { ...n, label: organization.rankingName, short: organization.rankingName } : n));
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState('');
     const [counts, setCounts] = useState({ pendingRequests: 0, pendingTeacherRequests: 0 });
@@ -206,10 +257,26 @@ const OrgAdminLayout = () => {
     // Until then every page but the dashboard and Settings is locked (components/OrgProfileLock).
     // Asked again on each page change, so finishing it unlocks the rest at once.
     const profile = useOrgProfile(location.pathname);
-    const openPaths = ['/organization', '/organization/settings'];
+    const openPaths = ['/organization', '/organization/settings', '/organization/campus/departments'];
     const profileLocked = profile.missing.length > 0 && !openPaths.includes(location.pathname.replace(/\/$/, ''));
 
     const isActive = (path, exact) => (exact ? location.pathname === path : location.pathname === path || location.pathname.startsWith(path + '/'));
+    // Campus lives in this dashboard (src/campus): on when the platform switched it on, for the organization's own sign-in.
+    const showCampus = Boolean(campus) && !staff && !organization?.bsgOffice;
+    // While Campus is on, Courses, Student Ranking and Extra-curricular are in its dropdown instead.
+    // …and its Students is the one student list then (2026-11-16): the main menu's Students goes.
+    const menuNav = showCampus ? nav.filter((n) => !MOVED_INTO_CAMPUS.includes(n.to) && !REPLACED_BY_CAMPUS.includes(n.to)) : nav;
+    const campusCounts = useCampusCounts(showCampus, location.pathname);
+    useEffect(() => { try { if (organization?.rankingName) sessionStorage.setItem('org-ranking-name', organization.rankingName); else sessionStorage.removeItem('org-ranking-name'); } catch { /* storage unavailable */ } }, [organization?.rankingName]);
+    const linkFor = ({ to, label, Icon, active, badge }) => {
+        const count = badge ? counts[badge] : 0;
+        return (
+            <Link key={to} to={to} className={linkClass(active)} aria-current={active ? 'page' : undefined}>
+                <span className="flex items-center space-x-3"><Icon size={20} /> <span className="font-medium">{label}</span></span>
+                {count > 0 && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-red-500 text-white'}`}>{count}</span>}
+            </Link>
+        );
+    };
 
     // What the header says. Every section page opens with its own title (the
     // Dashboard with "Welcome back"), so repeating it here only said it twice:
@@ -222,9 +289,21 @@ const OrgAdminLayout = () => {
     // before approval, which is exactly why it is what the shell asks for.
     useEffect(() => {
         api.get('/organizations/me/status')
-            .then((res) => { setOrganization(res.data.organization); setStaff(res.data.staff || null); })
+            .then((res) => { setOrganization(res.data.organization); setStaff(res.data.staff || null); setCampus(res.data.campus || null); })
             .catch((err) => setFailed(err.response?.data?.message || 'Could not reach your organization.'))
             .finally(() => setLoading(false));
+    }, []);
+
+    // A department's, the examination board's or the admission office's sign-in
+    // works only in Campus: straight there, signed in (utils/campus.js).
+    const campusOnly = Boolean(staff?.department || staff?.board || staff?.office);
+    useEffect(() => { if (campusOnly) window.location.replace(campusUrl()); }, [campusOnly]);
+
+    // Renamed on its page: the menu follows at once.
+    useEffect(() => {
+        const onName = (e) => setOrganization((o) => (o ? { ...o, rankingName: e.detail } : o));
+        window.addEventListener('organization-ranking-name', onName);
+        return () => window.removeEventListener('organization-ranking-name', onName);
     }, []);
 
     // A logo uploaded from a page (the Courses logo step, Settings) shows here at once.
@@ -341,6 +420,22 @@ const OrgAdminLayout = () => {
             </div>
         );
     }
+    // A department's or the examination board's sign-in works only in Campus (the Institution app).
+    if (staff?.department || staff?.board || staff?.office) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+                <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                    <School size={32} className="mx-auto text-teal-700" />
+                    <h1 className="mt-3 text-xl font-bold text-slate-800">This sign-in is for Campus</h1>
+                    <p className="mt-2 text-sm text-slate-500">Opening Campus for {staff.board ? 'the examination board' : staff.office ? 'the admission office' : 'your department'}…</p>
+                    <div className="mt-6 flex justify-center gap-2">
+                        <a href={campusUrl()} className="inline-flex items-center gap-2 rounded-xl bg-teal-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-900">Open Campus <ExternalLink size={14} /></a>
+                        <button onClick={logout} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Sign out</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (failed || !organization) {
         return (
@@ -416,25 +511,15 @@ const OrgAdminLayout = () => {
 
                 <nav className="flex-1 space-y-1.5 overflow-y-auto p-4 custom-scrollbar" aria-label="Organization">
                     <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Menu</p>
-                    {nav.map(({ to, label, icon: Icon, exact, badge }) => {
+                    {menuNav.map(({ to, label, icon: Icon, exact, badge }, i) => {
                         const active = isActive(to, exact);
-                        const count = badge ? counts[badge] : 0;
-                        return (
-                            <Link key={to} to={to} className={linkClass(active)} aria-current={active ? 'page' : undefined}>
-                                <span className="flex items-center space-x-3">
-                                    <Icon size={20} /> <span className="font-medium">{label}</span>
-                                </span>
-                                {count > 0 && (
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-red-500 text-white'}`}>
-                                        {count}
-                                    </span>
-                                )}
-                            </Link>
-                        );
+                        // Campus, right after the Dashboard, for the organization's own sign-in.
+                        if (i === 1 && showCampus) return [<CampusMenu key="campus" isActive={isActive} pathname={location.pathname} counts={campusCounts} />, linkFor({ to, label, Icon, active, badge })];
+                        return linkFor({ to, label, Icon, active, badge });
                     })}
                 </nav>
                 {/* Support, at the foot of the sidebar: a popup over the page, as for students (components/OrgSupportDialog). */}
-                <div className="shrink-0 border-t border-slate-100 p-4">
+                <div className="shrink-0 space-y-2 border-t border-slate-100 p-4">
                     <button type="button" onClick={() => setSupportOpen(true)} aria-haspopup="dialog"
                         className="flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-600 transition-colors hover:border-indigo-200 hover:bg-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                         <MessageCircleQuestion size={18} aria-hidden="true" /> Contact Support
@@ -534,14 +619,14 @@ const OrgAdminLayout = () => {
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 pb-28 custom-scrollbar lg:p-8">
                     {/* Every organisation page uses the full width (asked 2026-10-28). */}
                     <div className="w-full">
-                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}>{profileLocked ? <OrgProfileLock missing={profile.missing} /> : <Outlet key={pageKey} context={{ staff, pendingRequests: counts.pendingRequests, organization }} />}</Suspense></ErrorBoundary>
+                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}>{profileLocked ? <OrgProfileLock missing={profile.missing} /> : <Outlet key={pageKey} context={{ staff, pendingRequests: counts.pendingRequests, organization, campusOn: showCampus }} />}</Suspense></ErrorBoundary>
                     </div>
                 </div>
                 <PullToRefresh scrollerRef={scrollerRef} onRefresh={refreshPage} className={viewing ? 'top-28 lg:top-32' : 'top-16 lg:top-20'} />
             </main>
 
             {/* ── Phones and tablets: the floating bar along the bottom ────── */}
-            <OrgBottomNav items={nav} counts={counts} />
+            <OrgBottomNav items={showCampus ? [menuNav[0], { to: CAMPUS_HOME, label: 'Campus', short: 'Campus', icon: School, badge: 'campusWaiting' }, ...menuNav.slice(1)] : menuNav} counts={{ ...counts, campusWaiting: campusCounts.requests + campusCounts.applications }} />
         </div>
     );
 };

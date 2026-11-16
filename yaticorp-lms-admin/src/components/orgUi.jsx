@@ -9,7 +9,7 @@
  * a single home for them, not a new design language.
  */
 import React, { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
-import { Search, UserMinus, Loader2, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Search, UserMinus, Loader2, ChevronLeft, ChevronRight, X, Lock } from 'lucide-react';
 import initials from '../utils/initials';
 import { pictureSources } from '../utils/pictures';
 import useDialog from '../hooks/useDialog';
@@ -142,8 +142,9 @@ export const Segmented = ({ options, value, onChange, counts = {}, locked = {}, 
                     {options.map(([key, label]) => (
                         <button key={key} onClick={() => (locked[key] ? onLocked?.(key) : onChange(key))} aria-pressed={value === key}
                             aria-disabled={locked[key] ? 'true' : undefined} title={locked[key] || undefined}
-                            className={`relative shrink-0 whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-semibold transition-[color,scale] duration-200 active:scale-95 motion-reduce:active:scale-100 ${value === key ? 'text-indigo-600' : locked[key] ? 'cursor-not-allowed text-slate-500 opacity-50' : 'text-slate-500 hover:text-slate-700'}`}>
+                            className={`relative shrink-0 whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-semibold transition-[color,scale] duration-200 active:scale-95 motion-reduce:active:scale-100 ${value === key ? 'text-indigo-600' : locked[key] ? 'inline-flex cursor-not-allowed items-center gap-1.5 text-slate-400 grayscale' : 'text-slate-500 hover:text-slate-700'}`}>
                             {label}
+                            {locked[key] && <Lock size={12} aria-label="Locked" />}
                             {counts[key] > 0 && (
                                 <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-black transition-colors duration-200 ${value === key ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
                                     {counts[key]}

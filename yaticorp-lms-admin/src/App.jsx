@@ -79,6 +79,7 @@ const OrgRoute = ({ children }) => {
 const Users = React.lazy(() => import('./pages/Users'));
 const Teachers = React.lazy(() => import('./pages/Teachers'));
 const VerifyCards = React.lazy(() => import('./pages/VerifyCards'));
+const AIPassports = React.lazy(() => import('./pages/AIPassports'));
 const DemoCards = React.lazy(() => import('./pages/DemoCards'));
 const WalletRecharge = React.lazy(() => import('./pages/WalletRecharge'));
 const OverallAnalytics = React.lazy(() => import('./pages/OverallAnalytics'));
@@ -110,6 +111,7 @@ const OrgNccNss = React.lazy(() => import('./pages/org/OrgNccNss'));
 // Research: a teacher's own teacher dashboard, inside the organization panel.
 const OrgResearch = React.lazy(() => import('./pages/org/OrgResearch'));
 const OrgSettings = React.lazy(() => import('./pages/org/OrgSettings'));
+const OrgStudentRequests = React.lazy(() => import('./pages/org/OrgStudentRequests'));
 const OrgUsers = React.lazy(() => import('./pages/org/OrgUsers'));
 const OrgBsgNotices = React.lazy(() => import('./pages/org/OrgBsgNotices'));
 const OrgBsgDashboard = React.lazy(() => import('./pages/org/OrgBsgDashboard'));
@@ -121,6 +123,20 @@ const CompetitionAdmin = React.lazy(() => import('./pages/CompetitionAdmin'));
 // The Admin Competition Dashboard (2026-11-04): what is on and what needs doing, across competitions.
 const CompetitionDashboard = React.lazy(() => import('./pages/CompetitionDashboard'));
 const OrgCompetitions = React.lazy(() => import('./pages/org/OrgCompetitions'));
+// Campus — the student management system — inside the organization dashboard (2026-11-14).
+const CampusLayout = React.lazy(() => import('./campus/CampusLayout'));
+const CampusAdmissions = React.lazy(() => import('./campus/pages/Admissions'));
+const CampusAttendance = React.lazy(() => import('./campus/pages/Attendance'));
+const CampusDepartments = React.lazy(() => import('./campus/pages/Departments'));
+const CampusSoon = React.lazy(() => import('./campus/Soon'));
+const CampusAnnouncements = React.lazy(() => import('./campus/pages/Announcements'));
+const CampusAlumni = React.lazy(() => import('./campus/pages/Alumni'));
+const CampusStudents = React.lazy(() => import('./campus/pages/Students'));
+const CampusLockedPreview = React.lazy(() => import('./campus/LockedPreview'));
+const CampusInternals = React.lazy(() => import('./campus/pages/Internals'));
+const CampusFees = React.lazy(() => import('./campus/pages/Fees'));
+const CampusExamBoard = React.lazy(() => import('./campus/pages/ExamBoard'));
+const CampusFeedback = React.lazy(() => import('./campus/pages/Feedback'));
 // The certificates (2026-10-31); since 2026-11-07 both dashboards build them on the same page (CertificateConfiguration).
 const IssuedCertificates = React.lazy(() => import('./certificates/IssuedCertificates'));
 // Organisations: Certificate Configuration (intra- / inter-college, formal certificates), 2026-10-31.
@@ -160,6 +176,21 @@ function App() {
         <Route path="courses" element={<OrgCourses><Courses /></OrgCourses>} />
         <Route path="courses/:id" element={<OrgCourses><CourseEditor /></OrgCourses>} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
+        <Route path="campus" element={<CampusLayout />}>
+          <Route index element={<Navigate to="/organization/campus/departments" replace />} />
+          <Route path="admissions/*" element={<CampusAdmissions />} />
+          <Route path="attendance/*" element={<CampusAttendance />} />
+          <Route path="departments/*" element={<CampusDepartments />} />
+          <Route path="internal-marks" element={<CampusLockedPreview title="Internal marks"><CampusInternals /></CampusLockedPreview>} />
+          <Route path="fees" element={<CampusLockedPreview title="Fees"><CampusFees /></CampusLockedPreview>} />
+          <Route path="exam-board" element={<CampusLockedPreview title="Examination"><CampusExamBoard /></CampusLockedPreview>} />
+          <Route path="feedback" element={<CampusLockedPreview title="Feedback"><CampusFeedback /></CampusLockedPreview>} />
+          <Route path="admission-requests" element={<Navigate to="/organization/campus/admissions?tab=requests" replace />} />
+          <Route path="announcements" element={<CampusAnnouncements />} />
+          <Route path="alumni" element={<CampusAlumni />} />
+          <Route path="students" element={<CampusStudents />} />
+          <Route path="*" element={<Navigate to="/organization/campus" replace />} />
+        </Route>
         <Route path="competitions" element={<OrgCompetitions />} />
         <Route path="competitions/certificates" element={<CertificateConfiguration />} />
         <Route path="competitions/certificates/issued" element={<IssuedCertificates side="organization" />} />
@@ -174,6 +205,7 @@ function App() {
         <Route path="audit" element={<Navigate to="/organization" replace />} />
         <Route path="bsg-notices" element={<OrgBsgNotices />} />
         <Route path="settings" element={<OrgSettings />} />
+        <Route path="student-requests" element={<OrgStudentRequests />} />
         {/* Any other address in here: said inside the shell, menu and all. */}
         <Route path="*" element={<OrgNotFound />} />
       </Route>
@@ -181,6 +213,7 @@ function App() {
       <Route path="/" element={<PlatformRoute><AdminLayout /></PlatformRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="verify-cards" element={<SuperAdminRoute what="card verification"><VerifyCards /></SuperAdminRoute>} />
+        <Route path="ai-passports" element={<SuperAdminRoute what="AI Passports"><AIPassports /></SuperAdminRoute>} />
         <Route path="demo-cards" element={<SuperAdminRoute what="demo cards"><DemoCards /></SuperAdminRoute>} />
         <Route path="wallet-recharge" element={<SuperAdminRoute what="wallet recharges"><WalletRecharge /></SuperAdminRoute>} />
         <Route path="overall-analytics" element={<OverallAnalytics />} />

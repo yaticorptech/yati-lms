@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { Trophy, Users, GraduationCap } from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
-import { CARD, Avatar, Rows } from '../orgUi';
+import { CARD, Avatar, Rows, Segmented } from '../orgUi';
 
 const fmt = (n) => (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 const MEDALS = [
@@ -19,37 +19,43 @@ const MEDALS = [
 ];
 
 const Org360Toppers = () => {
-    const [departments, setDepartments] = useState(null);
+    const [data, setData] = useState(null);
+    // Mentor-wise first (2026-11-14): each mentor's own top three; by department beside it.
+    const [view, setView] = useState('mentors');
     const load = async ({ signal, isCurrent = () => true } = {}) => {
         try {
             const r = await api.get('/organizations/me/classes/toppers', { signal });
-            if (isCurrent()) setDepartments(r.data.departments || []);
-        } catch { if (isCurrent()) setDepartments((d) => d || []); }
+            if (isCurrent()) setData({ departments: r.data.departments || [], mentors: r.data.mentors || [] });
+        } catch { if (isCurrent()) setData((d) => d || { departments: [], mentors: [] }); }
     };
     useAutoRefresh(load, 60000, []);
 
-    if (departments === null) return <div className={CARD}><div className="p-5"><Rows count={2} height="h-16" /></div></div>;
-    if (!departments.length) return null;
+    if (data === null) return <div className={CARD}><div className="p-5"><Rows count={2} height="h-16" /></div></div>;
+    if (!data.departments.length && !data.mentors.length) return null;
+    const byMentor = view === 'mentors';
+    const departments = byMentor ? data.mentors : data.departments;
 
     return (
         <section className={CARD} aria-labelledby="toppers-title">
-            <div className="flex items-center gap-3 border-b border-slate-100 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4 sm:p-5">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600"><Trophy size={18} aria-hidden /></span>
-                <div className="min-w-0">
-                    <h2 id="toppers-title" className="text-base font-bold text-slate-800">Top 360 scorers by department</h2>
-                    <p className="text-xs text-slate-500">The three highest 360 scores in each course, from marks your 360 teachers have given.</p>
+                <div className="min-w-0 flex-1">
+                    <h2 id="toppers-title" className="text-base font-bold text-slate-800">Top ranking scorers</h2>
+                    <p className="text-xs text-slate-500">The three highest scores {byMentor ? 'among each mentor’s students' : 'in each department'}.</p>
                 </div>
+                <Segmented options={[['mentors', 'By mentor'], ['departments', 'By department']]} value={view} onChange={setView} />
             </div>
-            <ul className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-3">
+            {!departments.length ? <p className="p-6 text-center text-sm text-slate-500">{byMentor ? 'No mentors yet.' : 'No departments yet.'}</p> : (
+            <ul className="grid sm:grid-cols-2 xl:grid-cols-3">
                 {departments.map((d) => (
-                    <li key={d._id} className="bg-white p-4 sm:p-5">
+                    <li key={d._id} className="border-b border-slate-100 bg-white p-4 sm:border-r sm:p-5">
                         <div className="mb-3 flex items-baseline justify-between gap-2">
-                            <h3 className="truncate text-sm font-bold text-slate-800" title={d.name}>{d.name}</h3>
+                            <h3 className="flex min-w-0 items-center gap-1.5 truncate text-sm font-bold text-slate-800" title={d.name}>{byMentor && <GraduationCap size={14} className="shrink-0 text-indigo-500" aria-hidden />}<span className="truncate">{d.name}</span></h3>
                             <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-400 tabular-nums"><Users size={12} aria-hidden />{d.students}</span>
                         </div>
                         {d.top.length === 0 ? (
                             <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500">
-                                {d.students ? 'No marks given yet.' : 'No students tracked by this course’s 360 teachers yet.'}
+                                {d.students ? 'No marks given yet.' : byMentor ? 'No students assigned to this mentor yet.' : 'No students tracked in this department yet.'}
                             </p>
                         ) : (
                             <ol className="space-y-2">
@@ -62,7 +68,7 @@ const Org360Toppers = () => {
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-sm font-semibold text-slate-800">{s.name}</p>
                                             {s.cardNumber && <p className="truncate text-[11px] text-slate-400 tabular-nums">{s.cardNumber}</p>}
-                                            {s.mentors?.length > 0 && (
+                                            {!byMentor && s.mentors?.length > 0 && (
                                                 <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-slate-500" title={`Mentor: ${s.mentors.join(', ')}`}>
                                                     <GraduationCap size={12} className="shrink-0 text-indigo-400" aria-hidden />
                                                     <span className="truncate"><span className="font-semibold text-slate-600">{s.mentors.length > 1 ? 'Mentors' : 'Mentor'}:</span> {s.mentors.join(', ')}</span>
@@ -77,6 +83,7 @@ const Org360Toppers = () => {
                     </li>
                 ))}
             </ul>
+            )}
         </section>
     );
 };

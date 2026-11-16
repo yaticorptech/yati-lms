@@ -20,8 +20,8 @@ export default defineConfig(({ mode }) => ({
             registerType: 'autoUpdate',
             includeAssets: ['assets/favicon.ico', 'assets/apple-touch-icon.png', 'assets/YATICORP.png'],
             manifest: {
-              name: 'YATI LMS Admin',
-              short_name: 'YATI Admin',
+              name: 'YATICORP Admin',
+              short_name: 'YATICORP Admin',
               description: 'YATICORP Learning Management System — Admin',
               start_url: '/',
               scope: '/',

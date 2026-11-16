@@ -12,6 +12,7 @@
 const Organization = require('../models/Organization');
 
 const DEFAULT_TIMEZONE = 'Asia/Kolkata';
+const ACCESS_HOURS_OFF = true;
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -99,6 +100,8 @@ const forget = (organizationId) => cache.delete(String(organizationId));
 
 /** The access answer for one student: { applies, open, opensAt, closesAt, organization, hours }. */
 const studentAccess = async (user, now = new Date()) => {
+    // Access hours are withdrawn (2026-11-14): the platform is open to students at any time; Games hours remain.
+    if (ACCESS_HOURS_OFF) return { applies: false, open: true };
     if (!user?.organizationId) return { applies: false, open: true };
     const org = await scheduleOf(user.organizationId);
     if (!org?.schedule?.enabled) return { applies: false, open: true };

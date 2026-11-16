@@ -41,7 +41,13 @@ const VIEW_HEADER = 'x-view-organization';
  * hand-off, and otherwise only reading — the dashboard, students, courses.
  * Never the teachers, join requests, settings, or any other change.
  */
-const STAFF_ANY = [/^\/api\/organizations\/me\/(nccnss|research-session|password|status)(\/|$)/];
+const STAFF_ANY = [/^\/api\/organizations\/me\/(nccnss|research-session|password|status|campus)(\/|$)/];
+/**
+ * A department's sign-in (Campus, Admin.campusDepartmentId) reaches only Campus
+ * — where src/campus/orgAdmin.js keeps it to its own department — its status
+ * and its own password.
+ */
+const departmentMay = (req) => /^\/api\/organizations\/me\/(campus|password|status)(\/|$)/.test(String(req.originalUrl || '').split('?')[0].toLowerCase());
 const STAFF_READ = [
     /^\/api\/organizations\/me\/?$/,
     /^\/api\/organizations\/me\/(dashboard|students|courses|modules|lessons|course-access|certificate-progress|requests\/count|bsg\/feed)(\/|$)/,
@@ -121,6 +127,9 @@ const protectOrgAdmin = async (req, res, next) => {
             return res.status(404).json({ message: 'The linked organization no longer exists' });
         }
 
+        if ((admin.campusDepartmentId || admin.campusExamBoard || admin.campusOffice) && !departmentMay(req)) {
+            return res.status(403).json({ code: 'STAFF_LIMITED', message: 'This sign-in can only use Campus.' });
+        }
         if (admin.staff && !staffMay(req)) {
             return res.status(403).json({ code: 'STAFF_LIMITED', message: 'Your organization account cannot do this. Ask your organization\'s administrator.' });
         }

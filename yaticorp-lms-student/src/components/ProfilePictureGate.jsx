@@ -20,6 +20,7 @@ import api from '../utils/api';
 // Fetched only for a student who still has to choose a photo — with its cropper, it is not small.
 const PhotoPicker = lazy(() => import('./PhotoPicker'));
 import { ADMIN_VIEW_KEY } from '../utils/sessionExpiry';
+import { isAvatarPicture } from '../utils/avatarPicture';
 
 const adminIsViewing = () => {
     try { return !!localStorage.getItem(ADMIN_VIEW_KEY); } catch { return false; }
@@ -27,25 +28,36 @@ const adminIsViewing = () => {
 
 export default function ProfilePictureGate() {
     const { user, setUser } = useContext(AuthContext);
-    const has = !!user?.profilePicture;
+    // In an institution (2026-11-16) the picture must be a real photo in uniform — it is printed on the
+    // admit card and marks card — so an avatar counts as no picture for them.
+    const inOrg = !!user?.organizationId;
+    const has = !!user?.profilePicture && !(inOrg && isAvatarPicture(user.profilePicture));
     const [needed, setNeeded] = useState(false);
     const [viewing] = useState(adminIsViewing);
+    const avatarNow = isAvatarPicture(user?.profilePicture);
 
     useEffect(() => {
-        if (!user || has || viewing) return undefined;
+        if (!user || viewing) return undefined;
+        // A real photo, known from this device: nothing to ask. An avatar is checked, as they may be in an institution now.
+        if (user.profilePicture && !avatarNow) return undefined;
+        if (user.profilePicture && avatarNow && needed) return undefined;
         let alive = true;
         api.get('/user/profile')
             .then((r) => {
                 if (!alive) return;
-                const saved = r.data?.user?.profilePicture;
-                if (!saved) { setNeeded(true); return; }
-                const updated = { ...user, profilePicture: saved };
-                setUser(updated);
-                localStorage.setItem('studentData', JSON.stringify(updated));
+                const saved = r.data?.user?.profilePicture || '';
+                const orgId = r.data?.user?.organizationId || null;
+                if (saved !== user.profilePicture || String(orgId || '') !== String(user.organizationId || '')) {
+                    const updated = { ...user, profilePicture: saved, organizationId: orgId };
+                    setUser(updated);
+                    localStorage.setItem('studentData', JSON.stringify(updated));
+                }
+                setNeeded(!saved || (!!orgId && isAvatarPicture(saved)));
             })
             .catch(() => {});
         return () => { alive = false; };
-    }, [user, has, setUser, viewing]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?._id, user?.profilePicture, user?.organizationId, viewing]);
 
-    return needed && user && !has && !viewing ? <Suspense fallback={null}><PhotoPicker required /></Suspense> : null;
+    return needed && user && !has && !viewing ? <Suspense fallback={null}><PhotoPicker required uniform={inOrg} /></Suspense> : null;
 }

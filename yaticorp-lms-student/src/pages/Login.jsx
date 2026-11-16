@@ -354,6 +354,8 @@ const Login = () => {
             }
             // A demo (presentation) card signs in by its scan alone: straight to the dashboard.
             if (res.data?.token && res.data?.role !== 'teacher') { enterApp(res.data, next); return; }
+            // A developer teacher card signs in by its scan alone too.
+            if (res.data?.token) { enterTeacher(res.data); return; }
             setCardNumber(res.data.cardNumber);
             setScannedName(res.data.name || '');
             setScannedCard(true);

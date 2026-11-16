@@ -1,6 +1,7 @@
 /**
  * What makes an organization's profile complete (asked 2026-11-04): every
- * field in Settings, its logo, and its courses and sections. Until then the
+ * field in Settings, its logo, and (with Campus on) at least one department — its courses
+ * are the departments since 2026-11-14 (Campus → Departments). Until then the
  * dashboard asks for it and the other pages are locked (components/OrgProfileLock).
  */
 import { useEffect, useState } from 'react';
@@ -23,16 +24,19 @@ export const useOrgProfile = (key) => {
     useEffect(() => {
         let live = true;
         Promise.all([
-            api.get('/organizations/me').then((r) => r.data.organization).catch(() => null),
+            api.get('/organizations/me').then((r) => r.data).catch(() => null),
             api.get('/organizations/me/classes').then((r) => (r.data.programs || []).length > 0).catch(() => null)
-        ]).then(([org, courses]) => {
+        ]).then(([me, hasCourses]) => {
+            const org = me?.organization;
+            // Only asked where Campus is on: the departments are where courses are added.
+            const courses = me?.campus ? hasCourses : null;
             if (!live) return;
             setState({ details: org ? detailsMissing(org) : [], courses, loaded: Boolean(org) || courses !== null, office: Boolean(org?.bsgOffice) });
         });
         return () => { live = false; };
     }, [key]);
     if (state.office) return { details: [], courses: true, missing: [], loaded: state.loaded };
-    const missing = [...state.details, ...(state.courses === false ? ['courses and sections'] : [])];
+    const missing = [...state.details, ...(state.courses === false ? ['departments'] : [])];
     return { ...state, missing };
 };
 
