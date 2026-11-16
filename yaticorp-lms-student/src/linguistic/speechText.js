@@ -16,6 +16,50 @@ export const sentencesOf = (text) => String(text || '').split(/(?<=[.!?।॥])\
 /** A story's words in reading order, as Read aloud reads them: its title, panels, then its moral (Comic.jsx). */
 export const comicWords = (comic) => (!comic?.panels ? [] : [comic.title, ...comic.panels.flatMap((p) => [p.caption, ...(p.say || []).map((b) => (b.name ? `${b.name.replace(/^the /, 'The ')} says: ${b.text}` : b.text)), p.narration]),
     comic.moral && (comic.moralLabel ? `${comic.moralLabel} ${comic.moral}` : `The moral of the story: ${comic.moral}`)].filter(Boolean));
+/**
+ * How a line in a story is said (2026-11-12, "every emotion should be perfect, voice variations and all"): the voice
+ * spec the AI voice is asked for — 'f' or 'm', then after a colon the feeling, pitch and pace (the server's
+ * tts/store.js keeps only those it knows). `person` is the story's person (none: the narrator); `pose` how they
+ * stand in that picture (cheer, sad, surprise…); `text` their words.
+ *   A child: high-pitched. Someone old (grey hair, a beard): low and slow. A big man: low.
+ *   The feeling from the pose, else from the words: "!" excited, "?" a question; the narrator tells it as a story.
+ */
+const POSE_MOOD = { cheer: 'happy', give: 'kind', sad: 'sad', surprise: 'surprise' };
+export const voiceSpec = (person, pose, text) => {
+    if (!person) return 'f:mood-story';
+    const t = String(text || '').trim();
+    const mood = POSE_MOOD[pose] || (/[!！]\s*$/.test(t) ? 'excited' : /[?？]\s*$/.test(t) ? 'question' : null);
+    const old = ['grey', 'greybun'].includes(person.hair) || person.beard;
+    const pitch = person.child ? 'high' : old || person.big ? 'low' : null;
+    const pace = old ? 'slow' : person.child ? 'fast' : null;
+    const style = [mood && `mood-${mood}`, pitch && `pitch-${pitch}`, pace && `pace-${pace}`].filter(Boolean).join(',');
+    const v = person.woman ? 'f' : 'm';
+    return style ? `${v}:${style}` : v;
+};
+/** The voice of a film's line: its speaker, and how they stand while saying it. */
+export const filmVoice = (film, line) => (line.who === 'narrator' ? voiceSpec(null) : voiceSpec(film.people?.[line.who] || {}, line.at?.[line.who]?.pose, line.text));
+
+/**
+ * A story read as a conversation (2026-11-12, "it must feel like a conversation, their voices"): [[text, lang, voice], …]
+ * in reading order — the title, captions, narration and moral by the narrator (a woman's voice, 'f'), and each
+ * person's words, without "X says:", in their own voice: a man's ('m') or a woman's.
+ */
+export const comicSpeech = (comic) => {
+    if (!comic?.panels) return [];
+    const l = comic.locale || 'en-IN';
+    const people = comic.people || {};
+    const out = [];
+    const put = (text, voice = 'f') => { if (text) out.push([text, l, voice]); };
+    const story = voiceSpec(null);
+    put(comic.title, story);
+    for (const p of comic.panels) {
+        put(p.caption, story);
+        (p.say || []).forEach((b) => put(b.text, voiceSpec(people[b.who] || {}, p.cast?.find((c) => c.who === b.who)?.pose, b.text)));
+        put(p.narration, story);
+    }
+    if (comic.moral) put(comic.moralLabel ? `${comic.moralLabel} ${comic.moral}` : `The moral of the story: ${comic.moral}`, story);
+    return out;
+};
 /** Texts read aloud one after another, as [[sentence, lang], …]. */
 export const readingSpeech = (texts, lang = 'en-IN') => texts.flatMap(sentencesOf).map((t) => [t, lang]);
 
@@ -59,7 +103,14 @@ export const stepSpeech = (step) => {
             (step.phrases || []).forEach((p) => put(p));
             break;
         case 'passage': out.push(...readingSpeech([step.passage?.text])); break;
-        case 'comic': out.push(...readingSpeech(comicWords(step.comic), step.comic?.locale || 'en-IN')); break;
+        case 'comic':
+            // A story film (2026-11-12): each line whole, as StoryFilm.jsx asks the AI voice for it, and the moral.
+            if (step.comic?.film) {
+                const c = step.comic, l = c.locale || 'en-IN';
+                (c.scenes || []).forEach((sc) => (sc.lines || []).forEach((ln) => out.push([ln.text, l, filmVoice(c, ln)])));
+                if (c.moral) out.push([`${c.moralLabel || 'The moral of the story:'} ${c.moral}`, l, voiceSpec(null)]);
+            } else comicSpeech(step.comic).forEach(([t, l, v]) => sentencesOf(t).forEach((x) => out.push([x, l, v])));
+            break;
         case 'speak': put(step.speaking?.sample); break;
         case 'question': {
             const q = step.q || {};
@@ -70,14 +121,17 @@ export const stepSpeech = (step) => {
         }
         default: break;
     }
-    return out.map(([t, l]) => courseSpeech(t, l, step.target)).filter(Boolean);
+    return out.map(([t, l, v]) => { const r = courseSpeech(t, l, step.target); return r && (v ? [...r, v] : r); }).filter(Boolean);
 };
 
 /** The letters page's sounds (LettersChart.jsx): every letter, as it is tapped. */
-export const chartSpeech = (chart) => {
+// `table: false` (2026-11-13): only the letters themselves, not the big table of combinations (hundreds of sounds).
+export const chartSpeech = (chart, { table = true } = {}) => {
     if (!chart) return [];
     const out = [];
-    const walk = (x) => { if (!x || typeof x !== 'object') return; if (Array.isArray(x)) { x.forEach(walk); return; } if (typeof x.char === 'string') out.push([x.speak || x.char, chart.locale]); Object.values(x).forEach(walk); };
-    walk(chart.groups); walk(chart.table);
+    // English letters by the letter itself, as the chart says them (LettersChart.jsx), not their spelling.
+    const english = chart.course?.code === 'en';
+    const walk = (x) => { if (!x || typeof x !== 'object') return; if (Array.isArray(x)) { x.forEach(walk); return; } if (typeof x.char === 'string') out.push([english ? x.char : x.speak || x.char, chart.locale]); Object.values(x).forEach(walk); };
+    walk(chart.groups); if (table) walk(chart.table);
     return out;
 };

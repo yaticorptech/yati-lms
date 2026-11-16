@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import api from '../../services/api';
 import lms from '../../../utils/api';
 import { gameKey, currentStudentId } from './gameStorage';
+import { STAGE_SHIFT, stageOf, statsOf, mergeStats } from './adaptive';
 import { takeOutbox, putBackOutbox, setSeenElsewhere } from './questionMemory';
 
 // The star rules live in stars.js so a test can load them; see there.
@@ -143,7 +144,8 @@ const pushedLevel = new Map();
 export const pushGame = (gameId, rounds = 10) => {
   // Nobody signed in: the record is a guest's and belongs to no account.
   if (!currentStudentId()) return Promise.resolve();
-  const sent = localGame(gameId);
+  // With the game's adaptive record (adaptive.js): its stage, recent sessions and personal best.
+  const sent = { ...localGame(gameId), stats: statsOf(gameId) };
   return api
     .post('/games/progress', sent)
     .then(({ data }) => {
@@ -194,6 +196,8 @@ export const pullProgress = async () => {
   } catch {
     return false;
   }
+  // The adaptive records the account holds, where ahead of this browser's.
+  mergeStats(Object.fromEntries((games || []).filter((g) => g.stats).map((g) => [g.gameId, g.stats])));
   const levels = read(LEVEL_KEY);
   const stars = read(STAR_KEY);
   let changed = false;
@@ -311,7 +315,50 @@ export const lastPlayed = () => {
  * first level of the next band — the step up in difficulty happens under
  * their feet rather than being chosen from a menu.
  */
-export default function useGameProgress(gameId) {
+/*
+ * The age band the games are played at (2026-11-13; zones.js BANDS), set by the Games page from the student's zone.
+ * It bounds the difficulty a level asks for — never the level itself, so saved levels, stars and XP are untouched:
+ * Young Thinkers stay on the gentlest difficulty with shorter steps, Master Minds start a band up.
+ */
+let ageBand = null;            // { key, minDifficulty, maxDifficulty, maxStep } or null: no bounds
+export const setAgeBand = (band, key = null) => { ageBand = band ? { ...band, key: key || band.key || null } : null; };
+/** The age band games are being played at: foundation, developing, intermediate, analytical, advanced (or null). */
+export const currentAgeBand = () => ageBand?.key || null;
+/*
+ * The difficulty a level is played at: the level's own (bandOf, stepInBand), moved by the student's adaptive stage
+ * for this game (adaptive.js: easy one band down, expert one up and past the zone's top by one — a higher challenge
+ * unlocked by playing well), then kept inside the age band.
+ */
+const bounded = (level, gameId) => {
+    const d = bandOf(level), n = stepInBand(level);
+    const stage = stageOf(gameId);
+    if (!ageBand) return { difficulty: d, levelNo: n, stage };
+    const sh = STAGE_SHIFT[stage] || STAGE_SHIFT.medium;
+    const lo = Math.max(1, ageBand.minDifficulty - (stage === 'easy' ? 1 : 0));
+    const hi = Math.min(3, ageBand.maxDifficulty + sh.above);
+    return {
+        difficulty: Math.min(hi, Math.max(lo, d + sh.shift)),
+        levelNo: Math.min(ageBand.maxStep, n + (sh.step || 0)),
+        stage
+    };
+};
+
+const BAND_ORDER = ['foundation', 'developing', 'intermediate', 'analytical', 'advanced'];
+/**
+ * The age band a section-locked game plays at (2026-11-14, the 84 games): `bands` are the bands its section has
+ * (e.g. Light-Up Garden only foundation and developing). A student from another section gets the nearest of them,
+ * so a game never turns into another section's game; no band known gives the section's top band.
+ */
+export const bandWithin = (band, bands) => {
+    if (!bands || !bands.length) return band;
+    if (bands.includes(band)) return band;
+    const i = BAND_ORDER.indexOf(band);
+    if (i < 0) return bands[bands.length - 1];
+    return i < BAND_ORDER.indexOf(bands[0]) ? bands[0] : bands[bands.length - 1];
+};
+
+/** `opts.bands` (2026-11-14): keep the game inside its section's age bands (bandWithin). */
+export default function useGameProgress(gameId, opts = {}) {
   const [level, setLevel] = useState(() => read(LEVEL_KEY)[gameId] || 1);
   // Bumped whenever a fresh round should be built, so games can key state off it.
   const [attempt, setAttempt] = useState(0);
@@ -336,8 +383,8 @@ export default function useGameProgress(gameId) {
     level,
     // Derived, so every game's configFor(difficulty, step) keeps working
     // untouched while the student only ever sees one number.
-    difficulty: bandOf(level),
-    levelNo: stepInBand(level),
+    ...bounded(level, gameId),
+    ageBand: bandWithin(currentAgeBand(), opts.bands),
     tier: levelTier(level),
     attempt,
     advance,

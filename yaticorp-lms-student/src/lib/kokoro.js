@@ -38,10 +38,48 @@ export const loadKokoro = (onProgress) => {
 /** Whether this browser can run the model at all. */
 export const kokoroSupported = () => typeof WebAssembly !== 'undefined' && typeof window !== 'undefined';
 
-const generate = async (text, opts) => {
+/*
+ * The clips are made in a Web Worker (kokoro.worker.js, 2026-11-13): on the page's own thread every clip froze the
+ * page ("Page Unresponsive"). Where a worker cannot start, the model runs here as before.
+ */
+let worker = null, workerFailed = false, nextId = 0;
+const waiting = new Map();
+const viaWorker = () => {
+    if (workerFailed || typeof Worker === 'undefined') return null;
+    if (!worker) {
+        try {
+            worker = new Worker(new URL('./kokoro.worker.js', import.meta.url), { type: 'module' });
+            worker.onmessage = (e) => {
+                const { id, blob, error } = e.data || {};
+                const w = waiting.get(id);
+                if (!w) return;
+                waiting.delete(id);
+                if (error) w.reject(new Error(error)); else w.resolve(blob);
+            };
+            worker.onerror = (e) => {
+                // The worker could not start (an old browser): every clip waiting is made on the page instead.
+                console.warn('[kokoro] worker failed, using the page:', e?.message);
+                workerFailed = true; worker = null;
+                for (const w of waiting.values()) w.fallback();
+                waiting.clear();
+            };
+        } catch { workerFailed = true; return null; }
+    }
+    return worker;
+};
+const onPage = async (text, opts) => {
     const tts = await loadKokoro();
     const audio = await tts.generate(text, { voice: opts.voice || KOKORO_VOICE, speed: opts.speed || 1 });
     return audio.toBlob();
+};
+const generate = (text, opts) => {
+    const w = viaWorker();
+    if (!w) return onPage(text, opts);
+    return new Promise((resolve, reject) => {
+        const id = ++nextId;
+        waiting.set(id, { resolve, reject, fallback: () => onPage(text, opts).then(resolve, reject) });
+        w.postMessage({ id, text, voice: opts.voice || KOKORO_VOICE, speed: opts.speed || 1 });
+    });
 };
 
 /** Speak `text` into a WAV Blob. `opts`: { voice, speed }. A failed clip is tried once more. */

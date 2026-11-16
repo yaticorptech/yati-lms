@@ -124,6 +124,10 @@ const FlowCard = ({ label, icon, value, gold }) => (
     </div>
 );
 
+// The table's age zone (2026-11-13): players are only matched with others of the same zone (server: onlineService.js).
+const ZONE_LABEL = { young: 'Young Thinkers', smart: 'Rising Brains', master: 'Master Minds' };
+const zoneNameOf = (game) => game.zoneName || ZONE_LABEL[game.zone || game.options?.zone] || null;
+
 export function OnlineSearch({ game, onLeft }) {
     const narrow = useNarrow();
     const t = game.online;
@@ -134,6 +138,7 @@ export function OnlineSearch({ game, onLeft }) {
     const [tick, setTick] = useState(0);
     useEffect(() => { const id = setInterval(() => setTick((n) => n + 1), 140); return () => clearInterval(id); }, []);
     const info = GROUP_GAMES[game.game] || {};
+    const zoneName = zoneNameOf(game);
     const cancel = () => {
         setBusy(true); setError('');
         roomsApi.leave(game.id).then(onLeft).catch((e) => { setError(e.message); setBusy(false); });
@@ -159,6 +164,7 @@ export function OnlineSearch({ game, onLeft }) {
                         <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> <span className="truncate">Play online · {info.label || game.label}</span>
                     </p>
                     <h2 className="mt-1 text-2xl font-black tracking-tight">{filled < n ? 'Finding players…' : 'Table full!'}</h2>
+                    {zoneName && <p className="mx-auto mt-1 w-fit max-w-full truncate rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-[#e3e5ff] ring-1 ring-white/15" data-online-zone>{zoneName}</p>}
                     <p className="mt-0.5 text-xs text-[#c7c9e4]">
                         {filled} of {n} seated{filled < n ? (left != null ? ` · starts in ${left}s` : '') : ' · starting…'}
                     </p>
@@ -170,7 +176,7 @@ export function OnlineSearch({ game, onLeft }) {
                 {/* The title. */}
                 {!narrow && <>
                 <p className="flex items-center justify-center font-extrabold tracking-[0.16em] whitespace-nowrap text-white uppercase" style={{ ...box(0, S.title[0], PW, 26), gap: cq(0.9), fontSize: cq(1.65, 10) }}>
-                    <Globe className="shrink-0" style={{ width: cq(1.9, 12), height: cq(1.9, 12) }} aria-hidden="true" /> Play online · {info.label || game.label}
+                    <Globe className="shrink-0" style={{ width: cq(1.9, 12), height: cq(1.9, 12) }} aria-hidden="true" /> Play online · {info.label || game.label}{zoneName ? <span data-online-zone> · {zoneName}</span> : null}
                 </p>
                 <h2 className="text-center font-black tracking-tight" style={{ ...box(0, S.title[1], PW, 44), fontSize: cq(3.55, 18) }}>{filled < n ? 'Finding players…' : 'Table full!'}</h2>
                 <p className="text-center text-[#c7c9e4]" style={{ ...box(0, S.title[2], PW, 24), fontSize: cq(1.8, 10.5) }}>
@@ -299,7 +305,7 @@ export function MatchIntro({ game, view }) {
             <div className="relative w-full max-w-3xl text-center">
                 <p className="text-xs font-black text-emerald-300 uppercase" style={{ animation: 'ot-title .7s ease-out both' }}>Match found</p>
                 <h2 className="mt-1 text-3xl font-black sm:text-4xl">{info.emoji} {info.label || game.label}</h2>
-                <p className="mt-1 text-sm text-white/70">{seats.length} players · {fee ? `${fee} XP entry · winner gets ${game.online.prize} XP` : 'Free table'}</p>
+                <p className="mt-1 text-sm text-white/70">{seats.length} players{zoneNameOf(game) ? ` · ${zoneNameOf(game)}` : ''} · {fee ? `${fee} XP entry · winner gets ${game.online.prize} XP` : 'Free table'}</p>
                 <ul className={`mt-8 flex flex-wrap items-center justify-center ${many ? 'gap-2' : 'gap-3 sm:gap-4'}`}>
                     {seats.map((s, i) => {
                         const color = view?.seats?.[i]?.color || PALETTE[i % PALETTE.length];

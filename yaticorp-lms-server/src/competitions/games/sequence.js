@@ -14,6 +14,7 @@
  */
 const { makeRoundEngine } = require('./roundCore');
 const { GameError } = require('./contract');
+const { zoneOf } = require('./zones');
 
 const SETS = {
     colours: ['red', 'blue', 'green', 'yellow', 'purple', 'orange'],
@@ -25,6 +26,17 @@ const START = { easy: 3, medium: 4, hard: 5 };
 const CHOICES = { easy: 4, medium: 5, hard: 6 };
 const STEP_MS = 800;
 
+/**
+ * By the room's age zone (./zones.js, 2026-11-13): Young Thinkers colours and shapes only (no digits), four of them,
+ * runs from 2 to at most 5, shown slower, seven rounds; Rising Brains as medium; Master Minds runs from 6 out of six
+ * choices, ten rounds. A room made before zones goes by its difficulty.
+ */
+const ZONE = {
+    young: { rounds: 7, startLength: 2, maxLength: 5, choices: 4, kinds: ['colours', 'symbols'], stepMs: 1000 },
+    smart: { rounds: 9, startLength: 4, choices: 5 },
+    master: { rounds: 10, startLength: 6, choices: 6, stepMs: 700 }
+};
+
 const isReaction = (g, index) => g.reaction && index % 3 === 2;
 
 module.exports = makeRoundEngine({
@@ -33,17 +45,19 @@ module.exports = makeRoundEngine({
     emoji: '🎯',
     summary: 'Watch a sequence, then tap it back — longer every round. Reaction rounds: wait for Go, then tap first.',
     maxSeats: 20,
-    setup: (o) => ({ rounds: 9, startLength: START[o.difficulty], choices: CHOICES[o.difficulty], reaction: o.reaction !== false }),
+    setup: (o) => ({ ...(ZONE[zoneOf(o)] || { rounds: 9, startLength: START[o.difficulty], choices: CHOICES[o.difficulty] }), reaction: o.reaction !== false }),
     round: (g, index, rng) => {
         if (isReaction(g, index)) {
             return { kind: 'reaction', early: true, showMs: 1500 + Math.floor(rng() * 2500), answerMs: 3000 };
         }
         const done = Array.from({ length: index }, (_, i) => i).filter((i) => !isReaction(g, i)).length;
-        const length = g.startLength + done;
-        const set = KINDS[index % KINDS.length];
+        const length = Math.min(g.maxLength || Infinity, g.startLength + done);
+        const kinds = g.kinds || KINDS;
+        const set = kinds[index % kinds.length];
         const items = SETS[set].slice(0, g.choices);
         const sequence = Array.from({ length }, () => Math.floor(rng() * items.length));
-        return { kind: 'sequence', set, items, length, sequence, stepMs: STEP_MS, showMs: STEP_MS * length + 600, answerMs: 6000 + 1500 * length };
+        const stepMs = g.stepMs || STEP_MS;
+        return { kind: 'sequence', set, items, length, sequence, stepMs, showMs: stepMs * length + 600, answerMs: 6000 + 1500 * length };
     },
     publicRound: (r, phase) => (r.kind === 'reaction'
         ? { kind: 'reaction', go: phase !== 'show' }

@@ -244,9 +244,23 @@ const base = (lang) => norm(lang).split('-')[0];
  */
 const KOKORO_ON = false; // OFF for now with the server voice (2026-11-12); true to turn it back on
 const usesKokoro = (lang) => KOKORO_ON && base(lang) === 'en' && kokoroSupported();
-const clipKey = (text, lang) => `${usesKokoro(lang) ? 'kokoro:' : ''}${base(lang)}|${String(text).trim()}`;
-const fromServer = (text, lang) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2 }, responseType: 'blob', timeout: 600000 }).then((r) => r.data);
-const makeClip = (text, lang) => (usesKokoro(lang) ? kokoroBlob(text).catch((e) => { console.warn("[kokoro] falling back to server voice:", e); return fromServer(text, lang); }) : fromServer(text, lang));
+// `voice`: 'f' (the default) or 'm', a man's, with how it is said after a colon — 'm:mood-sad,pitch-low' (2026-11-12:
+// a story's people in their own voices, with their feelings). speechText.js (voiceSpec) makes them.
+const plainVoice = (voice) => !voice || voice === 'f';
+const clipKey = (text, lang, voice) => `${usesKokoro(lang) ? 'kokoro:' : ''}${base(lang)}|${String(text).trim()}${!plainVoice(voice) ? `|${voice}` : ''}`;
+/*
+ * English people in their own Kokoro voices (2026-11-13, the story film: "résumé, certificates — not pronounced
+ * right" in the old Indian-English recordings): the narrator and women af_heart, men am_michael, an older man (a low,
+ * slow voice spec) bm_george a little slower, an older woman bf_emma, a child af_nicole / am_puck.
+ */
+const kokoroVoiceOf = (spec) => {
+    const s = String(spec || 'f');
+    const man = s.startsWith('m'), low = s.includes('pitch-low'), high = s.includes('pitch-high'), slow = s.includes('pace-slow');
+    const voice = man ? (low ? 'bm_george' : high ? 'am_puck' : 'am_michael') : (low ? 'bf_emma' : high ? 'af_nicole' : 'af_heart');
+    return { voice, speed: slow ? 0.9 : 1 };
+};
+const fromServer = (text, lang, voice) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2, ...(plainVoice(voice) ? {} : { voice }) }, responseType: 'blob', timeout: 600000 }).then((r) => r.data);
+const makeClip = (text, lang, voice) => (usesKokoro(lang) ? kokoroBlob(text, kokoroVoiceOf(voice)).catch((e) => { console.warn("[kokoro] falling back to server voice:", e); return fromServer(text, lang); }) : fromServer(text, lang, voice));
 /*
  * Clips are kept on the device too (2026-11-06, the audio pack): in the browser's Cache Storage, so a unit's
  * audio downloaded once plays at once on every later visit, with no wait on the voice service.
@@ -273,10 +287,10 @@ const toDevice = async (key, blob) => {
     const c = await openCache();
     if (c) await within(c.put(cacheReq(key), new Response(blob, { headers: { 'Content-Type': blob.type || 'audio/wav' } })), 5000);
 };
-const serverClip = (text, lang) => {
-    const key = clipKey(text, lang);
+const serverClip = (text, lang, voice) => {
+    const key = clipKey(text, lang, voice);
     if (!clips.has(key)) {
-        const job = fromDevice(key).then((kept) => kept || makeClip(text, lang)
+        const job = fromDevice(key).then((kept) => kept || makeClip(text, lang, voice)
             .then((blob) => { toDevice(key, blob); return blob; }))
             .then((blob) => URL.createObjectURL(blob));
         job.catch(() => clips.delete(key)); // a failed clip is asked for again next time
@@ -284,11 +298,34 @@ const serverClip = (text, lang) => {
     }
     return clips.get(key);
 };
+/** The AI voice's clip of `text` (a blob URL, made or taken from the device), or null when that language has none. */
+export const aiClip = (text, lang, voice) => {
+    const r = text ? courseSpeech(text, lang, voiceCourse) : null; // the same text the audio pack downloaded
+    return r && usesServerVoice(r[1]) ? serverClip(r[0], r[1], voice) : null;
+};
 /** Whether lessons are read by the AI voice (and so need their audio downloaded first). */
 export const aiVoiceOn = () => SERVER_VOICE_ON;
 /** A clip the server has already made, or null (204) without waiting for the voice model. */
-const keptOnServer = (text, lang) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2, cached: 1 }, responseType: 'blob', timeout: 60000 })
-    .then((r) => (r.status === 204 || !r.data?.size ? null : r.data));
+// At most three clip downloads at once across the whole app (2026-11-14): the browser keeps only six connections
+// to the server, and the rest are for the lesson itself (answer checks, pages).
+let clipFetches = 0; const waiting = [];
+const slot = () => (clipFetches < 3 ? (clipFetches++, Promise.resolve()) : new Promise((r) => waiting.push(r)));
+const free = () => { const next = waiting.shift(); if (next) next(); else clipFetches--; };
+const keptOnServer = async (text, lang, voice) => {
+    await slot();
+    try {
+        const r = await client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2, cached: 1, ...(plainVoice(voice) ? {} : { voice }) }, responseType: 'blob', timeout: 30000 });
+        return r.status === 204 || !r.data?.size ? null : r.data;
+    } finally { free(); }
+};
+/** Ask the server to make these clips (answered at once); they are fetched with keptOnServer when ready. */
+const prepareOnServer = async (list) => {
+    for (let i = 0; i < list.length; i += 80) {
+        const items = list.slice(i, i + 80).map(([text, lang, , voice]) => ({ text: String(text).trim(), lang: base(lang), ...(plainVoice(voice) ? {} : { voice }) }));
+        try { await client.post('/tts/prepare', { items }, { timeout: 15000 }); } catch { /* asked again on the next round */ }
+    }
+};
+const nap = (ms) => new Promise((r) => setTimeout(r, ms));
 /**
  * Download clips to the device: `items` [[text, lang], …]; those already on the device are skipped.
  * First every clip the server has already made is fetched (fast, eight at a time); then every clip still
@@ -298,11 +335,16 @@ const keptOnServer = (text, lang) => client.get('/tts', { params: { text: String
  */
 export const downloadClips = async (items, on = {}) => {
     const seen = new Set(); const todo = [];
-    for (const [text, lang = 'en-IN'] of items || []) {
+    // on.background (2026-11-13, "the whole app lags"): only what the server makes — never Kokoro, which makes
+    // English on this device and keeps it busy — and three at a time instead of eight. What is left out is counted.
+    let skipped = 0;
+    for (const [text, lang = 'en-IN', voice] of items || []) {
         if (!text || !String(text).trim() || !usesServerVoice(lang)) continue;
-        const key = clipKey(text, lang);
-        if (!seen.has(key)) { seen.add(key); todo.push([text, lang, key]); }
+        // English (Kokoro) too since it runs in a Web Worker (2026-11-13): the page no longer waits on it.
+        const key = clipKey(text, lang, voice);
+        if (!seen.has(key)) { seen.add(key); todo.push([text, lang, key, voice]); }
     }
+    const width = on.background ? 3 : 8;
     let done = 0, failed = 0, serviceDown = false; const missing = [];
     on.onProgress?.(0, todo.length);
     const tick = () => { done++; on.onProgress?.(done, todo.length); };
@@ -321,18 +363,36 @@ export const downloadClips = async (items, on = {}) => {
         await Promise.all(Array.from({ length: n }, worker));
     };
     // 1. Already made: on the device, or on the server.
-    await run(todo, 8, async (text, lang, key) => {
+    await run(todo, width, async (text, lang, key, voice) => {
         if (clips.has(key)) { await clips.get(key); return tick(); }
         if (await fromDevice(key)) return tick();
-        const blob = usesKokoro(lang) ? null : await keptOnServer(text, lang);
-        if (!blob) { missing.push([text, lang, key]); return; }
+        const blob = usesKokoro(lang) ? null : await keptOnServer(text, lang, voice);
+        if (!blob) { missing.push([text, lang, key, voice]); return; }
         await toDevice(key, blob);
         if (!clips.has(key)) clips.set(key, Promise.resolve(URL.createObjectURL(blob)));
         tick();
     });
-    // 2. Not made yet: made now, and kept on the server and the device.
-    await run(missing, 8, async (text, lang) => { await serverClip(text, lang); tick(); });
-    return { total: todo.length, failed, serviceDown };
+    // 2. Not made yet (2026-11-14): English made here by Kokoro; the rest asked of the server in one request, then
+    // fetched as each is made — no connection held open while the model works, so the lesson never waits behind it.
+    const english = missing.filter(([, lang]) => usesKokoro(lang));
+    let left = missing.filter(([, lang]) => !usesKokoro(lang));
+    await run(english, Math.min(width, 2), async (text, lang, key, voice) => { await serverClip(text, lang, voice); tick(); });
+    const until = Date.now() + 20 * 60000;
+    for (let round = 0; left.length && !on.signal?.stopped && Date.now() < until; round += 1) {
+        if (round % 10 === 0) await prepareOnServer(left); // asked again now and then, in case the server restarted
+        await nap(round ? 3000 : 1500);
+        const still = [];
+        await run(left, 3, async (text, lang, key, voice) => {
+            const blob = await keptOnServer(text, lang, voice).catch(() => null);
+            if (!blob) { still.push([text, lang, key, voice]); return; }
+            await toDevice(key, blob);
+            if (!clips.has(key)) clips.set(key, Promise.resolve(URL.createObjectURL(blob)));
+            tick();
+        });
+        left = still;
+    }
+    failed += left.length;
+    return { total: todo.length, failed, skipped, serviceDown };
 };
 
 /*
@@ -348,23 +408,23 @@ const pump = () => {
     const job = queue.shift();
     if (!job) return;
     fetching = true;
-    serverClip(job.text, job.lang).catch(() => {}).finally(() => { fetching = false; pump(); });
+    serverClip(job.text, job.lang, job.voice).catch(() => {}).finally(() => { fetching = false; pump(); });
 };
 /** Queue clips to be made: `items` is [[text, lang], …]. Returns a function that drops those not started. */
 export const prefetch = (items) => {
     const mine = [];
-    for (const [text, lang = 'en-IN'] of items || []) {
+    for (const [text, lang = 'en-IN', voice] of items || []) {
         if (!text || !String(text).trim() || !usesServerVoice(lang)) continue;
-        const key = clipKey(text, lang);
+        const key = clipKey(text, lang, voice);
         if (clips.has(key) || queue.some((q) => q.key === key)) continue;
-        const job = { key, text, lang };
+        const job = { key, text, lang, voice };
         queue.push(job); mine.push(job);
     }
     pump();
     return () => { for (const j of mine) { const i = queue.indexOf(j); if (i >= 0) queue.splice(i, 1); } };
 };
 // What a lesson screen can read aloud: speechText.js (pure, so the server's audio script uses it too).
-export { stepSpeech, readingSpeech, comicWords } from './speechText';
+export { stepSpeech, readingSpeech, comicWords, comicSpeech } from './speechText';
 import { sentencesOf, courseSpeech } from './speechText';
 /** The course being learnt ('kn', 'en', …): a course in an Indian language reads only its own language. */
 let voiceCourse = 'en';
@@ -417,7 +477,7 @@ const talkWith = (a, gender, text) => {
 export const play = (src, text, lang = 'en-IN', on = {}) => {
     // Slowly (2026-11-06, tap what you hear: the turtle) and a woman's or a man's voice (2026-11-07, the conversation's
     // two people) — kept in the merge with the AI voices (2026-11-11): a person speaking is the device's woman or man.
-    const { rate = null, gender = null } = on;
+    const { rate = null, gender = null, voice = null } = on;
     const me = ++asked;
     // English text is read by Kokoro even when an older recording exists (2026-11-07).
     if (src && !(text && usesKokoro(lang))) {
@@ -439,17 +499,26 @@ export const play = (src, text, lang = 'en-IN', on = {}) => {
     if (text && usesServerVoice(lang) && !gender) {
         stopAll();
         on.onLoading?.(true);
-        serverClip(text, lang).then((url) => {
+        // Not made yet on the server (2026-11-14, "don't make users wait"): after 3 s the device's voice reads it
+        // now; the server goes on making the clip, so it is the AI voice next time.
+        let spoke = false;
+        const slow = setTimeout(() => {
+            if (me !== asked || !(typeof window !== 'undefined' && window.speechSynthesis && readerFor(lang))) return;
+            spoke = true; on.onLoading?.(false); deviceSay(text, lang, null, { rate, gender });
+        }, 3000);
+        serverClip(text, lang, voice).then((url) => {
+            clearTimeout(slow);
             on.onLoading?.(false);
-            if (me !== asked) return; // tapped something else meanwhile
+            if (me !== asked || spoke) return; // tapped something else meanwhile, or already read by the device
             const a = new Audio(url);
             playing = a;
             if (rate) a.playbackRate = rate;
             talkWith(a, gender, text);
             a.play().catch(() => {});
         }).catch((e) => {
+            clearTimeout(slow);
             on.onLoading?.(false);
-            if (me !== asked) return;
+            if (me !== asked || spoke) return;
             // The voice service is down or slow (2026-11-11): the device's voice reads it rather than nothing.
             if (typeof window !== 'undefined' && window.speechSynthesis && readerFor(lang)) { deviceSay(text, lang, null, { rate, gender }); return; }
             on.onError?.(e?.response?.status === 503 ? 'The voice service is not set up.' : 'The voice could not be made. Try again.');
@@ -469,18 +538,26 @@ export const readAloud = (texts, lang = 'en-IN', on = {}) => {
     stopAll();
     const me = ++asked;
     let stopped = false;
+    // An item may be [text, lang, voice] (2026-11-12: a story read as a conversation — each person their own voice).
     const items = texts.map((t) => (Array.isArray(t) ? t : [t, lang]));
-    const parts = items.flatMap(([t, l], i) => sentencesOf(t).map((x) => { const r = courseSpeech(x, l, voiceCourse); return r && { text: r[0], lang: r[1], line: i }; }).filter(Boolean));
+    const parts = items.flatMap(([t, l, v], i) => sentencesOf(t).map((x) => { const r = courseSpeech(x, l, voiceCourse); return r && { text: r[0], lang: r[1], voice: v, line: i }; }).filter(Boolean));
     const done = () => on.onEnd?.();
-    const drop = prefetch(parts.map((x) => [x.text, x.lang]));
+    const drop = prefetch(parts.map((x) => [x.text, x.lang, x.voice]));
+    // Pauses (2026-11-12, "it feels like continuous reading"): a breath between sentences, a longer one when
+    // the next line is someone else's — on.gap ms (default 450), or more when the speaker changes.
+    const gap = on.gap ?? 450;
+    const rest = (ms) => new Promise((r) => setTimeout(r, ms));
     (async () => {
-        for (const part of parts) {
+        for (let k = 0; k < parts.length; k += 1) {
+            const part = parts[k], prev = parts[k - 1];
+            if (stopped || me !== asked) return;
+            if (prev) await rest(prev.line === part.line ? 250 : prev.voice !== part.voice ? gap + 250 : gap);
             if (stopped || me !== asked) return;
             on.onLine?.(part.line);
             if (usesServerVoice(part.lang)) {
                 on.onLoading?.(true);
                 let url = null;
-                try { url = await serverClip(part.text, part.lang); } catch { /* this sentence could not be made: the next */ }
+                try { url = await serverClip(part.text, part.lang, part.voice); } catch { /* this sentence could not be made: the next */ }
                 on.onLoading?.(false);
                 if (stopped || me !== asked) return;
                 if (url) await new Promise((resolve) => { const a = new Audio(url); playing = a; a.onended = resolve; a.onerror = resolve; a.play().catch(resolve); });

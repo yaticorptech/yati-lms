@@ -23,6 +23,7 @@ const { engine, ROOM_GAMES } = require('../games');
 const { LEVELS } = require('../games/quizCore');
 const games = require('./gameService');
 const { getSettings } = require('../groupbrain/settings');
+const zoneGate = require('./zoneGate');
 
 const { PlayError } = games;
 const ROOM_HOURS = 2;
@@ -72,7 +73,34 @@ const loadRoom = async (gameId) => {
     return game;
 };
 
-const presentRoom = async (game, userId) => ({ game: games.present(game, userId, await games.context(game)) });
+// A room's zone (rooms made before zones have none) goes to the client with it, by name too.
+const zoneView = (game) => { const zone = game.options?.zone || null; return { zone, zoneName: zone ? zoneGate.ZONE_NAMES[zone] : null }; };
+const presentRoom = async (game, userId) => ({ game: games.present(game, userId, { ...(await games.context(game)), ...zoneView(game) }) });
+
+/**
+ * The zone a new room is made in: the one picked; else, when the host's class is not known and they asked for a
+ * difficulty, the zone of that difficulty if the game is played there (the two agree); else the host's own zone
+ * (./zoneGate.js defaultZone: unknown → Rising Brains, or the nearest zone the game is played in).
+ */
+const zoneForRoom = async (user, gameId, raw) => {
+    if (raw.zone != null && raw.zone !== '') {
+        if (!zoneGate.isZone(raw.zone)) throw new PlayError('Pick a zone: Young Thinkers, Rising Brains or Master Minds.');
+        return raw.zone;
+    }
+    const own = await zoneGate.zoneOfUser(user._id);
+    const asked = zoneGate.DIFFICULTY_ZONE[raw.difficulty];
+    if (!own.zone && asked && zoneGate.inZone(gameId, asked)) return asked;
+    return zoneGate.defaultZone(own.zone, gameId);
+};
+
+/** Every seated player may play the room's game in its zone (rooms made before zones: no check). */
+const checkSeatsZone = async (game) => {
+    const zone = game.options?.zone;
+    if (!zone) return;
+    for (const s of game.seats) {
+        await zoneGate.assertCanPlay({ userId: s.userId, name: s.name, game: game.game, label: engine(game.game).label, zone, PlayError });
+    }
+};
 
 /** Make a room for `gameId`; its maker sits in it, ready, as host. */
 const createRoom = async (user, gameId, rawOptions) => {
@@ -83,7 +111,13 @@ const createRoom = async (user, gameId, rawOptions) => {
     const settings = (await getSettings()).games[gameId];
     if (!settings.enabled) throw new PlayError(`${engine(gameId).label} is switched off for now.`, 403);
     if (rawOptions?.difficulty && !settings.difficulties.includes(rawOptions.difficulty)) throw new PlayError(`${engine(gameId).label} can be played at ${settings.difficulties.join(', ')}.`);
-    if (!rawOptions?.difficulty && !settings.difficulties.includes('medium')) rawOptions = { ...rawOptions, difficulty: settings.difficulties[0] };
+    // The room's age zone (2026-11-13): picked, else the host's own; its difficulty comes from the zone (./zoneGate.js).
+    const zone = await zoneForRoom(user, gameId, rawOptions || {});
+    const difficulty = zoneGate.ZONE_DIFFICULTY[zone];
+    if (!settings.difficulties.includes(difficulty)) throw new PlayError(`${engine(gameId).label} is open at ${settings.difficulties.join(', ')} only for now, so it can't be played in ${zoneGate.ZONE_NAMES[zone]}. Try another zone.`, 403);
+    rawOptions = { ...rawOptions, difficulty };
+    roomOptions(gameId, rawOptions);            // a size the game does not seat is refused first (400)
+    await zoneGate.assertCanPlay({ userId: user._id, name: user.name, you: true, game: gameId, label: engine(gameId).label, zone, PlayError });
     // Earned in the solo games first: more solo levels for a bigger room (services/unlocks.js).
     await require('./unlocks').check(user._id, gameId, roomOptions(gameId, rawOptions).players, PlayError);
     // A room whose time ran out is closed first, so it does not hold its maker.
@@ -93,7 +127,7 @@ const createRoom = async (user, gameId, rawOptions) => {
         try {
             const game = await PlayGame.create({
                 kind: 'room', game: gameId, code: games.newCode(), hostId: user._id,
-                options: roomOptions(gameId, rawOptions),
+                options: { ...roomOptions(gameId, rawOptions), zone },
                 seats: [{ userId: user._id, name: user.name || 'Player', side: 0, joinedAt: new Date(), lastSeenAt: new Date(), ready: true }],
                 joinDeadline: new Date(Date.now() + ROOM_HOURS * 3600 * 1000)
             });
@@ -125,7 +159,10 @@ const joinRoom = async (user, rawCode) => {
         const e = engine(game.game);
         const size = sizeOf(game);
         if (game.seats.length >= size) throw new PlayError(`That room is full: it is for ${size} players.`, 409);
-        await require('./unlocks').check(user._id, game.game, size, PlayError);
+        // The room's age zone: mine, one below, or one above that I have unlocked this game in (./zoneGate.js).
+        if (game.options?.zone) await zoneGate.assertCanPlay({ userId: user._id, name: user.name, you: true, game: game.game, label: e.label, zone: game.options.zone, PlayError });
+        // Joining a friend's room by its code needs no solo levels (2026-11-14, the user: Join always there): the
+        // host earned the room. Making a room still does (createRoom). The age-zone check above still applies.
         const other = await openRoomOf(user._id);
         if (other) throw busyError(other);
         const side = game.seats.length ? Math.max(...game.seats.map((s) => s.side)) + 1 : 0;
@@ -159,7 +196,7 @@ const setReady = (gameId, userId, ready) => change(gameId, userId, (game, seat) 
 });
 
 /** The host starts the game: enough players in, and every one ready. */
-const startRoom = (gameId, userId) => change(gameId, userId, (game) => {
+const startRoom = (gameId, userId) => change(gameId, userId, async (game) => {
     if (!sameId(game.hostId, userId)) throw new PlayError('Only the player who made the room can start it.', 403);
     const e = engine(game.game);
     if (game.seats.length < e.minSeats) throw new PlayError(`${e.label} needs ${e.minSeats === e.maxSeats ? 'exactly' : 'at least'} ${e.minSeats} players. Share the code ${game.code}.`);
@@ -167,6 +204,8 @@ const startRoom = (gameId, userId) => change(gameId, userId, (game) => {
     if (waiting.length) throw new PlayError(`Waiting for ${waiting.map((s) => s.name).join(', ')} to be ready.`);
     const away = game.seats.filter((s) => s.online === false);
     if (away.length) throw new PlayError(`${away.map((s) => s.name).join(', ')} ${away.length === 1 ? 'has' : 'have'} lost connection. Wait for them, or remove them from the room.`);
+    // Checked again at the start: a class changed since joining, or a room code passed round, cannot get past the zone.
+    await checkSeatsZone(game);
     const seats = game.seats.map((s, i) => ({ ...s.toObject(), side: i }));
     // The admin's own questions for this game join the ones it makes.
     return { status: 'active', start: async () => { game.options = { ...(game.options || {}), extraQuestions: await require('../groupbrain/questions').forGame(game.game) }; return games.begin(game, seats); } };
@@ -208,12 +247,12 @@ const myRoom = async (userId) => {
     const game = await games.catchUp(await games.load(open._id));
     if (!OPEN.includes(game.status)) return { room: null };
     const e = engine(game.game);
-    // Whether my own run is over while the others play on (Final Vault, Lost Kingdom and the races: all puzzles
+    // Whether my own run is over while the others play on (Final Vault and the races: all puzzles
     // done, or out of tries), 2026-11-06 — the Games page says so on its "you are in a game" card.
     const seat = game.seats.findIndex((s) => String(s.userId) === String(userId));
     const mine = seat >= 0 ? (game.state?.progress?.[seat] || game.state?.players?.[seat] || null) : null;
     const runDone = game.status === 'active' && !!(mine && (mine.done || mine.failed || mine.finished));
-    return { room: { id: String(game._id), code: game.code, game: game.game, label: e.label, emoji: e.emoji, status: game.status, players: game.seats.length, maxSeats: sizeOf(game), runDone } };
+    return { room: { id: String(game._id), code: game.code, game: game.game, label: e.label, emoji: e.emoji, status: game.status, players: game.seats.length, maxSeats: sizeOf(game), runDone, ...zoneView(game) } };
 };
 
 /** My finished rooms, newest first. */
@@ -240,7 +279,7 @@ const catalogue = async () => {
     const settings = await getSettings();
     return ROOM_GAMES.map((id) => {
         const e = engine(id);
-        return { id, label: e.label, emoji: e.emoji, summary: e.summary || '', minSeats: e.minSeats, maxSeats: e.maxSeats, enabled: settings.games[id].enabled, difficulties: settings.games[id].difficulties };
+        return { id, label: e.label, emoji: e.emoji, summary: e.summary || '', minSeats: e.minSeats, maxSeats: e.maxSeats, enabled: settings.games[id].enabled, difficulties: settings.games[id].difficulties, zones: require('../games/zones').zonesOfGroupGame(id) };
     });
 };
 

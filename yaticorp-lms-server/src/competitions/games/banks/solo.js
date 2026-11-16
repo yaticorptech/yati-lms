@@ -19,10 +19,13 @@ const shuffle = (list, rng) => {
 };
 const LEVEL = { easy: 1, medium: 2, hard: 3 };
 
+// A room's age zone (../zones.js, 2026-11-13) sets the level of what is asked, whatever its difficulty.
+const ZONE_LEVEL = { young: 1, smart: 2, master: 3 };
+
 /** `count` questions from a bank, at the game's difficulty (its own level and the one below; any if too few). */
-const fromBank = (name) => (count, rng, level, met) => {
+const fromBank = (name) => (count, rng, level, met, zone) => {
     const bank = BANKS[name];
-    const top = LEVEL[level] || 2;
+    const top = ZONE_LEVEL[zone] || LEVEL[level] || 2;
     const near = bank.filter((q) => q.level <= top && q.level >= top - 1);
     const pool = near.length >= count ? near : bank;
     // Not met yet first (quizCore's `met`), nearest the level among them; then the rest of the bank; then repeats.
@@ -31,11 +34,12 @@ const fromBank = (name) => (count, rng, level, met) => {
     return order.slice(0, count).map((q) => ({ topic: q.topic || '', prompt: q.prompt, options: q.options, answer: 0, explain: q.explain }));
 };
 
-/** `count` made questions, none twice. */
-const fromMaker = (maker) => (count, rng, level) => {
+/** `count` made questions, none twice. A maker is told the room's zone too, when it has one. */
+const fromMaker = (maker) => (count, rng, level, met, zone) => {
     const out = []; const seen = new Set();
+    const d = ZONE_LEVEL[zone] || LEVEL[level] || 2;
     for (let n = 0; out.length < count && n < count * 30; n += 1) {
-        const q = maker(rng, LEVEL[level] || 2);
+        const q = maker(rng, d, zone || null);
         const key = q.prompt + q.options[0] + JSON.stringify(q.visual || '') + JSON.stringify(q.show || '');
         if (seen.has(key)) continue;
         seen.add(key); out.push(q);
@@ -160,8 +164,38 @@ const colour = (rng, d) => {
     return { topic: 'Colour', prompt: 'What colour is the ink? (Not the word.)', visual: { kind: 'ink', word: NAME[word], ink }, options: [NAME[ink], ...others.map((c) => NAME[c])], answer: 0, explain: `The word says ${NAME[word]}, but it is printed in ${NAME[ink].toLowerCase()}.` };
 };
 
+// Young Thinkers' Colour Match (2026-11-13): nothing to read. A coloured tile — which circle is the same colour?
+// Or a coloured shape — which one is the same shape (in another colour)?
+const SHAPE_SETS = {
+    square: { red: '🟥', blue: '🟦', green: '🟩', yellow: '🟨', purple: '🟪' },
+    circle: { red: '🔴', blue: '🔵', green: '🟢', yellow: '🟡', purple: '🟣' },
+    heart: { red: '❤️', blue: '💙', green: '💚', yellow: '💛', purple: '💜' }
+};
+const colourLook = (rng) => {
+    if (rng() < 0.5) {
+        const ink = pickOne(rng, COLOURS);
+        const others = shuffle(COLOURS.filter((c) => c !== ink), rng).slice(0, 3);
+        return { topic: 'Colour', prompt: 'Which circle is the same colour as the tile?', visual: { kind: 'tiles', cols: 1, tiles: [ink] }, options: [ink, ...others].map((c) => DOT[c]), answer: 0, explain: `The tile is ${ink}: ${DOT[ink]}.` };
+    }
+    const [shape, ...rest] = shuffle(Object.keys(SHAPE_SETS), rng);
+    const [ink, other] = shuffle(COLOURS, rng);
+    const shown = SHAPE_SETS[shape][ink];
+    const answer = SHAPE_SETS[shape][other];
+    return {
+        topic: 'Shape', prompt: 'Which one is the same shape?', visual: { kind: 'symbols', items: [shown] },
+        options: [answer, ...rest.map((x) => SHAPE_SETS[x][ink]), '⭐'], answer: 0, explain: `${shown} and ${answer} are the same shape in different colours.`
+    };
+};
+
 // Dot Count: a field of coloured dots — how many of one colour?
-const dots = (rng, d) => {
+const dots = (rng, d, zone) => {
+    // Young Thinkers: twelve dots in three colours, to count, not estimate.
+    if (zone === 'young') {
+        const palette = COLOURS.slice(0, 3); const ask = pickOne(rng, palette);
+        const grid = Array.from({ length: 12 }, () => pickOne(rng, palette));
+        const count = grid.filter((c) => c === ask).length;
+        return { topic: 'Count', prompt: `How many ${NAME[ask].toLowerCase()} dots are there?`, visual: { kind: 'dots', cols: 4, dots: grid }, options: [count, ...wrongs(rng, count, [count - 2, count - 1, count + 1, count + 2], (v) => v >= 0 && v <= 12)].map(String), answer: 0, explain: `There are ${count} ${NAME[ask].toLowerCase()} dots.` };
+    }
     const side = 3 + d; const palette = COLOURS.slice(0, 2 + d);
     const ask = pickOne(rng, palette);
     const grid = Array.from({ length: side * side }, () => pickOne(rng, palette));
@@ -208,12 +242,16 @@ const nearDigits = (rng, s) => {
     }
     return [...out];
 };
-const recall = (reverse) => (rng, d) => {
-    const s = digits(rng, 3 + d + (reverse ? 0 : 1));
+// By zone (2026-11-13): Young Thinkers hold 4 digits (3 backwards), Smart 6 (5), Master Minds 8 (6).
+const RECALL = { young: [4, 3000], smart: [6, 2400], master: [8, 2600] };
+const RECALL_BACK = { young: [3, 3000], smart: [5, 2400], master: [6, 2400] };
+const recall = (reverse) => (rng, d, zone) => {
+    const z = (reverse ? RECALL_BACK : RECALL)[zone];
+    const s = digits(rng, z ? z[0] : 3 + d + (reverse ? 0 : 1));
     const answer = reverse ? s.split('').reverse().join('') : s;
     return {
         topic: reverse ? 'Backwards' : 'Recall', prompt: reverse ? 'Which is the number you saw, written backwards?' : 'Which number did you see?',
-        show: { kind: 'digits', text: s }, showMs: 2600 - d * 300,
+        show: { kind: 'digits', text: s }, showMs: z ? z[1] : 2600 - d * 300,
         options: [answer, ...nearDigits(rng, answer)], answer: 0, explain: reverse ? `${s} backwards is ${answer}.` : `The number was ${s}.`
     };
 };
@@ -229,7 +267,9 @@ const seen = (rng, d) => {
 
 // Spot the Change: a grid of tiles, then the same grid with one tile changed — which one?
 const TILE = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
-const change = (rng, d) => {
+const change = (rng, d, zone) => {
+    // Young Thinkers: a 3×3 picture in three colours, and longer to look at it.
+    if (zone === 'young') d = 1;
     const side = Math.min(5, 2 + d); const palette = TILE.slice(0, 2 + d);
     const before = Array.from({ length: side * side }, () => pickOne(rng, palette));
     const at = int(rng, 0, before.length - 1);
@@ -237,7 +277,7 @@ const change = (rng, d) => {
     while (after[at] === before[at]) after[at] = pickOne(rng, palette);
     const others = shuffle(before.map((_, i) => i).filter((i) => i !== at), rng).slice(0, 3);
     return {
-        topic: 'Change', prompt: 'One tile changed. Which one?', show: { kind: 'tiles', cols: side, tiles: before }, showMs: 2600 - d * 300,
+        topic: 'Change', prompt: 'One tile changed. Which one?', show: { kind: 'tiles', cols: side, tiles: before }, showMs: zone === 'young' ? 3500 : 2600 - d * 300,
         visual: { kind: 'tiles', cols: side, tiles: after, numbered: true },
         options: [at + 1, ...others.map((i) => i + 1)].map((n) => `Tile ${n}`), answer: 0, explain: `Tile ${at + 1} changed colour.`
     };
@@ -262,8 +302,17 @@ const matchBack = (rng, d) => {
 };
 
 // Running Total: numbers one at a time — keep the total.
-const running = (rng, d) => {
-    const len = 3 + d; const max = 6 + d * 4;
+const running = (rng, d, zone) => {
+    // Young Thinkers: three small numbers, only adding (the total never past 20), slowly.
+    if (zone === 'young') {
+        const steps = [int(rng, 1, 6), int(rng, 1, 6), int(rng, 1, 6)]; const total = steps.reduce((a, b) => a + b, 0);
+        return {
+            topic: 'Running total', prompt: 'What was the total?', show: { kind: 'sequence', items: steps.map((x, i) => (i === 0 ? String(x) : `+ ${x}`)), stepMs: 1400 }, showMs: 3 * 1400 + 400,
+            options: [total, ...wrongs(rng, total, [total - 2, total - 1, total + 1, total + 2], (v) => v >= 0 && v <= 20)].map(String), answer: 0, explain: `${steps.join(' + ')} = ${total}.`
+        };
+    }
+    // Master Minds: seven numbers, up to 20, some taken away.
+    const len = zone === 'master' ? 7 : 3 + d; const max = zone === 'master' ? 20 : 6 + d * 4;
     const steps = []; let total = 0;
     for (let i = 0; i < len; i += 1) {
         const size = int(rng, 2, max);
@@ -279,5 +328,5 @@ const running = (rng, d) => {
 
 module.exports = {
     BANKS, fromBank, fromMaker,
-    MAKERS: { percent, binary, rounding, fraction, compare, scale, colour, dots, clock, matrix, recall: recall(false), reverse: recall(true), seen, change, matchBack, running }
+    MAKERS: { colourLook, percent, binary, rounding, fraction, compare, scale, colour, dots, clock, matrix, recall: recall(false), reverse: recall(true), seen, change, matchBack, running }
 };
