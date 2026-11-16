@@ -22,6 +22,15 @@ import SupportDialog from '../components/SupportDialog';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
 // The wallet popup is fetched when it is first opened.
+// Multilingo's audio, downloaded by itself in the background on every page (2026-11-13).
+const BackgroundAudio = React.lazy(() => import('../linguistic/BackgroundAudio.jsx'));
+/** A helper that must never take the page down with it: if it fails, it is left out and the page goes on. */
+class Optional extends React.Component {
+    constructor(props) { super(props); this.state = { failed: false }; }
+    static getDerivedStateFromError() { return { failed: true }; }
+    componentDidCatch(error) { console.warn('[optional] left out after an error:', error); }
+    render() { return this.state.failed ? null : this.props.children; }
+}
 const WalletSheet = React.lazy(() => import('../components/rewards/WalletCard').then((m) => ({ default: m.WalletSheet })));
 import PullToRefresh from '../components/PullToRefresh';
 import { ADMIN_VIEW_KEY } from '../utils/sessionExpiry';
@@ -818,6 +827,7 @@ const StudentLayout = () => {
 
             {/* Gemini credits spent: three steps to a new key (utils/aiExhausted). */}
             <GeminiExhaustedDialog />
+            {user && isLinguisticEnabled && <Optional><React.Suspense fallback={null}><BackgroundAudio /></React.Suspense></Optional>}
 
             {/* The six sections under the thumb, mirroring the sidebar. */}
             <MobileBottomNav

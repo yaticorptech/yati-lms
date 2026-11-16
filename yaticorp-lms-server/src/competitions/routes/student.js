@@ -28,11 +28,11 @@
  *   Group Brain rooms (services/roomService.js, asked 2026-10-27):
  *   GET  /rooms/games              the ten Group Brain games
  *   GET  /rooms/mine               the room I am in now, if any
- *   POST /rooms                    { game, options: { difficulty } } — make a room → its code
+ *   POST /rooms                    { game, options: { zone, players } } — make a room in an age zone (difficulty from the zone) → its code
  *   POST /rooms/join               { code } — join a room with its code
  *   GET  /rooms/unlocks            the group games and room sizes my solo levels have unlocked
  *   GET  /rooms/online             the entry fees, table sizes and wait
- *   POST /rooms/online             { game, players, fee } — Play online: a seat at a table (fee in XP)
+ *   POST /rooms/online             { game, players, fee, zone } — Play online: a seat at a table of that zone (fee in XP)
  *   GET  /rooms/history            my finished rooms
  *   GET  /rooms/leaderboard?type=points|chess|xp&period=all|week&game=   a leaderboard, and my place on it
  *   GET  /rooms/profile            my dashboard: totals, games, Brain Performance Score, chess rating, XP, achievements, certificates
@@ -64,7 +64,7 @@ const VISIBLE = ['registration', 'closed', 'live', 'completed'];
 // Quiz and Hackathon were removed on 2026-10-28: none is listed any more.
 const NO_CHALLENGES = { game: { $nin: ['quiz', 'hackathon'] } };
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((err) => {
-    if (err?.status) return res.status(err.status).json({ message: err.message, ...(err.roomId ? { roomId: err.roomId } : {}), ...(err.locked ? { locked: err.locked } : {}) });
+    if (err?.status) return res.status(err.status).json({ message: err.message, ...(err.roomId ? { roomId: err.roomId } : {}), ...(err.locked ? { locked: err.locked } : {}), ...(err.zoneLocked ? { zoneLocked: err.zoneLocked } : {}) });
     next(err);
 });
 
@@ -382,11 +382,12 @@ router.get('/rooms/games', wrap(async (req, res) => res.json({ games: await room
 // Which group games, at which room sizes, my solo levels have unlocked (services/unlocks.js).
 router.get('/rooms/unlocks', wrap(async (req, res) => res.json(await require('../services/unlocks').summary(req.user._id, require('../games').ROOM_GAMES))));
 router.get('/rooms/mine', wrap(async (req, res) => res.json(await rooms.myRoom(req.user._id))));
-router.post('/rooms', wrap(async (req, res) => res.status(201).json(await rooms.createRoom(req.user, String(req.body?.game || ''), req.body?.options || {}))));
+// The room's age zone may come as options.zone or zone (default: the host's own, services/zoneGate.js).
+router.post('/rooms', wrap(async (req, res) => res.status(201).json(await rooms.createRoom(req.user, String(req.body?.game || ''), { ...(req.body?.options || {}), ...(req.body?.zone ? { zone: String(req.body.zone) } : {}) }))));
 router.post('/rooms/join', wrap(async (req, res) => res.json(await rooms.joinRoom(req.user, req.body?.code))));
 // Play online (like online Ludo): a seat at a table of 2 or 4, the entry fee in XP (services/onlineService.js).
 router.get('/rooms/online', wrap(async (req, res) => { const o = require('../services/onlineService'); res.json({ fees: o.FEES, sizes: o.SIZES, waitSeconds: o.WAIT_MS / 1000, prizeShare: o.PRIZE_SHARE }); }));
-router.post('/rooms/online', wrap(async (req, res) => res.json(await require('../services/onlineService').findTable(req.user, String(req.body?.game || ''), { players: req.body?.players, fee: req.body?.fee }))));
+router.post('/rooms/online', wrap(async (req, res) => res.json(await require('../services/onlineService').findTable(req.user, String(req.body?.game || ''), { players: req.body?.players, fee: req.body?.fee, zone: req.body?.zone ? String(req.body.zone) : undefined }))));
 router.get('/rooms/history', wrap(async (req, res) => res.json(await rooms.history(req.user._id))));
 router.get('/rooms/leaderboard', wrap(async (req, res) => res.json(await rooms.leaderboard({ type: String(req.query.type || 'points'), period: String(req.query.period || 'all'), game: req.query.game ? String(req.query.game) : undefined, userId: req.user._id }))));
 // My Group Brain certificates as PDFs (a revoked one is not handed out).

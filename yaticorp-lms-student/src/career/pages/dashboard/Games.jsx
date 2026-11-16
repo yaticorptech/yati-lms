@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Brain, Puzzle, Type, Zap, Play, Gamepad2, Layers, Star, Sparkles, History, Timer, Moon, User, Users, Loader2, Link2, DoorOpen, Globe, Trophy, X, ChevronRight, Check, Info, Lock, Plus } from 'lucide-react';
+import { Brain, Puzzle, Type, Zap, Play, Gamepad2, Layers, Star, Sparkles, History, Timer, Moon, User, Users, Loader2, Link2, DoorOpen, Globe, Trophy, X, ChevronRight, Check, Info, Lock, Plus, ArrowLeft, Smile, Lightbulb, Crown } from 'lucide-react';
 import api from '../../services/api';
 import useBackClose from '../../../native/useBackClose';
 import { useToast } from '../../components/ui/Toast';
@@ -28,8 +28,82 @@ const MiniSudoku = lazy(() => import('../../components/games/MiniSudoku'));
 const TypingSprint = lazy(() => import('../../components/games/TypingSprint'));
 // The second wave.
 const IdiomSense = lazy(() => import('../../components/games/IdiomSense'));
+// New games (2026-11-12, "at least five in every category"): Logic had three, Math four.
+const PictureLogic = lazy(() => import('../../components/games/PictureLogic'));
+const TowerShift = lazy(() => import('../../components/games/TowerShift'));
+const NumberForge = lazy(() => import('../../components/games/NumberForge'));
+const ChessChallenge = lazy(() => import('../../components/games/ChessChallenge'));
+const WordLadder = lazy(() => import('../../components/games/WordLadder'));
+const AlgorithmBuilder = lazy(() => import('../../components/games/AlgorithmBuilder'));
+const ProbabilityLab = lazy(() => import('../../components/games/ProbabilityLab'));
+const TreasurePath = lazy(() => import('../../components/games/TreasurePath'));
+const ShadowDetective = lazy(() => import('../../components/games/ShadowDetective'));
+const Deduction = lazy(() => import('../../components/games/Deduction'));
+const OddOneOut = lazy(() => import('../../components/games/OddOneOut'));
+// The 84 games (2026-11-14): each section's new, split and extended games.
+const FractionBattle = lazy(() => import('../../components/games/FractionBattle'));
+// The 84 games (2026-11-14): each section's new, split and extended games.
+const AnimalPairSafari = lazy(() => import('../../components/games/AnimalPairSafari'));
+const WhatsMissing = lazy(() => import('../../components/games/WhatsMissing'));
+const ShapeBuilder = lazy(() => import('../../components/games/ShapeBuilder'));
+const MiniMazeMission = lazy(() => import('../../components/games/MiniMazeMission'));
+const RhymeDetective = lazy(() => import('../../components/games/RhymeDetective'));
+const WordBalloonPop = lazy(() => import('../../components/games/WordBalloonPop'));
+const NumberHop = lazy(() => import('../../components/games/NumberHop'));
+const FruitShop = lazy(() => import('../../components/games/FruitShop'));
+const CountAndCatch = lazy(() => import('../../components/games/CountAndCatch'));
+const MissingNumberRace = lazy(() => import('../../components/games/MissingNumberRace'));
+const TrainBuilder = lazy(() => import('../../components/games/TrainBuilder'));
+const SequenceVault = lazy(() => import('../../components/games/SequenceVault'));
+const AudioEcho = lazy(() => import('../../components/games/AudioEcho'));
+const FocusFilter = lazy(() => import('../../components/games/FocusFilter'));
+const DualImageRecall = lazy(() => import('../../components/games/DualImageRecall'));
+const TowerStrategy = lazy(() => import('../../components/games/TowerStrategy'));
+const EmojiEquations = lazy(() => import('../../components/games/EmojiEquations'));
+const CrownGarden = lazy(() => import('../../components/games/CrownGarden'));
+const PipeFlow = lazy(() => import('../../components/games/PipeFlow'));
+const AnalogyMaster = lazy(() => import('../../components/games/AnalogyMaster'));
+const ContextDetective = lazy(() => import('../../components/games/ContextDetective'));
+const WordAssociationGrid = lazy(() => import('../../components/games/WordAssociationGrid'));
+const EquationRush = lazy(() => import('../../components/games/EquationRush'));
+const RatioRelay = lazy(() => import('../../components/games/RatioRelay'));
+const DataDash = lazy(() => import('../../components/games/DataDash'));
+const MentalMathCircuit = lazy(() => import('../../components/games/MentalMathCircuit'));
+const MatrixRecall = lazy(() => import('../../components/games/MatrixRecall'));
+const DepartureBoard = lazy(() => import('../../components/games/DepartureBoard'));
+const InterferenceRecall = lazy(() => import('../../components/games/InterferenceRecall'));
+const CipherLab = lazy(() => import('../../components/games/CipherLab'));
+const BooleanBreaker = lazy(() => import('../../components/games/BooleanBreaker'));
+const NetworkLogic = lazy(() => import('../../components/games/NetworkLogic'));
+const StrategicConstraintLab = lazy(() => import('../../components/games/StrategicConstraintLab'));
+const SemanticPrecision = lazy(() => import('../../components/games/SemanticPrecision'));
+const ArgumentAnalyzer = lazy(() => import('../../components/games/ArgumentAnalyzer'));
+const VerbalArchitect = lazy(() => import('../../components/games/VerbalArchitect'));
+const NuanceNavigator = lazy(() => import('../../components/games/NuanceNavigator'));
+const WordRelationMatrix = lazy(() => import('../../components/games/WordRelationMatrix'));
+const QuantitativeArena = lazy(() => import('../../components/games/QuantitativeArena'));
+const NumericalOptimization = lazy(() => import('../../components/games/NumericalOptimization'));
+const StatisticalInference = lazy(() => import('../../components/games/StatisticalInference'));
+const DecisionTheoryArena = lazy(() => import('../../components/games/DecisionTheoryArena'));
+// The 84 games (2026-11-14): each section's new, split and extended games.
+const LightUpGarden = lazy(() => import('../../components/games/LightUpGarden'));
+const FlashSequence = lazy(() => import('../../components/games/FlashSequence'));
+const PatternPath = lazy(() => import('../../components/games/PatternPath'));
+const PictureWordHunt = lazy(() => import('../../components/games/PictureWordHunt'));
+const LetterBuilder = lazy(() => import('../../components/games/LetterBuilder'));
+const ChefMemory = lazy(() => import('../../components/games/ChefMemory'));
+const SudokuChallenge = lazy(() => import('../../components/games/SudokuChallenge'));
+const NumberPatternLab = lazy(() => import('../../components/games/NumberPatternLab'));
+const RuleSwitch = lazy(() => import('../../components/games/RuleSwitch'));
+const SpatialRotationVault = lazy(() => import('../../components/games/SpatialRotationVault'));
 import GameLeaderboard from '../../components/games/GameLeaderboard';
-import { starsForGame, levelReached, pullProgress, markPlayed, lastPlayed, setGameXpTable, GAME_XP } from '../../components/games/levels';
+import { starsForGame, levelReached, pullProgress, markPlayed, lastPlayed, setGameXpTable, setAgeBand, totalStars, GAME_XP } from '../../components/games/levels';
+import { ZONES, BANDS, DEFAULT_BAND, SKILLS, GAME_ZONES, zoneByKey, accessFor, ACCESS_MESSAGE, GROUP_ZONES, GROUP_TWIN, ZONE_DIFFICULTY } from '../../components/games/zones';
+import { statsOf } from '../../components/games/adaptive';
+import { CATALOG, EXTRA, SECTIONS, gamesIn } from '../../components/games/catalog';
+import { MULTIPLAYER } from '../../components/games/multiplayer';
+import MyProgress from '../../components/games/MyProgress';
+import YoungThinkersPage from '../../components/games/YoungThinkersPage';
 import { useHideLoop } from '../../../components/loopVisibility';
 import { PlayClockContext, clock, limitWords } from '../../components/games/playClock';
 
@@ -136,7 +210,22 @@ const CATEGORIES = [
       { id: 'number-recall', name: 'Number Recall', blurb: 'Memorise a number, then type it back.', Component: NumberRecall },
       { id: 'colour-match', name: 'Colour Match', blurb: 'Tap the ink colour, not the word.', Component: ColourMatch },
       { id: 'grid-recall', name: 'Grid Recall', blurb: 'Tiles light up, then go dark. Tap the ones that lit.', Component: GridRecall },
-      { id: 'reverse-recall', name: 'Reverse Recall', blurb: 'Memorise a number, then type it backwards.', Component: ReverseRecall }
+      { id: 'reverse-recall', name: 'Reverse Recall', blurb: 'Memorise a number, then type it backwards.', Component: ReverseRecall },
+      { id: 'shadow-detective', name: 'Shadow Detective', blurb: 'Whose shadow is it? Spot the shape and tap the match.', Component: ShadowDetective },
+      { id: 'light-up-garden', name: 'Light-Up Garden', blurb: 'Light-Up Garden', Component: LightUpGarden },
+      { id: 'flash-sequence', name: 'Flash Sequence', blurb: 'Flash Sequence', Component: FlashSequence },
+      { id: 'pattern-recall', name: "Chef's Memory", blurb: 'Remember the recipe, then cook it perfectly!', Component: ChefMemory },
+      { id: 'rule-switch', name: 'Rule Switch', blurb: 'Rule Switch', Component: RuleSwitch },
+      { id: 'spatial-rotation-vault', name: 'Spatial Rotation Vault', blurb: 'Recall a marked block figure, find it turned among mirror decoys, and place its marks.', Component: SpatialRotationVault },
+      { id: 'animal-pair-safari', name: 'Animal Pair Safari', blurb: 'Pair each animal with its sound, home or baby.', Component: AnimalPairSafari },
+      { id: 'whats-missing', name: 'What’s Missing?', blurb: 'Look, remember, and spot what disappeared.', Component: WhatsMissing },
+      { id: 'sequence-vault', name: 'Sequence Vault', blurb: 'Remember the door codes — and keep up as the rules change them.', Component: SequenceVault },
+      { id: 'grid-navigator', name: 'Audio Echo', blurb: 'Listening missions: count, catch and remember.', Component: AudioEcho },
+      { id: 'focus-filter', name: 'Focus Filter', blurb: 'Ignore the distractors: middle arrows and hidden targets.', Component: FocusFilter },
+      { id: 'dual-image-recall', name: 'Dual-Image Recall', blurb: 'Two scenes from memory: what changed, and what they shared.', Component: DualImageRecall },
+      { id: 'matrix-recall', name: 'Matrix Recall', blurb: 'Memorise a digit matrix and rebuild it — values and places.', Component: MatrixRecall },
+      { id: 'departure-board', name: 'Departure Board', blurb: 'Memorise the flights — then keep up with the changes.', Component: DepartureBoard },
+      { id: 'interference-recall', name: 'Interference Recall', blurb: 'Hold one word list while a look-alike list tries to overwrite it.', Component: InterferenceRecall }
     ]
   },
   {
@@ -154,7 +243,27 @@ const CATEGORIES = [
     games: [
       { id: 'next-in-sequence', name: 'Next in Sequence', blurb: 'Spot the rule, then continue the run.', Component: NextInSequence },
       { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', blurb: 'Beat a computer that gets sharper every level.', Component: TicTacToe },
-      { id: 'mini-sudoku', name: 'Mini Sudoku', blurb: 'A four-by-four grid, solved against the clock.', Component: MiniSudoku }
+      { id: 'mini-sudoku', name: 'Mini Sudoku', blurb: 'A four-by-four grid, solved against the clock.', Component: MiniSudoku },
+      { id: 'picture-logic', name: 'Colouring Book', blurb: 'Pick a crayon and colour the picture.', Component: PictureLogic },
+      { id: 'tower-shift', name: 'Tower Shift', blurb: 'Move the whole tower, ring by ring, in the fewest moves.', Component: TowerShift },
+      { id: 'treasure-path', name: 'Treasure Path', blurb: 'Plan a path with arrow cards and reach the treasure.', Component: TreasurePath },
+      { id: 'algorithm-builder', name: 'Algorithm Builder', blurb: 'Put instruction blocks in order — the fewest steps win.', Component: AlgorithmBuilder },
+      // Named in the 84 games (2026-11-14): Odd One Out (Young Thinkers) and Deduction Chamber (Master Minds).
+      { id: 'odd-one-out', name: 'Odd One Out', blurb: 'Which one does not belong — and why?', Component: OddOneOut },
+      { id: 'deduction', name: 'Deduction Chamber', blurb: 'Does the conclusion really follow from the facts?', Component: Deduction },
+      { id: 'pattern-path', name: 'Pattern Path', blurb: 'Pattern Path', Component: PatternPath },
+      { id: 'sudoku-challenge', name: 'Sudoku Challenge', blurb: 'Fill the grid so no number repeats in a row, column or box.', Component: SudokuChallenge },
+      { id: 'shape-builder', name: 'Shape Builder', blurb: 'Fit shape pieces to fill the silhouette.', Component: ShapeBuilder },
+      { id: 'mini-maze-mission', name: 'Mini Maze Mission', blurb: 'Steer the bunny through the maze to the carrot.', Component: MiniMazeMission },
+      { id: 'tower-strategy', name: 'Tower Strategy', blurb: 'Sort the blocks: one colour in each tower.', Component: TowerStrategy },
+      { id: 'constraint-grid', name: 'Pipe Flow', blurb: 'Turn the pipes and water the plant!', Component: PipeFlow },
+      { id: 'emoji-equations', name: 'Emoji Equations', blurb: 'Crack what each picture is worth!', Component: EmojiEquations },
+      { id: 'chess-challenge', name: 'Chess', blurb: 'Out-think the computer — checkmate its king!', Component: ChessChallenge },
+      { id: 'clue-chain', name: 'Crown Garden', blurb: 'One crown in every row, column and garden — no touching!', Component: CrownGarden },
+      { id: 'cipher-lab', name: 'Cipher Lab', blurb: 'Break substitution, Vigenère and transposition ciphers with real cryptanalysis tools.', Component: CipherLab },
+      { id: 'boolean-breaker', name: 'Boolean Breaker', blurb: 'Reason through AND, OR, NOT, XOR and NAND circuits to light the lamp.', Component: BooleanBreaker },
+      { id: 'network-logic', name: 'Network Logic', blurb: 'Shortest routes, tours and spanning trees on weighted networks.', Component: NetworkLogic },
+      { id: 'strategic-constraint-lab', name: 'Strategic Constraint Lab', blurb: 'Schedule tasks under live constraints — then at the lowest cost.', Component: StrategicConstraintLab }
     ]
   },
   {
@@ -177,7 +286,20 @@ const CATEGORIES = [
       { id: 'typing-sprint', name: 'Typing Sprint', blurb: 'Type the word exactly, fast, and learn it on the way.', Component: TypingSprint },
       { id: 'idiom-sense', name: 'Idiom Sense', blurb: 'What does the phrase really mean?', Component: IdiomSense },
       { id: 'tense-pick', name: 'Tense Pick', blurb: 'Go, went, gone — pick the right past tense.', Component: TensePick },
-      { id: 'sound-alike', name: 'Sound Alike', blurb: 'Their, there or they’re? Only one fits.', Component: SoundAlike }
+      { id: 'sound-alike', name: 'Sound Alike', blurb: 'Their, there or they’re? Only one fits.', Component: SoundAlike },
+      { id: 'picture-word-hunt', name: 'Picture Word Hunt', blurb: 'Picture Word Hunt', Component: PictureWordHunt },
+      { id: 'letter-builder', name: 'Letter Builder', blurb: 'Letter Builder', Component: LetterBuilder },
+      { id: 'rhyme-detective', name: 'Rhyme Detective', blurb: 'Tap every word that rhymes — or spot the one that does not.', Component: RhymeDetective },
+      { id: 'word-balloon-pop', name: 'Word Balloon Pop', blurb: 'Pop the balloon with the right word before it floats away.', Component: WordBalloonPop },
+      { id: 'analogy-master', name: 'Analogy Master', blurb: 'Analogy Master', Component: AnalogyMaster },
+      { id: 'context-detective', name: 'Context Detective', blurb: 'Context Detective', Component: ContextDetective },
+      { id: 'word-association-grid', name: 'Word Association Grid', blurb: 'Word Association Grid', Component: WordAssociationGrid },
+      { id: 'word-ladder', name: 'Word Ladder', blurb: 'Change one letter at a time to reach the goal word!', Component: WordLadder },
+      { id: 'semantic-precision', name: 'Semantic Precision', blurb: 'Swap the vague word for the precise one — and say why.', Component: SemanticPrecision },
+      { id: 'argument-analyzer', name: 'Argument Analyzer', blurb: 'Tag premises and conclusions, then find the weak point.', Component: ArgumentAnalyzer },
+      { id: 'verbal-architect', name: 'Verbal Architect', blurb: 'Rebuild a jumbled paragraph into a logical whole.', Component: VerbalArchitect },
+      { id: 'nuance-navigator', name: 'Nuance Navigator', blurb: 'Place words on scales of intensity, connotation and register.', Component: NuanceNavigator },
+      { id: 'word-relation-matrix', name: 'Word Relation Matrix', blurb: 'Complete a grid where every row and column relation holds.', Component: WordRelationMatrix }
     ]
   },
   {
@@ -196,7 +318,24 @@ const CATEGORIES = [
       { id: 'math-sprint', name: 'Math Sprint', blurb: 'Sixty seconds. Answer as many as you can.', Component: MathSprint },
       { id: 'percent-snap', name: 'Percent Snap', blurb: 'Percentages, in your head, against the clock.', Component: PercentSnap },
       { id: 'running-total', name: 'Running Total', blurb: 'Numbers arrive one at a time. Keep the total.', Component: RunningTotal },
-      { id: 'speed-sort', name: 'Speed Sort', blurb: 'Tap the numbers from smallest to largest.', Component: SpeedSort }
+      { id: 'speed-sort', name: 'Speed Sort', blurb: 'Tap the numbers from smallest to largest.', Component: SpeedSort },
+      { id: 'number-forge', name: 'Number Forge', blurb: 'Join the tiles with + − × ÷ to hit the target.', Component: NumberForge },
+      { id: 'probability-lab', name: 'Probability Lab', blurb: 'Bags, dice and bets: weigh the chances, then decide.', Component: ProbabilityLab },
+      { id: 'number-pattern-lab', name: 'Number Pattern Lab', blurb: 'Number Pattern Lab', Component: NumberPatternLab },
+      { id: 'number-hop', name: 'Number Hop', blurb: 'Hop the frog to the right number pad.', Component: NumberHop },
+      { id: 'fruit-shop', name: 'Fruit Shop Challenge', blurb: 'Fill the basket, add up the bill and give the change.', Component: FruitShop },
+      { id: 'count-and-catch', name: 'Count & Catch', blurb: 'Work out the sum, then catch that many in your basket.', Component: CountAndCatch },
+      { id: 'missing-number-race', name: 'Missing Number Race', blurb: 'Fill the missing numbers in the train to win the race.', Component: MissingNumberRace },
+      { id: 'shape-count-dash', name: 'Train Builder', blurb: 'Build trains that add up to the station number!', Component: TrainBuilder },
+      { id: 'equation-rush', name: 'Equation Rush', blurb: 'Equation Rush', Component: EquationRush },
+      { id: 'ratio-relay', name: 'Ratio Relay', blurb: 'Ratio problems in a relay — each answer runs the next leg.', Component: RatioRelay },
+      { id: 'data-dash', name: 'Data Dash', blurb: 'Read charts and tables, then total, compare and average.', Component: DataDash },
+      { id: 'mental-math-circuit', name: 'Mental Math Circuit', blurb: 'Switch the circuit so the number arrives on target.', Component: MentalMathCircuit },
+      { id: 'quantitative-arena', name: 'Quantitative Arena', blurb: 'GRE-style quantity comparisons and multi-step problems.', Component: QuantitativeArena },
+      { id: 'numerical-optimization', name: 'Numerical Optimization', blurb: 'Knapsacks, budgets and production plans: find the optimum.', Component: NumericalOptimization },
+      { id: 'statistical-inference', name: 'Statistical Inference', blurb: 'Read data plots and reason about centre, spread and evidence.', Component: StatisticalInference },
+      { id: 'decision-theory-arena', name: 'Decision Theory Arena', blurb: 'Payoff matrices and decision trees with a compounding bankroll.', Component: DecisionTheoryArena },
+      { id: 'fraction-battle', name: 'Fraction Battle', blurb: 'Out-fraction the bot in a best-of battle.', Component: FractionBattle }
     ]
   }
 ];
@@ -295,7 +434,7 @@ const SPARKS = [
  * measures work on the roadmap, and a card promising some would be making a
  * promise the product does not keep.
  */
-function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = null, chip = null, playLabel = null, disabled = false, art = null, action = null, tight = false }) {
+function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = null, chip = null, playLabel = null, disabled = false, art = null, action = null, tight = false, badge = null }) {
   const started = reached > 1;
   const ref = useRef(null);
   const frame = useRef(0);
@@ -347,7 +486,7 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = n
     >
       {/* ---- The artwork, floating over a lit disc ---------------------- */}
       {/* A group card's artwork: the picture's own shape (800 × 500) at any width, so it is never cropped. */}
-      <span className={`relative flex items-center justify-center overflow-hidden ${art ? 'w-full shrink-0' : 'h-24 sm:h-36'}`} style={art ? { aspectRatio: '8 / 5' } : undefined}>
+      <span className={`relative flex items-center justify-center overflow-hidden ${art || !tight ? 'w-full shrink-0' : 'h-24 sm:h-36'}`} style={art || !tight ? { aspectRatio: '8 / 5' } : undefined}>
         {/* Only one card on the page carries this: the game opened last. */}
         {recent && (
           <span className="fp-game-recent-tag absolute top-2 left-2 z-10 inline-flex sm:top-3 sm:left-3 items-center gap-1 rounded-full bg-[#173a63] px-2.5 py-1 text-[0.65rem] font-black tracking-wide text-white uppercase">
@@ -389,6 +528,12 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = n
         </span>
         </>}
 
+        {/* Its place for this student (2026-11-13): Recommended, Practice, Unlocked challenge, Locked, Preview. */}
+        {badge && (
+          <span className={`absolute top-2 left-2 z-[1] inline-flex max-w-[70%] items-center gap-1 truncate rounded-full px-2 py-1 text-[0.65rem] font-black uppercase tracking-wide shadow-sm sm:top-3 sm:left-3 ${badge.tone}`} title={badge.title} data-game-badge={badge.kind}>
+            {badge.label}
+          </span>
+        )}
         {/* The reward, in a white pill, exactly where the sheet puts it. */}
         {/* `pill={false}`: none (the group games). */}
         {pill !== false && (
@@ -400,9 +545,9 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = n
 
       {/* ---- The words and the two controls ---------------------------- */}
       <span className="relative z-10 flex flex-1 flex-col px-3 pb-3 sm:px-4 sm:pb-4">
-        <span className={`line-clamp-2 leading-tight font-black sm:block sm:truncate ${tight ? 'mt-0.5 text-[0.9rem] text-[#0e0f2b] sm:-mt-1 sm:text-[1.3rem] sm:tracking-tight' : art ? 'mt-0.5 text-[0.9rem] text-[#1b1d3a] sm:-mt-1 sm:text-xl' : 'text-sm text-[#173a63] sm:text-base'}`}>{game.name}</span>
+        <span className={`line-clamp-2 leading-tight font-black sm:block sm:truncate ${tight ? 'mt-0.5 text-[0.9rem] text-[#0e0f2b] sm:-mt-1 sm:text-[1.3rem] sm:tracking-tight' : art || !tight ? 'mt-0.5 text-[0.9rem] text-[#1b1d3a] sm:-mt-1 sm:text-xl' : 'text-sm text-[#173a63] sm:text-base'}`}>{game.name}</span>
         {/* Two lines at most, and room for two always: every card the same height. */}
-        <span className={`hidden sm:block ${tight ? 'mt-1 line-clamp-2 min-h-[2.4rem] text-[13px] leading-[1.2rem] text-[#1f2340]' : art ? 'mt-1.5 line-clamp-3 min-h-[3.4rem] text-[13px] leading-snug text-[#2b2f4a]' : 'mt-1.5 line-clamp-2 min-h-[2.1rem] text-xs leading-snug text-slate-500'}`}>{game.blurb}</span>
+        <span className={`hidden sm:block ${tight ? 'mt-1 line-clamp-2 min-h-[2.4rem] text-[13px] leading-[1.2rem] text-[#1f2340]' : art || !tight ? 'mt-1.5 line-clamp-3 min-h-[3.4rem] text-[13px] leading-snug text-[#2b2f4a]' : 'mt-1.5 line-clamp-2 min-h-[2.1rem] text-xs leading-snug text-slate-500'}`}>{game.blurb}</span>
 
         <span className="mt-auto flex items-center justify-between gap-2 pt-2 sm:pt-3.5">
           {/* `chip={false}`: none (a group game that is on); the play button keeps its place on the right. */}
@@ -444,44 +589,11 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = n
 // The ten, mixed rather than grouped by kind: a memory game, a logic game,
 // a word game, a strategy game, and round again.
 // Then the solo games that are questions and answers, as group games too (2026-10-29).
-/**
- * Explore Individual Games (2026-11-06): down to the categories and their games. The page scrolls inside the app's
- * own <main> (not the window), where scrollIntoView did nothing on some phones — so the scrolling box is found and
- * moved directly, the header's height left above, and the row flashes so the jump is plain to see.
- */
-const exploreSolo = () => {
-  const el = document.querySelector('[data-solo-categories]');
-  if (!el) return;
-  // The box that really scrolls: an ancestor set to scroll AND taller inside than it is (on a phone the app's <main>
-  // is set to scroll but grows with the page, so the window scrolls instead — scrolling <main> did nothing there).
-  let box = el.parentElement;
-  while (box && box !== document.body) {
-    if (/(auto|scroll)/.test(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight + 1) break;
-    box = box.parentElement;
-  }
-  const inBox = box && box !== document.body;
-  const scroller = inBox ? box : document.scrollingElement || document.documentElement;
-  const offset = inBox ? box.getBoundingClientRect().top : 0;
-  const top = el.getBoundingClientRect().top - offset + scroller.scrollTop - 88;
-  if (inBox) box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-  else window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-  el.classList.remove('gs-flash');
-  void el.offsetWidth;
-  el.classList.add('gs-flash');
-  // Then the focus onto the first game, without a second jump, so the keyboard (and a screen reader) is there too.
-  // A backstop: if the page has not moved (a browser that ignored the smooth scroll), jump there outright.
-  const before = el.getBoundingClientRect().top;
-  setTimeout(() => {
-    const now = el.getBoundingClientRect().top;
-    if (Math.abs(now - before) < 4 && now > 140) el.scrollIntoView({ block: 'start' });
-    document.querySelector('[data-solo-games] a, [data-solo-games] button')?.focus({ preventScroll: true });
-  }, 500);
-};
 
 /** A picture fading to nothing at all four edges: the two fades, crossed. */
 const SOFT_EDGES = 'linear-gradient(to right, transparent, black 16%, black 84%, transparent), linear-gradient(to bottom, transparent, black 14%, black 80%, transparent)';
 
-const GROUP_ORDER = ['chess', 'memorymatrix', 'patternmaster', 'wordlogic', 'sequence', 'numberlogic', 'idiomsense', 'numberrecall', 'runningtotal', 'memorymatch', 'typingsprint', 'mathsprint', 'tictactoe', 'finalvault', 'lostkingdom'];
+const GROUP_ORDER = ['chess', 'memorymatrix', 'patternmaster', 'wordlogic', 'sequence', 'numberlogic', 'idiomsense', 'numberrecall', 'runningtotal', 'memorymatch', 'typingsprint', 'mathsprint', 'tictactoe', 'finalvault'];
 /* The group cards' accents (2026-11-02, the reference sheets): a pale wash of the accent under the artwork, a
    glowing edge, a tinted chip and a glossy Play in the accent. `fade` is the wash's top, where the art fades in. */
 const GROUP_ACCENTS = {
@@ -500,13 +612,52 @@ const GROUP_ACCENTS = {
  */
 // The banner picture's words, for a screen reader.
 const SOLO_HERO_WORDS = 'Individual games — Play solo. Sharpen your skills. A collection of quick, single-player games to improve your memory, logic, vocabulary, maths and speed.';
-const SOLO_COLOURS = ['violet', 'orange', 'blue', 'pink', 'green'];
-const soloArt = (id) => `/games/solo/${id}.jpg`;
+// The three games added 2026-11-12 have drawn (SVG) pictures; the rest are photographs.
+const SOLO_SVG = new Set(['picture-logic', 'tower-shift', 'number-forge', 'logic-detective', 'algorithm-builder', 'probability-lab', 'treasure-path', 'shadow-detective']);
+// Games with a picture in public/games/solo; the rest (the 84 games' new ones, 2026-11-14) draw their GameThumb.
+const SOLO_PICTURE = new Set(['antonym-match', 'binary-blitz', 'clock-read', 'code-breaker', 'colour-match', 'deduction', 'dot-count', 'fraction-match', 'grid-recall', 'idiom-sense', 'last-stone', 'lights-out', 'match-back', 'math-sprint', 'memory-match', 'mini-sudoku', 'missing-operator', 'next-in-sequence', 'number-bonds', 'number-recall', 'odd-one-out', 'percent-snap', 'quick-compare', 'reverse-recall', 'rounding-rush', 'running-total', 'scale-balance', 'seen-before', 'sentence-gap', 'sequence-recall', 'shape-matrix', 'sound-alike', 'speed-sort', 'spelling-fix', 'spin-match', 'spot-the-change', 'synonym-match', 'tense-pick', 'tic-tac-toe', 'typing-sprint', 'word-roots', 'word-scramble', ...SOLO_SVG]);
+// The Young Thinkers pictures cut from the section's design (public/games/young).
+const YOUNG_PICTURE = new Set(['memory-match', 'colour-match', 'animal-pair-safari', 'whats-missing', 'light-up-garden', 'shadow-detective', 'flash-sequence']);
+// Rising Brains (2026-11-16, the user's design): the Memory & Focus pictures cut from it (public/games/smart).
+const SMART_PICTURE = new Set(['sequence-recall', 'number-recall', 'sequence-vault', 'focus-filter', 'dual-image-recall']);
+// Every individual game card (2026-11-16, the user): the group cards' look, size and colours, in the group row's order.
+const CARD_CYCLE = ['gold', 'violet', 'green', 'orange', 'pink', 'violet', 'blue', 'violet', 'teal', 'blue'];
+// Master Minds (2026-11-16): its Memory & Focus pictures (public/games/master); otherwise styled exactly as Rising Brains.
+const MASTER_PICTURE = new Set(['grid-recall', 'reverse-recall', 'matrix-recall', 'departure-board', 'rule-switch', 'spatial-rotation-vault', 'interference-recall']);
+const MASTER_SVG = new Set(['departure-board']); // drawn as an SVG poster (2026-11-16)
+// Sudoku Challenge wears Mini Sudoku's picture (2026-11-16, the user: Mini Sudoku removed from Rising Brains).
+const ART_ALIAS = { 'sudoku-challenge': 'mini-sudoku' };
+const soloArt = (game) => {
+  const id = ART_ALIAS[game] || game;
+  return SOLO_PICTURE.has(id) ? `/games/solo/${id}.${SOLO_SVG.has(id) ? 'svg' : 'jpg'}` : null;
+};
+
+/*
+ * The three sections' looks (2026-11-14, the 84 games): one design language, three personalities — Young Thinkers
+ * bright and friendly, Rising Brains structured and energetic, Master Minds dark and premium.
+ */
+const SECTION_LOOK = {
+  young: {
+    panel: 'bg-gradient-to-br from-amber-50 via-rose-50 to-sky-50 ring-1 ring-amber-100', title: 'text-[#7c2d12]', sub: 'text-amber-800/80',
+    tab: 'bg-white text-amber-900 ring-1 ring-amber-200 hover:ring-amber-400', tabOn: 'from-orange-400 to-pink-500', emoji: '🌈',
+    words: 'Bright, friendly puzzles that grow memory, words, numbers and thinking.', colours: ['orange', 'pink', 'green', 'blue', 'violet', 'teal', 'gold']
+  },
+  smart: {
+    panel: 'bg-gradient-to-br from-[#e6f0ff] via-[#eef0ff] to-[#f4f7ff]', title: 'text-[#1e1b4b]', sub: 'text-indigo-800/70',
+    tab: 'bg-white/90 text-[#16205c] ring-1 ring-white shadow-[0_6px_16px_-8px_rgba(37,62,160,0.35)] hover:bg-white [&>span:first-child]:text-[#2563eb]', tabOn: 'from-[#1fa2ff] to-[#1257e6] shadow-[0_10px_22px_-8px_rgba(18,87,230,0.75)] ring-2 ring-white/70', emoji: '⚡',
+    words: 'Analytical challenges — reasoning, working memory and quick, accurate maths.', colours: ['blue', 'violet', 'teal', 'blue', 'violet', 'teal', 'blue']
+  },
+  master: {
+    panel: 'bg-gradient-to-br from-[#e6f0ff] via-[#eef0ff] to-[#f4f7ff]', title: 'text-[#1e1b4b]', sub: 'text-indigo-800/70',
+    tab: 'bg-white/90 text-[#16205c] ring-1 ring-white shadow-[0_6px_16px_-8px_rgba(37,62,160,0.35)] hover:bg-white [&>span:first-child]:text-[#2563eb]', tabOn: 'from-[#1fa2ff] to-[#1257e6] shadow-[0_10px_22px_-8px_rgba(18,87,230,0.75)] ring-2 ring-white/70', emoji: '♛',
+    words: 'Strategic, abstract challenges for advanced thinkers. Precision over speed.', colours: ['gold', 'violet', 'blue', 'gold', 'violet', 'blue', 'gold']
+  }
+};
 
 const GROUP_ACCENT = {
   chess: 'gold', memorymatrix: 'violet', patternmaster: 'blue', wordlogic: 'pink', sequence: 'green',
   numberlogic: 'green', spatialiq: 'violet', sudoku: 'orange', deduction: 'blue', finalvault: 'pink',
-  lostkingdom: 'green', synonymmatch: 'teal', antonymmatch: 'violet', idiomsense: 'orange', sentencegap: 'blue',
+  synonymmatch: 'teal', antonymmatch: 'violet', idiomsense: 'orange', sentencegap: 'blue',
   soundalike: 'pink', wordroots: 'green', spellingfix: 'teal', tensepick: 'violet', oddoneout: 'orange',
   percentsnap: 'blue', binaryblitz: 'pink', roundingrush: 'green', fractionmatch: 'teal', quickcompare: 'violet',
   scalebalance: 'orange', colourmatch: 'blue', dotcount: 'pink', clockread: 'green', shapematrix: 'teal',
@@ -515,11 +666,15 @@ const GROUP_ACCENT = {
   speedsort: 'green', numberbonds: 'teal', mathsprint: 'violet', tictactoe: 'orange', laststone: 'blue'
 };
 // The artwork each group game borrows from the solo games' set.
-const GROUP_THUMBS = { chess: 'chess', memorymatrix: 'grid-recall', sequence: 'sequence-recall', patternmaster: 'next-in-sequence', numberlogic: 'missing-operator', sudoku: 'mini-sudoku', deduction: 'scale-balance', lostkingdom: 'compass', finalvault: 'vault', wordlogic: 'word-scramble', spatialiq: 'spin-match', synonymmatch: 'synonym-match', antonymmatch: 'antonym-match', idiomsense: 'idiom-sense', sentencegap: 'sentence-gap', soundalike: 'sound-alike', wordroots: 'word-roots', spellingfix: 'spelling-fix', tensepick: 'tense-pick', oddoneout: 'odd-one-out', percentsnap: 'percent-snap', binaryblitz: 'binary-blitz', roundingrush: 'rounding-rush', fractionmatch: 'fraction-match', quickcompare: 'quick-compare', scalebalance: 'scale-balance', colourmatch: 'colour-match', dotcount: 'dot-count', clockread: 'clock-read', shapematrix: 'shape-matrix', numberrecall: 'number-recall', reverserecall: 'reverse-recall', seenbefore: 'seen-before', spotthechange: 'spot-the-change', matchback: 'match-back', runningtotal: 'running-total', memorymatch: 'memory-match', lightsout: 'lights-out', codebreaker: 'code-breaker', typingsprint: 'typing-sprint', speedsort: 'speed-sort', numberbonds: 'number-bonds', mathsprint: 'math-sprint', tictactoe: 'tic-tac-toe', laststone: 'last-stone' };
+const GROUP_THUMBS = { chess: 'chess', memorymatrix: 'grid-recall', sequence: 'sequence-recall', patternmaster: 'next-in-sequence', numberlogic: 'missing-operator', sudoku: 'mini-sudoku', deduction: 'scale-balance', finalvault: 'vault', wordlogic: 'word-scramble', spatialiq: 'spin-match', synonymmatch: 'synonym-match', antonymmatch: 'antonym-match', idiomsense: 'idiom-sense', sentencegap: 'sentence-gap', soundalike: 'sound-alike', wordroots: 'word-roots', spellingfix: 'spelling-fix', tensepick: 'tense-pick', oddoneout: 'odd-one-out', percentsnap: 'percent-snap', binaryblitz: 'binary-blitz', roundingrush: 'rounding-rush', fractionmatch: 'fraction-match', quickcompare: 'quick-compare', scalebalance: 'scale-balance', colourmatch: 'colour-match', dotcount: 'dot-count', clockread: 'clock-read', shapematrix: 'shape-matrix', numberrecall: 'number-recall', reverserecall: 'reverse-recall', seenbefore: 'seen-before', spotthechange: 'spot-the-change', matchback: 'match-back', runningtotal: 'running-total', memorymatch: 'memory-match', lightsout: 'lights-out', codebreaker: 'code-breaker', typingsprint: 'typing-sprint', speedsort: 'speed-sort', numberbonds: 'number-bonds', mathsprint: 'math-sprint', tictactoe: 'tic-tac-toe', laststone: 'last-stone',
+  // The 84 games' new group games (2026-11-14).
+  animalpairs: 'animal-pair-safari', rhymes: 'rhyme-detective', numberhop: 'number-hop', missingnumber: 'missing-number-race', analogies: 'analogy-master', equationrush: 'equation-rush', ratiorelay: 'ratio-relay', cipherlab: 'cipher-lab', probability: 'probability-lab', quantarena: 'quantitative-arena', decisions: 'decision-theory-arena' };
 const playRoom = (navigate, id) => navigate(`/games/play/${id}`, { state: { from: 'group' } });
 
 // Every solo game's name, by id, for the unlock notes.
-const SOLO_NAMES = Object.fromEntries(CATEGORIES.flatMap((c) => c.games.map((g) => [g.id, g.name])));
+const SOLO_BY_ID = Object.fromEntries(CATEGORIES.flatMap((c) => c.games.map((g) => [g.id, g])));
+// A game's name is the one it has in its section (catalog.js), e.g. Shadow Detective plays as Shadow Match.
+const SOLO_NAMES = Object.fromEntries([...CATEGORIES.flatMap((c) => c.games.map((g) => [g.id, g.name])), ...CATALOG.map((g) => [g.id, g.title])]);
 const needOf = (unlocks, players) => {
   const sizes = Object.keys(unlocks?.need || {}).map(Number).sort((a, b) => a - b);
   return unlocks?.need?.[sizes.find((s) => s >= players) || sizes[sizes.length - 1]] || 0;
@@ -552,7 +707,6 @@ const HOW_TO_PLAY = {
   numberlogic: QUIZ_RULES('number puzzle'),
   deduction: QUIZ_RULES('logic puzzle — read the clues and rule things out'),
   spatialiq: QUIZ_RULES('picture puzzle — rotations, mirrors, folds and nets'),
-  lostkingdom: ['Five trials stand between you and the treasure of Aurelia.', 'Each trial is a puzzle of numbers, knowledge or logic — solve it to move on.', 'Wrong answers cost you time; the puzzles are new every game.', 'Reach the treasure first to win.'],
   finalvault: ['Five temple chambers, the same puzzles for everyone.', 'Solve each chamber’s puzzle to open the next.', 'Wrong answers cost you time.', 'The first to open the treasure vault wins.'],
   tictactoe: ['Two players take turns placing X and O on a 3×3 board.', 'Three in a row — across, down or diagonally — wins the round.', 'A full board with no line is a draw.', 'Best of five rounds wins the game.'],
   laststone: ['Two players take turns taking 1, 2 or 3 stones from the pile.', 'You must take at least one stone each turn.', 'Think ahead: leave your opponent a pile they cannot win from.', 'Whoever takes the last stone wins the round — best of five wins.']
@@ -564,7 +718,10 @@ const howToPlay = (id) => {
   return QUIZ_RULES(`question — ${(g?.blurb || '').replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}`);
 };
 
-function GroupHub() {
+function GroupHub({ zone = null, mine = null }) {
+  // The zone's group games (2026-11-13): those suited to it, in the hub's usual order, then the rest of the zone's.
+  const zoneIds = zone ? [...GROUP_ORDER.filter((id) => GROUP_ZONES[id]?.includes(zone)), ...Object.keys(GROUP_ZONES).filter((id) => !GROUP_ORDER.includes(id) && GROUP_ZONES[id].includes(zone))] : GROUP_ORDER;
+  const groupAccess = (id) => (zone ? accessFor(mine, zone, GROUP_TWIN[id] ? statsOf(GROUP_TWIN[id]) : null) : 'available');
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [code, setCode] = useState('');
@@ -634,22 +791,22 @@ function GroupHub() {
     setBusy('online'); setError(null);
     // Create room (2026-11-02): the same card, a private room with a code for friends.
     if (online.room) {
-      roomsApi.create(online.game.id, { difficulty: 'medium', players: online.players }).then((r) => { setOnline(null); playRoom(navigate, r.game.id); })
+      roomsApi.create(online.game.id, { difficulty: zone ? ZONE_DIFFICULTY[zone] : 'medium', players: online.players, ...(zone ? { zone } : {}) }).then((r) => { setOnline(null); playRoom(navigate, r.game.id); })
         .catch((e) => { setOnline(null); fail(e); }).finally(() => setBusy(''));
       return;
     }
-    roomsApi.online(online.game.id, online.players, online.fee).then((r) => { setOnline(null); playRoom(navigate, r.game.id); })
+    roomsApi.online(online.game.id, online.players, online.fee, zone || undefined).then((r) => { setOnline(null); playRoom(navigate, r.game.id); })
       .catch((e) => { setOnline(null); fail(e); }).finally(() => setBusy(''));
   };
   const create = () => {
     setBusy('create'); setError(null);
-    roomsApi.create(picking.id, { difficulty: level, players: size }).then((r) => playRoom(navigate, r.game.id)).catch((e) => { setPicking(null); fail(e); }).finally(() => setBusy(''));
+    roomsApi.create(picking.id, { difficulty: zone ? ZONE_DIFFICULTY[zone] : level, players: size, ...(zone ? { zone } : {}) }).then((r) => playRoom(navigate, r.game.id)).catch((e) => { setPicking(null); fail(e); }).finally(() => setBusy(''));
   };
 
   return (
     <>
-      {/* ---- The game I am still in (2026-11-06): on top, plain to see — e.g. all five puzzles done in Final Vault or
-          Lost Kingdom while the others play on. Until it ends, no other game can be started; Open takes me back. ---- */}
+      {/* ---- The game I am still in (2026-11-06): on top, plain to see — e.g. all five puzzles done in Final Vault
+          while the others play on. Until it ends, no other game can be started; Open takes me back. ---- */}
       {room && (
         <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-white p-3.5 shadow-sm sm:gap-4 sm:p-4" role="status" aria-live="polite" data-my-room>
           <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white text-2xl shadow ring-1 ring-emerald-100">
@@ -753,10 +910,14 @@ function GroupHub() {
 
       {/* ---- Every group game, in the solo games' cards ---- */}
       <div className={`grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ${groupOut ? 'pointer-events-none opacity-50 grayscale' : ''}`} aria-disabled={groupOut || undefined} data-group-games>
-        {GROUP_ORDER.map((id, i) => {
+        {zoneIds.map((id, i) => {
           const g = GROUP_GAMES[id];
           const off = catalog[id]?.enabled === false;
-          const locked = unlocks && !openSizes(id).length;
+          // Its place in the zone (2026-11-13): a zone above is a preview until the game is unlocked (the server checks
+          // every player again when a room is made, joined or started).
+          const access = groupAccess(id);
+          const preview = access === 'preview';
+          const badge = null; // no labels on the group cards (2026-11-14, the user)
           return (
             // As the solo cards (2026-10-31): the pop-in staggered row by row, not down all forty-odd cards (the last
             // ones sat hidden for seconds, and would not take the hover), and a chip on the left of Play.
@@ -766,11 +927,13 @@ function GroupHub() {
             <GameCard index={i % 8} theme={GROUP_ACCENTS[GROUP_ACCENT[id]] || CARD_THEMES[i % CARD_THEMES.length]}
               art={GROUP_ACCENT[id] ? `/games/group/${id}.jpg` : null}
               game={{ id, thumb: GROUP_THUMBS[id], name: g.label, blurb: g.blurb }}
+              badge={badge}
               pill={false} chip={off ? <span className="whitespace-nowrap">Not available</span>
-                : locked ? <span className="inline-flex items-center gap-1 whitespace-nowrap" title={lockNote(id, 2)} data-group-locked={id}><Lock className="h-3.5 w-3.5 shrink-0" />{unlocks.games[id]?.cleared || 0}/{unlocks.need[2]}</span>
+                : preview ? <span className="whitespace-nowrap" title={ACCESS_MESSAGE.preview}>Preview</span>
                   : null}
-              action={off || locked ? null : { label: <><Link2 className="h-3.5 w-3.5 shrink-0" />Join</>, onClick: () => { setError(null); setCode(''); setJoinFor({ id, ...g }); } }}
-              playLabel={<span className="whitespace-nowrap">Play</span>} disabled={off || !!busy} onPlay={(game) => { setError(null); setChoosing(game); }} />
+              // Join is always offered (2026-11-14): a friend's room is joined by its code, no solo levels needed.
+              action={off || preview ? null : { label: <><Link2 className="h-3.5 w-3.5 shrink-0" />Join</>, onClick: () => { setError(null); setCode(''); setJoinFor({ id, ...g }); } }}
+              playLabel={<span className="whitespace-nowrap">{preview ? 'Preview' : 'Play'}</span>} disabled={off || preview || !!busy} onPlay={(game) => { setError(null); setChoosing(game); }} />
             </div>
           );
         })}
@@ -1177,15 +1340,202 @@ function OnlineLobby({ online, setOnline, fees, busy, onPlay, open = null }) {
   );
 }
 
+/* ---- Age zones (2026-11-13) --------------------------------------------
+ * Young Thinkers, Rising Brains, Master Minds: the student's own zone from the class they gave in Career Path
+ * (GET /games/zone), marked "For you" and opened first. Every zone can be looked into; a game is played at the
+ * student's own band in their zone, and at the zone's usual band in another. */
+const ZONE_KEY = 'yati:gamesZone';
+const ROLE_ORDER = { core: 0, challenge: 1, practice: 2 };
+const BADGES = {
+  recommended: { label: 'Recommended', tone: 'bg-violet-600 text-white' },
+  challenge: { label: 'Challenge', tone: 'bg-amber-400 text-amber-950' },
+  practice: { label: 'Extra practice', tone: 'bg-white text-ink-700' },
+  available: { label: 'Practice', tone: 'bg-white text-ink-700' },
+  unlocked: { label: '✨ Unlocked challenge', tone: 'bg-emerald-500 text-white' },
+  locked: { label: '🔒 Locked challenge', tone: 'bg-slate-700 text-white' },
+  preview: { label: '👀 Preview', tone: 'bg-slate-700 text-white' }
+};
+/** A game's badge and whether it can be played, for the student's own zone and the zone being looked at. */
+const badgeOf = (gameId, place, mine, zone) => {
+  const access = accessFor(mine, zone, statsOf(gameId));
+  if (access === 'preview') return { kind: 'preview', playable: false, title: ACCESS_MESSAGE.preview, ...BADGES.preview };
+  if (place.locked) return { kind: 'locked', playable: false, title: ACCESS_MESSAGE.locked, ...BADGES.locked };
+  if (access === 'unlocked') return { kind: 'unlocked', playable: true, title: ACCESS_MESSAGE.unlocked, ...BADGES.unlocked };
+  if (access === 'available' && mine) return { kind: 'available', playable: true, title: ACCESS_MESSAGE.available, ...BADGES.available };
+  const kind = place.role === 'core' ? (mine ? 'recommended' : null) : place.role;
+  return kind ? { kind, playable: true, title: ACCESS_MESSAGE[kind] || '', ...BADGES[kind] } : { kind: 'open', playable: true, label: null };
+};
+
+function useGameZone() {
+  const [info, setInfo] = useState(null);          // { zone, band, classNumber, source } from the server
+  const [view, setView] = useState(() => { try { return localStorage.getItem(ZONE_KEY); } catch { return null; } });
+  useEffect(() => {
+    let alive = true;
+    api.get('/games/zone').then(({ data }) => { if (alive) setInfo(data); }).catch(() => { if (alive) setInfo({ zone: null, band: null, source: 'unknown' }); });
+    return () => { alive = false; };
+  }, []);
+  const mine = info?.zone || null;
+  const zone = zoneByKey(view) ? view : mine || 'smart';
+  const band = zone === mine && info?.band ? info.band : DEFAULT_BAND[zone];
+  useEffect(() => { setAgeBand(BANDS[band], band); }, [band]);
+  const pick = (z) => { setView(z); try { localStorage.setItem(ZONE_KEY, z); } catch { /* private window */ } };
+  return { info, mine, zone, band, pick, ready: Boolean(info) };
+}
+
+function ZonePicker({ zone, mine, band, info, onPick }) {
+  const navigate = useNavigate();
+  const b = BANDS[band];
+  return (
+    <section className="mb-5" aria-label="Game zones" data-game-zones>
+      <div className="grid gap-2.5 sm:grid-cols-3 sm:gap-3">
+        {ZONES.map((z) => {
+          const on = z.key === zone;
+          return (
+            <button key={z.key} type="button" onClick={() => onPick(z.key)} aria-pressed={on} data-game-zone={z.key}
+              className={`fp-press group relative flex items-center gap-3 overflow-hidden rounded-2xl p-3 text-left transition-all sm:flex-col sm:items-start sm:gap-2 sm:p-4 ${on ? `bg-gradient-to-br text-white shadow-lg ${z.band} ${z.glow}` : 'bg-white text-ink-800 ring-1 ring-line-200 hover:-translate-y-0.5 hover:ring-violet-300'}`}>
+              <span aria-hidden className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl ${on ? 'bg-white/20' : z.soft}`}>{z.emoji}</span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-base font-black leading-tight sm:text-lg">{z.name}</span>
+                  {mine && (() => {
+                    const gap = ZONES.findIndex((x) => x.key === z.key) - ZONES.findIndex((x) => x.key === mine);
+                    const tag = gap === 0 ? 'For you' : gap < 0 ? 'Practice' : 'Preview';
+                    return <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${on ? 'bg-white/25 text-white' : `${z.soft} ${z.ink}`}`}>{tag}</span>;
+                  })()}
+                </span>
+                <span className={`block text-xs font-bold ${on ? 'text-white/85' : 'text-ink-500'}`}>{z.classes} · {z.ages}</span>
+                <span className={`mt-1 hidden text-[13px] leading-snug sm:block ${on ? 'text-white/90' : 'text-ink-500'}`}>{z.tagline}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-ink-500" data-game-band>
+        {zone === mine
+          ? <>Playing at <span className="font-black text-ink-700">{b.label}</span> difficulty ({b.classes}{info?.source === 'level' ? ', from your school level' : ''}).</>
+          : mine
+            ? <>{ZONES.findIndex((x) => x.key === zone) < ZONES.findIndex((x) => x.key === mine)
+                ? <>{zoneByKey(zone).name} is open for practice.</>
+                : <>Previewing {zoneByKey(zone).name}: its games unlock one at a time as you master them in your own zone.</>}
+                {' '}Your zone is <button type="button" onClick={() => onPick(mine)} className="font-black text-violet-700 underline">{zoneByKey(mine).name}</button>.</>
+            : <>Your class is not set yet, so no zone is picked for you.
+                <button type="button" onClick={() => navigate('/career/onboarding')} className="font-black text-violet-700 underline">Set your class in Career Path</button></>}
+      </p>
+    </section>
+  );
+}
+
+/*
+ * The three sections as cards (2026-11-14, the user's design): each opens its own page. The student's own section is
+ * marked; a lower one is open for practice; a higher one can be looked at, its games shown as previews.
+ */
+// The section cards (2026-11-14, redesigned again: light, clean): a gradient icon tile, the name and classes on white;
+// the open one wrapped in its gradient border with a soft glow and a tinted face.
+const SECTION_CARD = {
+  young: { Icon: Smile, grad: 'from-amber-400 via-orange-400 to-pink-500', face: 'bg-orange-50/70', glow: 'shadow-[0_14px_30px_-14px_rgba(249,115,22,.55)]' },
+  smart: { Icon: Lightbulb, grad: 'from-sky-400 via-blue-500 to-indigo-600', face: 'bg-sky-50/70', glow: 'shadow-[0_14px_30px_-14px_rgba(59,130,246,.55)]' },
+  master: { Icon: Crown, grad: 'from-violet-500 via-purple-500 to-fuchsia-500', face: 'bg-violet-50/70', glow: 'shadow-[0_14px_30px_-14px_rgba(139,92,246,.55)]' }
+};
+function SectionCards({ active, onOpen, group, onMode }) {
+  return (
+    <section data-section-cards>
+      {/* One row (2026-11-16, the user): the three sections, then the Individual ⇄ Group switch after Master Minds. */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:gap-4">
+        <div className="contents" role="tablist" aria-label="Game sections">
+          {SECTIONS.map((sec) => {
+            const { Icon, grad, face, glow } = SECTION_CARD[sec.key];
+            const on = active === sec.key;
+            return (
+              <button key={sec.key} type="button" role="tab" aria-selected={on} onClick={() => onOpen(sec.key)} data-open-section={sec.key}
+                className={`group rounded-[20px] p-[2px] text-left transition duration-300 sm:rounded-[24px] ${on ? `bg-gradient-to-br ${grad} ${glow} -translate-y-0.5` : 'bg-slate-200/80 hover:-translate-y-0.5 hover:bg-slate-300/80'}`}>
+                <span className={`flex h-full flex-col items-center gap-2 rounded-[18px] px-2 py-3 text-center sm:flex-row sm:gap-3.5 sm:rounded-[22px] sm:px-4 sm:py-4 sm:text-left ${on ? face : 'bg-white'}`}>
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-md transition group-hover:scale-105 sm:h-14 sm:w-14 ${grad}`}>
+                    <Icon className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.2} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[13px] leading-tight font-black tracking-tight text-slate-900 sm:text-lg xl:text-xl">{sec.name}</span>
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Individual ⇄ Group: one switch. Off = Individual games, on = Group games. */}
+        <div className="col-span-3 flex items-center justify-center gap-3 rounded-[20px] bg-white px-4 py-2.5 ring-2 ring-slate-200/80 sm:rounded-[24px] lg:col-span-1 lg:px-5" data-games-mode-switch>
+          <button type="button" onClick={() => onMode('solo')} data-games-mode="solo" aria-pressed={!group}
+            className={`inline-flex items-center gap-1.5 text-sm font-black transition-colors ${group ? 'text-slate-400 hover:text-slate-600' : 'text-violet-700'}`}>
+            <User className="h-4 w-4" />Individual
+          </button>
+          <button type="button" role="switch" aria-checked={group} aria-label="Group games" onClick={() => onMode(group ? 'solo' : 'group')}
+            className={`relative h-8 w-14 shrink-0 rounded-full transition-colors duration-300 ${group ? 'bg-gradient-to-r from-fuchsia-500 to-violet-600' : 'bg-gradient-to-r from-violet-600 to-indigo-600'} shadow-inner`}>
+            <span className={`absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow-md transition-transform duration-300 ${group ? 'translate-x-6' : 'translate-x-0'}`} />
+          </button>
+          <button type="button" onClick={() => onMode('group')} data-games-mode="group" aria-pressed={group}
+            className={`inline-flex items-center gap-1.5 text-sm font-black transition-colors ${group ? 'text-fuchsia-700' : 'text-slate-400 hover:text-slate-600'}`}>
+            <Users className="h-4 w-4" />Group
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** My progress in a sheet over the page (2026-11-14: opened from "Your Progress"). */
+function ProgressSheet({ zone, band, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <Portal>
+      <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="My progress" onClick={onClose}>
+        <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white p-3 shadow-2xl sm:rounded-3xl sm:p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="mb-2 flex justify-end">
+            <button type="button" onClick={onClose} className="rounded-full px-3 py-1 text-sm font-black text-ink-600 hover:bg-surface-100" aria-label="Close">✕ Close</button>
+          </div>
+          <MyProgress zone={zone} band={band} />
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
 export default function Games() {
   const [active, setActive] = useState(null);
   const [categoryKey, setCategoryKey] = useState(CATEGORIES[0].key);
+  const ages = useGameZone();
   // Solo games (Brain Boosters, below) or Group games (Group Brain): in the
   // address (?mode=group), so a room's Back lands on the group games.
   const [params, setParams] = useSearchParams();
   const group = params.get('mode') === 'group';
   // Opening Games asks which (2026-11-03): a popup, Solo games or Group games, in place of the tabs.
   const choosing = !params.get('mode');
+  // The section page open (2026-11-14): ?section=young|smart|master, so Back returns to the three cards.
+  const asked = SECTIONS.some((x) => x.key === params.get('section')) ? params.get('section') : null;
+  const openSection = (key) => {
+    const next = new URLSearchParams(params);
+    if (key) next.set('section', key); else next.delete('section');
+    setParams(next);
+    if (key) ages.pick(key);
+  };
+  const [progressOpen, setProgressOpen] = useState(false);
+  // The three sections are tabs (2026-11-14): one is always open — the asked one, else the student's own.
+  const sectionKey = asked || ages.mine || 'young';
+  // Switching section always opens its first category, Memory & Focus (2026-11-16, the user).
+  const [categoryFor, setCategoryFor] = useState(sectionKey);
+  if (categoryFor !== sectionKey) {
+    setCategoryFor(sectionKey);
+    setCategoryKey(CATEGORIES[0].key);
+  }
+  useEffect(() => { if (!group && !choosing && ages.zone !== sectionKey) ages.pick(sectionKey); }, [sectionKey, ages, group, choosing]);
+  const [earnedCount, setEarnedCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    api.get('/games/performance').then(({ data }) => { if (alive) setEarnedCount((data?.achievements || []).filter((a) => a.earned).length); }).catch(() => {});
+    return () => { alive = false; };
+  }, [active]);
   const setMode = (m) => {
     const next = new URLSearchParams(params);
     next.set('mode', m === 'group' ? 'group' : 'solo');
@@ -1280,6 +1630,17 @@ export default function Games() {
 
   // Read on every render of the hub, so coming back from a game marks it.
   const recentId = lastPlayed();
+  // The category's games for the zone: those made for this age first, then challenges, then extra practice; ones
+  // that open in a later class last.
+  // The 84 games (2026-11-14): a section's category is exactly its seven games from catalog.js, in their order, each
+  // under the name it has in that section; access by section as before (own · below for practice · above previewed).
+  const zoneGames = (category) => gamesIn(ages.zone, category.key)
+    .filter((c) => SOLO_BY_ID[c.id])
+    .map((c) => {
+      const place = { role: 'core', from: null, locked: false };
+      return { game: { ...SOLO_BY_ID[c.id], name: c.title }, place, badge: badgeOf(c.id, place, ages.mine, ages.zone) };
+    });
+  const extraGames = EXTRA.map((id) => SOLO_BY_ID[id]).filter(Boolean);
   const play = (game) => {
     if (outOfTime) {
       toast.info("You've used today's play time. Games open again at midnight.", 'Back tomorrow');
@@ -1296,6 +1657,21 @@ export default function Games() {
     };
     setActive(game);
   };
+  // "Try it" under a result, the daily challenge (2026-11-13): open that game, in its zone.
+  const playRef = useRef(play);
+  useEffect(() => { playRef.current = play; });
+  useEffect(() => {
+    const on = (e) => {
+      const { gameId, zone } = e.detail || {};
+      const game = CATEGORIES.flatMap((c) => c.games).find((g) => g.id === gameId);
+      if (!game) return;
+      if (zone && zone !== ages.zone) ages.pick(zone);
+      setActive(null);
+      setTimeout(() => playRef.current(game), 0);
+    };
+    window.addEventListener('yati:game-open', on);
+    return () => window.removeEventListener('yati:game-open', on);
+  }, [ages]);
 
   const Game = active?.Component;
 
@@ -1379,119 +1755,117 @@ export default function Games() {
           middle of the most important thing on the page. The scene now runs
           under both, and the board sits on it as a panel of frosted glass, so
           the whole strip reads as one object. */}
-        {/* ---- Individual or group ---------------------------------------- */}
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" role="tablist" aria-label="Games">
-          {/* Just the two names: no game counts on this page (2026-10-31). */}
-          {[['solo', 'Individual games', User], ['group', 'Group games', Users]].map(([m, label, Icon]) => {
-            const on = (m === 'group') === group;
-            return (
-              <button key={m} type="button" role="tab" aria-selected={on} onClick={() => setMode(m)} data-games-mode={m}
-                className={`inline-flex min-h-12 items-center gap-2.5 rounded-2xl px-4 py-2 text-left transition-colors ${on ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-500/30' : 'bg-white text-ink-700 ring-1 ring-line-200 hover:ring-violet-300'}`}>
-                <span className={`flex h-8 w-8 items-center justify-center rounded-full ${on ? 'bg-white/20' : 'bg-violet-50 text-violet-600'}`}><Icon className="h-4 w-4" /></span>
-                <span className="block text-sm font-black leading-tight">{label}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* The Individual games banner and its leaderboard: removed (2026-11-14, the user) — the three section cards come first. */}
 
-        {/* ---- The Individual games banner (2026-11-04): the reference picture itself (public/games/banner/
-            solo-banner.jpg) — its knight, its words, Explore and its trophy — faded at its right into the same violet,
-            with this week's live leaderboard on a white card beside it (under it on a phone), and the picture's
-            Explore button made a real one. ---- */}
-        {!group && (
-          <section className="relative isolate overflow-hidden rounded-[28px] bg-[linear-gradient(100deg,#3a1077_0%,#4a1890_55%,#321066_100%)] shadow-[0_30px_60px_-24px_rgba(91,33,182,.7)] ring-1 ring-violet-400/30" data-solo-hero>
-            <span aria-hidden className="pointer-events-none absolute -top-8 right-[6%] h-28 w-[40%] -rotate-[10deg] rounded-full bg-gradient-to-r from-transparent via-fuchsia-300/30 to-transparent blur-xl" />
-            <span aria-hidden className="pointer-events-none absolute -bottom-10 right-0 h-24 w-[45%] -rotate-[8deg] rounded-full bg-gradient-to-r from-transparent via-violet-300/25 to-transparent blur-xl" />
-            <div className="relative grid grid-cols-[minmax(0,1fr)] items-center lg:grid-cols-[minmax(0,1fr)_minmax(0,21rem)]">
-              {/* A wide screen: the picture as drawn, its left 70%; its Explore button, live: down to the games. */}
-              {/* A phone (2026-11-04), as its reference: the label, the words, the knight and the trophy on one lit
-                  podium (public/games/banner/solo-phone-art.jpg), then Explore — the play time and leaderboard follow. */}
-              {/* A phone (2026-11-06): drawn as the Group games card is — the serif label chip, the serif italic headline
-                  with its gold second line, a glowing rule, then the picture — in this section's own violet. */}
-              <div className="px-3.5 pt-3 pb-0.5 text-center text-white lg:hidden">
-                <span className="relative inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-[#3b1a78] to-[#1f0d45] px-4 py-1 font-serif text-[0.68rem] font-bold tracking-[0.12em] text-[#f6e7bd] uppercase ring-1 ring-[#e9b25a]/80 shadow-[0_0_14px_rgba(233,178,90,.35)]">
-                  <Zap className="h-3 w-3 fill-[#f6e7bd] text-[#f6e7bd]" /> Individual games
-                </span>
-                <h1 className="relative mt-2 font-serif text-[1.3rem] leading-[1.15] font-bold italic min-[400px]:text-[1.45rem]">
-                  <span className="block text-white drop-shadow">Play Solo,</span>
-                  <span className="block bg-gradient-to-b from-[#ffe39a] to-[#d99a2b] bg-clip-text text-transparent">Sharpen Your Skills!</span>
-                </h1>
-                <span aria-hidden className="relative mx-auto mt-1.5 block h-[2px] w-36 rounded-full bg-[radial-gradient(closest-side,#ffb43a,transparent)]" />
-              </div>
-              <div role="img" aria-label={SOLO_HERO_WORDS} className="relative hidden w-full lg:block"
-                style={{ aspectRatio: '1470 / 458', backgroundImage: 'url(/games/banner/solo-banner.jpg)', backgroundSize: `${100 / 0.7}% 100%`, backgroundPosition: '0% 50%',
-                  maskImage: 'linear-gradient(to right, black 88%, transparent)', WebkitMaskImage: 'linear-gradient(to right, black 88%, transparent)' }}>
-                <button type="button" aria-label="Explore Individual Games" data-explore-solo
-                  onClick={exploreSolo}
-                  className="absolute cursor-pointer rounded-full transition hover:bg-white/10 hover:shadow-[0_0_24px_rgba(255,216,77,.55)] focus-visible:ring-4 focus-visible:ring-yellow-300/70 focus-visible:outline-none"
-                  style={{ left: '31.1%', top: '69.4%', width: '34.7%', height: '20.1%' }} />
-              </div>
-              {/* Today's play allowance on a phone: its own clear line under the picture. */}
-              {playTime && left !== null && !outOfTime && (
-                <div className="flex justify-center px-4 pt-1.5 lg:hidden">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold ring-1 ring-white/60 ${outOfTime ? 'bg-black/50 text-white/80' : 'bg-black/40 text-white'}`} data-play-left>
-                    {outOfTime ? <Moon className="h-4 w-4" /> : <Timer className="h-4 w-4" />}
-                    {outOfTime ? 'Play time used — back at midnight' : `${clock(left)} of play left today`}
-                  </span>
-                </div>
-              )}
-              {/* This week's leaderboard. */}
-              <div className="relative mx-3 my-3 rounded-[18px] bg-gradient-to-b from-white to-[#f6f2ff] p-2.5 text-[#1e1b4b] lg:p-4 lg:rounded-[22px] shadow-[0_20px_40px_-16px_rgba(30,10,80,.7),inset_0_1px_0_#fff] ring-1 ring-violet-200/80 lg:mx-0 lg:mr-5 lg:self-center" data-solo-board>
-                <GameLeaderboard dense />
-              </div>
-            </div>
-          </section>
-        )}
+        {/* The zones for both modes (2026-11-13): individual and group games alike. */}
+        {/* Group games: the same three section cards as Individual games (2026-11-14). */}
+        {/* The three sections and the Individual ⇄ Group switch, one row (2026-11-16). */}
+        {(group || !choosing) && <SectionCards active={group ? ages.zone : sectionKey} onOpen={group ? ages.pick : openSection} group={group} onMode={setMode} />}
         {!group && playTime && left !== null && !outOfTime && (
-          <p className={`-mt-3 hidden items-center gap-1.5 text-xs font-black lg:flex ${outOfTime ? 'text-slate-500' : 'text-violet-700'}`}>
+          <p className={`-mt-2 hidden items-center gap-1.5 text-xs font-black lg:flex ${outOfTime ? 'text-slate-500' : 'text-violet-700'}`}>
             {outOfTime ? <Moon className="h-3.5 w-3.5" /> : <Timer className="h-3.5 w-3.5" />}
             {outOfTime ? 'Play time used — back at midnight' : `${clock(left)} of play left today`}
           </p>
         )}
+        {group && <GroupHub zone={ages.zone} mine={ages.mine} />}
 
-        {group && <GroupHub />}
-
-        {/* ---- Categories: one row, the one picked shows its games (2026-11-03) ---- */}
-        {!group && (() => {
-          const category = CATEGORIES.find((c) => c.key === categoryKey) || CATEGORIES[0];
-          return (
-            <section>
-              <div className="mb-3 flex scroll-mt-24 gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Game categories" data-solo-categories>
-                {CATEGORIES.map((c) => {
-                  const Icon = c.icon;
-                  const on = c.key === category.key;
-                  return (
-                    <button key={c.key} type="button" role="tab" aria-selected={on} onClick={() => setCategoryKey(c.key)} data-games-category={c.key}
-                      className={`inline-flex shrink-0 items-center gap-2.5 rounded-full py-2 pr-5 pl-2 text-sm font-black transition-colors ${on ? `bg-gradient-to-r text-white shadow-md ${c.band} ${c.glow}` : 'bg-white text-ink-700 ring-1 ring-line-200 hover:ring-violet-300'}`}>
-                      <span className={`flex h-7 w-7 items-center justify-center rounded-full ${on ? 'bg-white/25' : 'bg-violet-50 text-violet-600'}`}>
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      {c.name}
-                    </button>
-                  );
-                })}
+        {!group && !choosing && sectionKey === 'young' && (
+          <YoungThinkersPage
+            categories={CATEGORIES.map((c) => ({ key: c.key, name: c.name, icon: c.icon, band: c.band }))}
+            renderGames={(key) => (
+              <div data-solo-games className="fp-game-stage grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {zoneGames(CATEGORIES.find((c) => c.key === key)).map(({ game }, i) => (
+                  <GameCard key={game.id} game={{ ...game, blurb: `${MULTIPLAYER[game.id] ? '👥 Solo & group · ' : 'Solo · '}${game.blurb}` }}
+                    theme={GROUP_ACCENTS[CARD_CYCLE[i % CARD_CYCLE.length]]}
+                    art={YOUNG_PICTURE.has(game.id) ? `/games/young/${game.id}.jpg` : soloArt(game.id)} index={i}
+                    reached={levelReached(game.id)} stars={starsForGame(game.id)} recent={game.id === recentId} onPlay={play} />
+                ))}
               </div>
-
-              {/* Five across on a wide screen, as on the sheet. */}
-              <div key={category.key} data-solo-games className="fp-game-stage grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {category.games.map((game, i) => (
+            )}
+            completed={gamesIn('young').filter((g) => levelReached(g.id) > 1).length}
+            classNumber={ages.mine === 'young' ? ages.info?.classNumber : null}
+            stars={totalStars()}
+            achievements={earnedCount}
+            onProgress={() => setProgressOpen(true)}
+            onGroup={() => setMode('group')}
+          />
+        )}
+        {progressOpen && <ProgressSheet zone={ages.zone} band={ages.band} onClose={() => setProgressOpen(false)} />}
+        {!group && !choosing && sectionKey && sectionKey !== 'young' && (() => {
+          const category = CATEGORIES.find((c) => c.key === categoryKey) || CATEGORIES[0];
+          const section = SECTIONS.find((x) => x.key === ages.zone) || SECTIONS[1];
+          const look = SECTION_LOOK[section.key];
+          const games = zoneGames(category);
+          return (
+            <>
+            {/* A phone (2026-11-14, as before the sections): the category chips on their own, one row scrolling sideways. */}
+            <div className="flex gap-2 overflow-x-auto px-0.5 pt-1 pb-2 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Game categories" data-solo-categories-phone>
+              {CATEGORIES.map((c) => {
+                const Icon = c.icon;
+                const on = c.key === category.key;
+                return (
+                  <button key={c.key} type="button" role="tab" aria-selected={on} onClick={() => setCategoryKey(c.key)}
+                    className={`inline-flex shrink-0 items-center gap-2.5 rounded-full py-2 pr-5 pl-2 text-sm font-black transition-colors ${on ? `bg-gradient-to-r text-white shadow-md ${c.band} ${c.glow}` : 'bg-white text-ink-700 ring-1 ring-line-200 hover:ring-violet-300'}`}>
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-full ${on ? 'bg-white/25' : 'bg-violet-50 text-violet-600'}`}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Wider screens: the category tabs on their own row, apart from the cards' panel (2026-11-16, the user). */}
+            <div className="mb-3 hidden gap-2 overflow-x-auto pb-1 lg:flex" role="tablist" aria-label="Game categories" data-solo-categories>
+              {CATEGORIES.map((c) => {
+                const Icon = c.icon;
+                const on = c.key === category.key;
+                return (
+                  <button key={c.key} type="button" role="tab" aria-selected={on} onClick={() => setCategoryKey(c.key)} data-games-category={c.key}
+                    className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl py-2 pr-4 pl-2 text-left text-xs font-black transition-colors sm:rounded-full sm:text-sm ${on ? `bg-gradient-to-r text-white shadow-md ${look.tabOn}` : look.tab}`}>
+                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${on ? 'bg-white/25' : 'bg-white shadow-sm'}`}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 leading-tight">{c.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <section className={`rounded-[26px] p-3.5 sm:p-5 ${look.panel}`} data-section={section.key}>
+              <div key={`${section.key}-${category.key}`} data-solo-games className={`fp-game-stage grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5`}>
+                {games.map(({ game, badge }, i) => (
                   <GameCard
                     key={game.id}
-                    game={game}
-                    theme={GROUP_ACCENTS[SOLO_COLOURS[i % SOLO_COLOURS.length]]}
-                    art={soloArt(game.id)}
-                    tight
+                    game={{ ...game, blurb: `${MULTIPLAYER[game.id] ? '👥 Solo & group · ' : 'Solo · '}${game.blurb}` }}
+                    theme={GROUP_ACCENTS[CARD_CYCLE[i % CARD_CYCLE.length]]}
+                    art={section.key === 'smart' && SMART_PICTURE.has(game.id) ? `/games/smart/${game.id}.jpg` : section.key === 'master' && MASTER_PICTURE.has(game.id) ? `/games/master/${game.id}.${MASTER_SVG.has(game.id) ? 'svg' : 'jpg'}` : soloArt(game.id)}
                     index={i}
                     reached={levelReached(game.id)}
                     stars={starsForGame(game.id)}
                     recent={game.id === recentId}
                     onPlay={play}
+                    badge={null}
+                    disabled={!badge.playable}
+                    playLabel={badge.kind === 'preview' ? 'Preview' : null}
                   />
                 ))}
               </div>
             </section>
+            </>
           );
         })()}
+        {/* Classic games (2026-11-14): the games outside the 84, kept playable with their records. */}
+        {!group && !choosing && extraGames.length > 0 && (
+          <details className="rounded-2xl bg-white p-3.5 ring-1 ring-line-200 sm:p-4" data-classic-games>
+            <summary className="cursor-pointer text-sm font-black text-ink-700">More classic games ({extraGames.length})</summary>
+            <div className="mt-3 grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {extraGames.map((game, i) => (
+                <GameCard key={game.id} game={game} theme={GROUP_ACCENTS[CARD_CYCLE[i % CARD_CYCLE.length]]} art={soloArt(game.id)} index={i}
+                  reached={levelReached(game.id)} stars={starsForGame(game.id)} recent={game.id === recentId} onPlay={play} />
+              ))}
+            </div>
+          </details>
+        )}
+        {/* The student's own progress: skills, bests, weeks, achievements, group results apart (2026-11-13). */}
       </div>
     </div>
   );

@@ -38,6 +38,7 @@
  * once it is over).
  */
 const { GameError, clone } = require('./contract');
+const { zoneOf } = require('./zones');
 
 // One colour a seat (up to twenty in a Group Brain room).
 const PALETTE = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#0ea5e9', '#a855f7', '#ec4899', '#84cc16', '#14b8a6', '#f97316', '#3b82f6', '#e11d48', '#22c55e', '#eab308', '#8b5cf6', '#06b6d4', '#d946ef', '#65a30d', '#0f766e', '#b45309'];
@@ -120,8 +121,9 @@ const placesOf = (state) => {
  *   questions       { min, max, fallback }   how many a game has
  *   seconds         { min, max, fallback }   time on each question
  *   revealMs        how long the answer shows
- *   pick(count, rng, level) -> raw questions { topic, prompt, code?, lang?, options, answer, explain?, fixedOrder? }
- *                   `level` is the game's difficulty: 'easy' | 'medium' | 'hard'
+ *   pick(count, rng, level, met, zone) -> raw questions { topic, prompt, code?, lang?, options, answer, explain?, fixedOrder? }
+ *                   `level` is the game's difficulty: 'easy' | 'medium' | 'hard'; `zone` the room's age zone
+ *                   ('young' | 'smart' | 'master', ./zones.js), or null for a room made before zones
  *
  * options.difficulty (a Group Brain room's): 'easy' gives half as long again
  * on each question, 'hard' 30% less, unless questionSeconds is set.
@@ -236,19 +238,24 @@ const makeEngine = (config) => {
             if (!Array.isArray(seats) || seats.length < 2 || seats.length > engine.maxSeats) throw new GameError(`${config.label} needs 2 to ${engine.maxSeats} players.`);
             const o = options || {};
             const level = LEVELS.includes(o.difficulty) ? o.difficulty : 'medium';
-            const count = clampNumber(o.questionCount, config.questions.fallback, config.questions.min, config.questions.max);
+            // A room's age zone (./zones.js, 2026-11-13): what the questions are about; null for rooms made before.
+            const zone = zoneOf(o);
+            // Young Thinkers (Classes 1–5): a shorter game, unless the room asks for a number.
+            const fallback = zone === 'young' ? Math.max(config.questions.min, Math.min(8, config.questions.fallback)) : config.questions.fallback;
+            const count = clampNumber(o.questionCount, fallback, config.questions.min, config.questions.max);
             const seconds = clampNumber(o.questionSeconds, Math.round(config.seconds.fallback * LEVEL_TIME[level]), config.seconds.min, config.seconds.max);
             // Questions nobody at the table has met first (services/seenQuestions.js, 2026-10-31): drawn again for
             // any already met, and those only used when there is nothing new left.
             const met = typeof ctx.met === 'function' ? ctx.met : null;
-            let raw = config.pick(count, ctx.rng, level, met);
+            let raw = config.pick(count, ctx.rng, level, met, zone);
             for (let tries = 0; met && tries < 6 && raw.some(met); tries += 1) {
                 const have = new Set(raw.map((q) => q.prompt + JSON.stringify(q.options)));
-                const more = config.pick(count, ctx.rng, level, met).filter((q) => !met(q) && !have.has(q.prompt + JSON.stringify(q.options)));
+                const more = config.pick(count, ctx.rng, level, met, zone).filter((q) => !met(q) && !have.has(q.prompt + JSON.stringify(q.options)));
                 raw = [...raw.filter((q) => !met(q)), ...more, ...raw.filter(met)].slice(0, count);
             }
             if (Array.isArray(ctx.dealt)) ctx.dealt.push(...raw);
-            const extra = (Array.isArray(o.extraQuestions) ? o.extraQuestions : [])
+            // An admin's questions are written for no zone in particular: kept out of Young Thinkers' rooms.
+            const extra = (zone !== 'young' && Array.isArray(o.extraQuestions) ? o.extraQuestions : [])
                 .filter((q) => q && typeof q.prompt === 'string' && Array.isArray(q.options) && q.options.length === 4 && new Set(q.options.map(String)).size === 4 && [0, 1, 2, 3].includes(q.answer));
             if (extra.length) {
                 const n = Math.min(Math.floor(count / 3), extra.length);
@@ -259,6 +266,7 @@ const makeEngine = (config) => {
                 game: config.id,
                 mode: config.mode,
                 difficulty: level,
+                ...(zone ? { zone } : {}),
                 status: 'active',
                 seats: seats.map((s) => ({ name: s.name || 'Player', side: s.side })),
                 questions,

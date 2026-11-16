@@ -37,7 +37,10 @@ const GAMES = {
     quickcompare: ['Quick Compare', '⚡', 'Pick the side with the larger value.', fromMaker(MAKERS.compare), 10],
     scalebalance: ['Scale Balance', '⚖️', 'Read the scales and find the heaviest — or the lightest.', fromMaker(MAKERS.scale), 25],
     // With a picture, or something to memorise first (2026-10-29).
-    colourmatch: ['Colour Match', '🎨', 'Name the ink colour, not the word.', fromMaker(MAKERS.colour), 8],
+    // Young Thinkers (./zones.js, 2026-11-13): the first half matches colours and shapes, with nothing to read; then the ink.
+    colourmatch: ['Colour Match', '🎨', 'Name the ink colour, not the word.', (count, rng, level, met, zone) => (zone === 'young'
+        ? [...fromMaker(MAKERS.colourLook)(Math.ceil(count / 2), rng, 'easy', met, zone), ...fromMaker(MAKERS.colour)(Math.floor(count / 2), rng, 'easy', met, zone)]
+        : fromMaker(MAKERS.colour)(count, rng, level, met, zone)), 8],
     dotcount: ['Dot Count', '🔵', 'How many dots of one colour? Count fast.', fromMaker(MAKERS.dots), 15],
     clockread: ['Clock Read', '🕰️', 'Read the hands and pick the time.', fromMaker(MAKERS.clock), 15],
     shapematrix: ['Shape Matrix', '🧮', 'Spot the rule and finish the grid.', fromMaker(MAKERS.matrix), 25],

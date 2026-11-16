@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeft, Smartphone } from 'lucide-react';
 
 /**
- * The Lost Kingdom and The Final Vault on a phone (asked 2026-11-05: "play it
+ * The Final Vault on a phone (asked 2026-11-05: "play it
  * vertically, full screen, fitted to the device, everything clearly
  * visible"): while `on`, the game leaves the page and fills the screen,
  * upright, above the site's header and bottom bar, scrolling inside itself.

@@ -1,79 +1,26 @@
 import { useState } from 'react';
 import { Flame } from 'lucide-react';
 import GameShell from './GameShell';
-import useGameProgress, { pressure, starsCap, starsFor, starsOn } from './levels';
+import useGameProgress, { starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 import useAnswerReveal from './useAnswerReveal';
 import useFresh from './useFresh';
-
-const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-/** A number of exactly `d` digits. */
-const digits = (d) => rnd(d === 1 ? 2 : 10 ** (d - 1), 10 ** d - 1);
+import { sprintConfig, sprintQuestion, fmt } from '../../data/bands/math';
 
 /**
- * The stages, by how hard a level is (levels.js `pressure`; asked 2026-11-05:
- * "each next level harder — two digits, then three"). So they ride the same
- * roller coaster as every game: five easy levels, five medium, five hard, then
- * back down to a slightly harder easy. Each row: the digits of each side of a
- * + or −, the digits of × and ÷, the operations, the target and the clock.
+ * What a sprint asks, by age band (data/bands/math.js, 2026-11-13): Classes 1–2 count pictures and add or take away
+ * within 20 — never ×; Classes 3–5 work to 100 with times tables and simple ÷; 6–8 meet negatives and two-step
+ * sums; 9–10 order of operations and squares; 11–12 percentages of, powers, roots and brackets. The band's own
+ * level (difficulty, step) climbs inside that, so every age gets the roller coaster without leaving its syllabus.
  */
-const STAGES = [
-  { at: 0, add: [1, 1], mul: null, ops: ['+', '-'], target: 8, seconds: 60 },
-  { at: 0.05, add: [2, 1], mul: null, ops: ['+', '-'], target: 7, seconds: 60 },
-  { at: 0.09, add: [2, 2], mul: [1, 1], ops: ['+', '-', '×'], target: 7, seconds: 60 },
-  { at: 0.15, add: [3, 2], mul: [2, 1], ops: ['+', '-', '×', '÷'], target: 6, seconds: 70 },
-  { at: 0.22, add: [3, 3], mul: [2, 1], ops: ['+', '-', '×', '÷'], target: 6, seconds: 75 },
-  { at: 0.35, add: [4, 3], mul: [2, 2], ops: ['+', '-', '×', '÷'], target: 5, seconds: 80 },
-  { at: 0.55, add: [4, 4], mul: [3, 1], ops: ['+', '-', '×', '÷'], target: 5, seconds: 80 }
-];
-
-/**
- * Build a question whose answer is always a whole number.
- *
- * Division is generated from its own product rather than by dividing two
- * random numbers — the only way to guarantee it divides cleanly. Otherwise the
- * game would occasionally ask for 7 ÷ 3 and mark every answer wrong.
- */
-const makeQuestion = ({ add, mul, ops }) => {
-  const op = ops[rnd(0, ops.length - 1)];
-  let a;
-  let b;
-  let answer;
-
-  if (op === '+') {
-    [a, b] = Math.random() < 0.5 ? [digits(add[0]), digits(add[1])] : [digits(add[1]), digits(add[0])];
-    answer = a + b;
-  } else if (op === '-') {
-    const x = digits(add[0]);
-    const y = digits(add[1]);
-    // Never negative, never zero: the larger first.
-    [a, b] = x === y ? [x + 1, y] : [Math.max(x, y), Math.min(x, y)];
-    answer = a - b;
-  } else if (op === '×') {
-    a = mul[0] === 1 ? rnd(2, 12) : digits(mul[0]);
-    b = mul[1] === 1 ? rnd(2, 9) : digits(mul[1]);
-    answer = a * b;
-  } else {
-    b = mul[1] === 1 ? rnd(2, 9) : rnd(11, 25);
-    answer = mul[0] === 1 ? rnd(2, 12) : digits(mul[0]);
-    a = b * answer;
-  }
-
-  // Near misses — a slipped carry, a column off by ten — not numbers that can be ruled out at a glance.
-  const misses = [1, -1, 2, -2, 10, -10, ...(answer >= 100 ? [100, -100, 11, -9] : [3, -3])];
-  const options = new Set([answer]);
-  while (options.size < 4) {
-    const candidate = answer + misses[rnd(0, misses.length - 1)];
-    if (candidate >= 0) options.add(candidate);
-  }
-
-  return { text: `${a} ${op} ${b}`, answer, options: [...options].sort(() => Math.random() - 0.5) };
+const OBJECTIVE = {
+  foundation: (t) => `Count and add! Tap the right number. Get ${t} right.`,
+  developing: (t) => `Add, take away, times and share. Get ${t} right before time runs out.`,
+  intermediate: (t) => `Negatives and two-step sums. Get ${t} right before time runs out.`,
+  analytical: (t) => `× and ÷ before + and −, brackets first. Get ${t} right before time runs out.`,
+  advanced: (t) => `Percentages, powers, roots and brackets. Get ${t} right before time runs out.`
 };
-
-/** The stage a level plays: the bigger sums take longer, so the bar drops a little as they grow. */
-const configFor = (level) => [...STAGES].reverse().find((s) => pressure(level) >= s.at);
 
 /** ⚡ Math & speed: as many correct answers as you can before time runs out. */
 export default function MathSprint({ onExit }) {
@@ -87,24 +34,63 @@ export default function MathSprint({ onExit }) {
   );
 }
 
+/** One picture item; `crossed` ones are being taken away. */
+function Thing({ emoji, crossed }) {
+  return (
+    <span className={`relative inline-flex h-10 w-10 items-center justify-center text-3xl leading-none sm:h-11 sm:w-11 sm:text-4xl ${crossed ? 'opacity-40' : ''}`} aria-hidden="true">
+      {emoji}
+      {crossed && <span className="absolute inset-0 flex items-center justify-center text-3xl font-black text-rose-600">✕</span>}
+    </span>
+  );
+}
+
+function Things({ emoji, n, crossed = 0 }) {
+  return (
+    <span className="inline-flex max-w-[15rem] flex-wrap justify-center gap-1">
+      {Array.from({ length: n }, (_, i) => <Thing key={i} emoji={emoji} crossed={i >= n - crossed} />)}
+    </span>
+  );
+}
+
+/** The pictures for the youngest: a group to count, two groups to join, or one with some crossed out. */
+function Picture({ pic }) {
+  const label = !pic.op ? `${pic.a} ${pic.emoji}` : pic.op === '+' ? `${pic.a} and ${pic.b} more` : `${pic.a}, take away ${pic.b}`;
+  return (
+    <div role="img" aria-label={label} className="mx-auto mb-4 flex flex-wrap items-center justify-center gap-3 rounded-3xl bg-amber-50 p-3 ring-1 ring-amber-200 ring-inset">
+      {!pic.op && <Things emoji={pic.emoji} n={pic.a} />}
+      {pic.op === '+' && (
+        <>
+          <Things emoji={pic.emoji} n={pic.a} />
+          <span className="text-3xl font-black text-amber-700">+</span>
+          <Things emoji={pic.emoji} n={pic.b} />
+        </>
+      )}
+      {pic.op === '−' && <Things emoji={pic.emoji} n={pic.a} crossed={pic.b} />}
+    </div>
+  );
+}
+
 function Round({ progress, onExit }) {
-  const config = configFor(progress.level);
+  const config = sprintConfig(progress.ageBand, progress.difficulty, progress.levelNo);
+  const young = config.band === 'foundation';
   const fresh = useFresh();
-  const [question, setQuestion] = useState(() => fresh(() => makeQuestion(config)));
+  const [question, setQuestion] = useState(() => fresh(() => sprintQuestion(config)));
   const [score, setScore] = useState(0);
+  const [wrong, setWrong] = useState(0);
   const [streak, setStreak] = useState(0);
   const [flash, setFlash] = useState(null);
   const [started, setStarted] = useState(false);
-  const { busy, showWrong, toneOf } = useAnswerReveal();
+  // Long enough to read why: the right answer and one line of working stay up after a miss.
+  const { busy, showWrong, toneOf } = useAnswerReveal(young ? 2400 : 2000);
   const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
   const stars = over ? starsFor(score, config.target) : 0;
-  useRecordStars(progress, over, stars);
+  useRecordStars(progress, over, stars, { correct: score, wrong, hints: 0, score, limitMs: config.seconds * 1000 });
 
   const answer = (value) => {
     if (over || busy) return;
-    const next = () => setQuestion(fresh(() => makeQuestion(config)));
+    const next = () => setQuestion(fresh(() => sprintQuestion(config)));
     if (value === question.answer) {
       setScore((s) => s + 1);
       setStreak((s) => s + 1);
@@ -112,10 +98,9 @@ function Round({ progress, onExit }) {
       next();
       setTimeout(() => setFlash(null), 300);
     } else {
-      // A wrong answer costs the streak, never the score — going backwards for
-      // a slip is punishing, and this is meant to be played for two minutes.
-      // The buzz, the pick red and the right answer green, then the next sum.
+      // A wrong answer costs the streak, never the score. The pick red, the right answer green and why, then on.
       setStreak(0);
+      setWrong((w) => w + 1);
       showWrong(value, question.answer, next);
     }
   };
@@ -135,7 +120,7 @@ function Round({ progress, onExit }) {
           ? {
               gameId: progress.gameId,
               level: progress.level,
-              objective: `Reach ${config.target} correct answers before the clock runs out.`,
+              objective: OBJECTIVE[config.band](config.target),
               seconds: config.seconds,
               stars: starsOn(progress.gameId, progress.level),
               onStart: () => setStarted(true)
@@ -164,23 +149,27 @@ function Round({ progress, onExit }) {
     >
       {started && !over && (
         <div className="mx-auto max-w-md text-center">
+          {question.pic && <Picture pic={question.pic} />}
           <p
-            className={`text-4xl font-black tabular-nums transition-colors sm:text-5xl ${
-              flash === 'right' ? 'text-emerald-600' : flash === 'wrong' ? 'text-rose-600' : 'text-ink-900'
+            className={`font-black break-words tabular-nums transition-colors ${question.kind === 'count' ? 'text-3xl' : question.text.length > 16 ? 'text-2xl min-[400px]:text-3xl sm:text-4xl' : 'text-3xl min-[400px]:text-4xl sm:text-5xl'} ${
+              flash === 'right' ? 'text-emerald-600' : 'text-ink-900'
             }`}
           >
             {question.text}
           </p>
-          <div className="mt-6 grid grid-cols-2 gap-2.5">
+          <p className="mt-2 min-h-5 text-sm font-bold text-rose-700" role="status" aria-live="polite">
+            {busy ? `It's ${fmt(question.answer)}. ${question.explain}` : ''}
+          </p>
+          <div className={`mt-4 grid gap-2.5 ${question.options.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {question.options.map((option) => (
               <button
                 key={option}
                 type="button"
                 onClick={() => answer(option)}
                 disabled={busy}
-                className={`fp-press min-h-14 rounded-2xl bg-surface-50 text-xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset tabular-nums ${busy ? '' : 'hover:bg-amber-50 hover:ring-amber-300'} ${toneOf(option)}`}
+                className={`fp-press rounded-2xl bg-surface-50 font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset tabular-nums ${young ? 'min-h-16 text-3xl' : 'min-h-14 text-xl'} ${busy ? '' : 'hover:bg-amber-50 hover:ring-amber-300'} ${toneOf(option)}`}
               >
-                {option}
+                {fmt(option)}
               </button>
             ))}
           </div>

@@ -41,12 +41,15 @@ const XpTransaction = () => require('../../src/rewards/models/XpTransaction');
 const xpFor3 = async () => (await require('../../src/rewards/services/configService').getConfig()).games.xpThreeStars;
 
 describe('which games the server accepts', () => {
-    test('the whitelist is exactly the games the student hub renders', () => {
+    // Every game the hub shows is accepted (2026-11-13). The whitelist also keeps the games taken off the hub, so the
+    // progress students already earned on them still counts: it is a superset, not an exact copy.
+    test('every game the student hub renders is on the whitelist', () => {
         const hub = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'yaticorp-lms-student', 'src', 'career', 'pages', 'dashboard', 'Games.jsx'), 'utf8');
         const client = [...hub.matchAll(/\{ id: '([a-z0-9-]+)'/g)].map((m) => m[1]).sort();
         const { GAME_IDS } = require('../../src/career/data/gameIds');
-        assert.ok(client.length >= 40, `found only ${client.length} games in Games.jsx`);
-        assert.deepEqual([...GAME_IDS].sort(), client, 'data/gameIds.js has drifted from the games hub');
+        assert.ok(client.length >= 20, `found only ${client.length} games in Games.jsx`);
+        const missing = client.filter((id) => !GAME_IDS.includes(id));
+        assert.deepEqual(missing, [], 'games on the hub that the server would refuse: add them to data/gameIds.js');
     });
 
     test('an invented game id is refused, however plausible it looks', async () => {

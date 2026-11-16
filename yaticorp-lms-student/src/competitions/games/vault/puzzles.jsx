@@ -458,8 +458,8 @@ export function FinalPuzzle({ cur, box, label, onSubmit, disabled, shake, audio 
                 </div>
             ))}
             {/* Step 2: this game's rule for the code. */}
-            <p className="absolute flex items-center justify-center text-center font-semibold leading-[1.25] text-[#f5e6c4]"
-                style={{ left: '7%', top: '64%', width: '86%', height: '7.4%', fontSize: 'clamp(7px, 2.5cqw, 16px)', background: '#22140a', borderRadius: '1.5cqw', boxShadow: '0 0 0.8cqw 0.3cqw #22140a' }} data-final-rule>{cur.rule}</p>
+            <p className="absolute flex items-center justify-center text-center font-semibold leading-[1.2] text-[#f5e6c4]"
+                style={{ left: '7%', top: '64%', width: '86%', height: '7.4%', fontSize: 'clamp(7px, 2.1cqw, 14px)', background: '#22140a', borderRadius: '1.5cqw', boxShadow: '0 0 0.8cqw 0.3cqw #22140a' }} data-final-rule>{cur.rule}</p>
             {/* The four dials: ⌃ and ⌄ where the design drew them. */}
             {digits.map((v, i) => (
                 <div key={i} className="absolute" style={centred({ x: FINAL_DIALS[i], y: 78.2, w: 11.3, h: 13.5 })} data-final-dial={i}>

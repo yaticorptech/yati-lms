@@ -18,8 +18,8 @@
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Headphones, Loader2, Square, Volume2 } from 'lucide-react';
-import { readAloud, readingSpeech, usePrefetch } from '../meta';
-import { comicWords } from '../speechText';
+import { play, readAloud, usePrefetch } from '../meta';
+import { comicSpeech, sentencesOf, voiceSpec } from '../speechText';
 
 // Soft brown outlines, as a children's picture book draws them (2026-11-05, the user's picture).
 const INK = '#4a3222';
@@ -56,9 +56,16 @@ const MOTION = `
   .cm-on .cm-rain { animation: cm-rain .6s linear infinite; }
   .cm-on .cm-bird { animation: cm-fly 18s linear infinite; }
   .cm-on .cm-wing { transform-box: fill-box; transform-origin: center; animation: cm-flap .5s ease-in-out infinite alternate; }
-  .cm-panel { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
-  .cm-panel.cm-on { opacity: 1; transform: none; }
+  .cm-person .cm-lift { transition: transform .2s ease; }
+  .cm-person:hover .cm-lift, .cm-person:focus-visible .cm-lift { transform: translateY(-5px); }
+  .cm-talking .cm-mouth { animation: cm-mouth .2s ease-in-out infinite alternate; }
+  .cm-burst > * { transform-box: fill-box; transform-origin: center; animation: cm-pop .9s ease-out both; }
+  .cm-tapme { transform-box: fill-box; transform-origin: center; animation: cm-ring 1.6s ease-out infinite; }
 }
+.cm-person { outline: none; }
+.cm-person:focus-visible .cm-ring { stroke: #ffca28; stroke-width: 3; }
+@keyframes cm-pop { 0% { transform: translate(0, 0) scale(.2); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(var(--dx, 0), -26px) scale(1.1); opacity: 0; } }
+@keyframes cm-ring { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.5); opacity: 0; } }
 @keyframes cm-walk { from { transform: translateX(var(--from, -140px)); } to { transform: none; } }
 @keyframes cm-step { from { transform: translateY(0); } to { transform: translateY(-4px); } }
 @keyframes cm-foot { from { transform: translateY(0); } to { transform: translateY(-5px); } }
@@ -488,25 +495,30 @@ function Arm({ pts, skin }) {
  * a happy face — eyes with a shine, eyebrows, pink cheeks — clothes with gold borders, a soft shadow at their feet.
  * Their look (skin, clothes, hair), how they stand, which way they face, what they hold; `size` for a close-up.
  */
-function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, speaking, size = 1, walkFrom = null, hop = 0, onTap, delay = 0 }) {
+function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, speaking, size = 1, walkFrom = null, hop = 0, onTap, delay = 0, talking = false, hint = false }) {
     const s = (look.child ? 0.58 : 0.75) * size;
     const w = look.big ? 1.15 : 1;
     const skin = look.skin || '#c68642';
     const grey = ['grey', 'greybun'].includes(look.hair);
     const hairColor = grey ? '#ededed' : '#2b211c';
     const [back, front] = (ARMS[pose] || ARMS.stand)(w);
-    const mouth = MOUTH[pose] || (speaking ? 'talk' : 'calm');
+    const mouth = MOUTH[pose] || (speaking || talking ? 'talk' : 'calm');
     const hand = front.slice(-2);
     const long = look.woman;
     // Moving (2026-11-07): walking in from `walkFrom` (px across), breathing — or bouncing, cheering — and, while
     // speaking, nodding, talking and gesturing with the front arm. A tap makes them hop (`hop` changes).
     const body = pose === 'cheer' ? 'cm-cheer' : 'cm-breathe';
     return (
-        <g className={walkFrom != null ? 'cm-walk' : undefined} style={walkFrom != null ? { '--from': `${walkFrom}px` } : undefined}
-            onClick={onTap} cursor={onTap ? 'pointer' : undefined} data-comic-person={look.name}>
+        <g className={`cm-person ${walkFrom != null ? 'cm-walk' : ''} ${talking ? 'cm-talking' : ''}`} style={walkFrom != null ? { '--from': `${walkFrom}px` } : undefined}
+            onClick={onTap} cursor={onTap ? 'pointer' : undefined} data-comic-person={look.name}
+            role={onTap ? 'button' : undefined} tabIndex={onTap ? 0 : undefined} aria-label={onTap ? `Tap ${look.tag || look.name || 'them'} to hear them` : undefined}
+            onKeyDown={onTap ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap(); } } : undefined}>
         <g key={hop} className={hop ? 'cm-hop' : undefined}>
         <g transform={`translate(${x} ${y}) scale(${face === 'left' ? -s : s} ${s})`}>
-            <ellipse cx="2" cy="0" rx={24 * w} ry="4.5" fill="rgba(40,60,20,.18)" />
+            {/* A soft ring at the feet of someone with words to say, until the panel is first tapped. */}
+            {hint && <ellipse className="cm-tapme" cx="2" cy="0" rx={30 * w} ry="7" fill="none" stroke="#ffca28" strokeWidth="3" />}
+            <ellipse className="cm-ring" cx="2" cy="0" rx={24 * w} ry="4.5" fill="rgba(40,60,20,.18)" />
+        <g className="cm-lift">
         <g className="cm-step">
             {/* The feet stay on the ground while the rest breathes; they step while walking. */}
             <ellipse className="cm-foot-a" cx="-8" cy="-3" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.4" />
@@ -589,6 +601,14 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
         </g>
         </g>
         </g>
+            {hop > 0 && (
+                <g key={`burst-${hop}`} className="cm-burst" aria-hidden="true">
+                    {[[-22, -150, '#ffca28', -14], [26, -158, '#ff6fa3', 14], [2, -172, '#7c5cd6', 0]].map(([bx, by, c, dx]) => (
+                        <path key={bx} style={{ '--dx': `${dx}px` }} d={`M ${bx} ${by - 7} L ${bx + 2} ${by - 2} L ${bx + 7} ${by} L ${bx + 2} ${by + 2} L ${bx} ${by + 7} L ${bx - 2} ${by + 2} L ${bx - 7} ${by} L ${bx - 2} ${by - 2} Z`} fill={c} stroke={INK} strokeWidth="1" />
+                    ))}
+                </g>
+            )}
+        </g>
         </g>
         </g>
     );
@@ -633,12 +653,8 @@ function Title({ text, wide, capRef }) {
 
 /** A line of narration read aloud, from the purple speaker in its bar. */
 function SayLine({ text, lang }) {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-    const say = () => {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = lang || 'en-IN'; u.rate = 0.92;
-        window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
-    };
+    if (typeof window === 'undefined') return null;
+    const say = () => play(null, text, lang || 'en-IN');
     return (
         <button type="button" onClick={say} aria-label={`Listen: ${text}`} className="flex h-[2.4em] w-[2.4em] shrink-0 items-center justify-center rounded-full text-white transition-transform active:scale-95"
             style={{ background: 'linear-gradient(#9475f2, #6c4ad6)', boxShadow: '0 0.15em 0 #5236b0, 0 0.25em 0.5em rgba(82,54,176,.35)' }} data-comic-say>
@@ -687,24 +703,27 @@ function Panel({ panel, comic, theme, wide, index }) {
     useEffect(() => {
         const el = box.current;
         if (!el || typeof IntersectionObserver === 'undefined') return undefined;
-        const io = new IntersectionObserver(([e]) => setOn(e.isIntersecting), { threshold: 0.25 });
+        // Every panel is shown from the start (2026-11-12, "the whole story should load at once"); the motion starts
+        // just before a panel scrolls in and stays on, so nothing disappears or replays while scrolling back.
+        const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setOn(true); io.disconnect(); } }, { rootMargin: '200px 0px' });
         io.observe(el);
         return () => io.disconnect();
     }, []);
     // A tap on someone: they hop, their bubble lights up, and their words are said aloud.
     const [hops, setHops] = useState({});
     const [said, setSaid] = useState(null);
+    const [tapped, setTapped] = useState(false);
     useEffect(() => { if (!said) return undefined; const t = setTimeout(() => setSaid(null), 2400); return () => clearTimeout(t); }, [said]);
+    // A tap (or Enter) on someone (2026-11-12, "more interactive"): they hop with a burst of stars, their bubble
+    // lights up, their mouth moves, and their line is said in the story's AI voice — the clips downloaded first.
+    // Someone with no line says their name.
     const tap = (who) => {
+        setTapped(true);
         setHops((h) => ({ ...h, [who]: (h[who] || 0) + 1 }));
-        const words = (panel.say || []).find((b) => b.who === who)?.text;
+        const words = (panel.say || []).find((b) => b.who === who)?.text || people[who]?.tag;
         if (!words) return;
         setSaid(who);
-        if (typeof window !== 'undefined' && window.speechSynthesis) {
-            const u = new SpeechSynthesisUtterance(words);
-            u.lang = comic.locale || 'en-IN'; u.rate = 0.95;
-            window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
-        }
+        play(null, words, comic.locale || 'en-IN', { voice: voiceSpec(people[who] || {}, panel.cast.find((c) => c.who === who)?.pose, words) });
     };
     const sized = (k) => (wide ? `clamp(${10 * k}px, ${2.05 * k}cqw, ${15 * k}px)` : `clamp(${10 * k}px, ${3.1 * k}cqw, ${15 * k}px)`);
     const fontSize = sized(1);
@@ -733,7 +752,7 @@ function Panel({ panel, comic, theme, wide, index }) {
                         const walkFrom = c.walk && !panel.zoom ? (c.face === 'left' ? W - px + 70 : -(px + 70)) : null;
                         return people[c.who] && (
                             <Person key={c.who} look={people[c.who]} pose={c.pose} face={c.face} x={px} y={panel.zoom ? (people[c.who].child ? 292 : 332) : c.y} holds={c.holds} speaking={speakers.has(c.who)} size={zoom}
-                                walkFrom={walkFrom} hop={hops[c.who] || 0} onTap={() => tap(c.who)} delay={k * 0.45} />
+                                walkFrom={walkFrom} hop={hops[c.who] || 0} onTap={() => tap(c.who)} delay={k * 0.45} talking={said === c.who} hint={on && !tapped && speakers.has(c.who)} />
                         );
                     })}
                     {!panel.zoom && (panel.props || []).filter((p) => p.front).map((p, i) => <Prop key={i} prop={p} W={W} theme={theme} />)}
@@ -749,7 +768,7 @@ function Panel({ panel, comic, theme, wide, index }) {
                     <p ref={cap} className="absolute left-[2.5%] top-[4%] max-w-[64%] rounded-[0.8em] px-[0.85em] py-[0.35em] font-extrabold leading-snug" style={{ fontSize: wordsSize, color: LOOK.ink, background: 'linear-gradient(#ffe68f, #ffd23f)', boxShadow: '0 0.14em 0 #e0a800, 0 0.3em 0.6em rgba(0,0,0,.15)' }} data-comic-caption>{caption}</p>
                 )}
                 {placed.map((b) => (
-                    <div key={b.who} className="absolute" style={{ left: `${b.left}%`, top: `${b.top}%`, width: `${b.w}%` }} data-bubble={b.who}>
+                    <div key={b.who} className="absolute cursor-pointer" style={{ left: `${b.left}%`, top: `${b.top}%`, width: `${b.w}%` }} data-bubble={b.who} onClick={() => tap(b.who)}>
                         <p className="relative border-[2.5px] bg-white text-center font-extrabold leading-snug" style={{ fontSize: wordsSize, color: LOOK.ink, borderColor: LOOK.purple, borderRadius: '50%', padding: '0.85em 1.4em', transition: 'transform .3s', transform: said === b.who ? 'scale(1.06)' : undefined, boxShadow: said === b.who ? '0 0 0 3px #ffca28' : '0 0.2em 0.5em rgba(60,40,140,.12)' }} data-bubble-style="oval">
                             <span className="sr-only">{b.name ? `${b.name} says: ` : ''}</span>{b.text}
                             <svg className="absolute" style={{ left: `calc(${b.tail}% - 9px)`, top: 'calc(100% - 3.5px)' }} width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -773,8 +792,9 @@ function Panel({ panel, comic, theme, wide, index }) {
     );
 }
 
-// The story's words in reading order: speechText.js (comicWords), so its audio can be made ahead.
-const wordsOf = comicWords;
+// The story read as a conversation (speechText.js, comicSpeech): [text, lang, voice] in reading order — each person in
+// their own voice, the narrator in a woman's — sentence by sentence, as readAloud and the audio pack ask for them.
+const speechOf = (comic) => comicSpeech(comic).flatMap(([t, l, v]) => sentencesOf(t).map((x) => [x, l, v]));
 
 /** How many columns each panel spans: a wide one the whole row; one that would be alone at a row's end, the rest of it. */
 const spansOf = (panels, columns) => {
@@ -805,7 +825,7 @@ export default function Comic({ comic }) {
     const stopper = useRef(null);
     useEffect(() => () => stopper.current?.(), []);
     // The whole story's audio fetched as the page opens, so Read aloud plays at once (2026-11-05).
-    usePrefetch(readingSpeech(comic?.panels ? wordsOf(comic) : [], comic?.locale || 'en-IN'), [comic]);
+    usePrefetch(speechOf(comic), [comic]);
     if (!comic?.panels?.length) return null;
     const theme = LOOK;
     // Two to a row on a page wide enough (2026-11-04, every story), one on a phone.
@@ -815,7 +835,8 @@ export default function Comic({ comic }) {
     const toggle = () => {
         if (reading) { stopper.current?.(); stopper.current = null; setReading(false); return; }
         setReading(true);
-        stopper.current = readAloud(wordsOf(comic), comic.locale || 'en-IN', { onLoading: setLoading, onEnd: () => { stopper.current = null; setReading(false); } });
+        // A pause between lines, longer when the speaker changes (2026-11-12): heard as a conversation, not one reading.
+        stopper.current = readAloud(comicSpeech(comic), comic.locale || 'en-IN', { gap: 650, onLoading: setLoading, onEnd: () => { stopper.current = null; setReading(false); } });
     };
     return (
         <div ref={page} className="space-y-3" data-comic data-comic-theme={comic.theme || 'summer'} lang={(comic.locale || 'en-IN').split('-')[0]}>

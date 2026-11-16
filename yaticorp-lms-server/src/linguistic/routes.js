@@ -59,6 +59,16 @@ router.use(async (_req, _res, next) => { await ensureSeeded(); next(); });
 router.use((req, _res, next) => { svc.noteOpenAll(req.user); next(); });
 
 /** A published lesson the student may open — in their own language — or a reply saying why not. */
+/** A lesson of the student's own course, open or not (the audio pack ahead): 404 for any other. */
+const courseLesson = async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) { bad(res, 'That lesson was not found.', 404); return null; }
+    const lesson = await LinguisticLesson.findOne({ _id: req.params.id, status: 'published', deletedAt: null }).lean();
+    if (!lesson) { bad(res, 'That lesson was not found.', 404); return null; }
+    const progress = await svc.progressOf(req.user._id);
+    const lessons = await svc.lessonsFor(progress);
+    if (!lessons.some((l) => idOf(l._id) === idOf(lesson._id))) { res.status(404).json({ code: 'NOT_IN_COURSE', message: 'That lesson is not part of your course.' }); return null; }
+    return svc.serve(lesson, progress);
+};
 const openLesson = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) { bad(res, 'That lesson was not found.', 404); return null; }
     const lesson = await LinguisticLesson.findOne({ _id: req.params.id, status: 'published', deletedAt: null }).lean();
@@ -216,7 +226,9 @@ router.get('/lessons/:id', async (req, res, next) => {
  */
 router.get('/lessons/:id/pack', async (req, res, next) => {
     try {
-        const lesson = await openLesson(req, res);
+        // ?ahead=1 (2026-11-13): the audio of a unit not open yet, for the student's own course only — fetched in the
+        // background so a unit is ready the moment it opens. Its lessons stay locked: this only lists what they say.
+        const lesson = req.query.ahead === '1' ? await courseLesson(req, res) : await openLesson(req, res);
         if (!lesson) return;
         const progress = await svc.progressOf(req.user._id);
         const [lessons, config] = await Promise.all([svc.lessonsFor(progress), getConfig()]);

@@ -9,9 +9,38 @@ const unwrap = (err) => {
     e.status = err.response?.status;
     throw e;
 };
-const get = (p) => client.get(`/linguistic${p}`).then((r) => r.data).catch(unwrap);
+// Reading never fails on a blip (2026-11-14, "You appear to be offline" while the server restarted): no answer at
+// all, or a 502–504 from the proxy, is asked again — up to five tries over about ten seconds.
+const get = async (p) => {
+    let last;
+    for (let i = 0; i < 5; i += 1) {
+        try { return (await client.get(`/linguistic${p}`, { timeout: 20000 })).data; } catch (err) {
+            last = err;
+            const s = err.response?.status;
+            if (err.response && !(s >= 502 && s <= 504)) break;
+            await new Promise((r) => setTimeout(r, 1000 + i * 500));
+        }
+    }
+    return unwrap(last);
+};
 const post = (p, b) => client.post(`/linguistic${p}`, b).then((r) => r.data).catch(unwrap);
 const del = (p) => client.delete(`/linguistic${p}`).then((r) => r.data).catch(unwrap);
+/**
+ * An answer check (2026-11-14: "Checking…" stayed for ever when the server restarted mid-request): 12 s at most,
+ * then asked again — up to three tries, a second apart — so a lost reply never stops the lesson. Checking an answer
+ * twice is harmless (it is judged the same way again).
+ */
+const checkPost = async (p, b) => {
+    let last;
+    for (let i = 0; i < 5; i += 1) {
+        try { return (await client.post(`/linguistic${p}`, b, { timeout: 12000 })).data; } catch (err) {
+            last = err;
+            if (err.response && !(err.response.status >= 502 && err.response.status <= 504)) break; // a real answer: not retried
+            await new Promise((r) => setTimeout(r, 1000));
+        }
+    }
+    return unwrap(last);
+};
 
 export const linguisticApi = {
     dashboard: () => get('/'),
@@ -44,11 +73,12 @@ export const linguisticApi = {
     module: (module) => get(`/modules/${module}`),
     lesson: (id) => get(`/lessons/${id}`),
     /** The unit this lesson is in, every lesson as the student has it: for downloading its audio first. */
-    lessonPack: (id) => get(`/lessons/${id}/pack`),
+    // `ahead`: a unit not open yet — only its audio, so it is ready when it opens (2026-11-13).
+    lessonPack: (id, ahead = false) => get(`/lessons/${id}/pack${ahead ? '?ahead=1' : ''}`),
     step: (id, step) => post(`/lessons/${id}/step`, { step }),
-    check: (id, section, qid, given) => post(`/lessons/${id}/check`, { section, id: qid, given }),
+    check: (id, section, qid, given) => checkPost(`/lessons/${id}/check`, { section, id: qid, given }),
     /** Check one quiz answer as it is given (nothing saved); the quiz is still submitted whole at the end. */
-    quizCheck: (id, qid, given) => post(`/lessons/${id}/quiz/check`, { id: qid, given }),
+    quizCheck: (id, qid, given) => checkPost(`/lessons/${id}/quiz/check`, { id: qid, given }),
     quiz: (id, answers) => post(`/lessons/${id}/quiz`, { answers }),
     writing: (id, taskId, answer) => post(`/lessons/${id}/writing/${taskId}`, { answer }),
     // Said, not ticked (2026-10-28): the server ticks the checklist from what was said.

@@ -7,7 +7,8 @@ const IDS = ['chess', 'rapidfire', 'codeclash', 'brainsprint'];
 // brain games 2026-10-24): never listed or chosen for a new competition, but a
 // competition or game made before then can still be read, played to its end
 // and timed out. (Quiz and Hackathon are challenges, not games: no matches.)
-const RETIRED = ['uno', 'ludo', 'carrom'];
+// Code Breaker retired from group games (2026-11-14, the user): old results still read, no new rooms.
+const RETIRED = ['uno', 'ludo', 'carrom', 'codebreaker'];
 // Group Brain (asked 2026-10-27): the games students play in rooms of their
 // own — Chess, and the ones played only in rooms. Their order is the
 // order the Games page shows them in.
@@ -16,13 +17,15 @@ const { SOLO_QUIZ, soloEngine } = require('./soloquiz');
 // The solo games played by hand, as races (./race.js), and in turns for two (./turns.js).
 const { RACE, raceEngine } = require('./race');
 const { TURNS, turnEngine } = require('./turns');
-const ROOM_ONLY = ['memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'finalvault', 'lostkingdom', ...SOLO_QUIZ, ...RACE, ...TURNS];
+// The 84-game catalogue's games that had no room game (2026-11-14): quizzes, ./catalogquiz.js.
+const { CATALOG_QUIZ, catalogEngine } = require('./catalogquiz');
+const ROOM_ONLY = ['memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'finalvault', ...SOLO_QUIZ, ...RACE, ...TURNS, ...CATALOG_QUIZ].filter((id) => !RETIRED.includes(id));
 const ROOM_GAMES = ['chess', ...ROOM_ONLY];
 
 const cache = {};
 const engine = (id) => {
     if (!IDS.includes(id) && !RETIRED.includes(id) && !ROOM_ONLY.includes(id)) return null;
-    if (!cache[id]) cache[id] = soloEngine(id) || raceEngine(id) || turnEngine(id) || require(`./${id}`);
+    if (!cache[id]) cache[id] = soloEngine(id) || raceEngine(id) || turnEngine(id) || catalogEngine(id) || require(`./${id}`);
     return cache[id];
 };
 

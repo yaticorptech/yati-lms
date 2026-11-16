@@ -74,8 +74,8 @@ describe('courses', () => {
         assert.equal(path.course.code, 'kn');
         const modules = new Set(path.levels.flatMap((l) => lessonsOf(l).filter((x) => x.review !== 'comic').map((x) => x.module)));
         assert.deepEqual([...modules].sort(), ['translation', 'vocabulary']);
-        // And the picture stories in Kannada, in Advanced (2026-11-02).
-        assert.deepEqual(lessonsOf(path.levels.find((l) => l.level === 'advanced')).filter((x) => x.review === 'comic').map((x) => x.title), ['ಚಿತ್ರಕಥೆ: ಹಂಚಿಕೊಂಡ ಬಾವಿ', 'ಚಿತ್ರಕಥೆ: ಮೂರು ಬೆಳ್ಳಿ ನಾಣ್ಯಗಳು', 'ಚಿತ್ರಕಥೆ: ರಸ್ತೆ ಮತ್ತು ಆಲದ ಮರ', 'ಚಿತ್ರಕಥೆ: ಪ್ರಾಮಾಣಿಕ ದೋಣಿಯವನು']);
+        // And the picture stories in Kannada, in Advanced (2026-11-02); the second a story film since 2026-11-07.
+        assert.deepEqual(lessonsOf(path.levels.find((l) => l.level === 'advanced')).filter((x) => x.review === 'comic').map((x) => x.title), ['ಚಿತ್ರಕಥೆ: ಹಂಚಿಕೊಂಡ ಬಾವಿ', 'ಕಥಾಚಿತ್ರ: ಎಲ್ಲವನ್ನೂ ಬದಲಿಸಿದ ಅಪರಿಚಿತ', 'ಚಿತ್ರಕಥೆ: ರಸ್ತೆ ಮತ್ತು ಆಲದ ಮರ', 'ಚಿತ್ರಕಥೆ: ಪ್ರಾಮಾಣಿಕ ದೋಣಿಯವನು']);
         assert.equal(path.levels.find((l) => l.level === 'beginner').open, true);
         assert.equal(path.levels.find((l) => l.level === 'advanced').open, false);
         assert.deepEqual(path.levels[0].units.map((u) => u.title), ['Letters', 'Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Time and days', 'My day', 'Level review'], 'the same units as English, the Kannada letters first (2026-10-31)');

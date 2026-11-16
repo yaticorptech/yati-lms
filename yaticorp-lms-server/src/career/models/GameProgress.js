@@ -20,7 +20,10 @@ const gameProgressSchema = new mongoose.Schema(
     stars: { type: Map, of: Number, default: {} },
     // Denormalised so the leaderboard is a sort, not a walk over every map.
     starTotal: { type: Number, default: 0 },
-    cleared: { type: Number, default: 0 }
+    cleared: { type: Number, default: 0 },
+    // The adaptive engine's record for this game (2026-11-13, student app adaptive.js): its stage (easy … expert),
+    // the last sessions (accuracy, stars, time, hints) and the personal best. Cleaned by the controller (cleanStats).
+    stats: { type: mongoose.Schema.Types.Mixed, default: null }
   },
   { timestamps: true }
 );
