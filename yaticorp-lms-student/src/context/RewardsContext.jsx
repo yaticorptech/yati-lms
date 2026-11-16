@@ -18,6 +18,7 @@ import useLive from '../live/useLive';
 import { RewardToast, CelebrationOverlay } from '../components/rewards/RewardCelebration';
 
 import { RewardsContext } from './useRewards';
+import { useCelebrationsHeld } from '../utils/celebrationHold';
 
 // Two awards this close together are one moment: a lesson's quiz pays and
 // then the lesson does, and the second toast used to replace the first, so
@@ -167,7 +168,9 @@ export const RewardsProvider = ({ children }) => {
 
     useEffect(() => () => { clearTimeout(toastTimer.current); clearTimeout(pullTimer.current); }, []);
 
-    const current = queue[0] || null;
+    // Held while a lesson is under way (utils/celebrationHold): shown once it is finished.
+    const held = useCelebrationsHeld();
+    const current = held ? null : queue[0] || null;
     const dismiss = useCallback((event) => {
         if (!event?._id) return;
         dismissed.current.add(event._id);

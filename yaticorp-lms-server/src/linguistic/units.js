@@ -76,18 +76,19 @@ const topicUnitsOf = (levelLessons) => {
     for (const l of levelLessons) {
         if (l.review && LEVEL_REVIEWS.includes(l.review)) { levelReviews.push(l); continue; }
         // The Letters unit (alphabet.js) is unit 0, before the topics'.
-        const order = l.review === 'letters' ? 0 : Number(l.order) || 1, part = parts.partOf(l), key = `${order}:${part}`;
+        const order = l.review === 'letters' || l.review === 'lettersExam' ? 0 : Number(l.order) || 1, part = parts.partOf(l), key = `${order}:${part}`;
         if (!byUnit.has(key)) byUnit.set(key, { order, part, lessons: [] });
         byUnit.get(key).lessons.push(l);
     }
     // A talk (talks.js) comes after the unit's Speaking lesson.
     // A section's assessment (2026-10-29) is its very last stop.
     // The Letters lessons (alphabet.js, 2026-10-31) in their groups' order.
-    const rank = (l) => (l.review === 'letters' ? (Number(String(l.seedKey || '').split('-').pop()) || 0) / 100 : l.review === 'assessment' ? 100 : l.review === 'unit' ? 99 : l.review === 'hear' ? 50 : l.review === 'talk' ? 3.5 : l.review === 'comic' ? MODULE_ORDER.indexOf('reading') + 0.5 : MODULE_ORDER.indexOf(l.module));
+    // The letters test right after the All letters chart, before the Letters lessons (2026-11-13, user's choice).
+    const rank = (l) => (l.review === 'lettersExam' ? -1 : l.review === 'letters' ? (Number(String(l.seedKey || '').split('-').pop()) || 0) / 100 : l.review === 'assessment' ? 100 : l.review === 'unit' ? 99 : l.review === 'hear' ? 50 : l.review === 'talk' ? 3.5 : l.review === 'comic' ? MODULE_ORDER.indexOf('reading') + 0.5 : MODULE_ORDER.indexOf(l.module));
     const units = [...byUnit.values()].sort((a, b) => a.order - b.order || a.part - b.part).map(({ order, part, lessons: ls }, i) => {
         const sorted = ls.sort((a, b) => rank(a) - rank(b) || String(a.direction || '').localeCompare(String(b.direction || '')));
         const words = sorted.find((l) => l.module === 'vocabulary' && !l.review);
-        const title = sorted.every((l) => l.review === 'letters') ? 'Letters' : parts.unitName(sorted[0].level, order, part) || (words ? topicOf(words.title) : topicOf(sorted.find((l) => !l.review)?.title)) || `Unit ${i + 1}`;
+        const title = sorted.every((l) => l.review === 'letters' || l.review === 'lettersExam') ? 'Letters' : parts.unitName(sorted[0].level, order, part) || (words ? topicOf(words.title) : topicOf(sorted.find((l) => !l.review)?.title)) || `Unit ${i + 1}`;
         return { index: i + 1, order, part, kind: 'topic', title, lessons: sorted };
     });
     if (levelReviews.length) {
@@ -102,7 +103,7 @@ const typeOf = (l) => {
     if (l.review === 'talk') return 'talk';
     // A Letters lesson (alphabet.js) is a review's cup: the "Aa" stop of 2026-10-31 was undone on 2026-11-02 (user: "make it like before").
     if (l.review === 'hear' || l.review === 'listen') return 'listening';
-    if (l.review === 'checkpoint' || l.review === 'assessment') return 'checkpoint';
+    if (l.review === 'checkpoint' || l.review === 'assessment' || l.review === 'lettersExam') return 'checkpoint';
     if (l.review === 'write') return 'writing';
     // A picture story (comics.js, 2026-10-31).
     if (l.review === 'comic') return 'comic';

@@ -7,7 +7,6 @@ import { Link, Navigate, useSearchParams, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import SupportDialog from '../components/SupportDialog';
 import { AuthContext } from '../context/AuthContext';
-import { safeNextPath } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession } from '../teacher/teacherSession';
 import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Loader2, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock, GraduationCap, ShieldCheck, Sparkles } from 'lucide-react';
 import AuthBrandPanel from '../components/AuthBrandPanel';
@@ -75,7 +74,9 @@ const Signup = () => {
     // Where the student was heading before they were sent to sign in, passed
     // on from the sign-in page (?next=). Only a path in this app is taken.
     const [searchParams, setSearchParams] = useSearchParams();
-    const next = safeNextPath(searchParams.get('next') || '/');
+    // Signing in always opens the Dashboard, never the page the student was
+    // on when signed out (that used to bring them back to Career Path).
+    const next = '/';
     /* A teacher registering their card (?as=teacher, from the teacher sign-in).
        The same three steps and the same card check; the details ask for an
        institution instead of an Organization ID, take any email address, and

@@ -66,8 +66,10 @@ describe('a set', () => {
         assert.equal(last.body.set.status, 'completed'); assert.equal(last.body.set.correct, 9); assert.equal(last.body.set.percent, 90);
         const page = (await ashaApi('GET', '/aptitude')).body;
         assert.equal(page.stats.sets, 1); assert.equal(page.stats.best, 90); assert.equal(page.stats.last.correct, 9); assert.equal(page.stats.recent.length, 1);
+        // A Class 10 student's interview dashboard is the PUC lock since 2026-10-26 (src/interview/index.js mockLock);
+        // the scores are on the aptitude page above.
         const dash = (await ashaApi('GET', '/dashboard')).body;
-        assert.deepEqual({ title: dash.aptitude.title, sets: dash.aptitude.sets, best: dash.aptitude.best }, { title: 'IQ & Reasoning', sets: 1, best: 90 });
+        assert.equal(dash.locked?.message, 'Mock interviews unlock when you reach PUC (Class 11).');
         const done = await ashaApi('POST', `/aptitude/sets/${set.id}/answer`, { id: saved.questions[0].id, choice: 0 });
         assert.equal(done.status, 409, 'a finished set takes no more answers');
     });

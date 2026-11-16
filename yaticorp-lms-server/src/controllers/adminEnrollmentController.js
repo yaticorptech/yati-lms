@@ -35,8 +35,14 @@ const createEnrollment = async (req, res) => {
 
         // An organization's own course is for its members only.
         if (type === 'Course') {
-            const course = await require('../models/Course').findById(courseId).select('organizationId').lean();
+            const Course = require('../models/Course');
+            const course = await Course.findById(courseId).select('organizationId isPrivate privateTo').lean();
             if (!course) return res.status(404).json({ message: 'Course not found' });
+            // A private course (2026-11-12): enrolling a student gives it to them.
+            if (course.isPrivate && !course.organizationId && !(course.privateTo || []).some((id) => String(id) === String(userExists._id))) {
+                await Course.updateOne({ _id: course._id }, { $addToSet: { privateTo: userExists._id } });
+                course.privateTo = [...(course.privateTo || []), userExists._id];
+            }
             if (!require('../services/courseAccess').canAccessCourse(userExists, course)) {
                 return res.status(400).json({ message: "That course belongs to an organization this student is not in, so it is only for that organization's students." });
             }

@@ -51,7 +51,27 @@ const courseSchema = new mongoose.Schema({
         ref: 'Organization',
         default: null,
         index: true
+    },
+    /**
+     * A private course (2026-11-12, user: "private courses … admin can add courses to particular students … displayed to
+     * those students only, in Available Courses"): a platform course seen only by the students in `privateTo`
+     * (services/courseAccess.js). Set on the admin's Private courses page.
+     */
+    isPrivate: {
+        type: Boolean,
+        default: false
+    },
+    privateTo: {
+        type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+        default: [],
+        index: true
     }
 }, { timestamps: true });
+
+// Who a private course is given to is the admin's to know, never sent to a student with the course: a course read as
+// JSON or turned into a plain object (every student response) goes without it. Admin pages read it with lean().
+const hideStudents = (_doc, ret) => { delete ret.privateTo; return ret; };
+courseSchema.set('toJSON', { transform: hideStudents });
+courseSchema.set('toObject', { transform: hideStudents });
 
 module.exports = mongoose.model('Course', courseSchema);

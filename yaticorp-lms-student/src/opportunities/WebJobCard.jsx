@@ -37,8 +37,8 @@ export default function WebJobCard({ job, categoryLabel }) {
                         <span className="truncate">{org.name}</span>
                     </p>
                 </div>
-                <span className="shrink-0 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700">
-                    {job.typeLabel || 'Part-time'}
+                <span className={`shrink-0 rounded-lg border px-2 py-1 text-[11px] font-bold ${job.related ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-sky-200 bg-sky-50 text-sky-700'}`}>
+                    {job.related ? `Related · ${job.typeLabel || 'Job'}` : (job.typeLabel || 'Part-time')}
                 </span>
             </div>
 
@@ -46,7 +46,7 @@ export default function WebJobCard({ job, categoryLabel }) {
                 saying so is more use than leaving a gap. */}
             <p className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
                 <CalendarCheck size={15} className="shrink-0 text-slate-400" aria-hidden="true" />
-                Open any day · apply when you are free
+                {job.related ? 'Not part-time · a related job near you' : 'Open any day · apply when you are free'}
             </p>
 
             <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-slate-600">
@@ -71,7 +71,7 @@ export default function WebJobCard({ job, categoryLabel }) {
             <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
                 <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-400">
                     <Briefcase size={12} className="shrink-0" aria-hidden="true" />
-                    <span className="truncate">{job.publisher ? `${job.publisher} · via Google Jobs` : 'via Google Jobs'}</span>
+                    <span className="truncate">{job.source === 'Job index' ? `via ${job.publisher || 'job boards'}` : job.publisher ? `${job.publisher} · via Google Jobs` : 'via Google Jobs'}</span>
                 </span>
                 <a href={job.url} target="_blank" rel="noopener noreferrer" onClick={(e) => openJob(e, job)}
                     className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">

@@ -31,7 +31,7 @@ const publishedCourses = async () => {
     if (cached && Date.now() - cachedAt < TTL_MS) return cached;
     // Platform courses only: this list is shared by every student, and an
     // organization's own courses are for its members alone.
-    const rows = await Course.find({ isPublished: true, organizationId: null }).select('title description').lean();
+    const rows = await Course.find({ isPublished: true, organizationId: null, isPrivate: { $ne: true } }).select('title description').lean();
     cached = rows.map((c) => ({
         id: c._id.toString(),
         title: c.title || '',

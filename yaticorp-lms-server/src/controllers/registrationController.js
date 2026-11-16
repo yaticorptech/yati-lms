@@ -260,7 +260,7 @@ const verifyCard = async (req, res) => {
 const getPublishedContent = async (req, res) => {
     try {
         // Public, so platform courses only — an organization's own are for its members.
-        const courses = await Course.find({ isPublished: true, organizationId: null }).select('_id title thumbnail');
+        const courses = await Course.find({ isPublished: true, organizationId: null, isPrivate: { $ne: true } }).select('_id title thumbnail');
         const bundles = await Bundle.find({ isPublished: true }).select('_id title thumbnail');
 
         res.json({ courses, bundles });

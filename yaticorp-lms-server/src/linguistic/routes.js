@@ -230,7 +230,7 @@ router.get('/lessons/:id/pack', async (req, res, next) => {
         const key = unit ? `${lesson.level}-${unit.kind === 'track' ? unit.track : `${unit.order}-${unit.part || 1}`}` : `lesson-${idOf(lesson._id)}`;
         res.json({
             key: `${courseOf(progress)}:${svc.languageOf(progress)}:${key}`,
-            title: unit?.title || lesson.title, letters: lesson.review === 'letters',
+            title: unit?.title || lesson.title, letters: lesson.review === 'letters' || lesson.review === 'lettersExam',
             lessonIds: docs.map((x) => idOf(x._id)), lessons: out
         });
     } catch (err) { next(err); }

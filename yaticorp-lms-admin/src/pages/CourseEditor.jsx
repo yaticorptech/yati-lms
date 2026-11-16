@@ -290,6 +290,12 @@ const CourseEditor = () => {
                 <span className={`px-2.5 py-0.5 text-[11px] font-bold rounded tracking-wide ${course.isPublished ? 'bg-[#e8f5e9] text-[#2e7d32]' : 'bg-slate-100 text-slate-600'}`}>
                     {course.isPublished ? 'Published' : 'Draft'}
                 </span>
+                {/* A private course (2026-11-12): published, only its chosen students see it — set on the Private courses page. */}
+                {course.isPrivate && (
+                    <Link to="/private-courses" className="px-2.5 py-0.5 text-[11px] font-bold rounded tracking-wide bg-amber-50 text-amber-700 hover:bg-amber-100" title="Only the students chosen on the Private courses page can see it">
+                        Private: chosen students only
+                    </Link>
+                )}
             </div>
 
             {/* Title & Action Buttons Row — stacked until there is room for a long

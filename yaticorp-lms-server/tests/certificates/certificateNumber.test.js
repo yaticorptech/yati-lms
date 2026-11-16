@@ -8,17 +8,20 @@
  */
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeUser, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, startApp, cleanup, fakeDrive } = require('../helpers');
 
-let app, userApp, me, other, api, courses;
+// Every certificate download needs the student's Google Drive linked (2026-11-05): a pretend Drive, linked.
+let app, userApp, me, other, api, courses, drive;
 const num = (n) => `YATI${me.user.cardNumber}-${String(n).padStart(3, '0')}`;
 
 before(async () => {
     await connect();
+    drive = fakeDrive();
     app = startApp({ mount: '/api/certificates', router: require('../../src/routes/certificateRoutes') });
     userApp = startApp({ mount: '/api/user', router: require('../../src/routes/userRoutes') });
     me = await makeUser('Cert'); api = app.call(me.token);
     other = await makeUser('CertOther');
+    drive.link(me.user._id); drive.link(other.user._id);
     const Course = require('../../src/models/Course');
     const Module = require('../../src/models/Module');
     const Lesson = require('../../src/models/Lesson');
@@ -41,6 +44,7 @@ before(async () => {
 });
 
 after(async () => {
+    drive.restore();
     const Module = require('../../src/models/Module');
     const moduleIds = (await Module.find({ courseId: { $in: courses.map(c => c._id) } }).select('_id').lean()).map((m) => m._id);
     await require('../../src/models/Lesson').deleteMany({ moduleId: { $in: moduleIds } });
@@ -145,6 +149,7 @@ test('numbers in an older format are put right: the whole series again, oldest f
     const Certificate = require('../../src/models/Certificate');
     const User = require('../../src/models/User');
     const old = await makeUser('CertOld');
+    drive.link(old.user._id);
     const card = old.user.cardNumber;
     const c1 = await Certificate.create({ userId: old.user._id, courseId: 'old-course-1', pdfUrl: 'dynamic', certificateNumber: `YATI${card}-01`, issuedAt: new Date('2026-01-10') });
     const c2 = await Certificate.create({ userId: old.user._id, courseId: 'old-course-2', pdfUrl: 'dynamic', certificateNumber: `YATI${card}-02`, issuedAt: new Date('2026-03-10') });
