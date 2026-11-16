@@ -36,19 +36,12 @@ describe('a school student', () => {
         assert.ok(qs.includes('Pick one topic you learnt in Class 10 and explain it simply.'));
         assert.ok(!qs.includes('Pick one topic you learnt in Class 9 and explain it simply.'));
     });
-    test('the mock interview is a practice interview about school life', async () => {
-        const s = (await ashaApi('POST', '/sessions', { type: 'full', role: 'Doctor' })).body;
-        assert.match(s.turns[0].question, /^Hi Asha, welcome to your practice interview/);
-        const asked = [s.turns[0].question];
-        let cur = s;
-        // Full answers, so each moves on to the next stage rather than a follow-up.
-        for (let i = 0; i < 6 && !cur.closingMessage; i++) {
-            cur = (await ashaApi('POST', `/sessions/${s.id}/answer`, { answer: 'I am in Class 10 at my school. I enjoy biology the most because I like learning how the body works, and I made a model of the heart for our science fair with two friends.' })).body;
-            asked.push(cur.turns[cur.turns.length - 1].question);
-        }
-        for (const q of asked) assert.doesNotMatch(q, WORK, q);
-        assert.ok(asked.some((q) => /You want to become a Doctor one day/.test(q)), asked.join('\n'));
-        assert.ok(asked.some((q) => /Which subject do you enjoy most in Class 10/.test(q)), asked.join('\n'));
+    // Mock interviews open at PUC (Class 11) since 2026-10-26 (src/interview/index.js mockLock): a Class 10 student is told so.
+    test('the mock interview waits for PUC (Class 11)', async () => {
+        const r = await ashaApi('POST', '/sessions', { type: 'full', role: 'Doctor' });
+        assert.equal(r.status, 403);
+        assert.equal(r.body.message, 'Mock interviews unlock when you reach PUC (Class 11).');
+        assert.equal(r.body.locked.classNo, 10);
     });
 });
 

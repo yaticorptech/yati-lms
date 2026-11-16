@@ -56,6 +56,10 @@ router.post('/lessons/upload', protectAdmin, tagUploadLimit, lessonUpload.single
 router.post('/lessons/attachments', protectAdmin, tagAttachmentLimit, attachmentUpload.single('file'), courseCtrl.uploadLessonAttachment);
 router.route('/courses/:id').get(protectAdmin, courseCtrl.getCourseById).put(protectAdmin, courseCtrl.updateCourse).delete(protectAdmin, courseCtrl.deleteCourse);
 router.get('/courses/:id/students', protectAdmin, courseCtrl.getCourseStudents);
+// Private courses (2026-11-12): a platform course seen only by the students chosen.
+const privateCourseCtrl = require('../controllers/privateCourseController');
+router.route('/private-courses').get(protectAdmin, privateCourseCtrl.listPrivateCourses).post(protectAdmin, privateCourseCtrl.createPrivateCourse);
+router.put('/private-courses/:id', protectAdmin, privateCourseCtrl.setPrivateCourse);
 
 
 // Module Management Routes
@@ -82,6 +86,14 @@ router.post('/cards/scan', protectAdmin, superAdminOnly, cardCtrl.scanAndVerify)
 router.post('/cards/verify-all', protectAdmin, superAdminOnly, cardCtrl.verifyAll);
 router.post('/cards/unverify-all', protectAdmin, superAdminOnly, cardCtrl.unverifyAll);
 router.post('/cards/:id/unverify', protectAdmin, superAdminOnly, cardCtrl.unverifyCard);
+// AI Passports (super admins): the QR IDs on the passport books, and which card each is linked to.
+const passportCtrl = require('../controllers/passportController');
+router.route('/passports').get(protectAdmin, superAdminOnly, passportCtrl.listPassports).post(protectAdmin, superAdminOnly, passportCtrl.addPassports);
+router.post('/passports/generate', protectAdmin, superAdminOnly, passportCtrl.generatePassports);
+router.get('/passports/batches', protectAdmin, superAdminOnly, passportCtrl.listBatches);
+router.get('/passports/stickers', protectAdmin, superAdminOnly, passportCtrl.downloadStickers);
+router.post('/passports/lookup', protectAdmin, superAdminOnly, passportCtrl.lookupPassport);
+router.post('/passports/:id/status', protectAdmin, superAdminOnly, passportCtrl.setStatus);
 router.route('/admins/:id').put(protectAdmin, superAdminOnly, updateAdmin).delete(protectAdmin, superAdminOnly, deleteAdmin);
 
 // Support Ticket Routes

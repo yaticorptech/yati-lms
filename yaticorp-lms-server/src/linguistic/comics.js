@@ -231,53 +231,6 @@ const STORIES = [
     }
 ];
 
-// The story the courses not yet translated anew still tell in place of story 2 (Three Silver Coins, until 2026-11-07).
-const LEGACY = {
-    2: {
-        order: 2, title: 'Three Silver Coins', theme: 'journey',
-        moral: 'Kindness is never lost. It comes back — often bigger than it left.',
-        people: {
-            ravi: { name: 'Ravi', skin: '#b07a4f', shawl: '#2e86c1', hair: 'hair' },
-            ajji: { name: 'the old woman', woman: true, skin: '#c99a6e', cloth: '#7f8c8d', blouse: '#a9cce3', hair: 'greybun' },
-            boatman: { name: 'the boatman', skin: '#7b4a2a', shawl: '#e67e22', hair: 'turban', turban: '#f4d03f', beard: true },
-            somu: { name: 'Somu', child: true, skin: '#a0663c', shawl: '#58d68d', hair: 'hair' },
-            seller: { name: 'the thread seller', woman: true, skin: '#d4a373', cloth: '#c0392b', blouse: '#f5b041', hair: 'bun' }
-        },
-        panels: [
-            { scene: 'road', wide: true, title: true,
-                cast: [{ who: 'ravi', x: 46, pose: 'stand', holds: 'bag' }],
-                narration: 'Ravi, a young weaver, set out for the town fair with three silver coins — all he had — to buy thread for his loom.' },
-            { scene: 'road',
-                cast: [{ who: 'ajji', x: 28, pose: 'sad' }, { who: 'ravi', x: 70, pose: 'give', face: 'left', holds: 'coin' }],
-                say: [{ who: 'ajji', text: 'Son, I have not eaten for two days.' }, { who: 'ravi', text: 'Take this coin, Grandmother.' }] },
-            { scene: 'river', props: [{ what: 'boat', x: 22 }],
-                cast: [{ who: 'boatman', x: 40, pose: 'sad' }, { who: 'ravi', x: 76, pose: 'give', face: 'left', holds: 'coin' }],
-                say: [{ who: 'boatman', text: 'My boat has a hole. I cannot work.' }, { who: 'ravi', text: 'Mend it with this.' }] },
-            { scene: 'village',
-                cast: [{ who: 'somu', x: 28, pose: 'sad' }, { who: 'ravi', x: 70, pose: 'give', face: 'left', holds: 'coin' }],
-                say: [{ who: 'somu', text: 'My school fee is due, and Father is ill.' }, { who: 'ravi', text: 'Then this last coin is yours!' }] },
-            { scene: 'market', zoom: true,
-                cast: [{ who: 'ravi', x: 50, pose: 'sad' }],
-                say: [{ who: 'ravi', text: 'No coins, no thread. What will I tell Mother?' }] },
-            { scene: 'market', props: [{ what: 'stall', x: 14 }],
-                cast: [{ who: 'seller', x: 34, pose: 'point' }, { who: 'ravi', x: 72, pose: 'surprise', face: 'left' }],
-                say: [{ who: 'seller', text: 'Are you the weaver who fed my mother?' }, { who: 'ravi', text: 'Yes… but how do you know?' }] },
-            { scene: 'market', props: [{ what: 'stall', x: 12 }],
-                cast: [{ who: 'seller', x: 32, pose: 'give', holds: 'thread' }, { who: 'ravi', x: 72, pose: 'cheer', face: 'left' }],
-                say: [{ who: 'seller', text: 'She told me everything. This thread is a gift!' }, { who: 'ravi', text: 'Thank you, sister!' }] },
-            { scene: 'market', wide: true, caption: 'At the next fair—', props: [{ what: 'stall', x: 90 }],
-                cast: [{ who: 'ajji', x: 22, pose: 'cheer' }, { who: 'boatman', x: 36, pose: 'cheer' }, { who: 'ravi', x: 52, pose: 'give', holds: 'cloth' }, { who: 'somu', x: 70, pose: 'cheer', face: 'left' }],
-                narration: 'Ravi’s cloth won the first prize. In its border he had woven three silver coins — and the three people they had helped came to cheer for him.' }
-        ],
-        questions: [
-            { prompt: 'Why was Ravi going to the fair?', answer: 'To buy thread for his loom', others: ['To sell the cloth he had woven', 'To look for a new job', 'To meet his mother'], explanation: 'He set out “to buy thread for his loom”.' },
-            { prompt: 'Who did Ravi give his last coin to?', answer: 'Somu, a boy whose school fee was due', others: ['The old woman', 'The boatman', 'The thread seller'], explanation: 'Ravi told Somu: “Then this last coin is yours!”' },
-            { prompt: 'How did the thread seller know about Ravi?', answer: 'Her mother, the old woman Ravi fed, told her', others: ['The boatman told her', 'She saw him on the road', 'Somu’s father told her'], explanation: 'She said: “She told me everything.”' },
-            { prompt: 'What did Ravi weave into the border of his prize cloth?', answer: 'Three silver coins', others: ['His mother’s name', 'A boat on a river', 'A banyan tree'], explanation: '“In its border he had woven three silver coins.”' },
-            { prompt: 'What is the moral of the story?', answer: 'Kindness comes back, often bigger than it left', others: ['Never spend all your money', 'Fairs are better than villages', 'Thread is more useful than coins'], explanation: 'Ravi gave away three coins and got back far more.' }
-        ]
-    }
-};
 
 // The stories in other languages, for those courses (content/comicLangs.js, 2026-11-02: Kannada and Hindi first).
 const { LANGS } = require('./content/comicLangs');
@@ -341,8 +294,7 @@ const build = (stub, helper) => {
     const found = storyOf(stub);
     const L = stub.course ? LANGS[found?.order]?.[stub.course] : null;
     if (!found || (stub.course && !L)) return { ...stub, comic: null, quiz: [] };
-    // A course whose translation is of the story told before (LEGACY): its pictures, with its words.
-    const s = L?.legacy ? LEGACY[found.order] : found;
+    const s = found;
     const info = stub.course ? courses.courseInfo(stub.course) : null;
     return {
         ...stub, language: helper, languageName: require('./languages').infoOf(helper).name,

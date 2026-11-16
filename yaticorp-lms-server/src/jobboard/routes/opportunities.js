@@ -20,7 +20,7 @@ const JobApplication = require('../models/JobApplication');
 const { OpportunityPreference, OpportunityView, OpportunityReport } = require('../models/OpportunityPreference');
 const { isConnected } = require('../config/db');
 const vocab = require('../data/opportunityVocab');
-const { SEED_VERSION, rows: seedRows } = require('../data/seedOpportunities');
+const { SEED_VERSION, freshRows } = require('../data/seedOpportunities');
 const { ageFrom, bandFor, check, clientRules, publicView } = require('../services/eligibilityRules');
 const { normaliseIndianMobile } = require('../../services/smsService');
 const { recommend, scoreOne } = require('../services/opportunityRecommender');
@@ -38,17 +38,58 @@ const CLIENT_VOCAB = {
    touched, and a restart never duplicates anything. */
 let seeded = false;
 const ensureSeeded = async () => {
-    if (seeded) return;
+    // Checked at most once an hour.
+    if (seeded && Date.now() - seeded < 60 * 60 * 1000) return;
     const stale = await Opportunity.countDocuments({ source: 'seed', seedVersion: { $ne: SEED_VERSION } });
-    const current = await Opportunity.countDocuments({ source: 'seed', seedVersion: SEED_VERSION });
-    if (stale || !current) {
-        await Opportunity.deleteMany({ source: 'seed', seedVersion: { $ne: SEED_VERSION } });
-        await Opportunity.bulkWrite(seedRows.map((row) => ({
-            updateOne: { filter: { slug: row.slug }, update: { $setOnInsert: row }, upsert: true }
+    if (stale) await Opportunity.deleteMany({ source: 'seed', seedVersion: { $ne: SEED_VERSION } });
+    const rows = freshRows();
+    // New sample rows go in; existing ones are kept (applications point at them).
+    const ins = await Opportunity.bulkWrite(rows.map((row) => ({
+        updateOne: { filter: { slug: row.slug }, update: { $setOnInsert: row }, upsert: true }
+    })));
+    if (ins.upsertedCount) console.log(`[opportunities] Added ${ins.upsertedCount} sample local jobs.`);
+    // Sample jobs whose days have passed move forward to fresh dates, so the
+    // board never runs dry of samples. Real (admin) jobs are never touched.
+    const past = await Opportunity.find({ source: 'seed', endsAt: { $lt: new Date() } }).select('slug').lean();
+    if (past.length) {
+        const bySlug = new Map(rows.map((r) => [r.slug, r]));
+        await Opportunity.bulkWrite(past.filter((p) => bySlug.has(p.slug)).map((p) => ({
+            updateOne: { filter: { _id: p._id }, update: { $set: { startsAt: bySlug.get(p.slug).startsAt, endsAt: bySlug.get(p.slug).endsAt, status: 'open' } } }
         })));
-        console.log(`[opportunities] Seeded ${seedRows.length} local jobs (v${SEED_VERSION}).`);
+        console.log(`[opportunities] Moved ${past.length} sample local jobs to new dates.`);
     }
-    seeded = true;
+    seeded = Date.now();
+};
+
+/**
+ * A test for "is this local job near the student's town?", or null when the
+ * town is unknown. Towns are compared by the map's own names and, where both
+ * have coordinates, by distance.
+ */
+const NEAR_KM = 60;
+const nearTown = async (town) => {
+    if (!town) return null;
+    const { resolvePlace } = require('../services/geoService');
+    const home = await resolvePlace(town).catch(() => null)
+        || await resolvePlace(town.split(',')[0].replace(/[-\s]+/g, '')).catch(() => null);
+    if (!home?.city) return null;
+    const names = new Set([home.city, ...(home.terms || [])].map((t) => String(t).toLowerCase()));
+    const km = ([lon1, lat1], [lon2, lat2]) => {
+        const r = (d) => (d * Math.PI) / 180;
+        const a = Math.sin(r(lat2 - lat1) / 2) ** 2 + Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(r(lon2 - lon1) / 2) ** 2;
+        return 12742 * Math.asin(Math.sqrt(a));
+    };
+    const memo = new Map();
+    return async (opp) => {
+        const city = String(opp.location?.city || '').trim();
+        if (!city || opp.remote) return true;
+        if (names.has(city.toLowerCase())) return true;
+        if (!memo.has(city)) memo.set(city, await resolvePlace(city).catch(() => null));
+        const there = memo.get(city);
+        if (!there) return false;
+        if (there.city && names.has(String(there.city).toLowerCase())) return true;
+        return !!(home.coords && there.coords && km(home.coords, there.coords) <= NEAR_KM);
+    };
 };
 
 const validId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -295,6 +336,8 @@ const webShape = (job, category) => ({
     icon: (vocab.CATEGORIES.find((c) => c.id === category) || {}).icon || '🌐',
     opportunityType: 'part-time',
     typeLabel: job.typeLabel || 'Part-time',
+    related: !!job.related,
+    inInterests: !!job.interest,
     location: { area: '', city: job.location || '', landmark: '' },
     timeLabel: '',
     compensation: job.salary ? { kind: 'paid', label: job.salary } : null,
@@ -303,7 +346,7 @@ const webShape = (job, category) => ({
     daysAgo: job.daysAgo,
     publisher: job.publisher || '',
     url: job.url,
-    source: 'Google Jobs',
+    source: job.source || 'Google Jobs',
     anyDay: true
 });
 
@@ -329,9 +372,15 @@ router.get('/', async (req, res, next) => {
         const monthEnd = endOfMonth(windowTo);
         const inWindow = (o) => new Date(o.startsAt) <= windowTo && new Date(o.endsAt) >= windowFrom;
 
+        // Local jobs only within reach of the student's own town (same town,
+        // or within NEAR_KM); everywhere when no town is set yet.
+        const town = String(req.query.location || ctx.profile.location || '').trim();
+        const reach = await nearTown(town);
+
         const local = [];
         let laterThanMonth = 0;
         for (const row of all.results) {
+            if (reach && !(await reach(row.opp))) continue;
             const onYourDates = inWindow(row.opp);
             // Beyond this month is a different question — counted, not listed,
             // unless the student asks to see every upcoming date.
@@ -356,11 +405,11 @@ router.get('/', async (req, res, next) => {
         if (webAllowed && location) {
             try {
                 const { partTimeNear, categoryFor } = require('../services/partTimeWebService');
-                const out = await partTimeNear(location, { refresh: req.query.refresh === '1' });
+                const out = await partTimeNear(location, { refresh: req.query.refresh === '1', interests: ctx.profile.interests || [] });
                 webPlace = out.place;
                 webNotice = out.unavailable || '';
                 webWidened = out.widened || '';
-                web = (out.results || []).map((j) => webShape(j, categoryFor(j)));
+                web = (out.results || []).map((j) => webShape(j, j.interest || categoryFor(j)));
             } catch (err) {
                 webNotice = err.message || 'Could not reach Google Jobs right now.';
             }
@@ -403,7 +452,7 @@ router.get('/', async (req, res, next) => {
             // searches, on the sites that run them, for the student's own town.
             // Offered only when the board itself came up empty.
             web: {
-                allowed: webAllowed, place: webPlace, notice: webNotice, widened: webWidened, count: web.length,
+                allowed: webAllowed, place: webPlace, notice: webNotice, widened: webWidened, count: web.filter((w) => !w.related).length, related: web.filter((w) => w.related).length,
                 // A minor now sees these. They carry none of the board's own
                 // checks, so the client is told to say so rather than letting
                 // them pass as vetted work alongside it.

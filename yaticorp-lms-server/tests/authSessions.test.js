@@ -91,7 +91,7 @@ describe('a password change ends the sessions signed in with the old one', () =>
     test('update-password needs the current password, and mistakes are 400s, not 401s', async () => {
         const user = await createStudent('Own-Pass1!');
         const token = jwt.sign({ id: String(user._id), iat: Math.floor(Date.now() / 1000) - 30 }, process.env.JWT_SECRET, { expiresIn: '10m' });
-        const call = userApp.call(token);
+        let call = userApp.call(token);
 
         const missing = await call('PUT', '/update-password', { newPassword: 'Own-Pass2!' });
         assert.equal(missing.status, 400);
@@ -101,12 +101,16 @@ describe('a password change ends the sessions signed in with the old one', () =>
         const weak = await call('PUT', '/update-password', { currentPassword: 'Own-Pass1!', newPassword: 'weak' });
         assert.equal(weak.status, 400);
         assert.match(weak.body.message, /at least 8 characters/);
-        assert.equal((await login(user.cardNumber, 'Own-Pass1!')).status, 200, 'nothing changed yet');
+        const still = await login(user.cardNumber, 'Own-Pass1!');
+        assert.equal(still.status, 200, 'nothing changed yet');
+        // One sign-in at a time: that sign-in ended the hand-made session, so the rest goes on with its token.
+        call = userApp.call(still.body.token);
 
         const ok = await call('PUT', '/update-password', { currentPassword: 'Own-Pass1!', newPassword: 'Own-Pass2!' });
         assert.equal(ok.status, 200, JSON.stringify(ok.body));
         assert.ok(ok.body.token, 'a fresh token for the device that made the change');
-        assert.equal((await call('GET', '/profile')).body.code, 'PASSWORD_CHANGED', 'the old session has ended');
+        // Ended: the fresh token is now the one sign-in (SESSION_REPLACED), on top of the password change.
+        assert.ok(['PASSWORD_CHANGED', 'SESSION_REPLACED'].includes((await call('GET', '/profile')).body.code), 'the old session has ended');
         assert.equal((await userApp.call(ok.body.token)('GET', '/profile')).status, 200, 'the new token works');
         assert.equal((await login(user.cardNumber, 'Own-Pass2!')).status, 200);
     });

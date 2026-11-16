@@ -135,7 +135,7 @@ const JoinPage = ({ data, onDone }) => {
                 <span className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md ${choice.tone}`}><choice.icon size={21} /></span>
                 <div>
                     <h2 className="text-lg font-black text-slate-900">Join {choice.name}</h2>
-                    <p className="text-sm text-slate-500">Fill in your details. {data.organization.name} will confirm your request.</p>
+                    <p className="text-sm text-slate-500">Fill in your details. {scoutUnits.length ? 'Your unit leader or ' : ''}{data.organization.name} will confirm your request.</p>
                 </div>
             </div>
             {rejected && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">Your last request to join {choice.name} was not accepted. Check with your teacher or officer, then ask again.</p>}
@@ -143,9 +143,13 @@ const JoinPage = ({ data, onDone }) => {
                 {scoutUnits.length > 0 && (
                     <div><span className={LABEL}>Your unit</span>
                         <Select value={form.unitId} onChange={(e) => set('unitId', e.target.value)} aria-label="Your unit" title="Your unit" placeholder="Choose your unit" className={INPUT}>
-                            {scoutUnits.map((u) => <option key={u._id} value={u._id}>{u.name} · {u.sectionLabel}</option>)}
+                            {scoutUnits.map((u) => <option key={u._id} value={u._id}>{u.name} · {u.sectionLabel}{u.leaders?.length ? ` · ${u.leaders.join(', ')}` : ''}</option>)}
                         </Select>
+                        {(() => { const u = scoutUnits.find((x) => String(x._id) === String(form.unitId)); return u ? <p className="mt-1.5 text-xs text-slate-500">Goes to {u.leaders?.length ? <b className="text-slate-700">{u.leaders.join(', ')}</b> : 'the unit'} and {data.organization.name} — either can accept.</p> : null; })()}
                     </div>
+                )}
+                {choice.scheme === 'SCOUTS' && !scoutUnits.length && (
+                    <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800 ring-1 ring-amber-200 sm:col-span-2">{data.organization.name} hasn’t listed its Scouts & Guides units yet. Type your troop or company below, or ask your teacher to add the units.</p>
                 )}
                 {!club && !scoutUnits.length && <label><span className={LABEL}>{choice.scheme === 'SCOUTS' ? 'Troop / company' : 'Unit / company'}</span><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="As your officer calls it" /></label>}
                 <label><span className={LABEL}>{club ? 'Membership no. (if you have one)' : 'Enrolment no. (if you have one)'}</span><input className={INPUT} value={form.enrolmentNo} onChange={(e) => set('enrolmentNo', e.target.value)} /></label>
@@ -501,20 +505,47 @@ const BsgNotices = ({ notices = [], section }) => {
 const KIND_ICON = { social: HeartHandshake, camp: Tent, parade: Shield, drill: Shield, competition: Award, practice: Clock, performance: Sparkles, award: Award, other: Target };
 const KIND_LABEL = Object.fromEntries(KINDS);
 
-const Membership = ({ m, reload, say }) => {
-    const [logging, setLogging] = useState(false);
-
-    if (m.status === 'pending') {
-        return (
-            <div className={`${CARD} flex items-start gap-3 p-5`}>
+/** A request still waiting for the organization, with a way to cancel it (2026-11-16, "give a cancel request option"). */
+const PendingRequest = ({ m, reload, say }) => {
+    const [asking, setAsking] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const cancel = async () => {
+        setBusy(true);
+        try { say({ type: 'ok', text: (await api.delete(`${BASE}/join/${m._id}`)).data.message }); reload(); }
+        catch (err) { say({ type: 'error', text: errorOf(err, 'Could not cancel the request.') }); setBusy(false); setAsking(false); }
+    };
+    return (
+        <div className={`${CARD} p-5`}>
+            <div className="flex items-start gap-3">
                 <Clock className="mt-0.5 shrink-0 text-amber-600" size={20} />
-                <div>
+                <div className="min-w-0 flex-1">
                     <p className="font-bold text-slate-900">Waiting for your organization</p>
                     <p className="text-sm text-slate-500">You asked to join {m.name}{m.unit ? ` (${m.unit})` : ''}. You can log activities once it is confirmed.</p>
                 </div>
             </div>
-        );
-    }
+            {asking ? (
+                <div className="mt-4 rounded-xl bg-red-50 p-3">
+                    <p className="text-sm font-semibold text-red-800">Cancel your request to join {m.name}? You can ask again later.</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <button type="button" onClick={cancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60">
+                            {busy ? <Loader2 size={15} className="animate-spin" /> : <XCircle size={15} />} Yes, cancel it
+                        </button>
+                        <button type="button" onClick={() => setAsking(false)} disabled={busy} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Keep it</button>
+                    </div>
+                </div>
+            ) : (
+                <button type="button" onClick={() => { say(null); setAsking(true); }} className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50" data-cancel-request>
+                    <XCircle size={15} /> Cancel request
+                </button>
+            )}
+        </div>
+    );
+};
+
+const Membership = ({ m, reload, say }) => {
+    const [logging, setLogging] = useState(false);
+
+    if (m.status === 'pending') return <PendingRequest m={m} reload={reload} say={say} />;
 
     const withdraw = async (a) => {
         try { say({ type: 'ok', text: (await api.delete(`${BASE}/activities/${a._id}`)).data.message }); reload(); }
@@ -627,7 +658,8 @@ const ExtraCurricular = () => {
     if (data && id && !joining && !m) return <Navigate to="/extracurricular" replace />;
 
     return (
-        <div className="w-full space-y-4 pb-10">
+        // pb-40 on a phone (2026-11-16): the calendar and the last cards can scroll up clear of Yati in the corner.
+        <div className="w-full space-y-4 pb-40 sm:pb-10">
             {tabs.length > 1 && <FolderTabs label="Extra Curricular" tabs={tabs} />}
             <Notice notice={notice} onClose={() => setNotice(null)} />
 

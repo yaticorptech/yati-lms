@@ -11,6 +11,7 @@ import { Zap, Target, Timer, Award, Download, MessageSquareText } from 'lucide-r
 import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
 const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi, announceRewards } from './api';
+import { holdCelebrations } from '../utils/celebrationHold';
 import { COLORS, levelOf, backToPath, rememberLesson, setVoiceCourse } from './meta';
 import { Chunky, Loading, Problem } from './ui';
 import Session, { SessionFrame } from './session/Session';
@@ -49,6 +50,8 @@ function LessonPage() {
     const [run, setRun] = useState({ n: 0, from: 'start' });
     const [done, setDone] = useState(null);           // { r, summary }
     const talked = useRef(null);                      // a talk's last result (Speak on a topic)
+    // Achievement popups wait until this lesson is finished (2026-11-16), then show on its result screen.
+    useEffect(() => (done ? undefined : holdCelebrations()), [done]);
     const [packed, setPacked] = useState(() => !needsPack(lessonId)); // the unit's audio is on the device
 
     const load = useCallback(() => linguisticApi.lesson(lessonId).then((l) => { setLesson(l); setError(null); }).catch((e) => { setError(e); setLesson(null); }), [lessonId]);

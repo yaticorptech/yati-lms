@@ -97,8 +97,10 @@ router.get('/stream', protectUser, (req, res) => {
     const offDevices = require('../services/deviceGuard').onDevicesChange(req.user._id, () => onTopic('devices'));
     // A sign-in elsewhere ('session'): this page checks its own session and signs out if it was the older one.
     const offSession = require('../services/deviceGuard').onSessionChange(req.user._id, () => onTopic('session'));
+    // Their organization changed — accepted, removed, placed in a class (2026-11-16, services/orgEvents).
+    const offOrg = require('../services/orgEvents').onOrganizationChange(req.user._id, () => onTopic('organization'));
     const ping = setInterval(() => res.write(': ping\n\n'), 25000);
-    req.on('close', () => { clearInterval(ping); bus.off('topic', onTopic); offWallet(); offDevices(); offSession(); });
+    req.on('close', () => { clearInterval(ping); bus.off('topic', onTopic); offWallet(); offDevices(); offSession(); offOrg(); });
 });
 
 module.exports = router;

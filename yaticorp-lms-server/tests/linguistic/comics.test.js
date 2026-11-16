@@ -123,7 +123,8 @@ describe('the people\'s names in a picture story', () => {
     test('each named person has their name to show under them, in every language — spelt as that language\'s story spells it (2026-11-05)', () => {
         const { LANGS } = require('../../src/linguistic/content/comicLangs');
         const textOf = (pack) => JSON.stringify(pack);
-        for (const s of comics.STORIES) {
+        // A film (story 2) names each line's speaker in its scenes instead.
+        for (const s of comics.STORIES.filter((x) => !x.film)) {
             for (const code of [null, ...Object.keys(LANGS[s.order] || {})]) {
                 const stub = comics.stubs().find((x) => x.order === s.order && (x.course || null) === code);
                 if (!stub) continue;

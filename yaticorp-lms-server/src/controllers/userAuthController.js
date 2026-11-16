@@ -91,7 +91,10 @@ const loginUser = async (req, res) => {
             if (teacher.account || teacher.shared) return res.status(401).json({ code: 'TEACHER_ACCOUNT', message: 'This is a teacher account.' });
             if (teacher.pending && !found.wrongPassword) return res.status(401).json({ code: 'PASSWORD_NOT_SET', message: PASSWORD_NOT_SET });
             if (found.wrongPassword || teacher.wrongPassword) return res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });
-            return res.status(401).json({ code: 'NO_ACCOUNT', message: 'No account found with this mobile number. Check the number, use your card number, or sign up.' });
+            // A 12-digit entry may be either (2026-11-16: an unknown card was told "mobile number").
+            return res.status(401).json({ code: 'NO_ACCOUNT', message: k.kind === 'card-or-phone'
+                ? 'No account found with this card number or mobile number. Check it, or sign up.'
+                : 'No account found with this mobile number. Check the number, use your card number, or sign up.' });
         }
 
         const cardNumber = k.value;
@@ -109,7 +112,9 @@ const loginUser = async (req, res) => {
             res.status(401).json({ code: 'NO_ACCOUNT', message: 'No account found with this card number or mobile number. Check it, or sign up.' });
         }
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        // The details stay in the server's log, not in the student's browser (2026-11-16).
+        console.error('[auth] sign-in failed:', error);
+        res.status(500).json({ message: 'Could not sign you in just now. Please try again.' });
     }
 };
 
@@ -214,6 +219,12 @@ const BUNDLED_AVATAR = /^\/avatars\/(boys|girls|kids|elders)\/([1-9]|1\d)\.(png|
 const frontendHost = () => {
     try { return new URL(process.env.FRONTEND_URL).hostname; } catch { return null; }
 };
+/** A ready-made avatar (bundled illustration or DiceBear), not a real photo. */
+const isAvatarPicture = (value) => {
+    const v = String(value || '');
+    if (/api\.dicebear\.com/i.test(v)) return true;
+    try { return BUNDLED_AVATAR.test(new URL(v, 'http://x').pathname); } catch { return false; }
+};
 const normalizePictureUrl = (value) => {
     if (value === '') return '';
     if (BUNDLED_AVATAR.test(value)) {
@@ -237,11 +248,16 @@ const normalizePictureUrl = (value) => {
 // @access  Private/User
 const updateUserProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select('email').lean();
+        const user = await User.findById(req.user._id).select('email organizationId').lean();
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         if (req.body.profilePicture !== undefined) {
             const pic = normalizePictureUrl(String(req.body.profilePicture || '').trim());
+            // In an institution (2026-11-16) the picture is their real photo in uniform: it is the one on
+            // the admit card and marks card, so a ready-made avatar is refused.
+            if (pic && user.organizationId && isAvatarPicture(pic)) {
+                return res.status(400).json({ code: 'UNIFORM_PHOTO_REQUIRED', message: 'Your institution needs your real photo in uniform. Please upload a photo instead of an avatar.' });
+            }
             if (pic === '') {
                 return res.status(400).json({ message: 'A profile picture is required. Upload a photo or choose an avatar.' });
             }

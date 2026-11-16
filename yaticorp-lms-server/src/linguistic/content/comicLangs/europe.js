@@ -19,22 +19,6 @@ module.exports = {
             ['¿Qué hizo Asha cuando Gopal pidió agua?', 'Se la dio gratis', 'Le pidió una moneda', 'Lo echó', 'Se rio de él'],
             ['¿Qué significa la moraleja?', 'Compartir ayuda a todos; la codicia te deja sin nada', 'Los pozos siempre deben ser profundos', 'Los ricos deben estar orgullosos', 'El agua es más útil que el oro']
         ]],
-        2: ['Tres monedas de plata', 'La bondad nunca se pierde. Vuelve, y a menudo más grande de lo que se fue.', null, [
-            'Ravi, un joven tejedor, partió hacia la feria del pueblo con tres monedas de plata —todo lo que tenía— para comprar hilo para su telar.',
-            'Hijo, no he comido en dos días.', 'Tome esta moneda, abuela.',
-            'Mi barca tiene un agujero. No puedo trabajar.', 'Arréglela con esto.',
-            'Debo pagar la escuela, y mi padre está enfermo.', '¡Entonces esta última moneda es tuya!',
-            'Sin monedas, sin hilo. ¿Qué le diré a mi madre?',
-            '¿Eres el tejedor que dio de comer a mi madre?', 'Sí… pero ¿cómo lo sabe?',
-            'Ella me lo contó todo. ¡Este hilo es un regalo!', '¡Gracias, hermana!',
-            'En la siguiente feria—', 'La tela de Ravi ganó el primer premio. En su borde había tejido tres monedas de plata, y las tres personas a las que ayudaron vinieron a aplaudirle.'
-        ], [
-            ['¿Por qué iba Ravi a la feria?', 'Para comprar hilo para su telar', 'Para vender la tela que había tejido', 'Para buscar un nuevo trabajo', 'Para ver a su madre'],
-            ['¿A quién le dio Ravi su última moneda?', 'A Somu, un niño que debía pagar la escuela', 'A la anciana', 'Al barquero', 'A la vendedora de hilo'],
-            ['¿Cómo sabía la vendedora de hilo quién era Ravi?', 'Se lo contó su madre, la anciana a la que Ravi ayudó', 'Se lo contó el barquero', 'Lo vio en el camino', 'Se lo contó el padre de Somu'],
-            ['¿Qué tejió Ravi en el borde de la tela premiada?', 'Tres monedas de plata', 'El nombre de su madre', 'Una barca en un río', 'Un baniano'],
-            ['¿Cuál es la moraleja?', 'La bondad vuelve, a menudo más grande', 'Nunca gastes todo tu dinero', 'Las ferias son mejores que los pueblos', 'El hilo es más útil que las monedas']
-        ]],
         3: ['El camino y el baniano', 'Cuando cuidamos la naturaleza, la naturaleza nos cuida.', null, [
             'Cada tarde, los niños de Hosur jugaban bajo el viejo baniano, y los mayores descansaban a su sombra.',
             'Una mañana—', 'La nueva carretera pasará por aquí. Este árbol debe irse.',
@@ -85,22 +69,6 @@ module.exports = {
             ['Qu’est-il arrivé au puits de Gopal l’été suivant ?', 'Il s’est asséché', 'Il s’est rempli d’or', 'Le village l’a acheté', 'Il a débordé'],
             ['Qu’a fait Asha quand Gopal a demandé de l’eau ?', 'Elle lui en a donné gratuitement', 'Elle lui a demandé une pièce', 'Elle l’a chassé', 'Elle s’est moquée de lui'],
             ['Que veut dire la morale ?', 'Partager aide tout le monde ; l’avidité ne laisse rien', 'Les puits doivent toujours être profonds', 'Les riches doivent être fiers', 'L’eau est plus utile que l’or']
-        ]],
-        2: ['Trois pièces d’argent', 'La bonté n’est jamais perdue. Elle revient, souvent plus grande qu’elle n’est partie.', null, [
-            'Ravi, un jeune tisserand, partit pour la foire de la ville avec trois pièces d’argent — tout ce qu’il avait — pour acheter du fil pour son métier.',
-            'Mon fils, je n’ai pas mangé depuis deux jours.', 'Prenez cette pièce, grand-mère.',
-            'Mon bateau a un trou. Je ne peux pas travailler.', 'Réparez-le avec ceci.',
-            'Je dois payer l’école, et mon père est malade.', 'Alors cette dernière pièce est pour toi !',
-            'Plus de pièces, pas de fil. Que dirai-je à ma mère ?',
-            'Es-tu le tisserand qui a nourri ma mère ?', 'Oui… mais comment le savez-vous ?',
-            'Elle m’a tout raconté. Ce fil est un cadeau !', 'Merci, ma sœur !',
-            'À la foire suivante—', 'Le tissu de Ravi gagna le premier prix. Sur sa bordure, il avait tissé trois pièces d’argent — et les trois personnes qu’elles avaient aidées vinrent l’applaudir.'
-        ], [
-            ['Pourquoi Ravi allait-il à la foire ?', 'Pour acheter du fil pour son métier', 'Pour vendre le tissu qu’il avait tissé', 'Pour chercher un nouveau travail', 'Pour voir sa mère'],
-            ['À qui Ravi a-t-il donné sa dernière pièce ?', 'À Somu, un garçon qui devait payer l’école', 'À la vieille femme', 'Au batelier', 'À la vendeuse de fil'],
-            ['Comment la vendeuse de fil connaissait-elle Ravi ?', 'Sa mère, la vieille femme que Ravi avait nourrie, le lui avait dit', 'Le batelier le lui avait dit', 'Elle l’avait vu sur la route', 'Le père de Somu le lui avait dit'],
-            ['Qu’a tissé Ravi sur la bordure du tissu primé ?', 'Trois pièces d’argent', 'Le nom de sa mère', 'Un bateau sur une rivière', 'Un banian'],
-            ['Quelle est la morale ?', 'La bonté revient, souvent plus grande', 'Ne dépense jamais tout ton argent', 'Les foires valent mieux que les villages', 'Le fil est plus utile que les pièces']
         ]],
         3: ['La route et le banian', 'Quand nous prenons soin de la nature, la nature prend soin de nous.', null, [
             'Chaque soir, les enfants de Hosur jouaient sous le vieux banian, et les anciens se reposaient à son ombre.',
@@ -153,22 +121,6 @@ module.exports = {
             ['Was tat Asha, als Gopal um Wasser bat?', 'Sie gab es ihm umsonst', 'Sie verlangte eine Münze', 'Sie schickte ihn weg', 'Sie lachte ihn aus'],
             ['Was bedeutet die Moral?', 'Teilen hilft allen; Gier lässt einen mit nichts zurück', 'Brunnen müssen immer tief sein', 'Reiche sollen stolz sein', 'Wasser ist nützlicher als Gold']
         ]],
-        2: ['Drei Silbermünzen', 'Freundlichkeit geht nie verloren. Sie kommt zurück – oft größer, als sie ging.', null, [
-            'Ravi, ein junger Weber, machte sich mit drei Silbermünzen – alles, was er hatte – auf den Weg zum Markt in der Stadt, um Garn für seinen Webstuhl zu kaufen.',
-            'Mein Sohn, ich habe seit zwei Tagen nichts gegessen.', 'Nimm diese Münze, Großmutter.',
-            'Mein Boot hat ein Loch. Ich kann nicht arbeiten.', 'Repariere es damit.',
-            'Ich muss das Schulgeld zahlen, und Vater ist krank.', 'Dann gehört diese letzte Münze dir!',
-            'Keine Münzen, kein Garn. Was sage ich nur Mutter?',
-            'Bist du der Weber, der meiner Mutter zu essen gab?', 'Ja… aber woher wissen Sie das?',
-            'Sie hat mir alles erzählt. Dieses Garn ist ein Geschenk!', 'Danke, Schwester!',
-            'Auf dem nächsten Markt—', 'Ravis Stoff gewann den ersten Preis. In seinen Rand hatte er drei Silbermünzen gewebt – und die drei Menschen, denen sie geholfen hatten, kamen, um ihm zuzujubeln.'
-        ], [
-            ['Warum ging Ravi zum Markt?', 'Um Garn für seinen Webstuhl zu kaufen', 'Um seinen Stoff zu verkaufen', 'Um eine neue Arbeit zu suchen', 'Um seine Mutter zu besuchen'],
-            ['Wem gab Ravi seine letzte Münze?', 'Somu, einem Jungen, der Schulgeld zahlen musste', 'Der alten Frau', 'Dem Bootsmann', 'Der Garnverkäuferin'],
-            ['Woher kannte die Garnverkäuferin Ravi?', 'Ihre Mutter, die alte Frau, der Ravi half, hatte es ihr erzählt', 'Der Bootsmann hatte es ihr erzählt', 'Sie hatte ihn auf der Straße gesehen', 'Somus Vater hatte es ihr erzählt'],
-            ['Was webte Ravi in den Rand seines preisgekrönten Stoffes?', 'Drei Silbermünzen', 'Den Namen seiner Mutter', 'Ein Boot auf einem Fluss', 'Einen Banyanbaum'],
-            ['Was ist die Moral?', 'Freundlichkeit kommt zurück, oft größer', 'Gib nie dein ganzes Geld aus', 'Märkte sind besser als Dörfer', 'Garn ist nützlicher als Münzen']
-        ]],
         3: ['Die Straße und der Banyanbaum', 'Wenn wir die Natur schützen, schützt die Natur uns.', null, [
             'Jeden Abend spielten die Kinder von Hosur unter dem alten Banyanbaum, und die Alten ruhten in seinem Schatten.',
             'Eines Morgens—', 'Die neue Straße führt hier entlang. Dieser Baum muss weg.',
@@ -219,22 +171,6 @@ module.exports = {
             ['O que aconteceu ao poço de Gopal no verão seguinte?', 'Secou', 'Encheu-se de ouro', 'A aldeia comprou-o', 'Transbordou de água'],
             ['O que fez Asha quando Gopal pediu água?', 'Deu-lha de graça', 'Pediu-lhe uma moeda', 'Mandou-o embora', 'Riu-se dele'],
             ['O que quer dizer a moral?', 'Partilhar ajuda todos; a ganância deixa-nos sem nada', 'Os poços devem ser sempre fundos', 'Os ricos devem ser orgulhosos', 'A água é mais útil do que o ouro']
-        ]],
-        2: ['Três moedas de prata', 'A bondade nunca se perde. Volta, muitas vezes maior do que partiu.', null, [
-            'Ravi, um jovem tecelão, partiu para a feira da vila com três moedas de prata — tudo o que tinha — para comprar fio para o seu tear.',
-            'Filho, não como há dois dias.', 'Tome esta moeda, avó.',
-            'O meu barco tem um buraco. Não posso trabalhar.', 'Conserte-o com isto.',
-            'Tenho de pagar a escola, e o meu pai está doente.', 'Então esta última moeda é tua!',
-            'Sem moedas, sem fio. O que vou dizer à minha mãe?',
-            'És o tecelão que deu de comer à minha mãe?', 'Sim… mas como sabe?',
-            'Ela contou-me tudo. Este fio é um presente!', 'Obrigado, irmã!',
-            'Na feira seguinte—', 'O pano de Ravi ganhou o primeiro prémio. Na sua orla ele tinha tecido três moedas de prata — e as três pessoas que elas ajudaram vieram aplaudi-lo.'
-        ], [
-            ['Porque ia Ravi à feira?', 'Para comprar fio para o seu tear', 'Para vender o pano que tinha tecido', 'Para procurar um novo trabalho', 'Para visitar a mãe'],
-            ['A quem deu Ravi a sua última moeda?', 'A Somu, um rapaz que tinha de pagar a escola', 'À velhinha', 'Ao barqueiro', 'À vendedora de fio'],
-            ['Como sabia a vendedora de fio quem era Ravi?', 'A mãe dela, a velhinha que Ravi ajudou, contou-lhe', 'O barqueiro contou-lhe', 'Viu-o na estrada', 'O pai de Somu contou-lhe'],
-            ['O que teceu Ravi na orla do pano premiado?', 'Três moedas de prata', 'O nome da mãe', 'Um barco num rio', 'Uma figueira-de-bengala'],
-            ['Qual é a moral?', 'A bondade volta, muitas vezes maior', 'Nunca gastes todo o teu dinheiro', 'As feiras são melhores do que as aldeias', 'O fio é mais útil do que as moedas']
         ]],
         3: ['A estrada e a figueira-de-bengala', 'Quando cuidamos da natureza, a natureza cuida de nós.', null, [
             'Todas as tardes, as crianças de Hosur brincavam debaixo da velha figueira-de-bengala, e os mais velhos descansavam à sua sombra.',

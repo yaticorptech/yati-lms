@@ -141,8 +141,11 @@ const lookupOrganization = async (req, res) => {
         const student = await User.findById(req.user._id).select('organizationId').lean();
         const pending = await JoinRequest.findOne({ userId: req.user._id, status: 'pending' }).lean();
 
+        // Campus on (2026-11-14): the student picks their department and semester with the request.
+        const departments = organization.campusAllowed ? require('../../campus/core').joinChoices((await require('../../campus/core').loadCampus(organization._id)).campus) : [];
         res.json({
             organization: publicShape(organization),
+            departments,
             // The client uses these to decide whether to offer the button at all,
             // but the POST below re-checks both — the frontend is never the gate.
             alreadyMember: String(student?.organizationId || '') === String(organization._id),
@@ -202,10 +205,27 @@ const createRequest = async (req, res) => {
             });
         }
 
+        // Campus on, with departments: which department, semester and section they are asking for.
+        let campusChoice;
+        if (organization.campusAllowed) {
+            const { campus } = await require('../../campus/core').loadCampus(organization._id);
+            if (campus.departments.length) {
+                const dept = campus.departments.find((d) => String(d._id) === String(req.body.departmentId || ''));
+                if (!dept) return res.status(400).json({ field: 'departmentId', message: 'Choose your department.' });
+                const semester = Math.round(Number(req.body.semester));
+                const top = dept.semesters || 1;
+                if (!(semester >= 1 && semester <= top)) return res.status(400).json({ field: 'semester', message: `Choose your semester (1 to ${top}).` });
+                const section = String(req.body.section || '').trim().toUpperCase().slice(0, 10);
+                if ((section && !(dept.sections || []).includes(section)) || ((dept.sections || []).length > 1 && !section)) return res.status(400).json({ field: 'section', message: 'Choose your section.' });
+                campusChoice = { departmentId: dept._id, semester, section: section || (dept.sections?.length === 1 ? dept.sections[0] : '') };
+            }
+        }
+
         const request = await JoinRequest.create({
             userId: req.user._id,
             organizationId: organization._id,
-            status: 'pending'
+            status: 'pending',
+            ...(campusChoice ? { campus: campusChoice } : {})
         });
 
         res.status(201).json({
@@ -281,6 +301,7 @@ const leaveOrganization = async (req, res) => {
 
         // Conditional on the same organization still being set, so a superadmin
         // assigning them somewhere at this moment is not undone.
+        await require('../../campus/core').archiveCampus(req.user._id, student.organizationId, 'Left the institution');
         const result = await User.updateOne(
             { _id: req.user._id, organizationId: student.organizationId },
             { $set: { organizationId: null, organizationJoinedAt: null } }

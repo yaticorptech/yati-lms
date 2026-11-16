@@ -17,6 +17,7 @@ import { GameHero, JoinCard, CollegesCard, PayCard, PaymentHoldCard } from '../G
 import { arenaApi, STATE, fmt, duration } from './api';
 import useGoBack from '../../hooks/useGoBack';
 import useLive from '../../live/useLive';
+import Select from '../../components/Select';
 
 const useNow = (ms = 1000) => {
     const [now, setNow] = useState(() => Date.now());
@@ -97,10 +98,14 @@ const Results = ({ id, title, heldOn }) => {
                         <button key={k} type="button" onClick={() => setTab(k)} className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-bold ${tab === k ? 'bg-indigo-100 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}><Icon size={15} /> {label}</button>
                     ))}
                     {tab === 'overall' && r.colleges.length > 1 && (
-                        <select value={college} onChange={(e) => setCollege(e.target.value)} className="ml-auto rounded-xl border border-slate-200 px-2 py-1.5 text-sm">
-                            <option value="">All colleges</option>
-                            {r.colleges.map((c) => <option key={c.rank} value={c.organizationId || ''}>{c.collegeName}</option>)}
-                        </select>
+                        // The app's own dropdown (2026-11-12, "make it correct"), not the browser's grey list.
+                        <div className="w-full sm:ml-auto sm:w-56">
+                            <Select value={college} onChange={(e) => setCollege(e.target.value)} aria-label="College"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-indigo-200">
+                                <option value="">All colleges</option>
+                                {r.colleges.map((c) => <option key={c.rank} value={c.organizationId || ''}>{c.collegeName}</option>)}
+                            </Select>
+                        </div>
                     )}
                 </div>
                 {tab === 'overall' ? (

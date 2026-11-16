@@ -160,7 +160,7 @@ describe('added with name and mobile number only: they set up their own account'
     test('"Is this you?": the check gives their name and number while it waits', async () => {
         const r = await post('', { phone: `+91 ${PHONE_NEW}` });
         assert.equal(r.status, 200);
-        assert.deepEqual(r.body.teachers, [{ firstName: 'Ravi', organization: `One Box College ${STAMP}`, active: true, needsPassword: true, id: String(mentor._id), name: 'Ravi Kumar', phone: PHONE_NEW }]);
+        assert.deepEqual(r.body.teachers, [{ firstName: 'Ravi', organization: `One Box College ${STAMP}`, active: true, needsPassword: true, id: String(mentor._id), name: 'Ravi Kumar', phone: PHONE_NEW, courses: [] }]); // courses: the organization's list, offered as the department (none in this test)
     });
 
     test('a password, then their email and details, and they are in', async () => {

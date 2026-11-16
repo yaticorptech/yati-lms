@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, LogOut, BookOpenCheck,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, CreditCard, HandCoins, ChevronDown, ChartNoAxesCombined, ScrollText, Presentation } from 'lucide-react';
+    Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, CreditCard, HandCoins, ChevronDown, ChartNoAxesCombined, ScrollText, Presentation, Lock, BookMarked } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 import useCenterTabs from '../hooks/useCenterTabs';
@@ -200,6 +200,8 @@ const AdminLayout = () => {
                         the whole heading is left out for anyone else. */}
                     <NavGroup icon={CreditCard} label="Manage cards" isActive={isActive} items={superAdmin ? [
                         { to: '/verify-cards', label: 'Verify cards', icon: CreditCard },
+                        // AI Passport QR IDs: a scan links the book to a card, verifies it and pays the reward.
+                        { to: '/ai-passports', label: 'AI Passports', icon: BookMarked },
                         // Presentation cards: scan to open with no password, reset to a fresh card.
                         { to: '/demo-cards', label: 'Demo cards', icon: Presentation },
                         { to: '/wallet-recharge', label: 'Wallet recharge', icon: HandCoins }
@@ -214,6 +216,8 @@ const AdminLayout = () => {
                     <NavGroup icon={BookOpen} label="Courses" isActive={isActive} items={[
                         { to: '/courses', label: 'Courses', icon: BookOpen },
                         { to: '/enrollments', label: 'Enrollments', icon: Network },
+                        // Private courses (2026-11-12): a course only the students chosen can see.
+                        { to: '/private-courses', label: 'Private courses', icon: Lock },
                         { to: '/analytics', label: 'Course analytics', icon: BarChart2 }
                     ]} />
                     {/* Global Quiz and the inter-college competitions (Chess, the brain

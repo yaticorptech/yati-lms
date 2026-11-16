@@ -154,7 +154,7 @@ const buildResumeData = async (userId) => {
     // Downloading it again from the course puts it back in both.
     const certifications = [
         ...courses.filter((c) => c.certificate && !c.certificate.hiddenAt).map((c) => ({
-            title: c.title, issuer: 'YATI LMS', date: c.certificate.issuedAt, number: c.certificate.certificateNumber || ''
+            title: c.title, issuer: 'YATICORP', date: c.certificate.issuedAt, number: c.certificate.certificateNumber || ''
         })),
         ...(achievements || []).map((a) => ({ title: a.title, issuer: a.issuer || '', date: a.issuedOn || a.createdAt, number: '' }))
     ];
@@ -165,7 +165,7 @@ const buildResumeData = async (userId) => {
     const summaryBits = [
         resume?.headline || [level, target].filter(Boolean).join(' · ') || target || 'Student',
         courses.length
-            ? `${courses.length} course${courses.length === 1 ? '' : 's'} on YATI LMS${completedCount ? ` (${completedCount} completed)` : ' in progress'}`
+            ? `${courses.length} course${courses.length === 1 ? '' : 's'} on YATICORP${completedCount ? ` (${completedCount} completed)` : ' in progress'}`
             : null,
         skills.length ? `Skills include ${skills.slice(0, 6).map((s) => s.name).join(', ')}` : null
     ].filter(Boolean);
@@ -398,7 +398,7 @@ const renderAtsPdf = (data, res) => {
             if (c.certificate?.certificateNumber && !c.certificate.hiddenAt) bullets.push(`Certificate ${c.certificate.certificateNumber}, issued ${fmtDay(c.certificate.issuedAt)}.`);
             entry({
                 lines: [
-                    { text: 'YATI LMS', color: MUTED },
+                    { text: 'YATICORP', color: MUTED },
                     { text: c.title, font: SERIF_B },
                     {
                         text: c.completed
@@ -425,7 +425,7 @@ const renderAtsPdf = (data, res) => {
     }
 
     doc.moveDown(1.1);
-    write(`Generated from YATI LMS on ${fmtDay(data.generatedAt)}.`, { size: 8, color: '#777777' });
+    write(`Generated from YATICORP on ${fmtDay(data.generatedAt)}.`, { size: 8, color: '#777777' });
     doc.end();
 };
 

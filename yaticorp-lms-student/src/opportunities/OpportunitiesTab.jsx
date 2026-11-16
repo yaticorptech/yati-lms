@@ -422,7 +422,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                     {listing?.web?.allowed && listing.web.count > 0 && (
                         <p className="flex items-center gap-2 text-xs text-slate-500">
                             <Globe size={14} className="shrink-0 text-sky-500" aria-hidden="true" />
-                            Including {listing.web.count} open part-time vacanc{listing.web.count === 1 ? 'y' : 'ies'} near {listing.web.place?.label || webLocation} from Google Jobs.
+                            Including {listing.web.count} open part-time vacanc{listing.web.count === 1 ? 'y' : 'ies'} near {listing.web.place?.label || webLocation} from job sites.
                             {listing.web.widened && <> Few were posted in {listing.web.place?.city || webLocation}, so some come from {listing.web.widened}.</>}
                         </p>
                     )}
@@ -431,6 +431,14 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         nobody has checked the age, the hours or the organisation,
                         and applying leaves the LMS — so a student under 18 is told
                         that plainly rather than left to assume otherwise. */}
+                    {listing?.web?.related > 0 && (
+                        <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                            <Globe size={14} className="shrink-0 text-amber-500" aria-hidden="true" />
+                            {listing.web.count > 0
+                                ? `Only a few part-time jobs near ${listing.web.place?.city || webLocation} right now, so ${listing.web.related} related job${listing.web.related === 1 ? '' : 's'} (internships and work in your interests) are shown too. They are marked "Related".`
+                                : `No part-time jobs near ${listing.web.place?.city || webLocation} right now. Here are ${listing.web.related} related job${listing.web.related === 1 ? '' : 's'} instead (internships and work in your interests), marked "Related".`}
+                        </p>
+                    )}
                     {listing?.web?.notAgeChecked && listing.web.count > 0 && (
                         <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
                             <ShieldAlert size={14} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />

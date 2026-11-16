@@ -232,6 +232,8 @@ const updateCourse = async (req, res) => {
             }
         }
 
+        // Private or not, and to whom: set on the Private courses page only (privateCourseController.js).
+        delete rest.isPrivate; delete rest.privateTo;
         // An organization's course stays free, whatever an edit sends.
         if (current.organizationId) {
             delete rest.price; delete rest.pricePoints; delete rest.creditCost;

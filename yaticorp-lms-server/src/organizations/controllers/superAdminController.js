@@ -113,7 +113,8 @@ const listOrganizations = async (req, res) => {
                 courseAccess: { enabled: Boolean(o.courseAccess?.enabled), limit: o.courseAccess?.limit || 5 },
                 courseCount: courses.get(String(o._id)) || 0,
                 canHostCompetitions: Boolean(o.canHostCompetitions),
-                three60Allowed: Boolean(o.three60?.allowed)
+                three60Allowed: Boolean(o.three60?.allowed),
+                campusAllowed: Boolean(o.campusAllowed)
             })),
             totals: Organization.STATUSES.reduce((acc, s) => {
                 acc[s] = totals.find((t) => t._id === s)?.count || 0;
@@ -151,7 +152,8 @@ const getOrganization = async (req, res) => {
                 typeLabel: Organization.TYPE_LABELS[organization.organizationType] || 'Other',
                 courseAccess: { enabled: Boolean(organization.courseAccess?.enabled), limit: organization.courseAccess?.limit || 5 },
                 canHostCompetitions: Boolean(organization.canHostCompetitions),
-                three60Allowed: Boolean(organization.three60?.allowed)
+                three60Allowed: Boolean(organization.three60?.allowed),
+                campusAllowed: Boolean(organization.campusAllowed)
             },
             admins,
             studentCount,
@@ -888,12 +890,12 @@ const getAuditLog = async (req, res) => {
 const setThree60Access = async (req, res) => {
     try {
         const { enabled } = req.body || {};
-        if (typeof enabled !== 'boolean') return res.status(400).json({ message: 'Say whether 360 is on or off.' });
+        if (typeof enabled !== 'boolean') return res.status(400).json({ message: 'Say whether Student Ranking is on or off.' });
         const organization = await Organization.findByIdAndUpdate(req.params.id, { $set: { 'three60.allowed': enabled } }, { returnDocument: 'after' });
         if (!organization) return res.status(404).json({ message: 'Organization not found' });
         await OrgAuditLog.record({ orgId: organization._id, admin: req.admin, action: 'three60-access', req, details: { allowed: enabled } });
         res.json({
-            message: enabled ? `360 is unlocked for ${organization.name}.` : `360 is locked for ${organization.name}.`,
+            message: enabled ? `Student Ranking is unlocked for ${organization.name}.` : `Student Ranking is locked for ${organization.name}.`,
             three60Allowed: Boolean(organization.three60?.allowed)
         });
     } catch (error) {
@@ -902,7 +904,29 @@ const setThree60Access = async (req, res) => {
     }
 };
 
+// @desc    Switch Campus (the student management system) on or off for an organization (2026-11-13)
+// @route   PUT /api/organizations/admin/:id/campus { enabled }
+// @access  Private/SuperAdmin
+// Switching it off keeps every department, admission, mark and receipt; nobody uses Campus until it is on again.
+const setCampusAccess = async (req, res) => {
+    try {
+        const { enabled } = req.body || {};
+        if (typeof enabled !== 'boolean') return res.status(400).json({ message: 'Say whether Campus is on or off.' });
+        const organization = await Organization.findByIdAndUpdate(req.params.id, { $set: { campusAllowed: enabled } }, { returnDocument: 'after' });
+        if (!organization) return res.status(404).json({ message: 'Organization not found' });
+        await OrgAuditLog.record({ orgId: organization._id, admin: req.admin, action: 'campus-access', req, details: { allowed: enabled } });
+        res.json({
+            message: enabled ? `Campus is on for ${organization.name}.` : `Campus is off for ${organization.name}.`,
+            campusAllowed: Boolean(organization.campusAllowed)
+        });
+    } catch (error) {
+        if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
+    setCampusAccess,
     setThree60Access,
     deleteOrganization,
     getAuditLog,

@@ -78,7 +78,12 @@ const subjectsFrom = (given) => {
 };
 
 /** The organization's list: each course, its sections, and how many teachers marked each course. */
+/** What the institution calls 360 (Organization.three60.title); Student Ranking by default. */
+const rankingName = (org) => String(org?.three60?.title || '').trim() || 'Student Ranking';
+
 const overview = (org) => ({
+    title: rankingName(org),
+    customTitle: String(org.three60?.title || ''),
     // Unlocked by the platform's superadmin (2026-11-04); until then the 360 Activities page is locked.
     allowed: require('./activities').unlocked(org),
     enabled: Boolean(org.three60?.enabled),
@@ -110,6 +115,8 @@ orgAdmin.put('/', async (req, res) => {
         const { unlocked, locked } = require('./activities');
         if (!unlocked(org)) return locked(res);
         if (typeof req.body?.enabled === 'boolean') org.set('three60.enabled', req.body.enabled);
+        // Its own name for it, shown to its teachers and students; blank goes back to Student Ranking.
+        if (typeof req.body?.title === 'string') org.set('three60.title', req.body.title.trim().slice(0, 40));
         await org.save();
         res.json(overview(org));
     } catch (error) { fail(res, 'settings', error); }
@@ -204,6 +211,7 @@ const dashboard = async (org, teacherId) => {
         : [];
     return {
         organization: { name: org.name, logo: org.logo || '' },
+        title: rankingName(org),
         // Not unlocked by the platform yet: the 360 page says so (What I teach still works).
         locked: isLocked,
         courses: programs.map((p) => ({ _id: p._id, name: p.name, sections: p.sections.map((s) => ({ _id: s._id, name: s.name })), subjects: subjectsView(p) })),
@@ -212,7 +220,13 @@ const dashboard = async (org, teacherId) => {
         classes,
         // Each with their activity marks so far and the proof waiting to be checked.
         students: students.map((st) => ({ ...studentView(st), marks: totalsOf(org, st.activityProofs, st.activityMarks).total,
-            waiting: (st.activityProofs || []).filter((x) => x.status === 'pending').length }))
+            waiting: (st.activityProofs || []).filter((x) => x.status === 'pending').length })),
+        // Every proof waiting to be checked, from all their students, oldest first (2026-11-14):
+        // one queue on the dashboard instead of opening each student.
+        queue: students.flatMap((st) => (st.activityProofs || []).filter((x) => x.status === 'pending').map((x) => ({
+            _id: x._id, studentId: st._id, activityId: x.activityId, activity: x.activityName || '', group: x.groupName || '',
+            fileUrl: x.fileUrl, previewUrl: x.previewUrl || (x.fileType === 'image' && !x.driveFileId ? x.fileUrl : ''), fileType: x.fileType, fileName: x.fileName || '', note: x.note || '', createdAt: x.createdAt
+        }))).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)).slice(0, 200)
     };
 };
 
@@ -289,8 +303,12 @@ mentor.get('/students', async (req, res) => {
     } catch (error) { fail(res, 'students', error); }
 });
 
+// A mentor's students are assigned by their HOD (2026-11-14, Department → Mentors): not added or removed here.
+const hodAssigns = (res) => res.status(403).json({ code: 'HOD_ASSIGNS', message: 'Your HOD assigns the students you mentor.' });
 // { studentIds }: these of the organization's students into my set.
 mentor.post('/students', async (req, res) => {
+    return hodAssigns(res);
+    // eslint-disable-next-line no-unreachable
     try {
         const org = await myOrg(req);
         if (!org) return noOrg(res);
@@ -307,6 +325,8 @@ mentor.post('/students', async (req, res) => {
 
 // One student out of my set.
 mentor.delete('/students/:studentId', async (req, res) => {
+    return hodAssigns(res);
+    // eslint-disable-next-line no-unreachable
     try {
         const org = await myOrg(req);
         if (!org) return noOrg(res);
@@ -324,10 +344,10 @@ student.get('/', async (req, res) => {
     try {
         const user = await User.findById(req.user._id).select('organizationId').lean();
         const org = user?.organizationId ? await Organization.findById(user.organizationId).select('name logo three60').lean() : null;
-        if (!org?.three60?.enabled || !require('./activities').unlocked(org)) return res.json({ enabled: false });
+        if (!org?.three60?.enabled || !require('./activities').unlocked(org)) return res.json({ enabled: false, title: rankingName(org) });
         const teachers = await Teacher.find({ organizationId: org._id, mentor360: true, students360: req.user._id }).select('name email phone').sort({ name: 1 }).lean();
         // Only the students a 360 teacher has added take part (2026-10-31): for the others 360 stays shut.
-        if (!teachers.length) return res.json({ enabled: false, notAdded: true });
+        if (!teachers.length) return res.json({ enabled: false, notAdded: true, title: rankingName(org) });
         const subjectsOf = {};
         for (const p of org.three60.programs || []) {
             for (const s of p.sections || []) {
@@ -336,6 +356,7 @@ student.get('/', async (req, res) => {
         }
         res.json({
             enabled: true,
+            title: rankingName(org),
             organization: org.name,
             organizationLogo: org.logo || '',
             teachers: teachers.map((t) => ({ name: t.name, email: t.email || '', phone: t.phone || '', subjects: [...(subjectsOf[String(t._id)] || [])] })),

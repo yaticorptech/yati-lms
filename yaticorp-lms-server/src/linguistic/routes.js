@@ -242,7 +242,7 @@ router.get('/lessons/:id/pack', async (req, res, next) => {
         const key = unit ? `${lesson.level}-${unit.kind === 'track' ? unit.track : `${unit.order}-${unit.part || 1}`}` : `lesson-${idOf(lesson._id)}`;
         res.json({
             key: `${courseOf(progress)}:${svc.languageOf(progress)}:${key}`,
-            title: unit?.title || lesson.title, letters: lesson.review === 'letters',
+            title: unit?.title || lesson.title, letters: lesson.review === 'letters' || lesson.review === 'lettersExam',
             lessonIds: docs.map((x) => idOf(x._id)), lessons: out
         });
     } catch (err) { next(err); }
@@ -515,7 +515,7 @@ router.get('/history', async (req, res, next) => {
 
 router.get('/certificates', async (req, res, next) => {
     try {
-        const progress = await svc.progressOf(req.user._id);
+        const progress = await svc.numberCertificates(req.user._id, await svc.progressOf(req.user._id));
         res.json({ certificates: progress.certificates.filter((c) => !c.hiddenAt).map((c) => ({ level: c.level, label: svc.LEVEL_LABEL[c.level], course: c.course || 'en', courseName: courseInfo(c.course || 'en').name, number: c.number, issuedAt: c.issuedAt, average: c.average })) });
     } catch (err) { next(err); }
 });
@@ -523,7 +523,7 @@ router.get('/certificates', async (req, res, next) => {
 router.get('/certificates/:level/pdf', require('../integrations/google/driveStore').requireDriveForDownload, async (req, res, next) => {
     try {
         if (!LEVELS.includes(req.params.level)) return bad(res, 'That certificate was not found.', 404);
-        const progress = await svc.progressOf(req.user._id);
+        const progress = await svc.numberCertificates(req.user._id, await svc.progressOf(req.user._id));
         // ?course= for another course's; the course the student is on otherwise.
         const course = String(req.query.course || courseOf(progress));
         const c = progress.certificates.find((x) => x.level === req.params.level && svc.inCourse(x, course));

@@ -124,8 +124,9 @@ function toGeo(rawLat, rawLon) {
   return { type: "Point", coordinates: [lon, lat] };
 }
 
-const stripHTML = (html) =>
-  String(html ?? "").replace(/<[^>]*>/g, " ").replace(/&[a-z]+;/gi, " ").replace(/\s+/g, " ").trim();
+// Entities decoded before tags are removed, so escaped HTML ("&lt;h1&gt;")
+// does not leave its tag names behind as words. See utils/jobText.
+const { plainText: stripHTML } = require("../utils/jobText.js");
 
 function toDate(v) {
   if (!v) return null;
@@ -1083,4 +1084,26 @@ async function deactivateStale(days = 45) {
   return res.modifiedCount ?? 0;
 }
 
-module.exports = { meteredUsage, canonicalType, PROVIDERS, INLINE_GEOCODES, ingestAll, deactivateStale };
+/**
+ * Check the apply links of up to `max` live listings, the least recently
+ * checked first, and hide those whose page is gone (the employer took the
+ * job down). A link that could not be checked is left alone.
+ */
+async function retireDeadLinks({ max = 600, concurrency = 8 } = {}) {
+  const { checkLink } = require("./linkCheck.js");
+  const rows = await Job.find({ active: true }).sort({ linkCheckedAt: 1, fetchedAt: 1 }).limit(max).select("url").lean();
+  let dead = 0, i = 0;
+  const work = async () => {
+    while (i < rows.length) {
+      const row = rows[i++];
+      const verdict = await checkLink(row.url);
+      const set = { linkCheckedAt: new Date() };
+      if (verdict === "dead") { set.active = false; dead++; }
+      await Job.updateOne({ _id: row._id }, { $set: set });
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, work));
+  return { checked: rows.length, dead };
+}
+
+module.exports = { retireDeadLinks, stableId, meteredUsage, canonicalType, PROVIDERS, INLINE_GEOCODES, ingestAll, deactivateStale };

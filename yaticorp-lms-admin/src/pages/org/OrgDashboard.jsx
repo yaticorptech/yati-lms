@@ -17,7 +17,7 @@ import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { CARD, BTN, Stat, Bar, Empty, Banner, Rows, Avatar, LoadFailed, Dialog, DialogTitle } from '../../components/orgUi';
 import { relativeDay } from '../../utils/dates';
-import AccessHoursCard from '../../components/AccessHoursCard';
+import GamesHoursCard from '../../components/GamesHoursCard';
 import { useOrgProfile, listOf } from '../../utils/orgProfile';
 
 // The organization's kind, as an icon beside its name in the welcome banner.
@@ -165,13 +165,13 @@ const OrgDashboard = () => {
                         <span aria-hidden className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
                         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25"><Lock size={22} aria-hidden="true" /></span>
                         <DialogTitle className="mt-4 text-xl font-bold text-white">Complete your profile to get full access</DialogTitle>
-                        <p className="mt-1 text-sm text-indigo-100">Your teachers set up their profiles from your courses and sections, and 360 uses them to track your students.</p>
+                        <p className="mt-1 text-sm text-indigo-100">Your teachers set up their profiles from your departments and sections, and Student Ranking uses them to track your students.</p>
                     </div>
                     <div className="space-y-4 p-6">
                         <ol className="space-y-2">
                             {[
                                 ['Organization details & logo', profile.details.length ? `Still to add: ${listOf(profile.details)}` : 'Name, contact, address, website, state and logo', !profile.details.length],
-                                ['Courses & sections', 'e.g. BBA · Section A, B (Settings → Institution)', profile.courses !== false]
+                                ['Departments & sections', 'e.g. BBA · Section A, B (Campus → Departments)', profile.courses !== false]
                             ].map(([title, sub, done]) => (
                                 <li key={title} className={`flex items-start gap-3 rounded-xl border p-3 ${done ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/60'}`}>
                                     {done ? <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" /> : <Circle size={20} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />}
@@ -183,7 +183,7 @@ const OrgDashboard = () => {
                             ))}
                         </ol>
                         <div className="flex">
-                            <Link to={profile.details.length ? '/organization/settings' : '/organization/settings#courses'} className={`${BTN} w-full`}>Complete profile <ArrowRight size={16} aria-hidden="true" /></Link>
+                            <Link to={profile.details.length ? '/organization/settings' : '/organization/campus/departments'} className={`${BTN} w-full`}>Complete profile <ArrowRight size={16} aria-hidden="true" /></Link>
                         </div>
                     </div>
                 </Dialog>
@@ -195,9 +195,9 @@ const OrgDashboard = () => {
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Layers size={20} aria-hidden="true" /></span>
                     <div className="min-w-0 flex-1">
                         <p className="font-bold text-slate-800">Complete your organization profile</p>
-                        <p className="mt-0.5 text-sm text-slate-600">Still to add in Settings: <strong className="text-slate-800">{listOf(profile.missing)}</strong>. The other pages unlock once your profile is complete.</p>
+                        <p className="mt-0.5 text-sm text-slate-600">Still to add: <strong className="text-slate-800">{listOf(profile.missing)}</strong>. The other pages unlock once your profile is complete.</p>
                     </div>
-                    <Link to={profile.details.length ? '/organization/settings' : '/organization/settings#courses'} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+                    <Link to={profile.details.length ? '/organization/settings' : '/organization/campus/departments'} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                         Complete now <ArrowRight size={15} aria-hidden="true" />
                     </Link>
                 </div>
@@ -231,8 +231,8 @@ const OrgDashboard = () => {
                 </Link>
             </div>
 
-            {/* ── Access hours: when the students may use the platform ─────── */}
-            <AccessHoursCard />
+            {/* ── Games hours: when the students may play, and their requests ── */}
+            <GamesHoursCard />
 
             {/* ── Recent activity ──────────────────────────────────────────── */}
             <div className={`${CARD} overflow-hidden transition-all duration-200 hover:border-indigo-200 hover:shadow-md`}>

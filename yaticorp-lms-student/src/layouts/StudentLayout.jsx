@@ -11,12 +11,15 @@ import WalletConfirmDialog from '../components/rewards/WalletConfirmDialog';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GeminiExhaustedDialog from '../components/GeminiExhaustedDialog';
 import useLive from '../live/useLive';
+import { bumpOrgVersion, useOrgVersion } from '../organization/orgVersion';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
-import { refresh as refreshGoogle } from '../integrations/google/googleStore';
+import { refresh as refreshGoogle, requestConsent as askGoogle, declinedThisVisit } from '../integrations/google/googleStore';
 import LanguageToggle from '../components/LanguageToggle';
 import Marks360Chip from '../components/Marks360Chip';
+import useCampusOpen from '../campus/useCampusOpen';
+import useExtraOpen from '../nccnss/useExtraOpen';
 import InstallAppButton from '../components/InstallAppButton';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Globe, Shield, Orbit } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Globe, Shield, Orbit, Building2 } from 'lucide-react';
 import api from '../utils/api';
 import SupportDialog from '../components/SupportDialog';
 import { useRewards } from '../context/useRewards';
@@ -45,6 +48,7 @@ import useAccessHours from '../hooks/useAccessHours';
 import CompetitionAlerts from '../competitions/CompetitionAlerts';
 import ReminderPopup from '../competitions/ReminderPopup';
 import ResultsCelebration from '../competitions/ResultsCelebration';
+import PassportClaimPopup from '../components/rewards/PassportClaimPopup';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -145,8 +149,11 @@ const readAdminView = () => {
 // remembered for the session so the menu item does not blink in on each page.
 const THREE60_KEY = 'three60-open';
 const useThree60 = (userId) => {
+    const orgVersion = useOrgVersion();
     const [open, setOpen] = useState(() => { try { return !!userId && sessionStorage.getItem(THREE60_KEY) === String(userId); } catch { return false; } });
-    const [points, setPoints] = useState(null);   // their 360 marks so far, for the top bar
+    const [points, setPoints] = useState(null);   // their ranking marks so far, for the top bar
+    // What their institution calls it (Student Ranking by default; src/three60).
+    const [title, setTitle] = useState('Student Ranking');
     useEffect(() => {
         if (!userId) return undefined;
         let live = true;
@@ -155,6 +162,7 @@ const useThree60 = (userId) => {
             const yes = Boolean(r.data?.enabled);
             setOpen(yes);
             setPoints(yes ? Number(r.data?.totals?.total || 0) : null);
+            if (r.data?.title) setTitle(r.data.title);
             try {
                 if (yes) sessionStorage.setItem(THREE60_KEY, String(userId));
                 else sessionStorage.removeItem(THREE60_KEY);
@@ -166,8 +174,8 @@ const useThree60 = (userId) => {
         // A teacher adding (or removing) them shows without a refresh: asked again every 20s while on screen.
         const timer = setInterval(onShow, 20000);
         return () => { live = false; clearInterval(timer); document.removeEventListener('visibilitychange', onShow); };
-    }, [userId]);
-    return [open, points];
+    }, [userId, orgVersion]);
+    return [open, points, title];
 };
 
 // The Games page's first pictures, fetched quietly once the app is idle (2026-11-06): its "What do you want to play?"
@@ -186,14 +194,42 @@ const warmGamesPictures = () => {
 };
 
 const StudentLayout = () => {
-    const { user, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
+    const { user, setUser, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
+    // Their organization changed — accepted, removed, placed in a class (2026-11-16): the server says so on the
+    // live stream; the saved profile is re-read and every organization-driven part of the dashboard follows at once.
+    useLive('organization', useCallback(() => {
+        api.get('/user/profile').then((r) => {
+            const fresh = r.data?.user;
+            if (fresh && setUser) {
+                setUser((u) => {
+                    const next = { ...(u || {}), organizationId: fresh.organizationId || null, campus: fresh.campus, profilePicture: fresh.profilePicture };
+                    try { localStorage.setItem('studentData', JSON.stringify(next)); } catch { /* storage full */ }
+                    return next;
+                });
+            }
+        }).catch(() => {}).finally(bumpOrgVersion);
+    }, [setUser]), { enabled: Boolean(user?._id) });
     useEffect(() => { if (user) warmGamesPictures(); }, [user]);
     // The organization's access hours: outside them, the closed screen (components/PlatformClosed).
     const accessHours = useAccessHours(Boolean(user));
-    const [three60, three60Points] = useThree60(user?._id);
+    const [three60, three60Points, rankingName] = useThree60(user?._id);
+    // Institution (Campus): an AI card, and their organization has Campus on.
+    const campusOpen = useCampusOpen(user?._id);
+    // Extra Curricular: only while they are in an organization or in one of its activities.
+    const extraOpen = useExtraOpen(user?._id);
     // Whether Google Drive is linked, known from the start: every upload checks it first (uploads are
     // kept in the student's own Drive, 2026-11-02), and a phone opens the file picker only straight after a tap.
-    useEffect(() => { if (user?._id) refreshGoogle(); }, [user?._id]);
+    // Not linked (2026-11-16): a popup a moment after the app opens asks to link Drive, so certificates,
+    // badges, the resume and proofs are kept there. Once a visit — "Not now" holds until the next one.
+    useEffect(() => {
+        if (!user?._id) return undefined;
+        let t;
+        refreshGoogle().then((g) => {
+            if (!g?.available || g.driveNeeded === false || (g.connected && !g.needsReconnect) || declinedThisVisit()) return;
+            t = setTimeout(() => askGoogle('', { intro: true }), 1800);
+        });
+        return () => clearTimeout(t);
+    }, [user?._id]);
     const [adminView] = useState(readAdminView);
     // One active sign-in at a time: a sign-in on another device ('session' on the live stream)
     // makes this page check its own; if it was the older one the server answers 401 and the app
@@ -606,7 +642,7 @@ const StudentLayout = () => {
     // rather than sit in the centred column the other pages use.
     // So are Job Preparation (/interview, /jobs), Extra Curricular, Career Path and Scholarships.
     // The Dashboard (/) too, since 2026-10-27 — matched exactly, or every page would count.
-    const wide = location.pathname === '/' || ['/competitions', '/interview', '/jobs', '/extracurricular', '/career', '/linguistic'].some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
+    const wide = location.pathname === '/' || ['/competitions', '/interview', '/jobs', '/extracurricular', '/career', '/linguistic', '/360', '/institution'].some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
     // Career Path is the one nav entry with screens beneath it, so it stays lit
     // on /career/planner, /career/roadmap and the rest — not just on /career.
     const isSectionActive = (path) =>
@@ -623,7 +659,10 @@ const StudentLayout = () => {
     // admin locks them, rather than shown disabled: a tab that cannot be
     // opened only invites the question of when it will be.
     const groups = [
-        { items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true }] },
+        { items: [
+            { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+            campusOpen && { to: '/institution', label: 'Institution', icon: Building2 }
+        ].filter(Boolean) },
         { title: 'Learn', items: [
             { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
             // English learning; withdrawn like the others when an admin locks it.
@@ -639,8 +678,9 @@ const StudentLayout = () => {
         // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint, Quiz and Hackathon): two sections since 2026-10-23.
         // 360 (their activities, proof and marks) heads it, once their organization opens it and a 360 teacher has added them (2026-10-31).
         { title: 'Activities', items: [
-            three60 && { to: '/360', label: '360', icon: Orbit },
-            { to: '/extracurricular', label: 'Extra Curricular', icon: Shield },
+            // Inside Institution when Campus is on for them (a tab there), here otherwise.
+            three60 && { to: '/360', label: rankingName, icon: Orbit },
+            extraOpen && { to: '/extracurricular', label: 'Extra Curricular', icon: Shield },
             { to: '/competitions', label: 'Competitions', icon: Trophy },
             { to: '/games', label: 'Games', icon: Gamepad2 }
         ].filter(Boolean) }
@@ -835,6 +875,9 @@ const StudentLayout = () => {
                 isCareerPathEnabled={isCareerPathEnabled}
                 isLinguisticEnabled={isLinguisticEnabled}
                 isThree60Enabled={three60}
+                rankingName={rankingName}
+                isCampusEnabled={campusOpen}
+                isExtraEnabled={extraOpen}
                 three60Points={three60 ? three60Points : null}
                 user={user}
                 rewards={rw}
@@ -1045,14 +1088,14 @@ const StudentLayout = () => {
                         {three60 && three60Points !== null && (
                             /* The 360 chip (redesigned 2026-11-05, light, 2026-11-05): a small
                                "360" medallion with an orbit turning round it, then the marks. */
-                            <Link to="/360" aria-label={`360 marks: ${three60Points}`} title="Your 360 marks"
+                            <Link to="/360" aria-label={`${rankingName}: ${three60Points}`} title={`Your ${rankingName} marks`}
                                 className="group inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#ffffff,#eef2ff)] py-1 pl-1 pr-3.5 text-indigo-950 shadow-sm shadow-indigo-200/60 ring-1 ring-indigo-200 transition-all hover:shadow-md hover:shadow-indigo-200/80 hover:ring-indigo-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                                 <span className="relative flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
                                     <svg viewBox="0 0 32 32" className="absolute inset-0 h-full w-full motion-safe:animate-[spin_8s_linear_infinite]">
                                         <circle cx="16" cy="16" r="14.5" fill="none" stroke="#818cf8" strokeOpacity="0.6" strokeWidth="1" strokeDasharray="1.5 3" />
                                         <circle cx="16" cy="1.5" r="1.8" fill="#38bdf8" />
                                     </svg>
-                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-[8px] font-black tracking-tight text-white shadow-inner">360</span>
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 text-white shadow-inner"><Orbit size={13} /></span>
                                 </span>
                                 <span className="flex items-baseline gap-1 tabular-nums">
                                     <span className="text-sm font-black leading-none">{three60Points.toLocaleString('en-IN')}</span>
@@ -1152,6 +1195,7 @@ const StudentLayout = () => {
             <ResultsCelebration />
             {/* No profile picture yet: choose one before going on. */}
             <ProfilePictureGate />
+            <PassportClaimPopup />
             {/* "A new Global Quiz is live", when one is published; waits while the student is busy. */}
             <GlobalQuizAlert />
             {/* The leaderboard climb, on whichever page the student is on. */}

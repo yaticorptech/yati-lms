@@ -34,14 +34,14 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
   const tasksToNextLevel = promisesXp ? Math.max(1, Math.ceil(progress.remaining / TASK_XP)) : 0;
 
   return (
-    <section className="grid overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card lg:grid-cols-[1.15fr_1fr]">
+    <section className="grid overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card md:grid-cols-[1.15fr_1fr]">
       {/* ---------------- The habit ----------------
           Its own component so the LMS Dashboard can show it too. */}
       <StreakPanel
         streak={streak}
         activity={activity}
         weekly={weekly}
-        className="border-b border-line-200 lg:border-r lg:border-b-0"
+        className="border-b border-line-200 md:border-r md:border-b-0"
       />
 
       {/* ---------------- The ladder ---------------- */}

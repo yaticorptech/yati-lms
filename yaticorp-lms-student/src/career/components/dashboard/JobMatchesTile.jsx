@@ -135,7 +135,7 @@ export default function JobMatchesTile() {
           longest company name and on a phone the cards ran out past the
           tile's edge. A zero minimum keeps the column the tile's width and
           lets the name shorten instead. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 xl:grid-cols-3">
         {jobs.map((job) => (
           <div
             key={job.id}

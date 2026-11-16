@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, PenLine, RefreshCw, Settings, ArrowLeft, Download, Route, Brain, BookOpen, Award, Rocket, Trophy, Heart, Check, ChevronRight, Flag } from 'lucide-react';
+import { Sparkles, PenLine, RefreshCw, Settings, ArrowLeft, Download, Route, Brain, BookOpen, Award, Rocket, Trophy, Heart, Check, ChevronRight, Flag, Loader2 } from 'lucide-react';
 import { bioApi } from './api';
 import BioStrength from './BioStrength';
 import SkillProgress from './SkillProgress';
@@ -23,6 +23,33 @@ import CourseOutlineDialog from '../components/course/CourseOutlineDialog';
 import ProfileImage from '../components/ProfileImage';
 import { isWalletCancel } from '../utils/walletCharge';
 import GeminiCreditTip from '../components/GeminiCreditTip';
+
+/** The profile strength as a white ring with the number in the middle (the Learning Bio header). */
+function StrengthRing({ percent = 0 }) {
+    const [shown, setShown] = useState(0);
+    useEffect(() => { const t = setTimeout(() => setShown(percent), 80); return () => clearTimeout(t); }, [percent]);
+    const r = 28, len = 2 * Math.PI * r;
+    return (
+        <div className="relative grid h-[76px] w-[76px] shrink-0 place-items-center" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Profile strength">
+            <svg viewBox="0 0 68 68" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden="true">
+                <circle cx="34" cy="34" r={r} fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="7" />
+                <circle cx="34" cy="34" r={r} fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round" strokeDasharray={`${(len * Math.min(100, shown)) / 100} ${len}`} style={{ transition: 'stroke-dasharray 1s ease-out' }} />
+            </svg>
+            <span className="text-lg font-black tabular-nums">{percent}%</span>
+        </div>
+    );
+}
+
+/** One of the header's three actions: an icon over a short name; `primary` the white one. */
+function HeaderAction({ icon: Icon, children, onClick, loading = false, primary = false }) {
+    return (
+        <button type="button" onClick={onClick} disabled={loading}
+            className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2.5 text-center text-xs font-extrabold transition-all hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:opacity-70 sm:flex-row sm:gap-2 sm:text-sm ${primary ? 'bg-white text-indigo-700 shadow-lg shadow-indigo-900/20' : 'bg-white/15 text-white ring-1 ring-white/30 hover:bg-white/25'}`}>
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
+            <span className="leading-tight">{children}</span>
+        </button>
+    );
+}
 
 export default function LearningBioPage() {
     const [data, setData] = useState(undefined);
@@ -55,25 +82,38 @@ export default function LearningBioPage() {
     const generating = busy === 'regenerate';
 
     return (
-        <div className="mx-auto max-w-5xl space-y-5 pb-12 animate-fade-in">
+        <div className="mx-auto max-w-5xl space-y-5 pb-40 animate-fade-in sm:pb-12">{/* pb-40 on a phone (2026-11-16): room for the last card to scroll up clear of Yati in the corner. */}
             <Link to="/profile#your-resume" className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={15} /> My Profile</Link>
 
             {/* ── Header ───────────────────────────────────────────── */}
-            <header className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-500 p-6 text-white shadow-lg shadow-indigo-200 sm:p-8">
-                <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-                <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
-                    <Avatar src={pictureUrl(data.user.avatar)} name={data.user.name} size="h-20 w-20" />
-                    <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-100">✨ My Learning Bio</p>
-                        <h1 className="mt-1 text-2xl font-black sm:text-3xl">{data.user.name}</h1>
-                        <p className="text-sm font-semibold text-indigo-100">{bio.headline || (data.learningGoal ? `Aspiring ${data.learningGoal}` : 'Learner on YATICORP LMS')}</p>
-                        <div className="mt-3 max-w-md rounded-2xl bg-white/15 p-3 backdrop-blur"><BioStrength percent={data.strength.percent} compact /><p className="mt-1.5 text-xs text-indigo-50">{data.strength.nextStep}</p></div>
+            {/* Redesigned 2026-11-16 ("redesign it"): photo and name side by side, the profile strength as a ring
+                with its next step, and the three actions as one row of tiles (Download the bright one). */}
+            <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-500 p-5 text-white shadow-xl shadow-indigo-300/40 sm:p-7">
+                <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10" />
+                <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-fuchsia-300/20 blur-2xl" />
+                <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
+                    <div className="flex items-center gap-4">
+                        <span className="rounded-[1.4rem] bg-gradient-to-br from-amber-300 via-pink-300 to-sky-300 p-[3px] shadow-lg">
+                            <Avatar src={pictureUrl(data.user.avatar)} name={data.user.name} size="h-20 w-20 sm:h-24 sm:w-24" />
+                        </span>
+                        <div className="min-w-0">
+                            <p className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.16em] text-white/90 ring-1 ring-white/25"><Sparkles size={11} /> My Learning Bio</p>
+                            <h1 className="mt-1.5 text-2xl font-black leading-tight drop-shadow-sm sm:text-3xl">{data.user.name}</h1>
+                            <p className="mt-0.5 text-sm font-semibold text-white/90">{bio.headline || (data.learningGoal ? `Aspiring ${data.learningGoal}` : 'Learner on YATICORP LMS')}</p>
+                        </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 sm:flex-col">
-                        <Btn icon={Download} onClick={download} loading={busy === 'download'} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Download Bio</Btn>
-                        <Btn icon={RefreshCw} onClick={refresh} loading={busy === 'refresh'} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Refresh Learning Data</Btn>
-                        <Btn icon={Settings} onClick={() => setModal('settings')} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Bio Settings</Btn>
+                    <div className="flex items-center gap-4 rounded-2xl bg-white/15 p-4 ring-1 ring-white/25 backdrop-blur">
+                        <StrengthRing percent={data.strength.percent} />
+                        <div className="min-w-0">
+                            <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/80">Profile strength</p>
+                            <p className="mt-0.5 text-sm font-bold leading-snug">{data.strength.nextStep || 'Your profile is complete.'}</p>
+                        </div>
                     </div>
+                </div>
+                <div className="relative mt-5 grid grid-cols-3 gap-2 sm:gap-3">
+                    <HeaderAction icon={Download} onClick={download} loading={busy === 'download'} primary>Download Bio</HeaderAction>
+                    <HeaderAction icon={RefreshCw} onClick={refresh} loading={busy === 'refresh'}>Refresh data</HeaderAction>
+                    <HeaderAction icon={Settings} onClick={() => setModal('settings')}>Settings</HeaderAction>
                 </div>
             </header>
 

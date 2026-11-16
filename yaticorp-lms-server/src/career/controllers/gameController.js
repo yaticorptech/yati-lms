@@ -178,6 +178,7 @@ const getProgress = async (req, res) => {
 // unique index and answered 500.
 const saveProgress = async (req, res) => {
   try {
+    if (await require('../../games/orgHours').refuseIfClosed(req, res)) return;
     const userId = req.user._id;
     const gameId = String(req.body?.gameId || '').trim();
     if (!isGameId(gameId)) return res.status(400).json({ message: 'Unknown game' });
@@ -582,9 +583,11 @@ const getPerformance = async (req, res) => {
 
 // @route GET /api/career/games/time
 // How much of today's play time is left, and what each star result pays.
+const orgHours = require('../../games/orgHours');
 const getPlayTime = async (req, res) => {
   try {
-    res.json(await playState(req.user._id, await getConfig()));
+    const [state, organization] = await Promise.all([playState(req.user._id, await getConfig()), orgHours.statusFor(req.user).catch(() => ({ applies: false, open: true }))]);
+    res.json({ ...state, organization });
   } catch (error) {
     fail(res, error, 'load play time');
   }
@@ -594,6 +597,7 @@ const getPlayTime = async (req, res) => {
 // A heartbeat while a game is open. Clamped to the time that actually passed.
 const recordPlayTime = async (req, res) => {
   try {
+    if (await orgHours.refuseIfClosed(req, res)) return;
     const userId = req.user._id;
     const day = dayKey();
     const now = new Date();
@@ -649,9 +653,14 @@ const groupPlayState = async (userId) => {
 };
 
 /** True when today's Group games time is used up (rooms and online tables then refuse). */
-const groupTimeUp = async (userId) => (await groupPlayState(userId)).remainingSeconds <= 0;
+const groupTimeUp = async (userId) => (await groupPlayState(userId)).remainingSeconds <= 0
+  || (await require('../../games/orgHours').statusFor(userId).then((s) => s.applies && !s.open).catch(() => false));
 /** The refusal when it is: "Today's 2 hours of Group games are used up…". */
-const groupTimeUpMessage = async (userId) => `Today's ${limitWords(await groupLimitFor(userId))} of Group games are used up. Come back after midnight.`;
+const groupTimeUpMessage = async (userId) => {
+  const s = await require('../../games/orgHours').statusFor(userId).catch(() => null);
+  if (s?.applies && !s.open) return require('../../games/orgHours').closedMessage(s);
+  return `Today's ${limitWords(await groupLimitFor(userId))} of Group games are used up. Come back after midnight.`;
+};
 
 // @route GET /api/career/games/group-time
 const getGroupPlayTime = async (req, res) => {
@@ -666,6 +675,7 @@ const getGroupPlayTime = async (req, res) => {
 // A heartbeat while a group game is being played. Clamped to the time that actually passed.
 const recordGroupPlayTime = async (req, res) => {
   try {
+    if (await orgHours.refuseIfClosed(req, res)) return;
     const userId = req.user._id;
     const day = dayKey();
     const now = new Date();

@@ -138,7 +138,8 @@ const TYPE_LABEL = { PARTTIME: 'Part-time', CONTRACTOR: 'Contract', INTERN: 'Int
 
 const suitable = (j) => {
   const type = typeOf(j);
-  if (type && type !== 'FULLTIME') return true;
+  if (type === 'FULLTIME') return /\bpart[\s-]?time\b/i.test(j.job_title || '');
+  if (type) return true;
   return STUDENT_SUITABLE.test(`${j.job_title || ''} ${String(j.job_description || '').slice(0, 600)}`);
 };
 
@@ -168,9 +169,170 @@ const askGoogle = async ({ host, key, query, partTimeOnly, countryCode, cursor }
  * Part-time work near a place: Google's answer, accumulated and cached.
  * @returns {{ place, results, fetchedAt, cached, unavailable }}
  */
-const partTimeNear = async (locationInput, { refresh = false } = {}) => {
+/**
+ * A town as students type it: "Bail-Hongal, India" is "Bailhongal" to the
+ * map. Try what was typed, then the name without hyphens (split and joined),
+ * then just the part before the first comma.
+ */
+const findPlace = async (input) => {
+  const typed = String(input || '').trim();
+  const head = typed.split(',')[0].trim();
+  const rest = typed.slice(head.length);
+  const tries = [typed, head.replace(/-/g, ' ') + rest, head.replace(/[-\s]+/g, '') + rest, head.replace(/[-\s]+/g, ''), head];
+  for (const t of [...new Set(tries)].filter(Boolean)) {
+    const place = await resolvePlace(t);
+    if (place?.city) return place;
+  }
+  return null;
+};
+
+const { repairText: plainText } = require('../utils/jobText');
+
+/**
+ * Jobs already in the job index near a place — free, and there whether or
+ * not Google Jobs is set up. Follows the student's part-time profile:
+ *
+ *   1. real part-time jobs near them, those in their chosen interests first;
+ *   2. only when those are few: related jobs near them (internships and
+ *      other work in their interests), marked related: true so the card says
+ *      plainly that they are not part-time.
+ *
+ * Nearest first when the place has coordinates (within RADIUS_KM).
+ */
+const RADIUS_KM = 150;
+const fromIndex = async (place, interests = []) => {
+  const Job = require('../models/Job');
+  const esc = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const near = async (filter, limit) => {
+    let rows = [];
+    if (place.coords) {
+      rows = await Job.find({ active: true, ...filter, geo: { $nearSphere: { $geometry: { type: 'Point', coordinates: place.coords }, $maxDistance: RADIUS_KM * 1000 } } }).limit(limit).lean().catch(() => []);
+    }
+    if (!rows.length && (place.region || place.city)) {
+      const names = [place.city, place.region].filter(Boolean).map(esc).join('|');
+      rows = await Job.find({ active: true, ...filter, location: new RegExp(names, 'i') }).sort({ postedAt: -1 }).limit(limit).lean().catch(() => []);
+    }
+    return rows;
+  };
+  const wanted = new Set(interests);
+  const rules = CATEGORY_RULES.filter(([id]) => wanted.has(id));
+  const fits = (j) => rules.some(([, re]) => re.test(`${j.title} ${j.company}`));
+  const names = (place.terms || [place.city]).map((t) => String(t).toLowerCase()).filter((t) => t.length > 2);
+  const shape = (j, related) => ({
+    id: `index:${j._id}`,
+    title: j.title,
+    company: j.company || '',
+    logo: '',
+    location: j.location || [j.city, j.country].filter(Boolean).join(', '),
+    type: j.type,
+    typeLabel: j.type === 'Unknown' ? 'Job' : j.type,
+    related,
+    remote: !!j.remote,
+    salary: j.salary || '',
+    daysAgo: j.postedAt ? Math.max(0, Math.round((Date.now() - new Date(j.postedAt).getTime()) / 86400000)) : null,
+    description: plainText(j.description).slice(0, 300),
+    highlights: [],
+    publisher: j.source || '',
+    url: j.url,
+    googleUrl: '',
+    source: 'Job index',
+    wider: !names.some((n) => String(j.location || '').toLowerCase().includes(n))
+  });
+
+  // Work a student could start: no senior, lead or manager roles.
+  const SENIOR = /\b(senior|sr\.?|lead|manager|head|director|principal|architect|staff|vp|chief|[3-9]\+? ?(?:yrs?|years))\b/i;
+  const titleRe = rules.length ? new RegExp(rules.map(([, re]) => re.source).join('|'), 'i') : null;
+  // Tech and office-career roles are not what these interests mean ("design"
+  // in Design Engineer is not photography).
+  const DESK = /\b(engineer|engineering|developer|architect|scientist|analyst|devops|sre|programmer|consultant|accountant|technical|technology|software|full ?stack|backend|frontend|development|ux|ui)\b/i;
+  const doable = (j) => !SENIOR.test(j.title) && !(titleRe && DESK.test(j.title)) && !/\bfull[\s-]?time\b/i.test(j.title);
+  const PART_TIME_TITLE = /\bpart[\s-]?time\b/i;
+  // The student's interests, asked of the database directly (titles), so a
+  // match is found however far down the nearest-jobs list it would sit.
+  const tag = (j) => { const r = rules.find(([, re]) => re.test(`${j.title} ${j.company}`)); return r ? r[0] : ''; };
+  const out = [];
+  const add = (rows, related) => {
+    for (const j of rows) {
+      if (out.length >= 24 || out.some((o) => o.url === j.url)) continue;
+      const partTimeByTitle = PART_TIME_TITLE.test(j.title);
+      const row = { ...shape(j, related && !partTimeByTitle), interest: tag(j) };
+      if (partTimeByTitle) row.typeLabel = 'Part-time';
+      out.push(row);
+    }
+  };
+  if (titleRe) {
+    // 1. Part-time jobs in their interests. 2. Other entry-level work in their
+    //    interests (internships, contract, full-time), marked related.
+    add((await near({ type: 'Part-time', title: titleRe }, 40)).filter(doable), false);
+    // Full-time work never appears on the part-time board: other job types
+    // count only when the title itself says part-time; internships are the
+    // related fallback.
+    add((await near({ type: { $in: ['Full-time', 'Contract', 'Unknown'] }, title: { $regex: /\bpart[\s-]?time\b/i } }, 80)).filter((j) => doable(j) && titleRe.test(j.title) && !/\bfull[\s-]?time\b/i.test(j.title)), false);
+    add((await near({ type: 'Internship', title: titleRe }, 80)).filter(doable), true);
+  }
+  // Nothing in their interests nearby (or none chosen): any part-time job
+  // near them, then internships, so the board is never empty — marked as
+  // outside their interests.
+  if (out.length < THIN_RESULT) {
+    // Outside their interests the tech filter does not apply — any doable
+    // part-time job or internship is better than an empty board.
+    const ok = (j) => !SENIOR.test(j.title) && !/\bfull[\s-]?time\b/i.test(j.title);
+    add((await near({ type: 'Part-time' }, 40)).filter(ok), false);
+    if (out.length < THIN_RESULT) add((await near({ type: 'Internship' }, 40)).filter(ok), true);
+  }
+  // Part-time first, then related; inside each, the student's interests first.
+  return out.sort((x, y) => Number(x.related) - Number(y.related) || Number(!!y.interest) - Number(!!x.interest));
+};
+
+const partTimeNear = async (locationInput, opts = {}) => {
+  let out;
+  try {
+    out = await askWeb(locationInput, opts);
+  } catch (err) {
+    out = { place: null, results: [], fetchedAt: null, cached: false, unavailable: err.message, error: err };
+  }
+  // Never a full-time job on the part-time board (older cached answers too).
+  out = { ...out, results: out.results.filter((r) => r.typeLabel !== 'Full-time' || /\bpart[\s-]?time\b/i.test(r.title)) };
+  // Google's answers in the student's interests first, each tagged with the interest it matches.
+  const wanted = CATEGORY_RULES.filter(([id]) => (opts.interests || []).includes(id));
+  if (wanted.length && out.results.length) {
+    const tagOf = (r) => (wanted.find(([, re]) => re.test(`${r.title} ${r.company}`)) || [''])[0];
+    out = { ...out, results: out.results.map((r) => ({ ...r, interest: tagOf(r) })).sort((x, y) => Number(!!y.interest) - Number(!!x.interest)) };
+  }
+  // The board counts as thin when too few answers fit the student's interests.
+  const fitting = wanted.length ? out.results.filter((r) => r.interest).length : out.results.length;
+  // Google Jobs not set up, out of allowance, failing, or thin: fill in from
+  // the job index so a student is never left with an empty board.
+  if (fitting < THIN_RESULT) {
+    const place = await findPlace(locationInput);
+    if (place?.city) {
+      const seen = new Set(out.results.map((r) => r.url));
+      const extra = (await fromIndex(place, opts.interests || [])).filter((r) => r.url && !seen.has(r.url));
+      if (extra.length) {
+        return { ...out, place: out.place || { city: place.city, state: place.region || '', country: place.country || '', countryCode: place.countryCode || '', label: placeLabel(place) }, results: [...out.results, ...extra], unavailable: '' };
+      }
+    }
+  }
+  if (out.error) throw out.error;
+  return out;
+};
+
+// What to type into Google for each interest.
+const INTEREST_QUERY = {
+  catering: 'catering waiter', events: 'event staff', decoration: 'decoration helper', packing: 'packing helper',
+  photography: 'photographer assistant', promotion: 'promoter flyer distribution', shop: 'shop assistant',
+  setup: 'event setup helper', delivery: 'delivery boy', tutoring: 'home tutor', househelp: 'housekeeping',
+  cooking: 'cook helper', babysitting: 'babysitter', eldercare: 'caretaker', petcare: 'dog walker',
+  gardening: 'gardener', farm: 'farm worker', carwash: 'car wash', laundry: 'laundry ironing', tailoring: 'tailor',
+  salon: 'salon helper', bakery: 'bakery helper', canteen: 'canteen helper', market: 'vegetable shop helper',
+  newspaper: 'newspaper delivery', xerox: 'xerox shop', mobilerepair: 'mobile repair helper', painting: 'painter helper',
+  construction: 'construction helper', loading: 'loading unloading', tenthouse: 'tent house', festival: 'temple helper',
+  security: 'security guard', parking: 'parking attendant', survey: 'field survey', dataentry: 'data entry', sports: 'sports coach assistant'
+};
+
+const askWeb = async (locationInput, { refresh = false, interests = [] } = {}) => {
   const key = process.env.JSEARCH_RAPIDAPI_KEY;
-  const place = await resolvePlace(String(locationInput || '').trim());
+  const place = await findPlace(locationInput);
   if (!place || !place.city) return { place: null, results: [], fetchedAt: null, cached: false, unavailable: 'That place was not recognised. Try the nearest town or city.' };
   const plc = { city: place.city, state: place.state || '', country: place.country || '', countryCode: place.countryCode || '', label: placeLabel(place) };
   const cacheKey = `${plc.city}|${plc.state}|${plc.countryCode || plc.country}`.toLowerCase();
@@ -193,7 +355,10 @@ const partTimeNear = async (locationInput, { refresh = false } = {}) => {
   // "Mangaluru, Karnataka, India".
   const where = plc.city;
   const rotation = Number(hit?.rotation || 0);
-  const trade = LOCAL_TRADES[rotation % LOCAL_TRADES.length];
+  // Ask Google about the student's own interests, one per fetch in turn;
+  // the general list of local trades only when they chose none.
+  const mine = interests.map((id) => INTEREST_QUERY[id]).filter(Boolean);
+  const trade = mine.length ? mine[rotation % mine.length] : LOCAL_TRADES[rotation % LOCAL_TRADES.length];
 
   const questions = [
     { query: `part time jobs in ${where}`, partTimeOnly: true },

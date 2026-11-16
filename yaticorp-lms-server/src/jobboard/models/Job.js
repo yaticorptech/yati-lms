@@ -53,6 +53,9 @@ const jobSchema = new mongoose.Schema(
     postedAt: { type: Date, default: Date.now, index: true },
     fetchedAt: { type: Date, default: Date.now },
     active: { type: Boolean, default: true, index: true },
+    // When the apply link was last checked (services/linkCheck). A dead link
+    // sets active: false; the nightly upkeep checks the oldest first.
+    linkCheckedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

@@ -65,7 +65,7 @@ const ownPart = (doc, lang) => {
  */
 const serveOwn = (doc, progress) => {
     const lang = languageOf(progress);
-    const out = doc?.review === 'letters' ? alphabet.build(doc, lang) : doc?.review === 'talk' ? talks.build(doc, lang) : doc?.review === 'comic' ? comics.build(doc, lang) : doc?.review ? reviews.build(doc, lang) : doc?.course ? build(doc, lang) : doc?.part ? ownPart(doc, lang) : localize(doc, lang);
+    const out = doc?.review === 'letters' || doc?.review === 'lettersExam' ? alphabet.build(doc, lang) : doc?.review === 'talk' ? talks.build(doc, lang) : doc?.review === 'comic' ? comics.build(doc, lang) : doc?.review ? reviews.build(doc, lang) : doc?.course ? build(doc, lang) : doc?.part ? ownPart(doc, lang) : localize(doc, lang);
     return withChats(withHears(withBlanks(withWords(parts.cut(out, doc), doc, lang), doc, lang), doc, lang), doc, lang);
 };
 
@@ -199,7 +199,9 @@ const idOf = (x) => String(x?._id ?? x);
 /* ── Loading ──────────────────────────────────────────────────────────── */
 
 /** A course's published lessons: English (course null) unless another is named. */
-const publishedLessons = (course = null) => LinguisticLesson.find({ status: 'published', deletedAt: null, course: course && course !== 'en' ? course : null }).sort({ module: 1, level: 1, order: 1, createdAt: 1 }).lean();
+const publishedLessons = (course = null) => LinguisticLesson.find({ status: 'published', deletedAt: null, course: course && course !== 'en' ? course : null }).sort({ module: 1, level: 1, order: 1, createdAt: 1 }).lean()
+    // Lessons a course hides (units.js isHidden: Kannada keeps 5 Letters lessons) — off the path, the unlocking and the level's completion alike.
+    .then((rows) => rows.filter((l) => !require('./units').isHidden(l)));
 
 /** The student's progress record, made on first use. */
 const progressOf = async (userId) => LinguisticProgress.findOneAndUpdate({ userId }, { $setOnInsert: { userId } }, { upsert: true, returnDocument: 'after' });
@@ -375,7 +377,10 @@ const publicQuestion = (q, seed, others = []) => (q.type === 'chat'
         id: q.id, type: q.type, prompt: q.prompt, ...(q.promptEn ? { promptEn: q.promptEn } : {}), ...(q.hint ? { hint: q.hint } : {}),
         ...(q.optionMeanings ? { promptMeaning: q.promptMeaning, optionMeanings: q.optionMeanings, meaningLang: q.meaningLang } : {}),
         // A word to write: in the student's language, the language to write it in, its picture (2026-11-06).
-        ...(q.type === 'spelling' && q.meaning ? { kannada: q.meaning, writeIn: q.writeIn, ...(q.pic ? { pic: q.pic } : {}) } : {}),
+        ...(q.type === 'spelling' && q.meaning && q.kind !== 'letterType' ? { kannada: q.meaning, writeIn: q.writeIn, ...(q.pic ? { pic: q.pic } : {}) } : {}),
+        // A letter to type (the letters test, 2026-11-12): the keyboard to open, and the letter to hear (it is the answer, so
+        // it is spoken, never written).
+        ...(q.kind === 'letterType' ? { kind: q.kind, writeIn: q.writeIn, ...(q.say ? { say: q.say, sayLang: q.sayLang, audio: null, meaning: q.meaning } : {}), ...(q.keys ? { keys: q.keys } : {}) } : {}),
         // A blank to fill: choices to tap, so no keyboard is needed (2026-11-06, fillChoices.js); `others` the lesson's other answers.
         ...(q.type === 'fill' && fillChoices(q, others) ? { options: fillChoices(q, others) } : {}),
         ...(q.options ? { options: mixed(q.options, `${seed}:${q.id}`) } : {}),
@@ -407,6 +412,8 @@ const quizOf = (lesson) => {
     if (lesson.review === 'hear') return hearQuiz(lesson.words, seed);
     // A Letters lesson (alphabet.js, 2026-10-31): how a letter sounds, which letter makes a sound, a letter heard.
     if (lesson.review === 'letters') return alphabet.quizOf(lesson, seed);
+    // The letters test (2026-11-12): 15 letters, each typed on the language's keyboard.
+    if (lesson.review === 'lettersExam') return alphabet.examOf(lesson, seed);
     // A section's assessment (2026-10-29): 20 questions — its words, its grammar and its sentences (a course with
     // no grammar: words and sentences, ten each).
     if (lesson.review === 'assessment') return testOf(lesson, seed, 20);
@@ -595,7 +602,30 @@ const pay = async (userId, type, refId, meta = {}) => {
 
 /* ── Levels and certificates ──────────────────────────────────────────── */
 
+// The number before 2026-11-11 (YATI-ENG-B-<card>): kept as a fallback, and still checked on the verify page.
 const certificateNumber = (user, level, course = 'en') => `YATI-${course === 'en' ? 'ENG' : course.toUpperCase()}-${level[0].toUpperCase()}-${String(user.cardNumber || idOf(user._id).slice(-8)).toUpperCase()}`;
+/*
+ * In the student's one series of certificates since 2026-11-11 (the user: "every certificate id starts from the
+ * YATI card number, then the series"): YATI<card>-001, -002… with their course and competition certificates
+ * (services/certificateNumbers.js). A certificate earned before then, with the older number, takes the next
+ * numbers the first time it is shown; numbers already given never change.
+ */
+const certificateNumbers = () => require('../services/certificateNumbers');
+const seriesNumber = async (userId, cert) => {
+    const { numbersFor, lingoKey } = certificateNumbers();
+    const key = lingoKey(cert);
+    return (await numbersFor(userId, [{ key, added: cert.issuedAt || new Date() }]))[key] || null;
+};
+const numberCertificates = async (userId, progress) => {
+    const { numbersFor, lingoKey, FORMAT } = certificateNumbers();
+    const old = (progress?.certificates || []).filter((c) => !FORMAT.test(String(c.number || '')));
+    if (!old.length) return progress;
+    const numbers = await numbersFor(userId, old.map((c) => ({ key: lingoKey(c), added: c.issuedAt })));
+    let changed = false;
+    for (const c of old) { const n = numbers[lingoKey(c)]; if (n) { c.number = n; changed = true; } }
+    if (changed) { progress.markModified('certificates'); await progress.save(); }
+    return progress;
+};
 
 /**
  * After a lesson is passed: is its level now complete, and does it earn the
@@ -612,7 +642,8 @@ const checkLevel = async (user, progress, level, lessons, config) => {
     const course = courseOf(progress);
     if (!progress.levelsCompleted.some((x) => x.level === level && inCourse(x, course))) progress.levelsCompleted.push({ level, completedAt: new Date(), average, course });
     if (average < config.certificateMinAverage || progress.certificates.some((c) => c.level === level && inCourse(c, course))) return { events: [], certificate: null, average };
-    const certificate = { level, number: certificateNumber(user, level, course), issuedAt: new Date(), average, course };
+    const certificate = { level, number: '', issuedAt: new Date(), average, course };
+    certificate.number = (await seriesNumber(user._id, certificate).catch(() => null)) || certificateNumber(user, level, course);
     progress.certificates.push(certificate);
     const paid = await pay(user._id, 'linguistic_level', course === 'en' ? `level:${level}` : `level:${course}:${level}`, { level, course });
     return { events: paid.events, certificate, average };
@@ -995,7 +1026,7 @@ const ACHIEVEMENTS = [
 ];
 
 const dashboard = async (user) => {
-    const [progress, config] = await Promise.all([progressOf(user._id), getConfig()]);
+    const [progress, config] = await Promise.all([progressOf(user._id).then((p) => numberCertificates(user._id, p).catch(() => p)), getConfig()]);
     const lessons = await lessonsFor(progress);
     const { lessonOpen, levelOpen } = access(lessons, progress);
     const done = (l) => isDone(progress, l._id);
@@ -1133,9 +1164,13 @@ const pathView = async (user) => {
     };
     const levels = LEVELS.map((l, li) => {
         // Topic units (units.js, 2026-10-24): each with a lesson of each kind and its review; the level's review last.
-        const units = unitsOf(lessons.filter((x) => x.level === l)).map((u) => ({
+        const grouped = unitsOf(lessons.filter((x) => x.level === l));
+        const lettersFirst = grouped[0]?.kind === 'topic' && grouped[0]?.order === 0;
+        const units = grouped.map((u) => ({
             // Kept when units are added (a chest stays opened): "beginner-1", a topic's second unit "beginner-1-2", the level's review "beginner-review".
-            id: unitIdOf(u, l), index: u.index, kind: u.kind, title: u.title, ...(u.note ? { note: u.note } : {}),
+            // The Letters unit comes before Section 1's units and is not numbered (2026-11-12, "don't name it as a section … then
+            // section 1 and unit 1 will come"): `letters`, and the units after it counted from 1.
+            id: unitIdOf(u, l), index: u.index, look: u.index, kind: u.kind, title: u.title, ...(u.note ? { note: u.note } : {}), ...(lettersFirst && u.order === 0 ? { letters: true } : {}),
             lessons: u.lessons.map((x) => {
                 const e = lessonEntry(progress, x._id);
                 return {
@@ -1144,6 +1179,7 @@ const pathView = async (user) => {
                 };
             })
         })).map((u) => ({ ...u, open: levelOpen[MODULES[0]][l] && u.lessons.some((x) => x.open), lessons: withStops(u, progress) }));
+        // The Letters unit is Section 1, Unit 1 again (2026-11-13), counted with the section.
         const all = units.flatMap((u) => u.lessons.filter((x) => !x.stop));
         const cert = progress.certificates.find((c) => c.level === l && inCourse(c, courseOf(progress)));
         return {
@@ -1227,7 +1263,7 @@ const notesOf = async (user) => {
     const levels = LEVELS.map((level) => ({
         level, label: LEVEL_LABEL[level],
         units: unitsOf(lessons.filter((x) => x.level === level))
-            .map((u) => ({ id: unitIdOf(u, level), title: u.title, lessons: u.lessons.filter(done).map((x) => noteOf(x, progress)).filter((n) => n && (n.story || n.letters?.length || n.words?.length || n.sentences?.length)) }))
+            .map((u) => ({ id: unitIdOf(u, level), number: u.index, title: u.title, lessons: u.lessons.filter(done).map((x) => noteOf(x, progress)).filter((n) => n && (n.story || n.letters?.length || n.words?.length || n.sentences?.length)) }))
             .filter((u) => u.lessons.length)
     })).filter((x) => x.units.length);
     return { ...languageView(progress), ...courseView(progress), levels };
@@ -1599,6 +1635,7 @@ const moduleView = async (user, module) => {
 };
 
 module.exports = {
+    numberCertificates,
     MODULE_LABEL, LEVEL_LABEL, publishedLessons, progressOf, access, currentLevel, publicLesson, touchLesson, noteMistake, saveAttempt, pay,
     checkPractice, submitQuiz, submitTalk, submitWriting, saveSpeaking, placementPublic, submitPlacement, placementLevel, dailyQuestions, rebuildDaily,
     noteOpenAll, opensAll, startJump, jumpOf, entryAllowed, dashboard, moduleView, pathView, notesOf, withAnswerSay, setKnows, withSays, soundsIn, openChest, openMistakes, setPlan, autoPlan, AUTO_DAYS, roadmapView, planChoices, PLAN_DAYS, forStudent, lessonsFor, serve, setCourse, courseView, placedLevel, inCourse, checkQuizAnswer, bankFor, bankWords, setLanguage, chooseLevel, setGoal, setAbout, GOALS, REASONS, languageView, localize, languageOf, findQuestion, judge, streakOf, pointsOf, lessonEntry, isDone, publicQuestion, quizOf, certificateNumber, checkLevel

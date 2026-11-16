@@ -20,6 +20,38 @@ const User = require('../models/User');
 // priced (Wallet rules → download_certificate) and charges on every call, so
 // the certificate the profile says is "earned automatically" no longer waits
 // for — or costs — a download.
+/**
+ * A course certificate as a PDF, written to `res`: the template with the number, the name, the course and the
+ * dates. Used by the download (generateCertificate) and by the public certificate check (src/certificates/verify.js).
+ */
+const drawCoursePdf = (res, { number, name, title, issuedAt }, { inline = false } = {}) => {
+    const doc = new PDFDocument({ layout: 'landscape', size: 'A4', margin: 0 });
+    const fileName = `Certificate_${String(title || 'Course').replace(/\s+/g, '_').replace(/[^\w.-]/g, '')}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${fileName}"`);
+    doc.pipe(res);
+    const width = doc.page.width;
+    const height = doc.page.height;
+
+    // The background template
+    const templatePath = path.join(__dirname, '..', '..', 'public', 'assets', 'cert_template.jpg');
+    if (fs.existsSync(templatePath)) doc.image(templatePath, 0, 0, { width, height });
+    else { console.warn('Template image not found at', templatePath); doc.rect(0, 0, width, height).fill('#ffffff'); }
+
+    const leftMargin = 95;
+    // Certificate number (top left), name and course (middle)
+    doc.fillColor('#bc2a2a').fontSize(11).font('Times-Roman').text(number || '', 218, 107);
+    doc.fillColor('#000000').fontSize(36).font('Times-Bold').text(name || '', leftMargin, 240);
+    doc.fontSize(22).font('Times-Bold').text(title || '', leftMargin, 320, { width: 450 });
+
+    const dateStr = new Date(issuedAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    // In the stamp, under "Yaticorp India Pvt Ltd", and on the blue ribbon
+    doc.fontSize(7).font('Helvetica-Bold').fillColor('#000000').text(dateStr, 315, 498, { width: 80, align: 'center' });
+    doc.fontSize(10).font('Times-Roman').fillColor('#000000').text(`Date: ${dateStr}`, 470, 523);
+    doc.fontSize(14).font('Times-Roman').text(`Issued on: ${dateStr}`, 570 + 30, 295);
+    doc.end();
+};
+
 const generateCertificate = async (req, res) => {
     try {
         const { courseId } = req.body;
@@ -68,68 +100,8 @@ const generateCertificate = async (req, res) => {
             certNumber = (await require('../models/Certificate').findById(existingCert._id).select('certificateNumber').lean())?.certificateNumber || certNumber;
         }
 
-        // 3. Setup PDF Generator for Streaming
-        const doc = new PDFDocument({
-            layout: 'landscape',
-            size: 'A4',
-            margin: 0
-        });
-
-        const fileName = `Certificate_${course.title.replace(/\s+/g, '_')}.pdf`;
-
-        // Pipe directly to the HTTP response
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-        doc.pipe(res);
-
-        // Design the certificate
-        const width = doc.page.width;
-        const height = doc.page.height;
-
-        // 1. Draw Background Template
-        const templatePath = path.join(__dirname, '..', '..', 'public', 'assets', 'cert_template.jpg');
-        if (fs.existsSync(templatePath)) {
-            doc.image(templatePath, 0, 0, { width, height });
-        } else {
-            console.warn('Template image not found at', templatePath);
-            doc.rect(0, 0, width, height).fill('#ffffff');
-        }
-
-        // 2. Overlay Text
-        const leftMargin = 95;
-
-        // Certificate Number (top left)
-        doc.fillColor('#bc2a2a').fontSize(11).font('Times-Roman')
-            .text(certNumber, 218, 107);
-
-        // User Name (Middle)
-        doc.fillColor('#000000').fontSize(36).font('Times-Bold')
-            .text(user.name, leftMargin, 240);
-
-        // Course Name (Middle)
-        doc.fontSize(22).font('Times-Bold')
-            .text(course.title, leftMargin, 320, { width: 450 });
-
-        const dateStr = issuedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-        // Date in Stamp Area
-        doc.fontSize(7).font('Helvetica-Bold').fillColor('#000000')
-            .text(dateStr, 315, 498, { width: 80, align: 'center' }); // Shifted X slightly right to 315, Y back to 498
-
-        // Date in Signature Valid Area
-        // Pushing text down below "Yaticorp India Pvt Ltd"
-        doc.fontSize(10).font('Times-Roman').fillColor('#000000')
-            .text(`Date: ${dateStr}`, 470, 523); // X shifted slightly right to 470, Y back to 523
-
-        // Right side (Blue Ribbon Overlay Text)
-        const ribbonLeft = 570;
-
-        // "Issued on:" date
-        doc.fontSize(14).font('Times-Roman')
-            .text(`Issued on: ${dateStr}`, ribbonLeft + 30, 295);
-
-        // End the stream - this sends the data to the client!
-        doc.end();
+        // 3. The PDF, streamed (drawCoursePdf: the public certificate check draws the same one).
+        drawCoursePdf(res, { number: certNumber, name: user.name, title: course.title, issuedAt: issuedDate });
 
     } catch (error) {
         console.error('Certificate generation error:', error);
@@ -177,6 +149,7 @@ const removeFromProfile = async (req, res) => {
 };
 
 module.exports = {
+    drawCoursePdf,
     generateCertificate,
     getMyCertificates,
     removeFromProfile

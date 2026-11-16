@@ -1804,7 +1804,16 @@ export default function Games() {
                 const Icon = c.icon;
                 const on = c.key === category.key;
                 return (
-                  <button key={c.key} type="button" role="tab" aria-selected={on} onClick={() => setCategoryKey(c.key)}
+                  <button key={c.key} type="button" role="tab" aria-selected={on} onClick={(e) => {
+                      setCategoryKey(c.key);
+                      // The tab tapped slides into view, with a little of the next one showing (2026-11-16,
+                      // "it should automatically scroll when I click the next one").
+                      const tab = e.currentTarget; const strip = tab.parentElement;
+                      if (strip && strip.scrollWidth > strip.clientWidth) {
+                        const left = tab.offsetLeft - strip.offsetLeft - (strip.clientWidth - tab.offsetWidth) / 2;
+                        strip.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+                      }
+                    }}
                     className={`inline-flex shrink-0 items-center gap-2.5 rounded-full py-2 pr-5 pl-2 text-sm font-black transition-colors ${on ? `bg-gradient-to-r text-white shadow-md ${c.band} ${c.glow}` : 'bg-white text-ink-700 ring-1 ring-line-200 hover:ring-violet-300'}`}>
                     <span className={`flex h-7 w-7 items-center justify-center rounded-full ${on ? 'bg-white/25' : 'bg-violet-50 text-violet-600'}`}>
                       <Icon className="h-4 w-4" />

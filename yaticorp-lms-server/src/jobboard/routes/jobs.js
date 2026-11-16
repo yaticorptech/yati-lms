@@ -856,6 +856,31 @@ router.get("/stats", async (_req, res, next) => {
   }
 });
 
+/**
+ * POST /api/jobs/check-link { id } or { url }
+ * Asked just before a student opens a job: is the employer's page still up?
+ * A stored job whose page is gone is hidden for everyone. A bare url (live
+ * web results that are not stored) is only checked.
+ * Answers { open: false } only when the job is surely gone.
+ */
+router.post("/check-link", async (req, res, next) => {
+  try {
+    const { checkLink } = require("../services/linkCheck.js");
+    const id = String(req.body?.id || "");
+    const job = mongoose.isValidObjectId(id) ? await Job.findById(id).select("url active").lean() : null;
+    const url = job?.url || String(req.body?.url || "");
+    if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: "No link to check." });
+    if (job && !job.active) return res.json({ open: false });
+    const verdict = await checkLink(url);
+    if (job) {
+      await Job.updateOne({ _id: job._id }, { $set: { linkCheckedAt: new Date(), ...(verdict === "dead" ? { active: false } : {}) } });
+    }
+    res.json({ open: verdict !== "dead" });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** GET /api/jobs/:id */
 router.get("/:id", async (req, res, next) => {
   try {
