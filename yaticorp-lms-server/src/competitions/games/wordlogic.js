@@ -7,6 +7,7 @@
 const { makeEngine, sample, shuffle } = require('./quizCore');
 const { WORDS_GAME, WORD } = require('./banks/iq');
 const { make } = require('./banks/generate');
+const { fromBank } = require('./banks/solo');
 
 module.exports = makeEngine({
     id: 'wordlogic',
@@ -18,5 +19,13 @@ module.exports = makeEngine({
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 10, max: 60, fallback: 20 },
     revealMs: 5000,
-    pick: (count, rng, level) => shuffle([...sample(WORD, Math.ceil(count / 2), rng), ...make(WORDS_GAME, Math.floor(count / 2), rng, level)], rng)
+    // Rising Brains (and rooms made before zones): the school-level set written here. Master Minds (./zones.js,
+    // 2026-11-13): the harder synonyms, opposites and word roots of the word games' banks instead.
+    pick: (count, rng, level, met, zone) => {
+        const words = Math.ceil(count / 2);
+        const hand = zone === 'master'
+            ? ['synonym', 'antonym', 'wordroots'].flatMap((bank, i) => fromBank(bank)(Math.ceil(words / 3) + (i === 0 ? 1 : 0), rng, 'hard', met)).slice(0, words)
+            : sample(WORD, words, rng);
+        return shuffle([...hand, ...make(WORDS_GAME, Math.floor(count / 2), rng, zone === 'master' ? 'hard' : level)], rng);
+    }
 });

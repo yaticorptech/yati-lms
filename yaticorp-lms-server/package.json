@@ -23,6 +23,8 @@
     "jobs:geocode": "node src/jobboard/scripts/geocode.js",
     "jobs:embed": "node src/jobboard/scripts/embed.js",
     "jobs:dedupe": "node src/jobboard/scripts/dedupe.js",
+    "jobs:fix-links": "node src/jobboard/scripts/fixRedirectLinks.js",
+    "jobs:fix-text": "node src/jobboard/scripts/repairText.js",
     "jobs:warm": "node src/jobboard/scripts/warm.js",
     "jobs:setup": "npm run jobs:seed && npm run jobs:ingest && npm run jobs:geocode",
     "test": "node --test --test-concurrency=1 tests/**/*.test.js",

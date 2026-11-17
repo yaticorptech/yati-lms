@@ -81,7 +81,7 @@ const collect = async (userId) => {
         safe(CareerTask.find({ userId, status: 'Completed' }).select('title description skill completedAt updatedAt').lean(), []),
         safe(MilestoneBadge.find({ userId }).sort({ createdAt: -1 }).lean(), []),
         safe(CareerAchievement.find({ userId }).sort({ unlockedAt: -1 }).lean(), []),
-        safe(Course.find({ isPublished: true }).select('title description organizationId').lean(), [])
+        safe(Course.find({ isPublished: true }).select('title description organizationId isPrivate privateTo').lean(), [])
     ]);
     if (!user) return null;
 

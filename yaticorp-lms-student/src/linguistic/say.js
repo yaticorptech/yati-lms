@@ -62,7 +62,7 @@ const KN = {
     'Speak on a topic': 'ಒಂದು ವಿಷಯದ ಬಗ್ಗೆ ಮಾತನಾಡಿ', 'What to talk about': 'ಏನು ಮಾತನಾಡಬೇಕು', 'Try to use': 'ಇವುಗಳನ್ನು ಬಳಸಲು ಪ್ರಯತ್ನಿಸಿ',
     'Useful ways to start': 'ಆರಂಭಿಸಲು ಉಪಯುಕ್ತ ವಾಕ್ಯಗಳು', 'Your talk': 'ನಿಮ್ಮ ಮಾತು', 'words': 'ಪದಗಳು',
     'Fix any words the microphone heard wrong, or type here.': 'ಮೈಕ್ರೊಫೋನ್ ತಪ್ಪಾಗಿ ಕೇಳಿದ ಪದಗಳನ್ನು ಸರಿಪಡಿಸಿ, ಅಥವಾ ಇಲ್ಲಿ ಬರೆಯಿರಿ.',
-    'Your sentences, corrected': 'ನಿಮ್ಮ ವಾಕ್ಯಗಳು, ತಿದ್ದುಪಡಿಯೊಂದಿಗೆ', 'You said': 'ನೀವು ಹೇಳಿದ್ದು', Better: 'ಸರಿಯಾದ ರೂಪ',
+    'Your sentences, corrected': 'ನಿಮ್ಮ ವಾಕ್ಯಗಳು, ತಿದ್ದುಪಡಿಯೊಂದಿಗೆ', 'You said': 'ನೀವು ಹೇಳಿದ್ದು', Better: 'ಸರಿಯಾದ ರೂಪ', 'Write it again in English': 'ಇದನ್ನು ಮತ್ತೆ ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ಬರೆಯಿರಿ',
     'No mistakes found': 'ತಪ್ಪುಗಳು ಕಂಡುಬಂದಿಲ್ಲ', 'Well spoken!': 'ಚೆನ್ನಾಗಿ ಮಾತನಾಡಿದಿರಿ!', 'Say a little more': 'ಇನ್ನೂ ಸ್ವಲ್ಪ ಮಾತನಾಡಿ',
     'Fix these, then speak again': 'ಇವುಗಳನ್ನು ಸರಿಪಡಿಸಿ, ನಂತರ ಮತ್ತೆ ಮಾತನಾಡಿ',
     'Listening…': 'ಕೇಳುತ್ತಿದೆ…', 'tap to stop': 'ನಿಲ್ಲಿಸಲು ಒತ್ತಿ', 'Tap to add more': 'ಇನ್ನಷ್ಟು ಹೇಳಲು ಒತ್ತಿ', 'Tap the microphone and speak': 'ಮೈಕ್ರೊಫೋನ್ ಒತ್ತಿ ಮಾತನಾಡಿ',
@@ -86,7 +86,7 @@ const KN_NAMES = {
 const LINES = {
     en: {
         inARow: (n) => `${n} in a row`,
-        quizIntro: (n, pass) => `${n} questions. Get ${pass}% or more to finish the lesson.`,
+        quizIntro: (n, pass, k = n) => `${n} questions. Get ${k} or more right (${pass}%) to finish the lesson.`,
         ticked: (a, b) => `Saved: ${a} of ${b} ticked`,
         heard: (a, b, need) => `${a} of ${b} heard · say at least ${need}`,
         sentences: (n, need) => (n >= need ? `${n} sentences` : `${n} of ${need} sentences`),
@@ -103,7 +103,7 @@ const LINES = {
     },
     kn: {
         inARow: (n) => `ಸತತ ${n} ಸರಿ`,
-        quizIntro: (n, pass) => `${n} ಪ್ರಶ್ನೆಗಳು. ಪಾಠ ಮುಗಿಸಲು ${pass}% ಅಥವಾ ಹೆಚ್ಚು ಅಂಕ ಪಡೆಯಿರಿ.`,
+        quizIntro: (n, pass, k = n) => `${n} ಪ್ರಶ್ನೆಗಳು. ಪಾಠ ಮುಗಿಸಲು ಕನಿಷ್ಠ ${k} ಸರಿ ಉತ್ತರ (${pass}%) ಬೇಕು.`,
         ticked: (a, b) => `ಉಳಿಸಲಾಗಿದೆ: ${b}ರಲ್ಲಿ ${a} ಗುರುತು ಮಾಡಲಾಗಿದೆ`,
         heard: (a, b, need) => `${b}ರಲ್ಲಿ ${a} ಕೇಳಿಸಿತು · ಕನಿಷ್ಠ ${need} ಹೇಳಿ`,
         sentences: (n, need) => (n >= need ? `${n} ವಾಕ್ಯಗಳು` : `${need}ರಲ್ಲಿ ${n} ವಾಕ್ಯಗಳು`),

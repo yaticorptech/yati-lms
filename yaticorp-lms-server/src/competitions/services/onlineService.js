@@ -90,7 +90,21 @@ const settle = async (game) => {
     return saved;
 };
 
-/** Sit me at a table: one waiting for this game, size and fee, or a new one. */
+/**
+ * Of the tables I could sit at, the one whose seated players' average recent form (options.perf, 0…1, from their
+ * solo twin) is closest to mine; `tables` come oldest first, so a tie goes to the one waiting longest. Deterministic.
+ */
+const closestTable = (tables, perf) => {
+    let best = null, gap = Infinity;
+    for (const t of tables) {
+        const vals = t.seats.map((s) => Number(t.options?.perf?.[String(s.userId)])).filter((n) => Number.isFinite(n));
+        const d = vals.length ? Math.abs(vals.reduce((a, b) => a + b, 0) / vals.length - perf) : 0.5;
+        if (d < gap) { best = t; gap = d; }
+    }
+    return best;
+};
+
+/** Sit me at a table: one waiting for this game, zone, size and fee, or a new one. */
 const findTable = async (user, gameId, raw = {}) => {
     if (!ROOM_GAMES.includes(gameId)) throw new PlayError('Pick one of the Group Brain games.');
     // Group games: 30 minutes of play a day (career/controllers/gameController.js), then closed until midnight.
@@ -106,12 +120,22 @@ const findTable = async (user, gameId, raw = {}) => {
     await require('./unlocks').check(user._id, gameId, players, PlayError);
     const fee = Number(raw.fee ?? 0);
     if (!FEES.includes(fee)) throw new PlayError(`The entry fee is one of ${FEES.map((f) => (f ? `${f} XP` : 'Free')).join(', ')}.`);
-    const difficulty = settings.difficulties.includes('medium') ? 'medium' : settings.difficulties[0];
+    // The table's age zone (2026-11-13): picked, else my own (./zoneGate.js); its difficulty comes from the zone.
+    // Tables only ever mix players of one zone; classes may differ within it.
+    const zg = require('./zoneGate');
+    const own = await zg.zoneOfUser(user._id);
+    const zone = raw.zone != null && raw.zone !== '' ? raw.zone : zg.defaultZone(own.zone, gameId);
+    if (!zg.isZone(zone)) throw new PlayError('Pick a zone: Young Thinkers, Rising Brains or Master Minds.');
+    const difficulty = zg.ZONE_DIFFICULTY[zone];
+    if (!settings.difficulties.includes(difficulty)) throw new PlayError(`${e.label} is open at ${settings.difficulties.join(', ')} only for now, so it can't be played in ${zg.ZONE_NAMES[zone]}. Try another zone.`, 403);
+    await zg.assertCanPlay({ userId: user._id, name: user.name, you: true, game: gameId, label: e.label, zone, PlayError });
+    // How I have been doing in this game's solo twin lately: tables of players at a like level are preferred.
+    const perf = Math.round((await zg.recentPerf(user._id, gameId)) * 1000) / 1000;
     // A game I have left (resigned) does not hold me (roomService.openRoomOf).
     const busy = await require('./roomService').openRoomOf(user._id);
     if (busy) {
         // Already at a table for this same game: go back to it.
-        if (busy.options?.online && busy.game === gameId) return { game: { id: String(busy._id) } };
+        if (busy.options?.online && busy.game === gameId && (busy.status !== 'waiting' || (busy.options.zone || zone) === zone)) return { game: { id: String(busy._id) } };
         // Still searching at another game's table: leave it (fee back), then on to this one.
         if (busy.options?.online && busy.status === 'waiting') await cancel(busy._id, user._id);
         else if (busy.options?.online) throw Object.assign(new PlayError(`You are playing ${engine(busy.game)?.label || 'another game'} online right now. Finish it or leave it first.`, 409), { roomId: String(busy._id) });
@@ -119,16 +143,18 @@ const findTable = async (user, gameId, raw = {}) => {
     }
 
     for (let tries = 0; tries < 6; tries += 1) {
-        // The oldest table still filling, else a new one.
-        let table = await PlayGame.findOne({
-            kind: 'room', game: gameId, status: 'waiting', 'options.online': true, 'options.players': players, 'options.fee': fee,
+        // A table still filling for this game, zone, size and fee — of those, the one whose players' recent form is
+        // closest to mine (oldest first on a tie) — else a new one.
+        const open = await PlayGame.find({
+            kind: 'room', game: gameId, status: 'waiting', 'options.online': true, 'options.zone': zone, 'options.players': players, 'options.fee': fee,
             joinDeadline: { $gt: new Date(Date.now() + 2000) }, [`seats.${players - 1}`]: { $exists: false }
-        }).sort({ createdAt: 1 });
+        }).sort({ createdAt: 1 }).limit(20);
+        let table = closestTable(open, perf);
         const fresh = !table;
         if (fresh) {
             table = await PlayGame.create({
                 kind: 'room', game: gameId, code: games.newCode(), hostId: user._id,
-                options: { difficulty, players, online: true, fee, paid: {} }, seats: [],
+                options: { difficulty, zone, players, online: true, fee, paid: {}, perf: {} }, seats: [],
                 joinDeadline: new Date(Date.now() + WAIT_MS)
             }).catch((err) => { if (err?.code === 11000) return null; throw err; });
             if (!table) continue;
@@ -140,7 +166,7 @@ const findTable = async (user, gameId, raw = {}) => {
                 .catch((err) => { throw new PlayError(err.code === 'INSUFFICIENT_FUNDS' ? `You have less than ${fee} XP. Pick a smaller fee or play free.` : err.message, 402); });
         }
         const seats = [...table.seats.map((s) => s.toObject()), { userId: user._id, name: user.name || 'Player', side: table.seats.length, joinedAt: new Date(), lastSeenAt: new Date(), ready: true }];
-        const saved = await games.commit(table, { seats, options: { ...table.options, paid: { ...(table.options.paid || {}), [String(user._id)]: key } } });
+        const saved = await games.commit(table, { seats, options: { ...table.options, paid: { ...(table.options.paid || {}), [String(user._id)]: key }, perf: { ...(table.options.perf || {}), [String(user._id)]: perf } } });
         if (!saved) {
             // Someone sat down first: give the fee back and try again.
             if (fee > 0) await wallet().credit({ userId: user._id, amount: fee, source: 'game_refund', referenceKey: key.replace('gb-fee', 'gb-refund'), description: `${e.label} online — fee returned (seat taken)` }).catch(() => {});
@@ -236,4 +262,4 @@ const tableInfo = (game) => {
     return { fee, players: size, pot: fee * (game.status === 'waiting' ? size : paid), prize: prizeOf(fee, game.status === 'waiting' ? size : paid), prizeShare: PRIZE_SHARE, startsBy: game.status === 'waiting' ? game.joinDeadline : null };
 };
 
-module.exports = { FEES, SIZES, WAIT_MS, PRIZE_SHARE, prizeOf, isOnline, findTable, cancel, settle, payOut, refundAll, tableInfo, addTester };
+module.exports = { closestTable, FEES, SIZES, WAIT_MS, PRIZE_SHARE, prizeOf, isOnline, findTable, cancel, settle, payOut, refundAll, tableInfo, addTester };

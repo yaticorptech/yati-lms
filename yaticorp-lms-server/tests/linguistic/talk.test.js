@@ -131,13 +131,16 @@ describe('in the path and as a lesson', () => {
     });
     after(async () => { await cleanup([asha.user, kavya.user], app.server); });
 
-    test('Advanced, practised by skill (2026-10-29): its Speaking track has the eight "Speak on a topic" talks; the other sections none', async () => {
+    test('Advanced, practised by skill (2026-10-29): its Speaking track has the "Speak on a topic" talks; the other sections none', async () => {
         const p = (await api('GET', '/path')).body;
         const adv = p.levels.find((l) => l.level === 'advanced');
-        const speaking = adv.units.find((u) => u.id === 'advanced-speaking');
-        assert.equal(speaking.lessons.length, 8, 'four topics, two talks each (the fourth 2026-10-28)');
+        // In units of six (2026-11-14): "Speaking 1", "Speaking 2" — the eight of the four topics, and four more.
+        const units = adv.units.filter((u) => u.skillTitle === 'Speaking');
+        const speaking = { lessons: units.flatMap((u) => u.lessons) };
+        assert.deepEqual(units.map((u) => [u.id, u.lessons.length]), [['advanced-speaking', 6], ['advanced-speaking-2', 6]]);
+        assert.equal(speaking.lessons.length, 12, 'four topics, two talks each (the fourth 2026-10-28), and four more (2026-11-14)');
         assert.ok(speaking.lessons.every((x) => x.type === 'talk'));
-        assert.ok(adv.units.filter((u) => u !== speaking).every((u) => !u.lessons.some((x) => x.type === 'talk')), 'only there');
+        assert.ok(adv.units.filter((u) => !units.includes(u)).every((u) => !u.lessons.some((x) => x.type === 'talk')), 'only there');
         assert.ok(p.levels.filter((l) => l.level !== 'advanced').every((l) => l.units.every((u) => !u.lessons.some((x) => x.type === 'talk'))));
     });
 

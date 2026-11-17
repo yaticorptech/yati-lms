@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, X, BookOpen } from 'lucide-react';
+import { Search, X, BookOpen, NotebookText } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, SHOWN_LEVELS } from './meta';
 import { Loading, Mascot, Panel, Problem, Speaker } from './ui';
@@ -83,10 +83,17 @@ function Sentences({ sentences, lang }) {
     );
 }
 
-function Unit({ unit, lang, locale }) {
+function Unit({ unit, number, tone = COLORS.green, lang, locale }) {
     return (
-        <Panel className="scroll-mt-24 space-y-4 p-4 sm:p-5" id={`notes-${unit.id}`} data-notes-unit={unit.id}>
-            <h3 className="text-lg font-extrabold text-[#3c3c3c]">{unit.title}</h3>
+        <Panel className="scroll-mt-24 overflow-hidden" id={`notes-${unit.id}`} data-notes-unit={unit.id}>
+            <div className="flex items-center gap-3 px-4 py-3 text-white sm:px-5" style={{ background: `linear-gradient(135deg, ${tone.face} 0%, ${tone.edge} 100%)` }}>
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-sm font-black" style={{ color: tone.edge }}>{number}</span>
+                <div className="min-w-0">
+                    <p className="text-[10.5px] font-extrabold uppercase tracking-[0.14em] text-white/85">Unit {number} · {unit.lessons.length} lesson{unit.lessons.length === 1 ? '' : 's'}</p>
+                    <h3 className="truncate text-lg font-black leading-tight">{unit.title}</h3>
+                </div>
+            </div>
+            <div className="space-y-4 p-4 sm:p-5">
             {unit.lessons.map((l) => (
                 <section key={l.id} className="space-y-2" data-notes-lesson={l.id}>
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -104,6 +111,7 @@ function Unit({ unit, lang, locale }) {
                     )}
                 </section>
             ))}
+            </div>
         </Panel>
     );
 }
@@ -134,13 +142,41 @@ export default function Learnt() {
     const locale = data.course?.locale || 'en-IN';
     const sections = data.levels.length > 1;
     const sectionOf = (level) => SHOWN_LEVELS.findIndex((l) => l.id === level) + 1;
+    // Beginner green, Advanced purple: the same colours as the Lessons and Sections pages.
+    const toneOf = (level) => COLORS[['green', 'purple', 'blue'][Math.max(0, sectionOf(level) - 1) % 3]];
     const go = (id) => document.getElementById(`notes-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return (
         <div className="space-y-4" data-notes-page>
-            <div>
-                <h1 className="text-2xl font-extrabold text-[#3c3c3c]">Your notes</h1>
-                <p className="mt-1 text-[15px] font-semibold text-[#777]">What you have learnt, from every lesson you finished. Search for a word, or tap a topic to go to it.</p>
-            </div>
+            {/* Redesigned 2026-11-16 ("redesign it"): a gold card like the Notes tile, the counts as tiles and the
+                search inside it; topics as coloured chips; each unit with its number. */}
+            <section className="relative overflow-hidden rounded-3xl px-5 py-5 text-white sm:px-7" style={{ background: `linear-gradient(135deg, ${COLORS.gold.face} 0%, ${COLORS.orange.face} 100%)`, boxShadow: `0 4px 0 ${COLORS.gold.edge}, 0 14px 28px -12px ${COLORS.gold.edge}` }}>
+                <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-white/15" />
+                <span aria-hidden="true" className="pointer-events-none absolute -bottom-12 left-1/4 h-28 w-28 rounded-full bg-white/10" />
+                <div className="relative flex items-start gap-3">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/25 ring-2 ring-white/40"><NotebookText size={24} strokeWidth={2.5} /></span>
+                    <div className="min-w-0">
+                        <h1 className="text-2xl font-black leading-tight drop-shadow-sm">Your notes</h1>
+                        <p className="mt-0.5 text-sm font-bold text-white/90">Everything from the lessons you finished. Search a word, or tap a topic.</p>
+                    </div>
+                </div>
+                {data.levels.length > 0 && (
+                    <>
+                        <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" data-notes-counts>
+                            {counts.map(([k, n]) => (
+                                <span key={k} className="rounded-2xl bg-white/20 px-3 py-2 ring-1 ring-white/30">
+                                    <span className="block text-2xl font-black leading-none">{n}</span>
+                                    <span className="text-xs font-extrabold capitalize text-white/90">{n === 1 ? k.replace(/s$/, '').replace(/ie$/, 'y') : k}</span>
+                                </span>
+                            ))}
+                        </div>
+                        <label className="relative mt-3 flex h-12 items-center gap-2 rounded-2xl bg-white px-3 shadow-sm ring-2 ring-transparent focus-within:ring-white/70">
+                            <Search size={18} className="shrink-0 text-[#AFAFAF]" />
+                            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search your notes" aria-label="Search your notes" className="min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#3c3c3c] outline-none placeholder:text-[#AFAFAF]" data-notes-search />
+                            {query && <button type="button" onClick={() => setQuery('')} aria-label="Clear the search" className="rounded-full p-1 text-[#AFAFAF] hover:text-[#777]"><X size={16} /></button>}
+                        </label>
+                    </>
+                )}
+            </section>
             {data.levels.length === 0 ? (
                 <Panel className="flex flex-col items-center gap-2 p-8 text-center" data-notes-empty>
                     <Mascot pose="presenting" className="h-28 w-28" />
@@ -150,28 +186,30 @@ export default function Learnt() {
                 </Panel>
             ) : (
                 <>
-                    <div className="flex flex-wrap gap-2" data-notes-counts>
-                        {counts.map(([k, n]) => <span key={k} className="rounded-full bg-[#F7F7F7] px-3 py-1 text-sm font-extrabold text-[#4b4b4b]">{n} {n === 1 ? k.replace(/s$/, '').replace(/ie$/, 'y') : k}</span>)}
-                    </div>
-                    <label className="flex h-12 items-center gap-2 rounded-2xl border-2 border-[#E5E5E5] bg-white px-3 focus-within:border-[#84D8FF]">
-                        <Search size={18} className="shrink-0 text-[#AFAFAF]" />
-                        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search your notes" aria-label="Search your notes" className="min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[#3c3c3c] outline-none placeholder:text-[#AFAFAF]" data-notes-search />
-                        {query && <button type="button" onClick={() => setQuery('')} aria-label="Clear the search" className="rounded-full p-1 text-[#AFAFAF] hover:text-[#777]"><X size={16} /></button>}
-                    </label>
                     {levels.length > 0 && (
-                        <nav aria-label="Topics" className="flex flex-wrap gap-2" data-notes-topics>
-                            {levels.flatMap((s) => s.units.map((u) => (
-                                <button key={u.id} type="button" onClick={() => go(u.id)} className="rounded-full border-2 border-[#E5E5E5] bg-white px-3 py-1.5 text-sm font-extrabold text-[#4b4b4b] hover:bg-[#F7F7F7]" data-notes-topic={u.id}>
-                                    {sections ? `${sectionOf(s.level)} · ` : ''}{u.title}
-                                </button>
-                            )))}
+                        <nav aria-label="Topics" className="space-y-3" data-notes-topics>
+                            {/* Grouped by section, each topic with its unit number (2026-11-16: the chips used
+                                to show the section number, so every Section 1 topic read "1 ·"). */}
+                            {levels.map((s) => (
+                                <div key={s.level}>
+                                    {sections && <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-wider" style={{ color: toneOf(s.level).ink }}>Section {sectionOf(s.level)} · {s.label}</p>}
+                                    <div className="flex flex-wrap gap-2">
+                                        {s.units.map((u, ui) => (
+                                            <button key={u.id} type="button" onClick={() => go(u.id)} className="lingo-tile inline-flex items-center gap-2 !rounded-full py-1 pl-1 pr-3.5 text-sm font-extrabold text-[#4b4b4b]" data-notes-topic={u.id}>
+                                                <span className="grid h-7 min-w-7 place-items-center rounded-full px-1 text-xs font-black text-white" style={{ background: toneOf(s.level).face }} aria-label={`Unit ${(u.number ?? ui + 1)}`}>{u.number ?? ui + 1}</span>
+                                                {u.title}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
                         </nav>
                     )}
                     {levels.length === 0 && <Panel className="p-6 text-center text-[15px] font-semibold text-[#777]" data-notes-none>Nothing in your notes matches “{query.trim()}”.</Panel>}
                     {levels.map((s) => (
                         <section key={s.level} className="space-y-3" data-notes-section={s.level}>
-                            <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#777]">Section {sectionOf(s.level)} · {s.label}</h2>
-                            {s.units.map((u) => <Unit key={u.id} unit={u} lang={lang} locale={locale} />)}
+                            <h2 className="flex items-center gap-2 pt-2 text-sm font-extrabold uppercase tracking-wider" style={{ color: toneOf(s.level).ink }}><span className="h-2.5 w-2.5 rounded-full" style={{ background: toneOf(s.level).face }} />Section {sectionOf(s.level)} · {s.label}</h2>
+                            {s.units.map((u, ui) => <Unit key={u.id} unit={u} number={u.number ?? ui + 1} tone={toneOf(s.level)} lang={lang} locale={locale} />)}
                         </section>
                     ))}
                 </>

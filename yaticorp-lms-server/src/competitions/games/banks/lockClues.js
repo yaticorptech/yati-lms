@@ -55,8 +55,11 @@ const shuffle = (rng, list) => {
     return a;
 };
 
-/** A code and its three clues: [fact, sum, relation], which leave that code alone. */
-const lockCode = (rng) => {
+/**
+ * A code and its three clues: [fact, sum, relation], which leave that code alone. `simple` (Young Thinkers,
+ * 2026-11-13): no "twice" or "three times" — only "more than" and "plus".
+ */
+const lockCode = (rng, { simple = false } = {}) => {
     for (;;) {
         const n = CODES[Math.floor(rng() * CODES.length)];
         const x = d(n);
@@ -64,7 +67,7 @@ const lockCode = (rng) => {
         const bySum = ALL.filter((m) => { const y = d(m); return y[0] + y[1] + y[2] === sum; });
         if (bySum.length < 10) continue;   // the sum alone must not give it away
         const facts = shuffle(rng, FACTS.filter(([, t]) => t(x)));
-        const relations = shuffle(rng, relationsOf(x));
+        const relations = shuffle(rng, relationsOf(x).filter(([t]) => !simple || !/twice|three times/.test(t)));
         // One code if the clues can say so; otherwise two at most (either one opens the lock).
         for (const most of [1, 2]) {
             for (const [ft, f] of facts) {

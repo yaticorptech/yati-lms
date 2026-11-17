@@ -138,10 +138,12 @@ describe('how course words sound', () => {
 
         test('Japanese quiz choices in Japanese carry their sound; those in Hindi do not', async () => {
             const l = await lessonOf(ja, 'ja:vocab-beginner-1');
-            const japanese = l.quiz.filter((q) => (q.options || []).some((o) => /[\u3040-\u30ff\u4e00-\u9fff]/.test(o)));
+            // Its word questions (the conversation and picture cards, in the quiz since 2026-11-12, have their own look).
+            const words = l.quiz.filter((q) => !['blanks', 'hear', 'chat', 'picture'].includes(q.type));
+            const japanese = words.filter((q) => (q.options || []).some((o) => /[\u3040-\u30ff\u4e00-\u9fff]/.test(o)));
             assert.ok(japanese.length > 0, 'some questions offer Japanese words');
             for (const q of japanese) for (const o of q.options) if (/[\u3040-\u30ff\u4e00-\u9fff]/.test(o)) assert.ok(q.says?.[o], `${q.id}: "${o}"`);
-            for (const q of l.quiz) for (const o of q.options || []) if (/[\u0900-\u097f]/.test(o)) assert.equal(q.says?.[o], undefined, `${q.id}: Hindi "${o}"`);
+            for (const q of words) for (const o of q.options || []) if (/[\u0900-\u097f]/.test(o)) assert.equal(q.says?.[o], undefined, `${q.id}: Hindi "${o}"`);
             // "What does 食べ物、食事 mean?": the word asked about, with its sound and its locale to hear it in (not its meaning).
             const asked = l.quiz.filter((q) => /["“”「」][^"“”「」]*[\u3040-\u30ff\u4e00-\u9fff]/.test(q.prompt || ''));
             assert.ok(asked.length > 0, 'some questions ask about a Japanese word');

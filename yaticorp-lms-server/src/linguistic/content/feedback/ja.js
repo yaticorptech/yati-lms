@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'I, you, we, they には "don\'t"（do not）を使います。',
     withDoesnt: 'he, she, it には "doesn\'t"（does not）を使います。',
     thirdS: '現在形では、he, she, it の後の動詞に -s が付きます：he goes, she has, it works.',
+    noThirdS: 'I、you、we、they のときは動詞に -s を付けません：I go, you have, they work.',
     thereAre: '二つ以上のものには "there are"（または "there were"）を使います。',
     participle: 'have, has, had の後は過去分詞です：have gone, has eaten, had done.',
     stative: 'know, understand, want のような動詞は -ing にしません："I understand"。"I am understanding" ではありません。',

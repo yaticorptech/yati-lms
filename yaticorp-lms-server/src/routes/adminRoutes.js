@@ -56,6 +56,10 @@ router.post('/lessons/upload', protectAdmin, tagUploadLimit, lessonUpload.single
 router.post('/lessons/attachments', protectAdmin, tagAttachmentLimit, attachmentUpload.single('file'), courseCtrl.uploadLessonAttachment);
 router.route('/courses/:id').get(protectAdmin, courseCtrl.getCourseById).put(protectAdmin, courseCtrl.updateCourse).delete(protectAdmin, courseCtrl.deleteCourse);
 router.get('/courses/:id/students', protectAdmin, courseCtrl.getCourseStudents);
+// Private courses (2026-11-12): a platform course seen only by the students chosen.
+const privateCourseCtrl = require('../controllers/privateCourseController');
+router.route('/private-courses').get(protectAdmin, privateCourseCtrl.listPrivateCourses).post(protectAdmin, privateCourseCtrl.createPrivateCourse);
+router.put('/private-courses/:id', protectAdmin, privateCourseCtrl.setPrivateCourse);
 
 
 // Module Management Routes

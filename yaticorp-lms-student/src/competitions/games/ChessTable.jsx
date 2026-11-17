@@ -65,7 +65,7 @@ const SHAPES = {
 
 let pieceIds = 0;
 /** A piece, polished (2026-11-02): ivory or black lacquer, lit from the upper left, with a soft shadow. */
-function PieceIcon({ type, color, size }) {
+export function PieceIcon({ type, color, size }) {
     const [id] = useState(() => `pc${(pieceIds += 1)}`);
     const shape = SHAPES[type];
     if (!shape) return null;
@@ -204,7 +204,7 @@ function DrawControls({ view, busy, onSend }) {
     );
 }
 
-function PromotionPicker({ color, onPick, onCancel }) {
+export function PromotionPicker({ color, onPick, onCancel }) {
     return (
         <div data-promotion-picker className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/50 p-3"
             style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.5)' }}>

@@ -382,6 +382,9 @@ const perms = (n) => {
  * true one is left; then one question about it.
  */
 const logicGrid = (rng, level = 'medium') => {
+    // 'master' (Master Minds, 2026-11-13): four people, and clues that join two conditions — "neither … nor",
+    // "either … or" — given first, so the grid takes reasoning across clues rather than reading off a fact.
+    const master = level === 'master';
     const n = level === 'easy' ? 3 : 4;
     const people = some(rng, NAMES, n);
     const [listA, listB] = some(rng, [PETS, COLOURS, SPORTS], 2).map((l) => some(rng, l, n));
@@ -402,11 +405,32 @@ const logicGrid = (rng, level = 'medium') => {
         }
         pool.push({ text: `${sayThe(nameA, listA[truthA[i]])} ${say(nameB, listB[truthB[i]])}.`, ok: (A, B) => B[A.indexOf(truthA[i])] === truthB[i] });
     }
+    if (master) {
+        const either = (kind, x, y) => (kind === 'pet' ? `has either the ${x} or the ${y}` : kind === 'colour' ? `likes either ${x} or ${y}` : `plays either ${x} or ${y}`);
+        for (const [list, name, truth, pick] of [[listA, nameA, truthA, (A) => A], [listB, nameB, truthB, (A, B) => B]]) {
+            for (let i = 0; i < n; i += 1) {
+                // Either the true one or another: true of the answer, and two conditions at once.
+                for (let k = 0; k < n; k += 1) {
+                    if (k === truth[i]) continue;
+                    const [x, y] = rng() < 0.5 ? [truth[i], k] : [k, truth[i]];
+                    pool.push({ compound: true, text: `${people[i]} ${either(name, list[x], list[y])}.`, ok: (A, B) => pick(A, B)[i] === x || pick(A, B)[i] === y });
+                }
+                // Neither of two people has it.
+                for (let j = i + 1; j < n; j += 1) {
+                    for (let k = 0; k < n; k += 1) {
+                        if (truth[i] === k || truth[j] === k) continue;
+                        pool.push({ compound: true, text: `Neither ${people[i]} nor ${people[j]} ${say(name, list[k])}.`, ok: (A, B) => pick(A, B)[i] !== k && pick(A, B)[j] !== k });
+                    }
+                }
+            }
+        }
+    }
     const all = perms(n).flatMap((A) => perms(n).map((B) => [A, B]));
     let left = all;
     const clues = [];
     // Direct "X has Y" clues are kept for last, so the puzzle needs some thought.
-    const order = some(rng, pool, pool.length).sort((x, y) => (/ does not |^The one/.test(y.text) ? 1 : 0) - (/ does not |^The one/.test(x.text) ? 1 : 0));
+    const rank = (c) => (c.compound ? 0 : / does not |^The one/.test(c.text) ? 1 : 2);
+    const order = some(rng, pool, pool.length).sort((x, y) => rank(x) - rank(y));
     for (const clue of order) {
         if (left.length === 1) break;
         const next = left.filter(([A, B]) => clue.ok(A, B));
@@ -522,6 +546,109 @@ const cubeNet = (rng) => {
     };
 };
 
+/* ── By age zone (2026-11-13: ../zones.js) ─────────────────────────────── */
+
+const CIRCLES = ['🔴', '🔵', '🟢', '🟡', '🟣'];
+
+/** Young Thinkers: a row of coloured circles repeating every 2 or 3; which comes next? */
+const colourCycle = (rng) => {
+    const period = int(rng, 2, 3);
+    const cycle = some(rng, CIRCLES, period);
+    const length = period * 2 + 1;
+    const terms = Array.from({ length }, (_, i) => cycle[i % period]);
+    const ans = cycle[length % period];
+    return {
+        topic: 'Colours',
+        prompt: `Which colour comes next?   ${terms.join('  ')}  ?`,
+        options: [ans, ...some(rng, CIRCLES.filter((x) => x !== ans), 3)],
+        answer: 0,
+        explain: `The colours repeat: ${cycle.join(' ')}.`,
+        facts: { kind: 'cycle', cycle, gap: length }
+    };
+};
+
+/** Young Thinkers: counting on by 1, 2 or 3 from a small number — never past 20. */
+const countOn = (rng) => {
+    const d = int(rng, 1, 3);
+    const a = int(rng, 0, 20 - 4 * d);
+    const terms = [0, 1, 2, 3].map((i) => a + i * d);
+    const ans = a + 4 * d;
+    const wrong = [...new Set([ans + 1, ans - 1, ans + d, ans + 2, ans - 2, ans - d, ans - 3].filter((v) => v >= 0 && v <= 20 && v !== ans))].slice(0, 3);
+    return {
+        topic: 'Counting',
+        prompt: `What comes next: ${terms.join(', ')}, ?`,
+        options: [ans, ...wrong].map(String),
+        answer: 0,
+        explain: `Count on ${d} each time.`,
+        facts: { kind: 'series', terms, next: ans }
+    };
+};
+const shapeCycleYoung = (rng) => shapeCycle(rng, 'easy');
+
+/** Rising Brains: a logic grid of three or four people. */
+const logicGridSmart = (rng) => logicGrid(rng, rng() < 0.5 ? 'easy' : 'medium');
+/** Master Minds: a logic grid of four, with two-condition clues. */
+const logicGridMaster = (rng) => logicGrid(rng, 'master');
+
+/**
+ * Master Minds: five people, comparisons between any two of them (not just neighbours), added until only one
+ * order is left — then who is first, last, or second.
+ */
+const orderingMaster = (rng) => {
+    const people = some(rng, NAMES, 5);                   // most first
+    const [more, most, least] = pickOne(rng, COMPARE);
+    const orders = perms(5);
+    const pairs = [];
+    for (let i = 0; i < 5; i += 1) for (let j = i + 1; j < 5; j += 1) if (j - i > 1 || rng() < 0.5) pairs.push([i, j]);
+    let left = orders;
+    const clues = [];
+    for (const [i, j] of some(rng, pairs, pairs.length)) {
+        if (left.length === 1) break;
+        // An order is a list of positions: o[p] = the place of person p.
+        const next = left.filter((o) => o[i] < o[j]);
+        if (next.length < left.length) { clues.push(`${people[i]} is ${more} than ${people[j]}.`); left = next; }
+    }
+    // Neighbours make sure of it, if the far pairs did not.
+    for (let i = 0; i < 4 && left.length > 1; i += 1) {
+        const next = left.filter((o) => o[i] < o[i + 1]);
+        if (next.length < left.length) { clues.push(`${people[i]} is ${more} than ${people[i + 1]}.`); left = next; }
+    }
+    const ask = pickOne(rng, ['top', 'bottom', 'second']);
+    const at = ask === 'top' ? 0 : ask === 'bottom' ? 4 : 1;
+    const ans = people[at];
+    const question = ask === 'top' ? `Who is the ${most}?` : ask === 'bottom' ? `Who is the ${least}?` : `Who is the second ${most}?`;
+    return {
+        topic: 'Ordering',
+        prompt: `${some(rng, clues, clues.length).join(' ')} ${question}`,
+        options: [ans, ...some(rng, people.filter((p) => p !== ans), 3)],
+        answer: 0,
+        explain: `In order: ${people.join(' > ')}.`,
+        facts: { kind: 'ordering', people, at, solutions: left.length }
+    };
+};
+
+/** a ? b ? c = d with the usual order (× and ÷ first): exactly one pair of the sixteen signs fits. */
+const two = (a, x, b, y, c) => (['×', '÷'].includes(y) && ['+', '−'].includes(x) ? apply(a, x, apply(b, y, c)) : apply(apply(a, x, b), y, c));
+const PAIRS = OPS.flatMap((x) => OPS.map((y) => [x, y]));
+const twoOperators = (rng) => {
+    for (;;) {
+        const a = int(rng, 2, 15); const b = int(rng, 2, 12); const c = int(rng, 2, 12);
+        const [x, y] = pickOne(rng, PAIRS);
+        const d = two(a, x, b, y, c);
+        if (!Number.isInteger(d) || d < 0) continue;
+        if (PAIRS.filter(([p, q]) => two(a, p, b, q, c) === d).length !== 1) continue;
+        const wrong = some(rng, PAIRS.filter(([p, q]) => p !== x || q !== y), 3);
+        return {
+            topic: 'Missing signs',
+            prompt: `Which two signs make it true (× and ÷ before + and −)?   ${a} ? ${b} ? ${c} = ${d}`,
+            options: [[x, y], ...wrong].map(([p, q]) => `${p} then ${q}`),
+            answer: 0,
+            explain: `${a} ${x} ${b} ${y} ${c} = ${d}.`,
+            facts: { kind: 'two-operators', a, b, c, d, x, y }
+        };
+    }
+};
+
 /* ── The games' question sets ──────────────────────────────────────────── */
 
 const { SERIES, PUZZLES } = require('./generate');
@@ -532,7 +659,15 @@ const NUMBERS = [missingNumber, ...SERIES.slice(0, 2), notMultiple, missingOpera
 const WORDS_GAME = [anagram, oddWord, anagram, oddWord];
 const DEDUCTION = [logicGrid, ordering, logicGrid, daysAhead, logicGrid, directions, letterCode];
 const SPATIAL = [rotation, mirror, paperFold, cubeNet];
+// By age zone (../zones.js). Young Thinkers: shapes, colours, growing groups and counting — no reading, no big numbers.
+const PATTERNS_YOUNG = [shapeCycleYoung, colourCycle, growing, countOn];
+// Master Minds: the turning and number series, without the simplest picture rows.
+const PATTERNS_MASTER = [shapeCycle, arrowTurn, ...SERIES];
+const DEDUCTION_SMART = [logicGridSmart, ordering, logicGridSmart, daysAhead, logicGridSmart, directions, letterCode];
+const DEDUCTION_MASTER = [logicGridMaster, orderingMaster, logicGridMaster, daysAhead, logicGridMaster, orderingMaster, letterCode];
+// (Number Logic deals a quarter of a Master Minds game from twoOperators, and the rest from these.)
+const NUMBERS_MASTER = [missingNumber, notMultiple, missingOperator, ...NUMBER_PUZZLES, ...SERIES.slice(1, 5), notSquare, bracketOperator, notPrimeOdd];
 
-module.exports = { PATTERNS, NUMBERS, WORDS_GAME, WORD, DEDUCTION, SPATIAL, ODD_WORDS, ANAGRAMS, shift, apply, DAYS, COMPASS, draw, rotateCW, flipLR, flipTB,
+module.exports = { PATTERNS, NUMBERS, WORDS_GAME, WORD, DEDUCTION, SPATIAL, PATTERNS_YOUNG, PATTERNS_MASTER, DEDUCTION_SMART, DEDUCTION_MASTER, NUMBERS_MASTER, twoOperators, two, ODD_WORDS, ANAGRAMS, shift, apply, DAYS, COMPASS, draw, rotateCW, flipLR, flipTB,
     // One by one, for the adventure games (adventure.js).
     shapeCycle, arrowTurn, missingNumber, missingOperator, bracketOperator, ordering, letterCode, logicGrid, daysAhead };

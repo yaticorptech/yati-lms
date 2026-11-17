@@ -31,7 +31,7 @@ export default function AntonymMatch({ onExit }) {
       onExit={onExit}
       renderPrompt={(q) => (
         <>
-          <p className="text-[0.7rem] font-black tracking-[0.14em] text-fuchsia-600 uppercase">Opposite of</p>
+          <p className="text-xs font-black tracking-[0.14em] text-fuchsia-600 uppercase">Opposite of</p>
           <p className="mt-1 text-3xl font-black tracking-wide text-ink-900 sm:text-4xl">{q.word}</p>
         </>
       )}

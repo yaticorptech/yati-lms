@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'مع I أو you أو we أو they استعمل "don\'t" (do not).',
     withDoesnt: 'مع he أو she أو it استعمل "doesn\'t" (does not).',
     thirdS: 'مع he أو she أو it يأخذ الفعل -s في المضارع: he goes, she has, it works.',
+    noThirdS: 'مع I وyou وwe وthey لا يأخذ الفعل -s: I go, you have, they work.',
     thereAre: 'مع أكثر من شيء واحد استعمل "there are" (أو "there were").',
     participle: 'بعد have أو has أو had استعمل اسم المفعول: have gone, has eaten, had done.',
     stative: 'أفعال مثل know وunderstand وwant لا تُستعمل مع -ing: "I understand"، وليس "I am understanding".',

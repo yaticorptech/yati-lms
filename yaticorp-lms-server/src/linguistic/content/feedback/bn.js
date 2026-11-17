@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'I, you, we বা they-এর সঙ্গে "don\'t" (do not) ব্যবহার করুন।',
     withDoesnt: 'he, she বা it-এর সঙ্গে "doesn\'t" (does not) ব্যবহার করুন।',
     thirdS: 'বর্তমান কালে he, she বা it-এর সঙ্গে ক্রিয়ায় -s যোগ হয়: he goes, she has, it works.',
+    noThirdS: 'I, you, we বা they-এর সঙ্গে ক্রিয়ায় -s বসে না: I go, you have, they work.',
     thereAre: 'একাধিক জিনিসের জন্য "there are" (বা "there were") ব্যবহার করুন।',
     participle: 'have, has বা had-এর পরে past participle: have gone, has eaten, had done.',
     stative: 'know, understand, want-এর মতো ক্রিয়ায় -ing হয় না: "I understand", "I am understanding" নয়।',

@@ -16,6 +16,8 @@ const SPEAKER_COLORS = ['blue', 'orange', 'purple', 'green'];
 export default function Dialogue({ dialogue, audio, compact = false }) {
     const lines = dialogue?.lines || [];
     const speakers = [...new Set(lines.map((l) => l.speaker))];
+    // Read in the conversation's own language (a new section's in Kannada or Hindi, 2026-11-14), else Indian English.
+    const locale = dialogue?.locale || 'en-IN';
     const [current, setCurrent] = useState(-1);
     const [playingAll, setPlayingAll] = useState(false);
     const player = useRef(null);
@@ -27,7 +29,7 @@ export default function Dialogue({ dialogue, audio, compact = false }) {
         setCurrent(-1); setPlayingAll(false);
     };
     useEffect(() => () => { stopped.current = true; player.current?.pause(); }, []);
-    usePrefetch(lines.filter((l) => !l.audio).map((l) => [l.text, 'en-IN']), [dialogue]);
+    usePrefetch(lines.filter((l) => !l.audio).map((l) => [l.text, locale]), [dialogue]);
 
     /** Play line i; resolves when it ends (or fails). */
     const playLine = (i) => new Promise((resolve) => {
@@ -40,7 +42,7 @@ export default function Dialogue({ dialogue, audio, compact = false }) {
             a.play().catch(resolve);
         } else {
             // No recording: AI4Bharat's voice reads it (2026-11-05), made ahead as the conversation opens.
-            const halt = readAloud([line.text], 'en-IN', { onEnd: resolve });
+            const halt = readAloud([line.text], locale, { onEnd: resolve });
             player.current = { pause: () => { halt(); resolve(); } };
         }
     });

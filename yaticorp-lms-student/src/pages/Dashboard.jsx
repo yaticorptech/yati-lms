@@ -19,7 +19,7 @@ import React, { useCallback, useContext, useEffect, useRef, useState } from 'rea
 import { AuthContext } from '../context/AuthContext';
 import GlobalQuiz from '../components/GlobalQuiz';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { BookOpen, Award, PlayCircle, Clock, ArrowRight, CheckCircle2, Bookmark, CalendarDays, Globe } from 'lucide-react';
+import { BookOpen, Award, PlayCircle, Clock, ArrowRight, CheckCircle2, Bookmark, CalendarDays, Globe, Lock } from 'lucide-react';
 import Portal from '../components/Portal';
 import CourseOutlineDialog from '../components/course/CourseOutlineDialog';
 import { useRewards } from '../context/useRewards';
@@ -310,10 +310,11 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
     // enrolled in, marked Enrolled, which open the course and are never
     // offered for enrolment again (the server refuses a second one as well).
     const availableIds = new Set(availableCourses.map((c) => String(c._id)));
+    // Private courses chosen for this student first (2026-11-16), so they are never behind "See more courses".
     const catalogue = [
         ...availableCourses,
         ...courses.filter((c) => !availableIds.has(String(c._id))).map((c) => ({ ...c, enrolled: true }))
-    ];
+    ].map((c, i) => [c, i]).sort(([a, i], [b, j]) => Number(!!b.isPrivate) - Number(!!a.isPrivate) || i - j).map(([c]) => c);
 
     const handleRetry = refresh;
 
@@ -507,6 +508,12 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
                                         <span className="absolute bottom-3 left-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-indigo-100 backdrop-blur">
                                             <Clock size={12} className="text-indigo-500" /> Self-paced
                                         </span>
+                                        {/* A private course (2026-11-12): given to this student by the admin, not offered to everyone. */}
+                                        {course.isPrivate && (
+                                            <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-2.5 py-1 text-xs font-bold text-white shadow-md shadow-indigo-200 ring-2 ring-indigo-200" title="Your admin made this course for you and a few chosen students" data-private-course>
+                                                <Lock size={12} strokeWidth={2.75} /> Private · Only for you
+                                            </span>
+                                        )}
                                         {course.enrolled && (
                                             <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
                                                 <CheckCircle2 size={13} /> Enrolled

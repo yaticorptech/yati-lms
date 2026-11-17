@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { ExternalLink, KeyRound, X, ArrowRight, ArrowLeft, CheckCircle2, Loader2, Eye, EyeOff, Zap, Sparkles, HelpCircle } from 'lucide-react';
 import api from '../utils/api';
 import Portal from './Portal';
-import { KEY_STEPS } from './AiKeySettings';
+import { KEY_STEPS } from './aiKeySteps';
 import { AI_EXHAUSTED_EVENT, AI_CREDIT_USED_EVENT } from '../utils/aiExhausted';
 import { busyOnScreen, isBusyPath } from './busyScreen';
 import { useLoopHidden } from './loopVisibility';

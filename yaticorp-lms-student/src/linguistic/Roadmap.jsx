@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import { Check, Lock, ChevronDown, Target } from 'lucide-react';
+import { Check, Lock, ChevronDown, Target, Clock, Info, Zap, AlarmClock, CircleCheck } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS } from './meta';
 import { Bar, Loading, Panel, Problem } from './ui';
@@ -36,6 +36,22 @@ function Row({ l }) {
     return l.open && !done
         ? <li><Link to={`/linguistic/${l.module}/${l.id}`} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-[#F7F7F7]" data-roadmap-lesson={l.id}>{body}</Link></li>
         : <li className="flex items-center gap-3 py-1.5" data-roadmap-lesson={l.id}>{body}</li>;
+}
+
+/** The days of the plan as a ring: how far through the month (or weeks) the student is. */
+function DayRing({ day, days }) {
+    const r = 26;
+    const len = 2 * Math.PI * r;
+    const part = days ? Math.min(1, day / days) : 0;
+    return (
+        <div className="relative grid h-[72px] w-[72px] shrink-0 place-items-center" aria-hidden="true">
+            <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full -rotate-90">
+                <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="7" />
+                <circle cx="32" cy="32" r={r} fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round" strokeDasharray={`${len * part} ${len}`} />
+            </svg>
+            <span className="text-center leading-none"><span className="block text-lg font-black">{day}</span><span className="text-[9px] font-extrabold uppercase tracking-wider text-white/85">day</span></span>
+        </div>
+    );
 }
 
 export default function Roadmap() {
@@ -66,26 +82,36 @@ export default function Roadmap() {
     return (
         <div className="space-y-5" data-roadmap={p.days}>
             {header}
-            <Panel className="p-5" data-plan-summary>
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            {/* Redesigned 2026-11-16 ("redesign this"): a purple card like the Roadmap tile, a ring for the days,
+                the lessons bar in white, the status as a pill, and the details as small chips. */}
+            <section className="relative overflow-hidden rounded-3xl px-5 py-5 text-white sm:px-7" style={{ background: `linear-gradient(135deg, ${COLORS.purple.face} 0%, #8B5CF6 100%)`, boxShadow: `0 4px 0 ${COLORS.purple.edge}, 0 14px 28px -12px ${COLORS.purple.edge}` }} data-plan-summary>
+                <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-white/10" />
+                <span aria-hidden="true" className="pointer-events-none absolute -bottom-14 left-1/3 h-28 w-28 rounded-full bg-white/10" />
+                <div className="relative flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                        <p className="text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{planLabel(p.days)} plan · {p.tier === 'full' ? 'every lesson' : 'the main lessons'}</p>
-                        <p className="mt-1 text-xl font-extrabold text-[#3c3c3c]">Day <span data-plan-day>{Math.min(p.day, p.days)}</span> of {p.days}</p>
+                        <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/85">{planLabel(p.days)} plan · {p.tier === 'full' ? 'every lesson' : 'the main lessons'}</p>
+                        <p className="mt-1 text-3xl font-black leading-tight drop-shadow-sm">Day <span data-plan-day>{Math.min(p.day, p.days)}</span> <span className="text-white/80">of {p.days}</span></p>
                     </div>
+                    <DayRing day={Math.min(p.day, p.days)} days={p.days} />
                 </div>
-                <div className="mt-3 flex items-center gap-3">
-                    <Bar value={p.total ? (p.done / p.total) * 100 : 0} className="h-3 flex-1" label={`${p.done} of ${p.total} lessons done`} />
-                    <span className="text-sm font-extrabold tabular-nums text-[#AFAFAF]">{p.done}/{p.total}</span>
+                <div className="relative mt-4">
+                    <div className="h-3 w-full overflow-hidden rounded-full bg-black/15" role="progressbar" aria-valuenow={p.done} aria-valuemin={0} aria-valuemax={p.total} aria-label={`${p.done} of ${p.total} lessons done`}>
+                        <div className="h-full rounded-full bg-white transition-all" style={{ width: `${p.total ? Math.max((p.done / p.total) * 100, p.done ? 3 : 0) : 0}%` }} />
+                    </div>
+                    <p className="mt-1.5 flex justify-between text-xs font-extrabold text-white/90"><span>{p.done} of {p.total} lessons done</span><span className="tabular-nums">{p.total ? Math.round((p.done / p.total) * 100) : 0}%</span></p>
                 </div>
-                <p className="mt-3 rounded-xl px-3 py-2 text-sm font-bold" style={{ background: COLORS[status.tone].light, color: COLORS[status.tone].ink }} data-plan-status={status.tone}>{status.text}</p>
-                {(data.about?.focus?.length > 0 || data.about?.studyTime) && (
-                    <p className="mt-2 text-sm font-semibold text-[#777]" data-plan-about>
-                        {data.about.focus?.length > 0 && <>You want to get better at <span className="font-extrabold text-[#4b4b4b]">{data.about.focus.map((f) => f[0].toUpperCase() + f.slice(1)).join(', ')}</span>. </>}
-                        {data.about.studyTime && <>You like to learn <span className="font-extrabold text-[#4b4b4b]">{data.about.studyTime === 'night' ? 'at night' : `in the ${data.about.studyTime}`}</span>.</>}
-                    </p>
+                <p className="relative mt-4 flex items-start gap-2 rounded-2xl bg-white px-3.5 py-2.5 text-sm font-extrabold shadow-sm" style={{ color: COLORS[status.tone].ink }} data-plan-status={status.tone}>
+                    {status.tone === 'green' ? <CircleCheck size={18} className="mt-px shrink-0" /> : status.tone === 'red' ? <AlarmClock size={18} className="mt-px shrink-0" /> : <Zap size={18} className="mt-px shrink-0" />}
+                    <span>{status.text}</span>
+                </p>
+                {(data.about?.focus?.length > 0 || data.about?.studyTime || p.tier === 'main') && (
+                    <div className="relative mt-3 flex flex-wrap gap-2 text-xs font-bold" data-plan-about>
+                        {data.about?.focus?.length > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1"><Target size={13} /> Getting better at {data.about.focus.map((f) => f[0].toUpperCase() + f.slice(1)).join(', ')}</span>}
+                        {data.about?.studyTime && <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1"><Clock size={13} /> Learns {data.about.studyTime === 'night' ? 'at night' : `in the ${data.about.studyTime}`}</span>}
+                        {p.tier === 'main' && <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1" title="Your time is short, so this roadmap has the main lessons; the extra practice (unit reviews and listening) is left out."><Info size={13} /> Main lessons only · reviews and listening left out to fit your time</span>}
+                    </div>
                 )}
-                {p.tier === 'main' && <p className="mt-2 text-sm font-semibold text-[#777]">Your time is short, so this roadmap has the main lessons; the extra practice (unit reviews and listening) is left out.</p>}
-            </Panel>
+            </section>
 
             {past.length > 0 && (
                 <Panel className="p-4">

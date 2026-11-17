@@ -48,7 +48,9 @@ export default function Placement() {
             <SessionFrame label="Placement test">
                 {/* Taken again once lessons are begun (2026-10-28): the level shown, but the student stays where they are. */}
                 <Finish tone="pass" pose="cheer-jump" title={`Your level: ${label}`} text={result.kept ? `Well done! You keep going from ${levelOf(result.kept).label}: finish each unit and section to move on.` : BLURB[result.level]}
-                    stats={LEVELS.map((l) => ({ label: l.label, value: `${result.bands[l.id]?.score ?? 0}/${result.bands[l.id]?.total ?? 0}`, color: BAND_COLOR[l.id] }))}
+                    // The sections asked about, by number (2026-11-16): five sections, three of them "Beginner" — not each one
+                    // named "Beginner", nor one with no questions ("0/0").
+                    stats={LEVELS.map((l, i) => ({ l, i })).filter(({ l }) => result.bands[l.id]?.total > 0).map(({ l, i }) => ({ label: `Section ${i + 1}`, value: `${result.bands[l.id].score}/${result.bands[l.id].total}`, color: BAND_COLOR[l.id] }))}
                     results={result.results} primary={{ label: result.kept ? 'Keep learning' : 'Start learning', onClick: toPath }}>
                     <p className="sr-only" data-placed-level={result.level}>{label}</p>
                 </Finish>
