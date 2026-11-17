@@ -15,6 +15,7 @@ network. Optional shared secret: set TTS_TOKEN here and INDIC_TTS_TOKEN there.
 """
 import io
 import os
+import itertools
 import queue
 import threading
 import time
@@ -76,12 +77,33 @@ SAMPLE_RATE = model.config.sampling_rate
 print("Ready.", flush=True)
 
 
-def describe(lang: str, voice: str, slow: bool) -> str:
+# How a line is said (2026-11-12, "every emotion should be perfect, voice variations and all"): the feeling,
+# and the person's pitch and pace, put into the description the model is given.
+MOODS = {
+    "story": "in a warm, engaging storytelling tone",
+    "happy": "in a happy, cheerful tone",
+    "excited": "in an excited, energetic tone",
+    "sad": "in a sad, sorrowful tone",
+    "angry": "in an angry, stern tone",
+    "fear": "in a fearful, nervous tone",
+    "surprise": "in a surprised, amazed tone",
+    "question": "in a curious, questioning tone",
+    "calm": "in a calm, gentle tone",
+    "kind": "in a kind, warm and caring tone",
+}
+PITCH = {"low": "a low-pitched, deep", "high": "a high-pitched, bright"}
+PACE = {"slow": "slightly slow", "fast": "slightly fast"}
+
+
+def describe(lang: str, voice: str, slow: bool, style: str = "") -> str:
     female, male = SPEAKERS.get(lang, (None, None))
     name = female if voice != "m" else male
-    pace = "slightly slow" if slow else "moderate"
+    st = {t.split("-", 1)[0]: t.split("-", 1)[1] for t in style.split(",") if "-" in t}
+    pace = "slightly slow" if slow else PACE.get(st.get("pace", ""), "moderate")
     who = name if name else ("A female speaker" if voice != "m" else "A male speaker")
-    return (f"{who} speaks at a {pace} pace with a clear, expressive and friendly voice, "
+    tone = PITCH.get(st.get("pitch", ""), "a clear")
+    mood = MOODS.get(st.get("mood", ""), "in a natural, conversational tone")
+    return (f"{who} speaks {mood} at a {pace} pace with {tone}, expressive voice, "
             "in a close-sounding environment with very clear audio quality and no background noise.")
 
 
@@ -99,6 +121,8 @@ class Req(BaseModel):
     lang: str = "hi"
     voice: str = "f"
     slow: bool = False
+    style: str = ""
+    priority: int = 0  # 0: a student is waiting for it; 1: made ahead in the background
 
 
 app = FastAPI(title="Indic Parler-TTS")
@@ -115,12 +139,23 @@ def health():
 # BATCH_WAIT seconds), which makes several clips in about the time of one.
 BATCH_MAX = int(os.environ.get("TTS_BATCH_MAX", "8"))
 BATCH_WAIT = float(os.environ.get("TTS_BATCH_WAIT", "0.25"))
-jobs: "queue.Queue[dict]" = queue.Queue()
+# Priority (2026-11-14): a clip a student is waiting for (priority 0) goes ahead of clips made in advance
+# (priority 1, the background script), so opening a lesson never queues behind the whole course.
+jobs: "queue.PriorityQueue" = queue.PriorityQueue()
+_seq = itertools.count()
+
+
+def _put(job):
+    jobs.put((job.get("priority", 0), next(_seq), job))
+
+
+def _get(timeout=None):
+    return jobs.get(timeout=timeout)[2]
 
 
 def _generate(batch):
     """Generate a batch of jobs in one pass; each job gets its audio (or None)."""
-    descs = [describe(j["lang"], j["voice"], j["slow"]) for j in batch]
+    descs = [describe(j["lang"], j["voice"], j["slow"], j.get("style", "")) for j in batch]
     prompts = [j["spoken"] for j in batch]
     d = description_tokenizer(descs, return_tensors="pt", padding=True).to(DEVICE)
     p = tokenizer(prompts, return_tensors="pt", padding=True).to(DEVICE)
@@ -136,28 +171,67 @@ def _generate(batch):
     return [_fit(np.atleast_1d(seqs[i].squeeze()[: int(lengths[i])]), batch[i]["text"]) for i in range(len(batch))]
 
 
+def first_burst(audio, sr):
+    """A letter said once (2026-11-12, the user: "don't pronounce the one letter two times"): given a single letter,
+    the model fills its time by saying it again or adding a sound (ಅ and ಕ came out twice). Only the first burst of
+    speech is kept, from just before it to just after it; a click (under 60 ms) is passed over."""
+    hop = int(0.02 * sr)
+    n = len(audio) // hop
+    if n < 3:
+        return audio
+    rms = np.sqrt(np.mean(audio[: n * hop].reshape(n, hop) ** 2, axis=1))
+    top = float(rms.max())
+    if top <= 0:
+        return audio
+    on = rms > top * 0.12
+    i = 0
+    while i < n:
+        if not on[i]:
+            i += 1
+            continue
+        start, end, quiet, j = i, i, 0, i
+        while j < n:
+            if on[j]:
+                end, quiet = j, 0
+            else:
+                quiet += 1
+                if quiet >= 6:          # 120 ms of quiet: the burst is over
+                    break
+            j += 1
+        if (end - start + 1) * 0.02 >= 0.06:
+            a, b = max(start - 2, 0) * hop, min(n, end + 5) * hop
+            out = audio[a:b].copy()
+            fade = min(int(0.04 * sr), len(out))
+            out[-fade:] *= np.linspace(1.0, 0.0, fade, dtype=out.dtype)
+            return out
+        i = j
+    return audio
+
+
 def _fit(audio, text):
     """A clip cut to its own text's length (2026-11-11: a short word made in a batch with a long sentence got
     the sentence's length, and the model filled it with made-up speech: ಮಳೆ said as something else)."""
     cap = int(max_tokens(text) / FRAME_RATE * SAMPLE_RATE)
-    if audio.size <= cap:
-        return audio
-    audio = audio[:cap].copy()
-    fade = min(int(0.04 * SAMPLE_RATE), cap)
-    audio[-fade:] *= np.linspace(1.0, 0.0, fade, dtype=audio.dtype)
+    if audio.size > cap:
+        audio = audio[:cap].copy()
+        fade = min(int(0.04 * SAMPLE_RATE), cap)
+        audio[-fade:] *= np.linspace(1.0, 0.0, fade, dtype=audio.dtype)
+    # A letter (up to 3 characters): said once (2026-11-12).
+    if len(text) <= 3:
+        audio = first_burst(audio, SAMPLE_RATE)
     return audio
 
 
 def _worker():
     while True:
-        batch = [jobs.get()]
+        batch = [_get()]
         deadline = time.time() + BATCH_WAIT
         while len(batch) < BATCH_MAX:
             left = deadline - time.time()
             if left <= 0:
                 break
             try:
-                batch.append(jobs.get(timeout=left))
+                batch.append(_get(timeout=left))
             except queue.Empty:
                 break
         try:
@@ -170,7 +244,7 @@ def _worker():
             # The model samples, so now and then a clip comes out silent: tried again, up to three times.
             if not ok and job["tries"] < 3:
                 job["tries"] += 1
-                jobs.put(job)
+                _put(job)
                 continue
             job["audio"] = audio if ok else None
             job["done"].set()
@@ -196,8 +270,9 @@ def tts(req: Req, authorization: str = Header(default="")):
     # A full stop at the end helps the model end there.
     spoken = text if text[-1] in ".?!।॥" else text + "."
     job = {"text": text, "spoken": spoken, "lang": lang, "voice": req.voice, "slow": req.slow or short,
-           "tries": 1, "done": threading.Event(), "audio": None}
-    jobs.put(job)
+           "tries": 1, "done": threading.Event(), "audio": None,
+           "style": req.style or "", "priority": 1 if req.priority else 0}
+    _put(job)
     job["done"].wait()
     audio = job["audio"]
     if audio is None:

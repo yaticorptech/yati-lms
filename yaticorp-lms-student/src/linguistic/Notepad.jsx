@@ -9,8 +9,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
     X, Plus, Save, Pencil, Trash2, Eraser, Bold, Italic, Underline, Strikethrough, List, ListOrdered,
-    AlignLeft, AlignCenter, AlignRight, AlignJustify, Indent, Outdent, Quote, Undo2, Redo2, RemoveFormatting,
-    Highlighter, Baseline, StickyNote, ArrowLeft, Keyboard, ChevronDown
+    AlignLeft, AlignCenter, AlignRight, AlignJustify, Quote, Undo2, Redo2, RemoveFormatting,
+    Highlighter, Baseline, StickyNote, ArrowLeft, Keyboard, ChevronDown, Check
 } from 'lucide-react';
 import { linguisticApi } from './api';
 import { LANGS } from './meta';
@@ -67,9 +67,9 @@ const MARKS = ['#fef08a', '#bbf7d0', '#bae6fd', '#fbcfe8', '#fed7aa', '#e9d5ff']
 
 function Tool({ icon: Icon, label, onClick, active }) {
     return (
-        <button type="button" title={label} aria-label={label} onMouseDown={(e) => e.preventDefault()} onClick={onClick}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${active ? 'bg-sky-100 text-sky-700' : 'text-slate-600 hover:bg-slate-100'}`}>
-            <Icon size={16} />
+        <button type="button" title={label} aria-label={label} aria-pressed={active ? true : undefined} onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.preventDefault()} onClick={onClick}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors sm:h-8 sm:w-8 ${active ? 'bg-sky-100 text-sky-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <Icon size={18} className="sm:h-4 sm:w-4" />
         </button>
     );
 }
@@ -77,13 +77,61 @@ const Bar = () => <span className="mx-1 h-5 w-px shrink-0 bg-slate-200" />;
 
 function Swatches({ icon, label, colors, onPick }) {
     const [open, setOpen] = useState(false);
+    const box = useRef(null);
+    useEffect(() => {
+        if (!open) return undefined;
+        const out = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
+        document.addEventListener('pointerdown', out);
+        return () => document.removeEventListener('pointerdown', out);
+    }, [open]);
     return (
-        <span className="relative">
+        <span ref={box} className="relative">
             <Tool icon={icon} label={label} onClick={() => setOpen((o) => !o)} active={open} />
             {open && (
-                <span className="absolute left-0 top-9 z-20 grid w-max grid-cols-5 gap-1.5 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                    {colors.map((c) => <button key={c} type="button" aria-label={`${label} ${c}`} onMouseDown={(e) => e.preventDefault()} onClick={() => { onPick(c); setOpen(false); }} className="h-6 w-6 rounded-md ring-1 ring-black/10 hover:scale-110" style={{ background: c }} />)}
-                    {label === 'Highlight' && <button type="button" aria-label="No highlight" onMouseDown={(e) => e.preventDefault()} onClick={() => { onPick('transparent'); setOpen(false); }} className="flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold text-slate-400 ring-1 ring-black/10">✕</button>}
+                <span className="absolute left-0 top-full z-30 mt-1 grid w-max grid-cols-5 gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xl sm:gap-1.5 sm:p-2">
+                    {colors.map((c) => <button key={c} type="button" aria-label={`${label} ${c}`} onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.preventDefault()} onClick={() => { onPick(c); setOpen(false); }} className="h-8 w-8 rounded-lg ring-1 ring-black/10 hover:scale-110 sm:h-6 sm:w-6 sm:rounded-md" style={{ background: c }} />)}
+                    {label === 'Highlight' && <button type="button" aria-label="No highlight" onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.preventDefault()} onClick={() => { onPick('transparent'); setOpen(false); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-slate-400 ring-1 ring-black/10 sm:h-6 sm:w-6 sm:rounded-md">✕</button>}
+                </span>
+            )}
+        </span>
+    );
+}
+
+/*
+ * The style and size menus (2026-11-12, "make that dropdown white"): our own white lists rather than the browser's
+ * <select>, whose list the system draws (grey on a Mac). The note keeps its selection: a press here does not take it.
+ */
+const BLOCKS = [['p', 'Normal'], ['h1', 'Heading 1'], ['h2', 'Heading 2'], ['h3', 'Heading 3']];
+const SIZES = [['2', 'Small'], ['3', 'Normal'], ['4', 'Large'], ['5', 'Larger'], ['6', 'Huge']];
+function Pick({ label, value, options, onPick }) {
+    const [open, setOpen] = useState(false);
+    const box = useRef(null);
+    useEffect(() => {
+        if (!open) return undefined;
+        const out = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
+        const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
+        document.addEventListener('mousedown', out);
+        document.addEventListener('keydown', esc);
+        return () => { document.removeEventListener('mousedown', out); document.removeEventListener('keydown', esc); };
+    }, [open]);
+    const shown = options.find(([v]) => v === String(value))?.[1] || options[0][1];
+    return (
+        <span ref={box} className="relative shrink-0">
+            <button type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.preventDefault()} onClick={() => setOpen((o) => !o)}
+                className="inline-flex h-10 items-center sm:h-8 gap-1 rounded-lg border border-slate-200 bg-white pl-2 pr-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                {shown} <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+            {open && (
+                <span role="listbox" aria-label={label} className="absolute left-0 top-full z-30 mt-1 flex min-w-36 flex-col rounded-xl bg-white p-1 shadow-xl ring-1 ring-slate-200">
+                    {options.map(([v, name]) => {
+                        const on = v === String(value);
+                        return (
+                            <button key={v} type="button" role="option" aria-selected={on} onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.preventDefault()} onClick={() => { onPick(v); setOpen(false); }}
+                                className={`flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-bold ${on ? 'bg-sky-50 text-sky-700' : 'text-slate-700 hover:bg-slate-50'}`}>
+                                {name}{on && <Check size={15} />}
+                            </button>
+                        );
+                    })}
                 </span>
             )}
         </span>
@@ -93,18 +141,13 @@ function Swatches({ icon, label, colors, onPick }) {
 /** The word-processor toolbar; each button runs on the editor's selection. */
 function Toolbar({ run, state }) {
     return (
-        <div className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 bg-slate-50/80 px-2 py-1.5" data-note-toolbar>
+        <div className="flex flex-wrap items-center gap-x-0.5 gap-y-1 border-b border-slate-200 bg-slate-50/80 px-1.5 py-1.5 sm:px-2" data-note-toolbar>
             <Tool icon={Undo2} label="Undo" onClick={() => run('undo')} />
             <Tool icon={Redo2} label="Redo" onClick={() => run('redo')} />
             <Bar />
-            <select aria-label="Text style" value={state.block} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => run('formatBlock', e.target.value)}
-                className="h-8 shrink-0 rounded-lg border border-slate-200 bg-white px-1.5 text-xs font-bold text-slate-700">
-                <option value="p">Normal</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option>
-            </select>
-            <select aria-label="Text size" value={state.size} onChange={(e) => run('fontSize', e.target.value)}
-                className="ml-1 h-8 shrink-0 rounded-lg border border-slate-200 bg-white px-1.5 text-xs font-bold text-slate-700">
-                <option value="2">Small</option><option value="3">Normal</option><option value="4">Large</option><option value="5">Larger</option><option value="6">Huge</option>
-            </select>
+            <Pick label="Text style" value={state.block} onPick={(v) => run('formatBlock', v)} options={BLOCKS} />
+            <span className="w-1" />
+            <Pick label="Text size" value={state.size} onPick={(v) => run('fontSize', v)} options={SIZES} />
             <Bar />
             <Tool icon={Bold} label="Bold (Ctrl+B)" onClick={() => run('bold')} active={state.bold} />
             <Tool icon={Italic} label="Italic (Ctrl+I)" onClick={() => run('italic')} active={state.italic} />
@@ -115,8 +158,6 @@ function Toolbar({ run, state }) {
             <Bar />
             <Tool icon={List} label="Bullet list" onClick={() => run('insertUnorderedList')} active={state.ul} />
             <Tool icon={ListOrdered} label="Numbered list" onClick={() => run('insertOrderedList')} active={state.ol} />
-            <Tool icon={Outdent} label="Decrease indent" onClick={() => run('outdent')} />
-            <Tool icon={Indent} label="Increase indent" onClick={() => run('indent')} />
             <Tool icon={Quote} label="Quote" onClick={() => run('formatBlock', state.block === 'blockquote' ? 'p' : 'blockquote')} active={state.block === 'blockquote'} />
             <Bar />
             <Tool icon={AlignLeft} label="Align left" onClick={() => run('justifyLeft')} active={state.align === 'left'} />
@@ -145,14 +186,17 @@ function KeysMenu({ open, code, onPick, onClose }) {
     return (
         <div ref={box} className="relative">
             <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setMenu((m) => !m)} aria-haspopup="menu" aria-expanded={menu} title="Keyboard: any language"
-                className={`${BTN} ${open ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`} data-note-keys-toggle>
-                <Keyboard size={16} /> <span className="hidden sm:inline">Keyboard</span> <ChevronDown size={14} />
+                className={`${BTN} !h-11 px-3.5 text-[15px] sm:!h-9 sm:px-3 sm:text-sm ${open ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`} data-note-keys-toggle>
+                {/* Bigger on a phone, with its word (2026-11-12, "make that keyboard icon big"). */}
+                <Keyboard size={20} className="sm:h-4 sm:w-4" /> <span>Keyboard</span> <ChevronDown size={16} />
             </button>
             {menu && (
-                <div role="menu" className="absolute right-0 top-full z-10 mt-1 max-h-[60vh] w-56 overflow-y-auto rounded-xl bg-white py-1 shadow-xl ring-1 ring-slate-200" data-note-keys-menu>
+                // From the button's left edge on a phone, where it is the first button and a list from its right edge
+                // ran off the screen (2026-11-12); from its right edge on a wider screen.
+                <div role="menu" className="absolute left-0 top-full z-30 mt-1 max-h-[60vh] w-[min(18rem,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl bg-white py-1.5 shadow-xl ring-1 ring-slate-200 sm:left-auto sm:right-0 sm:w-60" data-note-keys-menu>
                     {Object.entries(LANGS).map(([c, l]) => (
                         <button key={c} type="button" role="menuitem" onMouseDown={(e) => e.preventDefault()} onClick={() => { onPick(c); setMenu(false); }} lang={c}
-                            className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-bold hover:bg-sky-50 ${open && code === c ? 'text-sky-700' : 'text-slate-700'}`} data-key-lang={c}>
+                            className={`flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left text-[15px] font-bold hover:bg-sky-50 sm:py-2 sm:text-sm ${open && code === c ? 'bg-sky-50 text-sky-700' : 'text-slate-700'}`} data-key-lang={c}>
                             <span>{l.native}</span><span className="text-xs font-semibold text-slate-400">{l.name}</span>
                         </button>
                     ))}
@@ -177,6 +221,16 @@ export default function Notepad({ onClose }) {
     const [keys, setKeys] = useState(false);            // the floating language keyboard
     const [keyLang, setKeyLang] = useState(rememberedKeys);
     const ed = useRef(null);
+    // The last selection made in the note, kept for the toolbar (a tap on a phone clears the live one).
+    const picked = useRef(null);
+    useEffect(() => {
+        const keep = () => {
+            const sel = window.getSelection();
+            if (sel?.rangeCount && ed.current?.contains(sel.anchorNode)) picked.current = sel.getRangeAt(0).cloneRange();
+        };
+        document.addEventListener('selectionchange', keep);
+        return () => document.removeEventListener('selectionchange', keep);
+    }, []);
 
     const open = useCallback((n, edit) => {
         setCurrent(n); setEditing(edit); setDirty(false); setSaved(null); setList(false);
@@ -226,6 +280,10 @@ export default function Notepad({ onClose }) {
         // The toolbar is always there (asked 2026-10-29): a tool on a saved note opens it for editing first.
         if (!editing) { setEditing(true); if (ed.current) ed.current.contentEditable = 'true'; }
         ed.current?.focus();
+        // The selection back where it was (2026-11-12, "the tools don't work on a phone"): a tap on a tool there
+        // takes it away before the tool runs, so colour, highlight, alignment and the rest had nothing to work on.
+        const kept = picked.current, sel = window.getSelection();
+        if (kept && sel && ed.current?.contains(kept.startContainer)) { sel.removeAllRanges(); sel.addRange(kept); }
         document.execCommand('styleWithCSS', false, cmd === 'hiliteColor' || cmd === 'foreColor');
         document.execCommand(cmd, false, value);
         changed();

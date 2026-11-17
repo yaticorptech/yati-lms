@@ -32,7 +32,7 @@ after(async () => {
 /** The answers to a lesson's quiz, worked out here as the server would (the student never sees them). */
 const answersFor = async (id, language) => {
     const lesson = svc.serve(await LinguisticLesson.findById(id).lean(), { language });
-    return Object.fromEntries(svc.quizOf(lesson).map((q) => [q.id, q.answer ?? q.model]));
+    return Object.fromEntries(svc.quizOf(lesson).map((q) => [q.id, svc.rightAnswerOf(lesson, q)]));
 };
 const KANNADA = /[ಀ-೿]/, DEVANAGARI = /[ऀ-ॿ]/, JAPANESE = /[぀-ヿ一-鿿]/;
 
@@ -73,13 +73,15 @@ describe('courses', () => {
         const path = (await api('GET', '/path')).body;
         assert.equal(path.course.code, 'kn');
         const modules = new Set(path.levels.flatMap((l) => lessonsOf(l).filter((x) => x.review !== 'comic').map((x) => x.module)));
-        assert.deepEqual([...modules].sort(), ['translation', 'vocabulary']);
-        // And the picture stories in Kannada, in Advanced (2026-11-02).
+        // And the Level review's story (more.js, 2026-11-14: six lessons a unit) — the only reading.
+        // And the new sections' conversations (2026-11-14).
+        assert.deepEqual([...modules].sort(), ['reading', 'speaking', 'translation', 'vocabulary']);
+        // And the picture stories in Kannada, in Advanced (2026-11-02); the second a story film since 2026-11-07.
         assert.deepEqual(lessonsOf(path.levels.find((l) => l.level === 'advanced')).filter((x) => x.review === 'comic').map((x) => x.title), ['ಚಿತ್ರಕಥೆ: ಹಂಚಿಕೊಂಡ ಬಾವಿ', 'ಕಥಾಚಿತ್ರ: ಎಲ್ಲವನ್ನೂ ಬದಲಿಸಿದ ಅಪರಿಚಿತ', 'ಚಿತ್ರಕಥೆ: ರಸ್ತೆ ಮತ್ತು ಆಲದ ಮರ', 'ಚಿತ್ರಕಥೆ: ಪ್ರಾಮಾಣಿಕ ದೋಣಿಯವನು']);
         assert.equal(path.levels.find((l) => l.level === 'beginner').open, true);
         assert.equal(path.levels.find((l) => l.level === 'advanced').open, false);
         assert.deepEqual(path.levels[0].units.map((u) => u.title), ['Letters', 'Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Time and days', 'My day', 'Level review'], 'the same units as English, the Kannada letters first (2026-10-31)');
-        assert.deepEqual(path.levels[0].units[0].lessons.map((x) => x.title), ['All letters', 'Letters test', 'Letters: Vowels', 'Letters: Consonants 1', 'Letters: Consonants 2', 'Letters: Vowel signs'], 'the varnamala, first all on one page, then its test (2026-11-13), then the lessons');
+        assert.deepEqual(path.levels[0].units[0].lessons.map((x) => x.title), ['All letters', 'Letters test', 'Letters: Vowels', 'Letters: Consonants 1', 'Letters: Consonants 2', 'Letters: ಕ ಖ with vowel signs', 'Letters: Joined letters 1: ಕ್ಕ ತ್ತ ಪ್ಪ', 'Letters: Joined letters 2: ಕ್ರ ಪ್ರ ತ್ರ'], 'the varnamala, first all on one page, then its test (2026-11-13), then the lessons — the joined letters too (2026-11-16)');
         assert.deepEqual(path.levels[0].units[1].lessons.map((x) => x.stop || x.review || x.module), ['vocabulary', 'translation', 'chest', 'hear', 'practice', 'unit']);
         assert.ok(lessonsOf(path.levels[0]).some((x) => /write in Kannada/.test(x.title)));
     });
@@ -108,13 +110,15 @@ describe('courses', () => {
         const unitEnd = path.levels[0].units[1].lessons.at(-1);
         assert.deepEqual([unitEnd.title, unitEnd.open], ['Unit review', false], 'each unit ends with its review');
         const levelReview = path.levels[0].units.at(-1);
-        assert.deepEqual(levelReview.lessons.map((l) => [l.title, l.open]), [['Word review', false], ['Listen and pick', false], ['Sentence review', false], ['Level checkpoint', false], ['Beginner assessment', false]], 'and the assessment that opens Advanced (2026-10-29)');
-        const listen = svc.serve(await LinguisticLesson.findById(levelReview.lessons[1].id).lean(), { language: 'hi' });
+        // With its new story (2026-11-14: six lessons a unit).
+        assert.deepEqual(levelReview.lessons.map((l) => [l.title, l.open]), [['Word review', false], ['Listen and pick', false], ['Story: A day at the fair', false], ['Sentence review', false], ['Level checkpoint', false], ['Beginner assessment', false]], 'and the assessment that opens Advanced (2026-10-29)');
+        const byTitle = (t) => levelReview.lessons.find((l) => l.title === t).id;
+        const listen = svc.serve(await LinguisticLesson.findById(byTitle('Listen and pick')).lean(), { language: 'hi' });
         const q = svc.quizOf(listen)[0];
         assert.match(q.say, KANNADA); assert.equal(q.sayLang, 'kn-IN'); assert.ok(q.options.includes(q.answer));
         assert.deepEqual(Object.keys(svc.publicQuestion(q, 's')).sort(), ['audio', 'id', 'meaning', 'options', 'prompt', 'promptEn', 'say', 'sayLang', 'type']);
         assert.equal(q.prompt, 'सुनिए, और जो शब्द सुनाई दे उसे चुनिए', 'asked in Hindi');
-        const check = svc.serve(await LinguisticLesson.findById(levelReview.lessons[3].id).lean(), { language: 'hi' });
+        const check = svc.serve(await LinguisticLesson.findById(byTitle('Level checkpoint')).lean(), { language: 'hi' });
         assert.deepEqual([...new Set(check.quiz.map((x) => x.direction))].sort(), ['en-kn', 'kn-en'], 'both directions');
     });
 
@@ -130,7 +134,7 @@ describe('courses', () => {
         const beginner = path.levels.find((l) => l.level === 'beginner');
         assert.equal(beginner.complete, true);
         assert.ok(beginner.certificate?.number.startsWith('YATI-KN-'), 'the certificate names the course');
-        assert.equal(path.levels.find((l) => l.level === 'advanced').open, true, 'its assessment passed with the rest: Advanced opens (Intermediate hidden, 2026-10-29)');
+        assert.equal(path.levels.find((l) => l.level === 'elementary').open, true, 'its assessment passed with the rest: the next section opens (Daily life, 2026-11-14)');
 
         const certs = (await api('GET', '/certificates')).body.certificates;
         assert.deepEqual(certs.map((c) => [c.level, c.course, c.courseName]), [['beginner', 'kn', 'Kannada']]);
@@ -234,7 +238,8 @@ describe('courses', () => {
         assert.equal(early.status, 400, 'two of three sections done: not yet');
         assert.match(early.body.message, /Finish all its sections/);
         const again = await svc.progressOf(s.user._id);
-        again.levelsCompleted.push({ level: 'advanced', completedAt: new Date(), average: 90, course: 'kn' });
+        // And the sections added on 2026-11-14.
+        again.levelsCompleted.push(...['elementary', 'advanced', 'professional'].map((level) => ({ level, completedAt: new Date(), average: 90, course: 'kn' })));
         await again.save();
         d = (await sApi('GET', '/')).body;
         assert.equal(d.courseDone, true, 'Kannada finished');

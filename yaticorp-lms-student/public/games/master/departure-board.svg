@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 628 324" width="628" height="324">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1e1b4b"/><stop offset="1" stop-color="#312e81"/></linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f59e0b" stop-opacity=".35"/><stop offset="1" stop-color="#f59e0b" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect width="628" height="324" fill="url(#sky)"/>
+  <circle cx="540" cy="60" r="120" fill="url(#glow)"/>
+  <g fill="#fff" opacity=".5"><circle cx="60" cy="40" r="1.6"/><circle cx="150" cy="22" r="1.2"/><circle cx="470" cy="30" r="1.4"/><circle cx="590" cy="150" r="1.2"/><circle cx="30" cy="190" r="1.3"/></g>
+  <g transform="translate(470 92) rotate(-18)" fill="#e0e7ff">
+    <path d="M-70 0 C-40 -9 40 -9 70 -2 C78 0 78 4 70 6 C40 10 -40 10 -70 6 Z"/>
+    <path d="M-10 -2 L-40 -42 L-24 -42 L18 -2 Z"/><path d="M-10 6 L-40 46 L-24 46 L18 6 Z"/>
+    <path d="M-62 -1 L-74 -22 L-64 -22 L-50 -2 Z"/>
+  </g>
+  <rect x="40" y="70" width="380" height="226" rx="18" fill="#0b1020" stroke="#475569" stroke-width="6"/>
+  <text x="62" y="106" font-family="monospace" font-weight="900" font-size="22" letter-spacing="6" fill="#fcd34d">✈ DEPARTURES</text>
+  <line x1="58" y1="120" x2="402" y2="120" stroke="#334155" stroke-width="2"/>
+  <g font-family="monospace" font-weight="900" font-size="22" fill="#fcd34d">
+    <rect x="58" y="134" width="88" height="34" rx="5" fill="#1e293b"/><text x="68" y="158">08:10</text>
+    <rect x="152" y="134" width="174" height="34" rx="5" fill="#1e293b"/><text x="162" y="158">TOKYO</text>
+    <rect x="332" y="134" width="70" height="34" rx="5" fill="#1e293b"/><text x="346" y="158">B4</text>
+    <rect x="58" y="176" width="88" height="34" rx="5" fill="#1e293b"/><text x="68" y="200">08:35</text>
+    <rect x="152" y="176" width="174" height="34" rx="5" fill="#1e293b"/><text x="162" y="200">PARIS</text>
+    <rect x="332" y="176" width="70" height="34" rx="5" fill="#f59e0b"/><text x="346" y="200" fill="#0b1020">D3</text>
+    <rect x="58" y="218" width="88" height="34" rx="5" fill="#1e293b"/><text x="68" y="242">09:05</text>
+    <rect x="152" y="218" width="174" height="34" rx="5" fill="#1e293b"/><text x="162" y="242">DUBAI</text>
+    <rect x="332" y="218" width="70" height="34" rx="5" fill="#1e293b"/><text x="346" y="242">C2</text>
+  </g>
+  <g transform="translate(442 196)">
+    <rect width="160" height="78" rx="16" fill="#fef3c7" stroke="#fbbf24" stroke-width="4"/>
+    <text x="80" y="32" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="15" fill="#92400e">GATE CHANGE</text>
+    <text x="80" y="58" text-anchor="middle" font-family="monospace" font-weight="900" font-size="20" fill="#451a03">A7 → D3</text>
+  </g>
+</svg>

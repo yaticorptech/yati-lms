@@ -56,9 +56,20 @@ const bad = (res, message, status = 400) => res.status(status).json({ message })
 
 router.use(async (_req, _res, next) => { await ensureSeeded(); next(); });
 // The account allowed every section and unit, for testing (service.js `noteOpenAll`, 2026-10-29).
-router.use((req, _res, next) => { svc.noteOpenAll(req.user); next(); });
+// And the developer cards that may learn every language (DEVICE_LIMIT_EXEMPT_CARDS, service.js `noteAllCourses`, 2026-11-13).
+router.use((req, _res, next) => { svc.noteOpenAll(req.user); svc.noteAllCourses(req.user); next(); });
 
 /** A published lesson the student may open — in their own language — or a reply saying why not. */
+/** A lesson of the student's own course, open or not (the audio pack ahead): 404 for any other. */
+const courseLesson = async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) { bad(res, 'That lesson was not found.', 404); return null; }
+    const lesson = await LinguisticLesson.findOne({ _id: req.params.id, status: 'published', deletedAt: null }).lean();
+    if (!lesson) { bad(res, 'That lesson was not found.', 404); return null; }
+    const progress = await svc.progressOf(req.user._id);
+    const lessons = await svc.lessonsFor(progress);
+    if (!lessons.some((l) => idOf(l._id) === idOf(lesson._id))) { res.status(404).json({ code: 'NOT_IN_COURSE', message: 'That lesson is not part of your course.' }); return null; }
+    return svc.serve(lesson, progress);
+};
 const openLesson = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) { bad(res, 'That lesson was not found.', 404); return null; }
     const lesson = await LinguisticLesson.findOne({ _id: req.params.id, status: 'published', deletedAt: null }).lean();
@@ -71,6 +82,8 @@ const openLesson = async (req, res) => {
         return svc.serve(lesson, progress);
     }
     if (!lessons.some((l) => idOf(l._id) === idOf(lesson._id))) { res.status(404).json({ code: 'NOT_IN_COURSE', message: 'That lesson is not part of your course.' }); return null; }
+    // The unit review a student is jumping by (2026-11-13, "Jump here?"): open to them though the path has not reached it.
+    if (svc.unitJumpAllowed(progress, lesson)) return svc.serve(lesson, progress);
     if (!svc.access(lessons, progress).lessonOpen.get(idOf(lesson._id))) { res.status(403).json({ code: 'LESSON_LOCKED', message: 'Finish the lesson before this one to open it.' }); return null; }
     return svc.serve(lesson, progress);
 };
@@ -113,6 +126,15 @@ router.get('/learnt', async (req, res, next) => {
 router.post('/jump', async (req, res, next) => {
     try {
         const out = await svc.startJump(req.user, String(req.body?.level || ''));
+        if (out.error) return bad(res, out.error, out.status);
+        res.json(out);
+    } catch (err) { next(err); }
+});
+
+// "Jump here?" on a unit (2026-11-13): its test, the unit review before it → { unit, lesson, module }.
+router.post('/jump-unit', async (req, res, next) => {
+    try {
+        const out = await svc.startUnitJump(req.user, String(req.body?.unit || ''));
         if (out.error) return bad(res, out.error, out.status);
         res.json(out);
     } catch (err) { next(err); }
@@ -216,7 +238,9 @@ router.get('/lessons/:id', async (req, res, next) => {
  */
 router.get('/lessons/:id/pack', async (req, res, next) => {
     try {
-        const lesson = await openLesson(req, res);
+        // ?ahead=1 (2026-11-13): the audio of a unit not open yet, for the student's own course only — fetched in the
+        // background so a unit is ready the moment it opens. Its lessons stay locked: this only lists what they say.
+        const lesson = req.query.ahead === '1' ? await courseLesson(req, res) : await openLesson(req, res);
         if (!lesson) return;
         const progress = await svc.progressOf(req.user._id);
         const [lessons, config] = await Promise.all([svc.lessonsFor(progress), getConfig()]);
@@ -252,7 +276,7 @@ router.post('/lessons/:id/step', async (req, res, next) => {
 router.post('/lessons/:id/check', async (req, res, next) => {
     try {
         const section = String(req.body?.section || '');
-        if (!['practice', 'items', 'spell', 'blanks', 'hear', 'chat'].includes(section)) return bad(res, 'Unknown practice section.');
+        if (!['practice', 'items', 'spell', 'blanks', 'hear', 'chat', 'picture', 'letters', 'see', 'writeguide'].includes(section)) return bad(res, 'Unknown practice section.');
         const given = String(req.body?.given ?? '').slice(0, 1500);
         if (!given.trim()) return bad(res, 'Type or choose an answer first.');
         const lesson = await openLesson(req, res);
@@ -401,7 +425,7 @@ router.get('/review', async (req, res, next) => {
                 kind: m.kind, count: m.count, given: m.given, lastAt: m.lastAt,
                 question: translation ? { type: 'translation', source: q.source, direction: q.direction || lesson.direction, language: lesson.language, languageName: lesson.languageName, ...(lesson.course ? { target: lesson.target, targetLocale: lesson.targetLocale } : {}) }
                     // A fill-in-the-blanks sentence is in the language learnt: its tiles are read in it (2026-11-06).
-                    : { ...svc.withSays(svc.soundsIn(lesson), svc.publicQuestion(q, idOf(lesson._id))), ...(['blanks', 'chat'].includes(m.section) && lesson.course ? { target: lesson.target, targetLocale: lesson.targetLocale } : {}) }
+                    : { ...svc.withSays(svc.soundsIn(lesson), svc.publicQuestion(q, idOf(lesson._id))), ...(['blanks', 'chat', 'picture', 'letters', 'see'].includes(m.section) && lesson.course ? { target: lesson.target, targetLocale: lesson.targetLocale } : {}) }
             });
         }
         res.json({ mistakes: out, fixed: progress.mistakes.filter((m) => m.resolvedAt).length, language: svc.languageOf(progress) });
@@ -418,7 +442,7 @@ router.post('/review/:id', async (req, res, next) => {
         if (!found?.q) return bad(res, 'That question has been removed from its lesson.', 404);
         const section = found.section || (m.section === 'daily' ? 'daily' : m.section);
         // Fill in the blanks is judged by its own rule in a Words lesson too (2026-11-06).
-        const out = found.lesson.module === 'translation' || ['blanks', 'hear', 'chat'].includes(section) ? svc.judge(found.lesson, found.q, given, section) : { ...gradeQuestion(found.q, given), answer: found.q.answer, explanation: found.q.explanation || '' };
+        const out = found.lesson.module === 'translation' || ['blanks', 'hear', 'chat', 'picture', 'letters', 'see'].includes(section) ? svc.judge(found.lesson, found.q, given, section) : { ...gradeQuestion(found.q, given), answer: found.q.answer, explanation: found.q.explanation || '' };
         if (out.correct) m.resolvedAt = new Date(); else { m.count += 1; m.given = given.slice(0, 500); m.lastAt = new Date(); }
         progress.lastActiveAt = new Date();
         await progress.save();

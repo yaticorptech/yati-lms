@@ -20,7 +20,9 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const MODULES = ['vocabulary', 'grammar', 'reading', 'speaking', 'translation'];
-const LEVELS = ['beginner', 'intermediate', 'advanced'];
+// Two sections added (2026-11-14, the user: "add more sections, six units in each … don't repeat"): Daily life
+// ('elementary') after Beginner and Work and the world ('professional') after Advanced — levels.js.
+const LEVELS = ['beginner', 'elementary', 'intermediate', 'advanced', 'professional'];
 const DIRECTIONS = ['kn-en', 'en-kn'];
 
 const lessonSchema = new Schema({
@@ -75,7 +77,7 @@ const lessonProgressSchema = new Schema({
 }, { _id: false });
 
 // 'blanks' (2026-11-06), 'hear' (tap what you hear) and 'chat' (complete the conversation): questions asked again too — kept, not dropped.
-const MISTAKE_SECTIONS = ['practice', 'quiz', 'items', 'vocab', 'spell', 'daily', 'blanks', 'hear', 'chat'];
+const MISTAKE_SECTIONS = ['practice', 'quiz', 'items', 'vocab', 'spell', 'daily', 'blanks', 'hear', 'chat', 'picture', 'letters', 'see'];
 const MISTAKE_KINDS = ['question', 'word', 'translation'];
 const mistakeSchema = new Schema({
     // What to ask again: the lesson and the question in it (or a daily word).

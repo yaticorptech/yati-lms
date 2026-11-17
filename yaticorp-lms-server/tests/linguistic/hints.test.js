@@ -23,8 +23,10 @@ const shownOf = async (course, language) => {
     const docs = await LinguisticLesson.find({ course, module: 'translation', status: 'published', deletedAt: null }).lean();
     const out = [];
     for (const doc of docs) {
+        // A unit's new "Phrases" in English only for a Kannada or Hindi speaker (more.js `usable`, 2026-11-14): others never see it.
+        if (!require('../../src/linguistic/more').usable(doc, language)) continue;
         const shown = svc.publicLesson(svc.serve(doc, progressIn(language, course)), null, CONFIG);
-        for (const it of [...(shown.items || []), ...(Array.isArray(shown.quiz) ? shown.quiz : [])]) if (it.source && (it.sourceHints || (it.direction || shown.direction) === (course ? 'en-kn' : 'kn-en'))) out.push({ at: `${doc.seedKey} ${it.id}`, it });
+        for (const it of [...(shown.items || []), ...(Array.isArray(shown.quiz) ? shown.quiz.filter((q) => q.type === 'translation') : [])]) if (it.source && (it.sourceHints || (it.direction || shown.direction) === (course ? 'en-kn' : 'kn-en'))) out.push({ at: `${doc.seedKey} ${it.id}`, it });
     }
     return out;
 };
@@ -76,8 +78,9 @@ describe('word hints, as Duolingo\'s', () => {
             const docs = await LinguisticLesson.find({ course: null, module: 'translation', status: 'published', deletedAt: null }).lean();
             let n = 0, hinted = 0, sentences = 0;
             for (const doc of docs) {
+                if (!require('../../src/linguistic/more').usable(doc, code)) continue;
                 const shown = svc.publicLesson(svc.serve(doc, progressIn(code)), null, CONFIG);
-                for (const it of [...(shown.items || []), ...(Array.isArray(shown.quiz) ? shown.quiz : [])]) {
+                for (const it of [...(shown.items || []), ...(Array.isArray(shown.quiz) ? shown.quiz.filter((q) => q.type === 'translation') : [])]) {
                     // (A short one to read in the student's language there, 2026-11-04, has English meanings: the test above.)
                     if ((it.direction || shown.direction) !== 'en-kn' || !/^[A-Za-z]/.test(it.source) || (it.sourceHints && !it.sourceHints.lang)) continue;
                     sentences += 1;
@@ -110,8 +113,9 @@ describe('word hints, as Duolingo\'s', () => {
                 const docs = await LinguisticLesson.find({ course, module: { $in: ['translation', 'vocabulary'] }, status: 'published', deletedAt: null }).lean();
                 let tiles = 0, tm = 0, bt = 0, btm = 0, bw = 0, bwm = 0;
                 for (const doc of docs) {
+                    if (!require('../../src/linguistic/more').usable(doc, language)) continue;
                     const shown = svc.publicLesson(svc.serve(doc, progressIn(language, course)), null, CONFIG);
-                    for (const it of [...(shown.items || []), ...(Array.isArray(shown.quiz) ? shown.quiz : [])]) {
+                    for (const it of [...(shown.items || []), ...(Array.isArray(shown.quiz) ? shown.quiz.filter((q) => q.type === 'translation') : [])]) {
                         if ((it.direction || shown.direction) !== 'kn-en' || !it.bank?.length) continue;
                         if (it.bankMeanings) assert.equal(it.meaningLang, course ? 'en' : code, `${code} ${doc.seedKey} ${it.id}: the meanings' language`);
                         for (const t of it.bank) { tiles += 1; const m = it.bankMeanings?.[t]; if (m) { tm += 1; assert.ok(m.length >= 1 && m.length <= 3, `${t}: one to three`); } }

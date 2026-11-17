@@ -5,7 +5,8 @@
  * the answer and why. The rules are quizCore.js's.
  */
 const { makeEngine } = require('./quizCore');
-const { NUMBERS } = require('./banks/iq');
+const { NUMBERS, NUMBERS_MASTER, twoOperators } = require('./banks/iq');
+const { shuffle } = require('./quizCore');
 const { make } = require('./banks/generate');
 
 module.exports = makeEngine({
@@ -18,5 +19,10 @@ module.exports = makeEngine({
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 10, max: 90, fallback: 35 },
     revealMs: 5000,
-    pick: (count, rng, level) => make(NUMBERS, count, rng, level)
+    // Master Minds (./zones.js): two missing signs with the order of operations, and no simple series.
+    pick: (count, rng, level, met, zone) => {
+        if (zone !== 'master') return make(NUMBERS, count, rng, zone === 'smart' ? 'medium' : level);
+        const signs = Math.ceil(count / 4);
+        return shuffle([...make([twoOperators], signs, rng, 'hard'), ...make(NUMBERS_MASTER, count - signs, rng, 'hard')], rng);
+    }
 });

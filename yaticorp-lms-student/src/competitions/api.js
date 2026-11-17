@@ -64,11 +64,13 @@ export const roomsApi = {
     mine: () => get('/rooms/mine').then((d) => d.room || null),
     // Which group games, at which sizes, my solo levels have unlocked (2026-10-31).
     unlocks: () => get('/rooms/unlocks'),
-    create: (game, options) => post('/rooms', { game, options }),
+    // `zone` (young | smart | master) is the room's age zone; left out, the server picks the host's own (2026-11-13).
+    create: (game, options, zone) => post('/rooms', { game, options: { ...(options || {}), ...(zone ? { zone } : {}) } }),
     join: (code) => post('/rooms/join', { code }),
     // Play online (like online Ludo): the fees on offer, and a seat at a table (the fee is XP).
     onlineInfo: () => get('/rooms/online'),
-    online: (game, players, fee) => post('/rooms/online', { game, players, fee }),
+    // A seat online is only matched with players of the same zone (default: my own).
+    online: (game, players, fee, zone) => post('/rooms/online', { game, players, fee, ...(zone ? { zone } : {}) }),
     ready: (gameId, ready) => post(`/play/${gameId}/ready`, { ready }),
     start: (gameId) => post(`/play/${gameId}/start`),
     leave: (gameId) => post(`/play/${gameId}/leave`),
@@ -102,7 +104,6 @@ export const GROUP_GAMES = {
     deduction: { label: 'Deduction Detective', emoji: '🕵️', blurb: 'Read the clues, rule things out, name the answer: logic grids and more.', players: '2 to 20 players', tone: 'from-slate-700 to-indigo-700', table: 'quiz' },
     spatialiq: { label: 'Spatial IQ', emoji: '🧊', blurb: 'Rotations, mirror images, paper folding and cube nets.', players: '2 to 20 players', tone: 'from-amber-500 to-orange-600', table: 'quiz' },
     sequence: { label: 'Sequence & Reaction', emoji: '🎯', blurb: 'Watch a sequence and tap it back, longer each round — and reaction rounds.', players: '2 to 20 players', tone: 'from-pink-500 to-rose-600', table: 'sequence' },
-    lostkingdom: { label: 'The Lost Kingdom', emoji: '🧭', blurb: 'Five trials to the treasure of Aurelia — numbers, knowledge and logic, new every game.', players: '2 to 20 players', tone: 'from-amber-700 to-emerald-800', table: 'kingdom' },
     finalvault: { label: 'The Final Vault', emoji: '🏛️', blurb: 'Five temple chambers, the same puzzles for everyone — open the treasure vault first.', players: '2 to 20 players', tone: 'from-amber-600 to-yellow-800', table: 'vault' },
     // The solo games that are questions and answers, as group games (2026-10-29): played like Word Logic.
     synonymmatch: { label: 'Synonyms & Antonyms', emoji: '🔤', blurb: 'Same meaning, then the opposite — in turn.', players: '2 to 20 players', tone: 'from-fuchsia-500 to-purple-700', table: 'quiz' },
@@ -132,13 +133,24 @@ export const GROUP_GAMES = {
     runningtotal: { label: 'Running Total', emoji: '➕', blurb: 'Numbers arrive one at a time. Keep the total.', players: '2 to 20 players', tone: 'from-amber-500 to-orange-600', table: 'quiz' },
     memorymatch: { label: 'Memory Match', emoji: '🃏', blurb: 'The same deck for everyone: turn two cards at a time and pair them all.', players: '2 to 20 players', tone: 'from-pink-500 to-fuchsia-600', table: 'race' },
     lightsout: { label: 'Lights Out', emoji: '💡', blurb: 'Turn every light off — a tap flips its neighbours too.', players: '2 to 20 players', tone: 'from-amber-400 to-yellow-600', table: 'race' },
-    codebreaker: { label: 'Code Breaker', emoji: '🔐', blurb: 'Crack the same colour codes from the clues — fewer guesses, more points.', players: '2 to 20 players', tone: 'from-slate-700 to-violet-700', table: 'race' },
     typingsprint: { label: 'Typing Sprint', emoji: '⌨️', blurb: 'Type the same words, exactly and fast.', players: '2 to 20 players', tone: 'from-sky-500 to-blue-700', table: 'race' },
     speedsort: { label: 'Speed Sort', emoji: '🔢', blurb: 'Tap the numbers from smallest to largest.', players: '2 to 20 players', tone: 'from-emerald-500 to-teal-600', table: 'race' },
     numberbonds: { label: 'Number Bonds', emoji: '🧷', blurb: 'Tap the two tiles that make the target.', players: '2 to 20 players', tone: 'from-orange-500 to-amber-600', table: 'race' },
     mathsprint: { label: 'Math Sprint', emoji: '🧮', blurb: 'The same sums for everyone, typed against the clock.', players: '2 to 20 players', tone: 'from-indigo-500 to-blue-600', table: 'race' },
     tictactoe: { label: 'Tic-Tac-Toe', emoji: '❌', blurb: 'Three in a row, one against one — best of five rounds.', players: '2 players', tone: 'from-rose-500 to-indigo-600', table: 'turns' },
-    laststone: { label: 'Last Stone', emoji: '🪨', blurb: 'Take one, two or three. Take the last and win — best of five.', players: '2 players', tone: 'from-stone-500 to-slate-700', table: 'turns' }
+    laststone: { label: 'Last Stone', emoji: '🪨', blurb: 'Take one, two or three. Take the last and win — best of five.', players: '2 players', tone: 'from-stone-500 to-slate-700', table: 'turns' },
+    // The 84-game catalogue's games with no room game before (2026-11-14, server games/catalogquiz.js): played like Word Logic.
+    animalpairs: { label: 'Animal Pair Safari', emoji: '🦁', blurb: 'Which sound, home or baby goes with this animal?', players: '2 to 20 players', tone: 'from-amber-500 to-orange-600', table: 'quiz' },
+    rhymes: { label: 'Rhyme Detective', emoji: '🎩', blurb: 'Find the word that rhymes — or the one that does not.', players: '2 to 20 players', tone: 'from-pink-500 to-rose-600', table: 'quiz' },
+    numberhop: { label: 'Number Hop', emoji: '🐸', blurb: 'Where does the frog land? Hop, add and count on.', players: '2 to 20 players', tone: 'from-lime-500 to-emerald-600', table: 'quiz' },
+    missingnumber: { label: 'Missing Number Race', emoji: '🚂', blurb: 'Find the missing car of the number train.', players: '2 to 20 players', tone: 'from-sky-500 to-indigo-600', table: 'quiz' },
+    analogies: { label: 'Analogy Master', emoji: '🔗', blurb: 'A is to B as C is to …? Spot the link.', players: '2 to 20 players', tone: 'from-violet-500 to-fuchsia-600', table: 'quiz' },
+    equationrush: { label: 'Equation Rush', emoji: '🟰', blurb: 'Solve for x before the others do.', players: '2 to 20 players', tone: 'from-blue-500 to-indigo-700', table: 'quiz' },
+    ratiorelay: { label: 'Ratio Relay', emoji: '⚖️', blurb: 'Mixes, shares, maps and rates — scale the ratio.', players: '2 to 20 players', tone: 'from-teal-500 to-cyan-600', table: 'quiz' },
+    cipherlab: { label: 'Cipher Lab', emoji: '🔏', blurb: 'Caesar, Atbash and substitution: decode the word with the key.', players: '2 to 20 players', tone: 'from-slate-700 to-emerald-700', table: 'quiz' },
+    probability: { label: 'Probability Lab', emoji: '🎲', blurb: 'Dice, coins, bags and teams: find the exact chance.', players: '2 to 20 players', tone: 'from-indigo-500 to-violet-700', table: 'quiz' },
+    quantarena: { label: 'Quantitative Arena', emoji: '📐', blurb: 'Quantity A or B — or equal, or cannot tell?', players: '2 to 20 players', tone: 'from-cyan-600 to-blue-700', table: 'quiz' },
+    decisions: { label: 'Decision Theory Arena', emoji: '📈', blurb: 'Weigh the odds: pick the plan with the best expected return.', players: '2 to 20 players', tone: 'from-emerald-600 to-slate-800', table: 'quiz' }
 };
 /** The group games for two only (one against one): Chess, and the turn games. */
 export const isTwo = (id) => id === 'chess' || GROUP_GAMES[id]?.table === 'turns';

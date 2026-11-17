@@ -9,8 +9,14 @@ Punjabi, Odia, Urdu, Assamese, Nepali, Sanskrit, English and more.
 
 ```bash
 python3 -m venv .venv
-# GIT_LFS_SKIP_SMUDGE: one dependency (audiotools) is cloned from git and needs no LFS files
-GIT_LFS_SKIP_SMUDGE=1 .venv/bin/pip install -r requirements.txt
+# The macOS venv ships pip 21, which cannot resolve parler-tts: upgrade it first.
+.venv/bin/python -m pip install --upgrade pip
+# One dependency (audiotools) is cloned from git and needs no LFS files. The GIT_CONFIG_* lines
+# switch the LFS filter off for this clone, so it works even when git-lfs is not installed.
+GIT_LFS_SKIP_SMUDGE=1 GIT_CONFIG_COUNT=2 \
+  GIT_CONFIG_KEY_0=filter.lfs.process GIT_CONFIG_VALUE_0= \
+  GIT_CONFIG_KEY_1=filter.lfs.required GIT_CONFIG_VALUE_1=false \
+  .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app:app --host 127.0.0.1 --port 8008
 ```
 

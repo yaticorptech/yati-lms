@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'I, you, we, they എന്നിവയോടൊപ്പം "don\'t" (do not) ഉപയോഗിക്കുക.',
     withDoesnt: 'he, she, it എന്നിവയോടൊപ്പം "doesn\'t" (does not) ഉപയോഗിക്കുക.',
     thirdS: 'വർത്തമാനകാലത്ത് he, she, it എന്നിവയോടൊപ്പം ക്രിയയ്ക്ക് -s ചേരും: he goes, she has, it works.',
+    noThirdS: 'I, you, we, they എന്നിവയ്ക്കൊപ്പം ക്രിയയ്ക്ക് -s ചേരില്ല: I go, you have, they work.',
     thereAre: 'ഒന്നിലധികം കാര്യങ്ങൾക്ക് "there are" (അല്ലെങ്കിൽ "there were") ഉപയോഗിക്കുക.',
     participle: 'have, has, had കഴിഞ്ഞ് past participle: have gone, has eaten, had done.',
     stative: 'know, understand, want പോലുള്ള ക്രിയകൾക്ക് -ing ചേരില്ല: "I understand", "I am understanding" അല്ല.',

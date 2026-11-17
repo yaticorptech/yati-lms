@@ -1,9 +1,10 @@
 # Intel Macs: torch 2.2.2 is the last build; keep numpy < 2 with it.
-torch>=2.2.2
-numpy<2
-fastapi>=0.110
-uvicorn[standard]>=0.29
-soundfile>=0.12
+torch==2.2.2
+numpy==1.26.4
+# Exact pins stop pip backtracking for ages on Python 3.9 (2026-11-12).
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+soundfile==0.12.1
 git+https://github.com/huggingface/parler-tts.git
 # Pinned to the versions that work locally (2026-11-11: on Railway an older protobuf broke the tokenizer:
 # "cannot import name 'runtime_version' from 'google.protobuf'").

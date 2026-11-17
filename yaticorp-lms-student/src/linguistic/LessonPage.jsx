@@ -19,6 +19,7 @@ import { Finish, XpParts } from './session/Finish';
 import { buildLesson, heartsFor, clock, xpIn, xpBy } from './session/logic';
 import { tr, trf } from './say';
 import AudioPack, { needsPack } from './AudioPack';
+import { startBackgroundAudio, focusLesson } from './audioDownloader';
 
 /** The certificate earned with this lesson, to download at once. */
 function CertificateBanner({ certificate, courseName = 'English', lang }) {
@@ -55,6 +56,9 @@ function LessonPage() {
 
     const load = useCallback(() => linguisticApi.lesson(lessonId).then((l) => { setLesson(l); setError(null); }).catch((e) => { setError(e); setLesson(null); }), [lessonId]);
     useEffect(() => { load(); }, [load]);
+    // Opening a lesson keeps the course's audio coming down behind it (2026-11-13): already downloaded or just
+    // finished, the next units follow in the background so the student never waits for them.
+    useEffect(() => { focusLesson(lessonId); startBackgroundAudio(); }, [lessonId]);
     // The lesson the student is in: the path opens at its unit when they leave it (2026-11-05).
     useEffect(() => { if (lesson?.id) rememberLesson(lesson.id); }, [lesson]);
 
@@ -82,7 +86,9 @@ function LessonPage() {
     }
 
     // The unit's audio first (2026-11-06): downloaded once, then every lesson in the unit opens straight away.
-    if (!packed) return <SessionFrame label={lesson.title}><AudioPack lessonId={lessonId} onReady={() => setPacked(true)} onCancel={endSession} /></SessionFrame>;
+    // The Advanced entry test opens at once (2026-11-12, the user: "take the test — the test is not coming"): no audio pack
+    // first; its voices are made as each is played.
+    if (!packed && lesson.review !== 'entry') return <SessionFrame label={lesson.title}><AudioPack lessonId={lessonId} onReady={() => setPacked(true)} onCancel={endSession} /></SessionFrame>;
 
     const id = lesson.id;
     // The result's words in the student's language too (2026-11-05, "like Duolingo"): Kannada for a Kannada speaker.
@@ -113,6 +119,8 @@ function LessonPage() {
 
     if (done) {
         const { r, summary } = done;
+        // Finished: the next lesson may have just opened — fetch it now, before the student gets to it (2026-11-13).
+        setTimeout(() => startBackgroundAudio(), 0);
         const xp = summary.xp + xpIn(r.events);
         // Points earned, not a percentage (2026-11-06, the user read "ಒಟ್ಟು XP 51" as 51%): "+51" under "XP earned", and what for.
         // None new (2026-11-07, the user's "+0 XP"): no XP card; only, when passed before, that its XP was earned then.

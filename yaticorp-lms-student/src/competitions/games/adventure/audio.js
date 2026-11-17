@@ -230,13 +230,6 @@ export default function createAudio(initialTheme) {
     };
     const D3 = 146.83; const E3 = 164.81; const C3 = 130.81; const A2 = 110; const F3 = 174.61; const B2 = 123.47;
     Object.assign(AMBIENCE, {
-        // The Lost Kingdom: the jungle and its ruins — each trial its own scale, tune and ensemble.
-        'kingdom-1': score({ root: D3, scale: 'dorian', bpm: 92, prog: [0, 6, 3, 0], tune: 'jungle', leads: ['flute'], pizz: true, kit: 'jungle', birds: true }),
-        'kingdom-2': score({ root: E3, scale: 'phrygianDom', bpm: 88, prog: [0, 1, 0, 6], tune: 'temple', leads: ['oud'], harp: true, kit: 'ritual', birds: true }),
-        'kingdom-3': score({ root: A2 * 2, scale: 'harmonic', bpm: 96, prog: [0, 5, 3, 4], tune: 'palace', leads: ['horn'], pizz: true, choir: true, kit: 'march' }),
-        'kingdom-4': score({ root: C3, scale: 'minor', bpm: 84, prog: [0, 5, 6, 4], tune: 'castle', leads: ['horn', 'flute'], choir: true, harp: true, kit: 'march', ticks: true }),
-        'kingdom-5': score({ root: D3, scale: 'dorian', bpm: 108, prog: [0, 6, 5, 6], tune: 'gate', leads: ['horn', 'oud'], pizz: true, choir: true, kit: 'ritual', drive: true }),
-        'kingdom-treasure': score({ root: D3, scale: 'major', bpm: 90, prog: [0, 3, 4, 0], tune: 'treasure', leads: ['horn', 'flute'], harp: true, choir: true, kit: 'march', birds: true }),
         // The Final Vault: an ancient vault under the desert — exotic scales, oud, choir and the mechanism's ticking.
         'vault-temple': score({ root: E3, scale: 'phrygianDom', bpm: 84, prog: [0, 1, 6, 0], tune: 'temple', leads: ['oud', 'flute'], harp: true, choir: true, kit: 'ritual' }),
         'vault-code': score({ root: B2 * 2, scale: 'harmonic', bpm: 92, prog: [0, 5, 3, 4], tune: 'castle', leads: ['horn'], pizz: true, kit: 'march' }),

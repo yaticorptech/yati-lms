@@ -1,3 +1,11 @@
+import { THUMBS as THUMBS_D } from './thumbs/d';
+import { THUMBS as THUMBS_H } from './thumbs/h';
+import { THUMBS as THUMBS_G } from './thumbs/g';
+import { THUMBS as THUMBS_F } from './thumbs/f';
+import { THUMBS as THUMBS_E } from './thumbs/e';
+import { THUMBS as THUMBS_C } from './thumbs/c';
+import { THUMBS as THUMBS_B } from './thumbs/b';
+import { THUMBS as THUMBS_A } from './thumbs/a';
 /*
  * A small illustration for each game, in place of one repeated category icon.
  *
@@ -289,6 +297,98 @@ const THUMBS = {
       </text>
     </>
   ),
+  // New 2026-11-13, for the age zones.
+  'shadow-detective': () => (
+    <>
+      <circle cx="20" cy="28" r="14" fill="#1f2937" />
+      <path d="M12 18 l4 -8 l4 8z M24 18 l4 -8 l4 8z" fill="#1f2937" />
+      <rect {...tile(36, 14, '#fde68a', 16, 16, 4)} />
+      <text x="44" y="26" textAnchor="middle" fontSize="11">🐱</text>
+      <rect {...tile(36, 34, '#e0e7ff', 16, 16, 4)} />
+      <text x="44" y="46" textAnchor="middle" fontSize="11">🐶</text>
+    </>
+  ),
+  'treasure-path': () => (
+    <>
+      {[0, 1, 2, 3].flatMap((r) => [0, 1, 2, 3].map((c) => <rect key={`${r}${c}`} {...tile(6 + c * 11, 6 + r * 11, (r + c) % 2 ? '#bbf7d0' : '#dcfce7', 10, 10, 2)} />))}
+      <text x="11" y="15" textAnchor="middle" fontSize="8">🧭</text>
+      <text x="45" y="48" textAnchor="middle" fontSize="8">💰</text>
+      <path d="M11 17 v22 h28" stroke="#16a34a" strokeWidth="2.5" fill="none" strokeDasharray="3 3" strokeLinecap="round" />
+    </>
+  ),
+  'logic-detective': () => (
+    <>
+      {[0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => <rect key={`${r}${c}`} {...tile(8 + c * 13, 8 + r * 13, '#e0f2fe', 12, 12, 2)} />))}
+      <text x="14" y="18" textAnchor="middle" fontSize="9" fill="#16a34a" fontWeight="800">✓</text>
+      <text x="27" y="18" textAnchor="middle" fontSize="9" fill="#dc2626" fontWeight="800">✗</text>
+      <text x="27" y="31" textAnchor="middle" fontSize="9" fill="#16a34a" fontWeight="800">✓</text>
+      <circle cx="42" cy="40" r="8" fill="none" stroke="#0369a1" strokeWidth="3" />
+      <path d="M48 46 l5 5" stroke="#0369a1" strokeWidth="3" strokeLinecap="round" />
+    </>
+  ),
+  'word-ladder': () => (
+    <>
+      <rect x="14" y="6" width="4" height="46" rx="2" fill="#92400e" />
+      <rect x="38" y="6" width="4" height="46" rx="2" fill="#92400e" />
+      {[['WARM', 10, '#fecdd3', '#be123c'], ['CARD', 23, '#bbf7d0', '#047857'], ['COLD', 36, '#ffffff', '#92400e']].map(([w, y, bg, fg]) => (
+        <g key={w}>
+          <rect x="11" y={y} width="34" height="10" rx="3" fill={bg} stroke="#d97706" strokeWidth="1" />
+          <text x="28" y={y + 7.6} textAnchor="middle" fontSize="7" fontWeight="900" fill={fg}>{w}</text>
+        </g>
+      ))}
+      <path d="M50 40 v-26 m-4 4 l4 -4 l4 4" stroke="#7c3aed" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+    </>
+  ),
+  'probability-lab': () => (
+    <>
+      <path d="M10 20 h16 l-2 26 h-12z" fill="#e0f2fe" stroke="#0284c7" strokeWidth="1.5" />
+      {[[15, 30, '#ef4444'], [21, 34, '#3b82f6'], [16, 40, '#ef4444'], [21, 42, '#22c55e']].map(([x, y, c]) => <circle key={`${x}${y}`} cx={x} cy={y} r="3" fill={c} />)}
+      <rect {...tile(32, 22, '#ffffff', 18, 18, 4)} stroke="#0284c7" strokeWidth="1.5" />
+      {[[37, 27], [45, 35], [41, 31]].map(([x, y]) => <circle key={`${x}${y}`} cx={x} cy={y} r="2" fill="#0284c7" />)}
+      <text x="28" y="12" textAnchor="middle" fontSize="9" fontWeight="800" fill="#0369a1">½</text>
+    </>
+  ),
+  'algorithm-builder': () => (
+    <>
+      <rect {...tile(8, 8, '#fde68a', 40, 9, 3)} />
+      <rect {...tile(14, 20, '#a5b4fc', 34, 9, 3)} />
+      <rect {...tile(14, 32, '#a5b4fc', 34, 9, 3)} />
+      <rect {...tile(8, 44, '#86efac', 40, 9, 3)} />
+      <path d="M11 17 v26" stroke="#b45309" strokeWidth="2" />
+      <text x="28" y="15" textAnchor="middle" fontSize="6" fontWeight="800" fill="#92400e">REPEAT 3</text>
+    </>
+  ),
+  // New 2026-11-12.
+  'picture-logic': () => (
+    <>
+      {[[0,1,1,0],[1,1,1,1],[1,1,1,1],[0,1,1,0]].flatMap((row, r) => row.map((on, c) => (
+        <rect key={`${r}-${c}`} {...tile(14 + c * 10, 14 + r * 10, on ? '#0ea5e9' : '#e0f2fe', 9, 9, 2)} />
+      )))}
+      <text x="8" y="22" textAnchor="middle" fontSize="7" fontWeight="800" fill="#0369a1">2</text>
+      <text x="8" y="32" textAnchor="middle" fontSize="7" fontWeight="800" fill="#0369a1">4</text>
+      <text x="23" y="10" textAnchor="middle" fontSize="7" fontWeight="800" fill="#0369a1">2</text>
+      <text x="33" y="10" textAnchor="middle" fontSize="7" fontWeight="800" fill="#0369a1">4</text>
+    </>
+  ),
+  'tower-shift': () => (
+    <>
+      <rect {...tile(4, 46, '#a16207', 48, 5, 2)} />
+      {[12, 28, 44].map((x) => <rect key={x} {...tile(x - 1.5, 16, '#ca8a04', 3, 30, 1.5)} />)}
+      <rect {...tile(3, 39, '#6366f1', 18, 7, 3)} />
+      <rect {...tile(5, 32, '#0ea5e9', 14, 7, 3)} />
+      <rect {...tile(37, 39, '#f43f5e', 14, 7, 3)} />
+      <rect {...tile(23, 39, '#10b981', 10, 7, 3)} />
+    </>
+  ),
+  'number-forge': () => (
+    <TileGrid
+      cells={[
+        { x: 15, y: 4, w: 26, h: 14, r: 4, bg: '#f59e0b', fg: '#ffffff', label: '24', size: 10 },
+        { x: 4, y: 24, w: 14, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '6', size: 9 }, { x: 21, y: 24, w: 14, h: 13, r: 3, bg: '#fff7ed', fg: '#c2410c', label: '×', size: 10 }, { x: 38, y: 24, w: 14, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '4', size: 9 },
+        { x: 4, y: 40, w: 14, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '3', size: 9 }, { x: 21, y: 40, w: 14, h: 13, r: 3, bg: '#fff7ed', fg: '#c2410c', label: '+', size: 10 }, { x: 38, y: 40, w: 14, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '9', size: 9 }
+      ]}
+    />
+  ),
   'speed-sort': () => (
     <TileGrid
       cells={[
@@ -517,15 +617,6 @@ const THUMBS = {
     </>
   )
   ,
-  // Group Brain's The Lost Kingdom: a compass rose.
-  compass: () => (
-    <>
-      <circle cx="28" cy="28" r="21" fill="#1d150b" stroke="#c9a45a" strokeWidth="2.5" />
-      <circle cx="28" cy="28" r="16" fill="none" stroke="#8a6a2f" strokeWidth="1" />
-      <path d="M28 9 L31.5 24.5 L47 28 L31.5 31.5 L28 47 L24.5 31.5 L9 28 L24.5 24.5 Z" fill="#e7c477" stroke="#6b4a1a" strokeWidth="0.8" />
-      <circle cx="28" cy="28" r="2.6" fill="#3b2610" />
-    </>
-  ),
   // Group Brain's The Final Vault: a golden vault door.
   vault: () => (
     <>
@@ -558,7 +649,7 @@ const THUMBS = {
 };
 
 export default function GameThumb({ id, className = '' }) {
-  const draw = THUMBS[id];
+  const draw = THUMBS[id] || THUMBS_D[id] || THUMBS_H[id] || THUMBS_G[id] || THUMBS_F[id] || THUMBS_E[id] || THUMBS_C[id] || THUMBS_B[id] || THUMBS_A[id];
   return (
     <svg viewBox="0 0 56 56" className={className} aria-hidden>
       {draw ? draw() : <rect {...tile(8, 8, '#e2e8f0', 40, 40, 10)} />}

@@ -18,6 +18,9 @@ const GameProgress = require('../models/GameProgress');
 const GameStarEvent = require('../models/GameStarEvent');
 const GamePlayTime = require('../models/GamePlayTime');
 const { isGameId } = require('../data/gameIds');
+const { catalogGame, gameTitle, CATEGORIES } = require('../data/gameCatalog');
+const { effectiveZone, effectiveZones } = require('../services/gameZone');
+const { accessFor, canPlay } = require('../../competitions/services/zoneAccess');
 const { periodWindow, dayKey, addDays, startOfDay } = require('../../rewards/config/constants');
 const { getConfig } = require('../../rewards/services/configService');
 const { addXp } = require('../../rewards/services/xpService');
@@ -77,8 +80,61 @@ const cleanStars = (input) => {
 const shapeProgress = (doc) => ({
   gameId: doc.gameId,
   level: doc.level,
-  stars: doc.stars instanceof Map ? Object.fromEntries(doc.stars) : doc.stars || {}
+  stars: doc.stars instanceof Map ? Object.fromEntries(doc.stars) : doc.stars || {},
+  ...(doc.stats ? { stats: doc.stats } : {})
 });
+
+/*
+ * The adaptive record a browser sends (2026-11-13): only known fields, numbers held to their ranges, at most twelve
+ * sessions. It sets nothing but the student's own practice stage — no XP or level follows from it.
+ *
+ * Hardened 2026-11-14 (it now feeds the performance page and achievements): every number is bounded — perf 0–1,
+ * stars whole 0–3, accuracy 0–100, times 0…1 hour, counts whole — a session needs a real time (not in the future, not
+ * before 2024), sessions are kept in time order without duplicates, and anything else is dropped. A browser cannot make
+ * a record that reads "100% accuracy, 0 ms, 999 sessions".
+ */
+const STAGES = ['easy', 'medium', 'hard', 'expert'];
+const MAX_SESSIONS = 12;
+const MAX_MS = 60 * 60 * 1000;
+const EARLIEST_AT = Date.UTC(2024, 0, 1);
+const n = (v, lo, hi) => (v !== null && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v)) ? Math.min(hi, Math.max(lo, Number(v))) : null);
+const whole = (v, lo, hi) => { const x = n(v, lo, hi); return x == null ? null : Math.floor(x); };
+const round2 = (x) => (x == null ? null : Math.round(x * 100) / 100);
+const cleanStats = (raw) => {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.sessions)) return null;
+  const latest = Date.now() + 60000;
+  const seen = new Set();
+  const sessions = raw.sessions.slice(-50).filter((s) => s && typeof s === 'object' && !Array.isArray(s)).map((s) => {
+    const correct = whole(s.correct, 0, 999), wrong = whole(s.wrong, 0, 999);
+    let accuracy = round2(n(s.accuracy, 0, 100));
+    // Accuracy can never be better than the answers it came from.
+    if (correct != null && wrong != null && correct + wrong > 0) accuracy = Math.min(accuracy ?? 100, round2((100 * correct) / (correct + wrong)));
+    const ms = whole(s.ms, 0, MAX_MS), limitMs = whole(s.limitMs, 0, MAX_MS);
+    const at = Number(s.at);
+    return {
+      at: Number.isFinite(at) && at >= EARLIEST_AT && at <= latest ? Math.floor(at) : null, stage: STAGES.includes(s.stage) ? s.stage : 'medium',
+      stars: whole(s.stars, 0, 3) ?? 0, passed: s.passed === true, correct, wrong,
+      hints: whole(s.hints, 0, 99) ?? 0, ms, limitMs, score: whole(s.score, 0, 1e7),
+      difficulty: whole(s.difficulty, 1, 4), perf: round2(n(s.perf, 0, 1)) ?? 0, accuracy
+    };
+  }).filter((s) => {
+    // A session without a believable time (none, before 2024, in the future) cannot be placed on a trend or a day; a
+    // repeat of one already kept is noise.
+    if (s.at == null) return false;
+    const key = `${s.at}|${s.score}|${s.stars}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => a.at - b.at).slice(-MAX_SESSIONS);
+  const bestAt = Number(raw.best?.at);
+  const best = raw.best && typeof raw.best === 'object' && !Array.isArray(raw.best)
+    ? {
+      mark: n(raw.best.mark, 0, 1e7), score: whole(raw.best.score, 0, 1e7), accuracy: round2(n(raw.best.accuracy, 0, 100)),
+      at: Number.isFinite(bestAt) && bestAt >= EARLIEST_AT && bestAt <= latest ? Math.floor(bestAt) : null
+    }
+    : null;
+  return { stage: STAGES.includes(raw.stage) ? raw.stage : 'medium', sessions, best };
+};
 
 // @route GET /api/career/games/progress
 // Every game the student has touched, for the hub to merge into its browser copy.
@@ -127,6 +183,17 @@ const saveProgress = async (req, res) => {
     const gameId = String(req.body?.gameId || '').trim();
     if (!isGameId(gameId)) return res.status(400).json({ message: 'Unknown game' });
 
+    // Age sections (2026-11-14): the registered class decides. A catalogue game in a section above the student's zone
+    // is refused before anything is read or written; own and lower sections are open, and so are the classic games
+    // outside the 84 (data/gameCatalog.js EXTRA), which belong to no age section. Class unknown: open (zoneAccess.js).
+    const section = catalogGame(gameId)?.section;
+    if (section) {
+      const own = await effectiveZone(userId);
+      if (!canPlay(accessFor(own.zone, section))) {
+        return res.status(403).json({ message: 'This game is for an older class. Progress is saved for the games in your own zone and the ones below it.', zone: own.zone, section });
+      }
+    }
+
     const claimedLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(Number(req.body?.level) || 1)));
     const incoming = cleanStars(req.body?.stars);
 
@@ -149,6 +216,13 @@ const saveProgress = async (req, res) => {
     const nextLevel = Math.max(storedLevel, Math.min(claimedLevel, storedLevel + 1, topStarred + 1));
 
     if (!candidates.length && nextLevel === storedLevel) {
+      // A replay with no new best still records its session (the adaptive record feeds the performance page), on a
+      // game the account already has. Nothing else moves and nothing pays.
+      const replay = before ? cleanStats(req.body?.stats) : null;
+      if (replay) {
+        await GameProgress.updateOne({ _id: before._id }, { $set: { stats: replay } });
+        return res.json({ ...stored, stats: replay, xpAwarded: 0 });
+      }
       return res.json({ ...stored, xpAwarded: 0 });
     }
 
@@ -212,6 +286,10 @@ const saveProgress = async (req, res) => {
       }
     }
 
+    // The adaptive record, kept as sent (cleaned): the newest browser's copy wins.
+    const stats = cleanStats(req.body?.stats);
+    if (stats) await GameProgress.updateOne({ _id: docId }, { $set: { stats } });
+
     const after = await GameProgress.findById(docId).lean();
     res.json({ ...shapeProgress(after), xpAwarded });
   } catch (error) {
@@ -256,41 +334,117 @@ const scopeUserIds = async (scope, me) => {
   return null;
 };
 
-/** Everyone ranked, best first: [{ userId, stars, cleared, games }]. */
-const ranking = async ({ period, scope, me }) => {
-  const ids = await scopeUserIds(scope, me);
+/*
+ * A fair board (2026-11-13). Ranking on raw stars let a student who stayed on the easiest levels outrank one doing
+ * harder work, so the board ranks on points: every star counts its difficulty and the student's practice stage.
+ *
+ *   points = 10 × Σ stars × DIFFICULTY_WEIGHT[difficulty] × STAGE_WEIGHT[stage]
+ *
+ * The difficulty and stage come from the adaptive session recorded with the level (GameProgress.stats.sessions,
+ * matched to the star event by game and time); without one, the level's own band (the student app's levels.js ladder,
+ * mirrored in levelBand) and the game's current stage. And students are ranked against their own zone by default
+ * (career/services/gameZone.js, from the class they gave in Career Path): a Class 2 student never faces a Class 12.
+ */
+const DIFFICULTY_WEIGHT = { 1: 1, 2: 1.3, 3: 1.6, 4: 1.9 };
+const STAGE_WEIGHT = { easy: 0.8, medium: 1, hard: 1.15, expert: 1.3 };
+const SESSION_MATCH_MS = 10 * 60 * 1000;
+
+/** The difficulty band (1–3) a level plays at: the same roller-coaster ladder as the student app (levels.js pressure). */
+const levelBand = (level) => {
+  const l = Math.min(MAX_LEVEL, Math.max(1, Math.floor(Number(level) || 1)));
+  const episode = Math.floor((l - 1) / 15);
+  const episodes = Math.ceil(MAX_LEVEL / 15) - 1;
+  const p = Math.min(1, 0.75 * Math.pow(episode / episodes, 0.8) + ((l - 1) % 15) * 0.018);
+  return Math.min(3, Math.floor(Math.round(p * 89) / 30) + 1);
+};
+
+/** How much one star is worth: its difficulty times the stage it was earned at. */
+const starWeight = (difficulty, stage) =>
+  (DIFFICULTY_WEIGHT[Math.min(4, Math.max(1, Math.round(Number(difficulty) || 1)))] || 1) * (STAGE_WEIGHT[stage] || 1);
+
+/** The weight of one star event ({ level, createdAt }), given the game's adaptive stats. */
+const eventWeight = (event, stats) => {
+  const at = new Date(event.createdAt).getTime();
+  const sessions = Array.isArray(stats?.sessions) ? stats.sessions : [];
+  let match = null;
+  for (const s of sessions) {
+    if (!s || !(s.stars > 0) || !Number.isFinite(s.at)) continue;
+    const gap = Math.abs(s.at - at);
+    if (gap <= SESSION_MATCH_MS && (!match || gap < match.gap)) match = { gap, s };
+  }
+  if (match) return starWeight(match.s.difficulty || levelBand(event.level), match.s.stage);
+  return starWeight(levelBand(event.level), stats?.stage);
+};
+
+/** All-time points of one game's record: every level's best stars at the level's band and the game's stage. */
+const progressPoints = (stars, stage) => {
+  const entries = stars instanceof Map ? [...stars.entries()] : Object.entries(stars || {});
+  return entries.reduce((sum, [level, n]) => sum + (Number(n) || 0) * starWeight(levelBand(level), stage), 0);
+};
+
+const toPoints = (raw) => Math.round(raw * 10);
+
+/** First name and last initial ("Asha R."): all a school leaderboard shows of anyone. */
+const publicName = (name) => {
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return 'Student';
+  const first = words[0][0].toUpperCase() + words[0].slice(1);
+  return words.length > 1 ? `${first} ${words[words.length - 1][0].toUpperCase()}.` : first;
+};
+
+/** Ranked best first: points, then stars, then levels cleared. */
+const sortRows = (rows) => rows.sort((a, b) => b.points - a.points || b.stars - a.stars || b.cleared - a.cleared || String(a.userId).localeCompare(String(b.userId)));
+
+/** Everyone in a window, ranked: [{ userId, points, stars, cleared, games }]. */
+const ranking = async ({ period, ids, offset = 0 }) => {
   if (ids && ids.length === 0) return [];
 
   if (period === 'all') {
     const match = { starTotal: { $gt: 0 } };
     if (ids) match.userId = { $in: ids };
-    return GameProgress.aggregate([
-      { $match: match },
-      { $group: { _id: '$userId', stars: { $sum: '$starTotal' }, cleared: { $sum: '$cleared' }, games: { $sum: 1 } } },
-      { $sort: { stars: -1, cleared: -1, _id: 1 } },
-      { $project: { _id: 0, userId: '$_id', stars: 1, cleared: 1, games: 1 } }
-    ]);
+    const docs = await GameProgress.find(match).select('userId gameId stars starTotal cleared stats.stage').lean();
+    const by = new Map();
+    for (const d of docs) {
+      const k = String(d.userId);
+      const r = by.get(k) || { userId: d.userId, points: 0, stars: 0, cleared: 0, games: 0 };
+      r.points += progressPoints(d.stars, d.stats?.stage);
+      r.stars += d.starTotal || 0;
+      r.cleared += d.cleared || 0;
+      r.games += 1;
+      by.set(k, r);
+    }
+    return sortRows([...by.values()].map((r) => ({ ...r, points: toPoints(r.points) })));
   }
 
-  const { start, end } = periodWindow(period);
+  const { start, end } = periodWindow(period, new Date(), offset);
   const match = { createdAt: { $gte: start, $lt: end } };
   if (ids) match.userId = { $in: ids };
-  return GameStarEvent.aggregate([
-    { $match: match },
-    {
-      $group: {
-        _id: '$userId',
-        stars: { $sum: '$stars' },
-        cleared: { $sum: { $cond: ['$first', 1, 0] } },
-        gameIds: { $addToSet: '$gameId' }
-      }
-    },
-    { $project: { _id: 0, userId: '$_id', stars: 1, cleared: 1, games: { $size: '$gameIds' } } },
-    { $sort: { stars: -1, cleared: -1, userId: 1 } }
-  ]);
+  const events = await GameStarEvent.find(match).select('userId gameId level stars first createdAt').lean();
+  if (!events.length) return [];
+  const users = [...new Set(events.map((e) => String(e.userId)))];
+  const progress = await GameProgress.find({ userId: { $in: users } }).select('userId gameId stats').lean();
+  const statsBy = new Map(progress.map((p) => [`${p.userId}|${p.gameId}`, p.stats]));
+  const by = new Map();
+  for (const e of events) {
+    const k = String(e.userId);
+    const r = by.get(k) || { userId: e.userId, points: 0, stars: 0, cleared: 0, gameIds: new Set() };
+    r.points += e.stars * eventWeight(e, statsBy.get(`${k}|${e.gameId}`));
+    r.stars += e.stars;
+    r.cleared += e.first ? 1 : 0;
+    r.gameIds.add(e.gameId);
+    by.set(k, r);
+  }
+  return sortRows([...by.values()].map(({ gameIds, ...r }) => ({ ...r, points: toPoints(r.points), games: gameIds.size })));
 };
 
-// @route GET /api/career/games/leaderboard?period=weekly&scope=global
+/** Each user's games zone, as held on the account (services/gameZone.js): Map(userId → zone or null). */
+const zonesOf = (userIds) => effectiveZones(userIds);
+
+const ZONE_KEYS = ['young', 'smart', 'master'];
+
+// @route GET /api/career/games/leaderboard?period=weekly&scope=global&zone=mine|all|young|smart|master
+// Ranked on difficulty-weighted points, against the student's own zone unless `zone=all`. Shows only first name and
+// last initial, never ids or emails; the student's own row adds their rank and points in the previous period.
 const getLeaderboard = async (req, res) => {
   try {
     const period = PERIODS.includes(req.query.period) ? req.query.period : 'weekly';
@@ -298,46 +452,132 @@ const getLeaderboard = async (req, res) => {
     const me = req.user;
     const meId = String(me._id);
 
-    const rows = await ranking({ period, scope, me });
+    const myZone = (await zonesOf([me._id])).get(meId);
+    const asked = String(req.query.zone || 'mine');
+    const zone = asked === 'all' ? null : ZONE_KEYS.includes(asked) ? asked : myZone;
+
+    const ids = await scopeUserIds(scope, me);
+    const inZone = async (rows) => {
+      if (!zone || !rows.length) return rows;
+      const zones = await zonesOf(rows.map((r) => r.userId));
+      return rows.filter((r) => zones.get(String(r.userId)) === zone);
+    };
+    const rows = await inZone(await ranking({ period, ids }));
+    const prev = period === 'all' ? null : await inZone(await ranking({ period, ids, offset: -1 }));
+
     const myIndex = rows.findIndex((r) => String(r.userId) === meId);
     const top = rows.slice(0, BOARD_SIZE);
     // The student's own row with a neighbour either side, when off the board.
     const around = myIndex >= BOARD_SIZE ? rows.slice(Math.max(BOARD_SIZE, myIndex - 1), myIndex + 2) : [];
 
-    const userIds = [...top, ...around].map((r) => r.userId);
-    const users = await User.find({ _id: { $in: userIds } }).select('name profilePicture institution className').lean();
+    const users = await User.find({ _id: { $in: [...top, ...around].map((r) => r.userId) } }).select('name profilePicture').lean();
     const userBy = Object.fromEntries(users.map((u) => [String(u._id), u]));
 
     const shape = (row, index) => {
+      const isMe = String(row.userId) === meId;
       const u = userBy[String(row.userId)];
       return {
         rank: index + 1,
-        userId: row.userId,
-        name: u?.name || 'Student',
-        profilePicture: u?.profilePicture || '',
+        name: publicName(u?.name),
+        // Only the student's own picture: other students are a name and initials.
+        profilePicture: isMe ? u?.profilePicture || '' : '',
+        points: row.points,
         stars: row.stars,
         cleared: row.cleared,
         games: row.games,
-        isMe: String(row.userId) === meId
+        isMe
       };
     };
+
+    const prevIndex = prev ? prev.findIndex((r) => String(r.userId) === meId) : -1;
+    const mine = myIndex >= 0
+      ? shape(rows[myIndex], myIndex)
+      : { rank: null, name: publicName(me.name), profilePicture: me.profilePicture || '', points: 0, stars: 0, cleared: 0, games: 0, isMe: true };
+    mine.improvement = prev
+      ? {
+        previousRank: prevIndex >= 0 ? prevIndex + 1 : null,
+        previousPoints: prevIndex >= 0 ? prev[prevIndex].points : 0,
+        pointsChange: mine.points - (prevIndex >= 0 ? prev[prevIndex].points : 0),
+        // Positive: places climbed since the last period.
+        rankChange: mine.rank && prevIndex >= 0 ? prevIndex + 1 - mine.rank : null
+      }
+      : null;
 
     res.json({
       period,
       scope,
+      zone,
+      myZone,
+      rankedBy: 'points',
       periodKey: periodWindow(period).key,
       total: rows.length,
       entries: top.map(shape),
       around: around.map((r) => shape(r, rows.indexOf(r))),
-      me:
-        myIndex >= 0
-          ? shape(rows[myIndex], myIndex)
-          : { rank: null, userId: me._id, name: me.name, profilePicture: me.profilePicture || '', stars: 0, cleared: 0, games: 0, isMe: true },
+      me: mine,
       // So the client can say why a cohort board is empty.
       cohort: { institution: me.institution || '', className: me.className || '' }
     });
   } catch (error) {
     fail(res, error, 'load the games leaderboard');
+  }
+};
+
+/**
+ * The student's Group games, from the Group Brain results (competitions/groupbrain): played, wins, podiums, recent.
+ * Kept apart from the solo records on purpose: a group result never touches a solo personal best.
+ */
+const groupSummary = async (userId) => {
+  const { totals, brainScore } = require('../../competitions/groupbrain/stats');
+  const { engine } = require('../../competitions/games');
+  const t = await totals(userId);
+  const podium = (r) => r.won || r.draw || (r.place && r.place <= Math.min(3, Math.max(1, (r.players || 1) - 1)));
+  const brain = brainScore(t.rows);
+  return {
+    played: t.played,
+    wins: t.wins,
+    draws: t.draws,
+    podiums: t.rows.filter(podium).length,
+    streak: t.streak,
+    bestStreak: t.bestStreak,
+    winRate: t.played ? Math.round((100 * t.wins) / t.played) : 0,
+    bps: brain.bps,
+    note: brain.note,
+    recent: t.rows.slice(0, 5).map((r) => ({
+      game: r.game, label: engine(r.game)?.label || r.game, emoji: engine(r.game)?.emoji || '🎮',
+      place: r.place, players: r.players, won: r.won, draw: r.draw, score: r.score,
+      accuracy: r.total ? Math.round((100 * r.correct) / r.total) : null, finishedAt: r.finishedAt
+    })),
+    // Oldest first, for the achievements' dates (not sent by /group-summary).
+    finishedAt: t.rows.map((r) => r.finishedAt).reverse()
+  };
+};
+
+// @route GET /api/career/games/group-summary
+const getGroupSummary = async (req, res) => {
+  try {
+    const { finishedAt, ...out } = await groupSummary(req.user._id);
+    res.json(out);
+  } catch (error) {
+    fail(res, error, 'load the group games summary');
+  }
+};
+
+// @route GET /api/career/games/performance
+// Game performance for My Progress: { zone, band, individual, group, achievements } (services/gamePerformance.js).
+// Individual (solo) and group are computed from separate records and never mixed.
+const getPerformance = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { buildPerformance } = require('../services/gamePerformance');
+    const [own, docs, events, group] = await Promise.all([
+      effectiveZone(userId),
+      GameProgress.find({ userId }).select('gameId level stars starTotal cleared stats updatedAt').lean(),
+      GameStarEvent.find({ userId }).sort({ createdAt: 1, _id: 1 }).select('gameId level stars first createdAt').lean(),
+      groupSummary(userId)
+    ]);
+    res.json(buildPerformance({ zone: own.zone, band: own.band, docs, events, group }));
+  } catch (error) {
+    fail(res, error, 'load game performance');
   }
 };
 
@@ -453,4 +693,8 @@ const recordGroupPlayTime = async (req, res) => {
   }
 };
 
-module.exports = { getProgress, saveProgress, getLeaderboard, getPlayTime, recordPlayTime, getGroupPlayTime, recordGroupPlayTime, groupTimeUp, groupTimeUpMessage, PERIODS, SCOPES };
+module.exports = {
+  getProgress, saveProgress, getLeaderboard, getGroupSummary, getPerformance, cleanStats, getPlayTime, recordPlayTime, getGroupPlayTime, recordGroupPlayTime, groupTimeUp, groupTimeUpMessage, PERIODS, SCOPES,
+  // The fair board's rules, for the tests.
+  levelBand, starWeight, eventWeight, progressPoints, publicName, DIFFICULTY_WEIGHT, STAGE_WEIGHT
+};

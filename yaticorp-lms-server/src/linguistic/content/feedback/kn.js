@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'I, you, we, they ಜೊತೆ "don\'t" (do not) ಬಳಸಿ.',
     withDoesnt: 'he, she, it ಜೊತೆ "doesn\'t" (does not) ಬಳಸಿ.',
     thirdS: 'ವರ್ತಮಾನದಲ್ಲಿ he, she, it ಜೊತೆ ಕ್ರಿಯಾಪದಕ್ಕೆ -s ಸೇರುತ್ತದೆ: he goes, she has, it works.',
+    noThirdS: 'I, you, we, they ಜೊತೆ ಕ್ರಿಯಾಪದಕ್ಕೆ -s ಸೇರುವುದಿಲ್ಲ: I go, you have, they work.',
     thereAre: 'ಒಂದಕ್ಕಿಂತ ಹೆಚ್ಚು ವಸ್ತುಗಳಿದ್ದರೆ "there are" (ಅಥವಾ "there were") ಬಳಸಿ.',
     participle: 'have, has, had ನಂತರ past participle ಬಳಸಿ: have gone, has eaten, had done.',
     stative: 'know, understand, want ಮುಂತಾದ ಕ್ರಿಯಾಪದಗಳಿಗೆ -ing ಸೇರುವುದಿಲ್ಲ: "I understand", "I am understanding" ಅಲ್ಲ.',

@@ -1,9 +1,27 @@
+import { COACH as COACH_SPLITS } from './coach/splits.js';
+import { COACH as COACH_D } from './coach/d.js';
+import { COACH as COACH_H } from './coach/h.js';
+import { COACH as COACH_G } from './coach/g.js';
+import { COACH as COACH_F } from './coach/f.js';
+import { COACH as COACH_E } from './coach/e.js';
+import { COACH as COACH_C } from './coach/c.js';
+import { COACH as COACH_B } from './coach/b.js';
+import { COACH as COACH_A } from './coach/a.js';
 /**
  * How each game is played, in the mascot's words — two or three short steps
  * and a tip, per game. Shown on the level briefing so the student never
  * starts a level without knowing what to do.
  */
 export const GAME_COACH = {
+  ...COACH_SPLITS,
+  ...COACH_D,
+  ...COACH_H,
+  ...COACH_G,
+  ...COACH_F,
+  ...COACH_E,
+  ...COACH_C,
+  ...COACH_B,
+  ...COACH_A,
   'memory-match': {
     steps: ['Tap a card to turn it over.', 'Tap another — a match stays face up.', 'Pair every card within the move limit.'],
     tip: 'Remember where you saw each picture.'
@@ -160,6 +178,48 @@ export const GAME_COACH = {
     steps: ['A binary number is shown.', 'Type or tap its decimal value.', 'The numbers grow as levels climb.'],
     tip: 'Read the bits from the right: 1, 2, 4, 8, 16…'
   },
+  // New 2026-11-13, for the age zones.
+  'shadow-detective': {
+    steps: ['A dark shadow appears.', 'Look at its shape carefully.', 'Tap the picture that makes that shadow.'],
+    tip: 'Look at the edges — ears, tails and handles give it away.'
+  },
+  'treasure-path': {
+    steps: ['Find the treasure on the map.', 'Line up arrow cards to make a path.', 'Press Go and watch your explorer walk.'],
+    tip: 'Trace the path with your finger before you add cards.'
+  },
+  'clue-chain': {
+    steps: ['One crown in every row, column and coloured garden.', 'No two crowns may touch — not even corner to corner.', 'Tap once for ✕ (a note), twice for a crown.'],
+    tip: 'Start with the smallest garden — it has the fewest places a crown can go.'
+  },
+  'word-ladder': {
+    steps: ['Read the clue for the next rung of the ladder.', 'Change just ONE letter of the word below to make the clue word.', 'Climb every rung to reach the goal word at the top.'],
+    tip: 'Look at the goal word — the letters you need are often already in it!'
+  },
+  'chess-challenge': {
+    steps: ['Choose your colour, then tap a piece and a marked square.', 'Protect your king — when it is in check, it glows red.', 'Checkmate the black king to win.'],
+    tip: 'Bring out your knights and bishops early, and castle to keep your king safe.'
+  },
+  'probability-lab': {
+    steps: ['Read the situation.', 'Think about all the ways it can happen.', 'Make your choice, then run the experiment to see the odds play out.'],
+    tip: 'Favourable outcomes over all outcomes — then check if anything changes after each draw.'
+  },
+  'algorithm-builder': {
+    steps: ['See what the machine must do.', 'Put instruction blocks in order.', 'Run it — fewer blocks earn more stars.'],
+    tip: 'Spot what repeats and put it inside a loop.'
+  },
+  // New 2026-11-12: two logic games and one maths game, so every category has at least five.
+  'picture-logic': {
+    steps: ['Look at the small coloured picture.', 'Pick a crayon on the right.', 'Tap a part of the big picture to colour it.'],
+    tip: 'Use one crayon for all its parts, then pick the next one.'
+  },
+  'tower-shift': {
+    steps: ['Tap a tower to lift its top ring.', 'Tap another tower to drop it — never on a smaller ring.', 'Move all the rings to the right tower.'],
+    tip: 'Move the smallest ring every other turn, always the same way round.'
+  },
+  'number-forge': {
+    steps: ['A target and a few number tiles appear.', 'Tap a tile, a sign, then a tile to join them.', 'Make the target before the bar runs out.'],
+    tip: 'Work backwards: what two numbers make the target?'
+  },
   'speed-sort': {
     steps: ['A board of numbers appears.', 'Tap them from smallest to largest.', 'Clear as many boards as you can.'],
     tip: 'Find the smallest first, then scan for the next.'
@@ -203,6 +263,16 @@ export const GAME_QUOTE = {
   'rounding-rush': { lead: 'Round it,', hot: 'rush', rest: 'it.', line: 'Estimating fast is how you sanity-check any number.', cheer: 'Nearest ten first.' },
   'scale-balance': { lead: 'Balance the', hot: 'scales', rest: 'with reason.', line: 'Weighing both sides is algebra in disguise.', cheer: 'Same on both sides, always.' },
   'seen-before': { lead: 'Have you', hot: 'seen', rest: 'this one?', line: 'Recognition memory is what makes revision stick.', cheer: 'Trust your first instinct.' },
+  'shadow-detective': { lead: 'Every shadow', hot: 'tells', rest: 'a story.', line: 'Spotting shapes is the first step of reading maps, charts and diagrams.', cheer: 'Look at the outline first.' },
+  'treasure-path': { lead: 'Plan the', hot: 'path,', rest: 'find the gold.', line: 'Planning steps ahead is how coders and explorers think.', cheer: 'Count the squares before you go.' },
+  'logic-detective': { lead: 'Only one', hot: 'answer', rest: 'fits every clue.', line: 'Ruling things out is how detectives, doctors and engineers find the truth.', cheer: 'Cross out first, then decide.' },
+  'word-ladder': { lead: 'One', hot: 'letter', rest: 'at a time!', line: 'Small changes, one step at a time, can take you all the way to the top.', cheer: 'Climb to the goal!' },
+  'chess-challenge': { lead: 'Think', hot: 'ahead.', rest: 'Checkmate!', line: 'Planning a few moves ahead is how every big problem gets solved.', cheer: 'Check every capture before you move.' },
+  'probability-lab': { lead: 'Chance is', hot: 'maths,', rest: 'not luck.', line: 'Thinking in probabilities makes every decision a better one.', cheer: 'Count the outcomes, then decide.' },
+  'algorithm-builder': { lead: 'Fewer', hot: 'steps,', rest: 'same result.', line: 'Every app you use is a list of steps someone made efficient.', cheer: 'Find the pattern, then loop it.' },
+  'picture-logic': { lead: 'Pick a crayon,', hot: 'colour', rest: 'it in!', line: 'Careful looking is the first step of every puzzle.', cheer: 'One crayon at a time!' },
+  'tower-shift': { lead: 'Big moves need', hot: 'small', rest: 'steps first.', line: 'Breaking a big job into smaller ones is how every project gets done.', cheer: 'Smallest ring, same direction.' },
+  'number-forge': { lead: 'Forge the', hot: 'number.', rest: 'Any way works.', line: 'Seeing many routes to one answer is what makes maths fast.', cheer: 'Think from the target back.' },
   'speed-sort': { lead: 'Sort it', hot: 'fast,', rest: 'sort it right.', line: "Quick categorising is a thinking skill you'll use daily.", cheer: 'Decide the rule, then fly.' },
   'tic-tac-toe': { lead: 'Three in a', hot: 'row.', rest: 'Outthink it.', line: 'Even a small game teaches you to plan two moves ahead.', cheer: 'Take the centre when you can.' },
   'typing-sprint': { lead: 'Fingers,', hot: 'faster.', rest: 'Fewer typos.', line: 'Typing well is a skill every course and job rewards.', cheer: 'Accuracy first, speed follows.' },

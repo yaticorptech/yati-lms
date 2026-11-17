@@ -1,5 +1,5 @@
 /**
- * The Group Brain adventures (The Final Vault, The Lost Kingdom) run on this engine. Each follows
+ * The Group Brain adventures (The Final Vault) run on this engine. Each follows
  * ./contract.js.
  *
  * Everyone plays the same stages (made once, from the game's rng) against

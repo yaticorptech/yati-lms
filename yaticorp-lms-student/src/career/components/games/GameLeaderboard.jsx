@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Trophy, Star, Layers, Gamepad2, RefreshCw, Crown, ArrowRight, ChevronDown } from 'lucide-react';
+import { Trophy, Star, Layers, Gamepad2, RefreshCw, Crown, ChevronDown, Zap } from 'lucide-react';
 import api from '../../services/api';
 import { GAMES_SYNCED } from './levels';
 import ProfileImage from '../../../components/ProfileImage';
 import useLive from '../../../live/useLive';
+import { roomsApi } from '../../../competitions/api';
 
 /**
  * Who has earned the most stars across the brain games.
+ *
+ * Fair ranking (2026-11-13): ranked on points, not raw stars — each star weighed by the difficulty and practice
+ * stage it was earned at (server gameController.getLeaderboard), so easier levels cannot win — and against the
+ * student's own zone unless "All zones" is picked. Names are first name and last initial only; only the student's
+ * own picture is shown. The student's own rank and change since the last period sit under the board. The Group
+ * games board (Group Brain results, competitions roomsApi.leaderboard) is one switch away in the full shape.
  *
  * Ranked on stars rather than XP on purpose: XP measures real work on the
  * roadmap, and this board must never become a reason to farm a memory game.
@@ -36,6 +43,33 @@ const SCOPES = [
   ['institution', 'My institution'],
   ['class', 'My class']
 ];
+
+const ZONE_OPTIONS = [
+  ['mine', 'My zone'],
+  ['all', 'All zones']
+];
+
+const BOARDS = [
+  ['solo', 'Solo'],
+  ['group', 'Group']
+];
+
+/** First name and last initial, for the group board (the solo board's names come shortened from the server). */
+const shortName = (name = '') => {
+  const w = String(name).trim().split(/\s+/).filter(Boolean);
+  if (!w.length) return 'Player';
+  return w.length > 1 ? `${w[0]} ${w[w.length - 1][0].toUpperCase()}.` : w[0];
+};
+
+/** The group board in the solo board's shape: points from wins (3) and shared firsts (1). */
+const groupBoard = (data, meName) => {
+  const me = data?.me ? { rank: data.me.rank, name: meName || 'You', points: data.me.points, stars: null, cleared: data.me.wins, games: data.me.played, isMe: true } : null;
+  const entries = (data?.players || []).map((p) => ({
+    rank: p.rank, name: shortName(p.name), profilePicture: '', points: p.points, stars: null, cleared: p.wins, games: p.played,
+    isMe: Boolean(me && p.rank === me.rank)
+  }));
+  return { entries, me, total: entries.length, group: true };
+};
 
 const initials = (name = '') =>
   name
@@ -129,16 +163,23 @@ function Row({ entry, dense }) {
         </>
       )}
 
-      <span className="inline-flex items-center gap-1 text-sm font-black text-[#173a63] tabular-nums">
-        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-        {entry.stars}
+      {entry.stars != null && (
+        <span className="hidden items-center gap-1 text-[0.68rem] font-semibold text-ink-400 tabular-nums min-[380px]:inline-flex" title="Stars">
+          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+          {entry.stars}
+        </span>
+      )}
+      <span className="inline-flex items-center gap-1 text-sm font-black text-[#173a63] tabular-nums" title="Points: stars weighed by difficulty">
+        <Zap className="h-3.5 w-3.5 fill-violet-400 text-violet-500" />
+        {entry.points ?? entry.stars}
       </span>
     </li>
   );
 }
 
 /** Why a cohort board is empty, in the student's own terms. */
-const emptyReason = (scope, cohort) => {
+const emptyReason = (scope, cohort, group) => {
+  if (group) return 'No group games ranked yet. Finish a room game to get on the board.';
   if (scope === 'institution' && !cohort?.institution) {
     return 'Add your institution on your profile to see how you rank against people there.';
   }
@@ -331,13 +372,33 @@ function FilterSelect({ label, value, options, onChange, className = '' }) {
   );
 }
 
+/** "▲ 2 places, +40 points since last week": the student's own movement. */
+const SINCE = { daily: 'yesterday', weekly: 'last week', monthly: 'last month' };
+function MyStanding({ me, period }) {
+  if (!me) return null;
+  const imp = me.improvement;
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-xl bg-violet-50 px-2.5 py-1.5 text-[0.68rem] font-bold text-violet-900" data-my-standing>
+      <span>You: {me.rank ? `#${me.rank}` : 'not ranked yet'} · {me.points ?? 0} pts</span>
+      {imp && SINCE[period] && (
+        <span className="text-violet-700">
+          {imp.rankChange > 0 ? `▲ ${imp.rankChange} place${imp.rankChange === 1 ? '' : 's'}, ` : imp.rankChange < 0 ? `▼ ${-imp.rankChange}, ` : ''}
+          {imp.pointsChange >= 0 ? '+' : ''}{imp.pointsChange} pts since {SINCE[period]}
+        </span>
+      )}
+    </p>
+  );
+}
+
 export default function GameLeaderboard({ dense = false, limit }) {
   const shownLimit = limit ?? (dense ? 5 : 10);
   const [period, setPeriod] = useState('weekly');
   const [scope, setScope] = useState('global');
+  const [zone, setZone] = useState('mine');
+  const [kind, setKind] = useState('solo');
   const [tick, setTick] = useState(0);
   const [state, setState] = useState({ key: null, board: null, error: null });
-  const key = `${period}|${scope}`;
+  const key = `${kind}|${period}|${scope}|${zone}`;
   // The compact panel's scroller: whether it overflows, and whether it is at the end.
   const listRef = useRef(null);
   const [list, setList] = useState({ overflowing: false, atEnd: false });
@@ -368,8 +429,11 @@ export default function GameLeaderboard({ dense = false, limit }) {
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .get('/games/leaderboard', { params: { period, scope } })
+    const load = kind === 'group'
+      // The Group Brain board has 'all' and 'week' only.
+      ? roomsApi.leaderboard({ type: 'points', period: period === 'all' ? 'all' : 'week' }).then((data) => ({ data: groupBoard(data) }))
+      : api.get('/games/leaderboard', { params: { period, scope, zone } });
+    load
       .then(({ data }) => !cancelled && setState({ key, board: data, error: null }))
       .catch((e) =>
         !cancelled &&
@@ -378,7 +442,7 @@ export default function GameLeaderboard({ dense = false, limit }) {
     return () => {
       cancelled = true;
     };
-  }, [period, scope, key, tick]);
+  }, [period, scope, zone, kind, key, tick]);
 
   const board = state.key === key ? state.board : null;
   const error = state.key === key ? state.error : null;
@@ -393,7 +457,7 @@ export default function GameLeaderboard({ dense = false, limit }) {
   const half = Math.ceil(shown.length / 2);
 
   const filters = (
-    <div className={`flex items-center gap-2 ${dense ? 'mt-3' : 'ml-auto'}`}>
+    <div className={`flex flex-wrap items-center gap-2 ${dense ? 'mt-3' : ''}`}>
       <FilterSelect
         label="Period"
         value={period}
@@ -401,13 +465,24 @@ export default function GameLeaderboard({ dense = false, limit }) {
         onChange={setPeriod}
         className={dense ? 'min-w-0 flex-1' : ''}
       />
-      <FilterSelect
-        label="Scope"
-        value={scope}
-        options={SCOPES}
-        onChange={setScope}
-        className={dense ? 'min-w-0 flex-1' : ''}
-      />
+      {kind === 'solo' && (
+        <>
+          <FilterSelect
+            label="Scope"
+            value={scope}
+            options={SCOPES}
+            onChange={setScope}
+            className={dense ? 'min-w-0 flex-1' : ''}
+          />
+          <FilterSelect
+            label="Zone"
+            value={zone}
+            options={ZONE_OPTIONS}
+            onChange={setZone}
+            className={dense ? 'min-w-0 flex-1' : ''}
+          />
+        </>
+      )}
     </div>
   );
 
@@ -442,7 +517,7 @@ export default function GameLeaderboard({ dense = false, limit }) {
 
       {board && shown.length === 0 && (
         <p className="px-2 py-5 text-center text-xs leading-relaxed font-semibold text-ink-500">
-          {emptyReason(scope, board.cohort)}
+          {emptyReason(scope, board.cohort, board.group)}
         </p>
       )}
 
@@ -453,13 +528,13 @@ export default function GameLeaderboard({ dense = false, limit }) {
           <div className={split ? 'grid gap-x-6 gap-y-0.5 lg:grid-cols-2' : ''}>
             <ol className="space-y-0.5">
               {(split ? shown.slice(0, half) : shown).map((entry) => (
-                <Row key={String(entry.userId)} entry={entry} dense={dense} />
+                <Row key={`${entry.rank}-${entry.name}`} entry={entry} dense={dense} />
               ))}
             </ol>
             {split && (
               <ol className="space-y-0.5">
                 {shown.slice(half).map((entry) => (
-                  <Row key={String(entry.userId)} entry={entry} dense={dense} />
+                  <Row key={`${entry.rank}-${entry.name}`} entry={entry} dense={dense} />
                 ))}
               </ol>
             )}
@@ -478,6 +553,8 @@ export default function GameLeaderboard({ dense = false, limit }) {
           {!dense && footer}
         </>
       )}
+
+      {board && !board.group && <MyStanding me={board.me} period={period} />}
     </>
   );
 
@@ -546,9 +623,19 @@ export default function GameLeaderboard({ dense = false, limit }) {
         </span>
         <h2 className="text-xs font-black text-ink-900">Leaderboard</h2>
         <span className="hidden text-[0.68rem] font-semibold text-ink-400 sm:inline">
-          Stars earned across every game
+          {kind === 'group' ? 'Group games: 3 points a win' : 'Stars weighed by difficulty, ranked in your zone'}
         </span>
-        {filters}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div role="tablist" aria-label="Board" className="inline-flex rounded-xl bg-surface-100 p-0.5">
+            {BOARDS.map(([v, label]) => (
+              <button key={v} type="button" role="tab" aria-selected={kind === v} onClick={() => setKind(v)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-black ${kind === v ? 'bg-white text-violet-700 shadow-sm' : 'text-ink-500'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {filters}
+        </div>
       </div>
       <div className="p-2.5">{body}</div>
     </section>

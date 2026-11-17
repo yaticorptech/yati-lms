@@ -14,9 +14,13 @@
 const { GameError } = require('./contract');
 const { makeStageEngine } = require('./stageCore');
 const { vaultStages, checkAnswer, upgradeLock } = require('./banks/vault');
+const { zoneOf } = require('./zones');
 
 const SECONDS = { easy: 480, medium: 480, hard: 480 };   // 8 minutes at every level (asked 2026-10-28)
 const PENALTY = { easy: 15, medium: 20, hard: 30 };   // seconds a wrong answer adds
+// By the room's age zone (./zones.js, 2026-11-13): Young Thinkers' treasure hunt 10 minutes and a light penalty;
+// Master Minds' escape room 7 minutes and a heavy one. The chambers themselves: banks/vault.js.
+const ZONE = { young: { seconds: 600, penalty: 10 }, smart: { seconds: 480, penalty: 20 }, master: { seconds: 420, penalty: 30 } };
 const JAM_MS = 2500;                                  // how long a wrong answer jams the mechanism
 
 const effectiveMs = (s, p) => (p.doneMs ?? s.runMs) + p.penaltyMs;
@@ -26,7 +30,10 @@ module.exports = makeStageEngine({
     label: 'The Final Vault',
     emoji: '🏛️',
     summary: 'Five temple chambers, the same puzzles for everyone: open the treasure vault first.',
-    setup: (o, rng) => ({ stages: vaultStages(rng, o.difficulty), seconds: SECONDS[o.difficulty], penalty: PENALTY[o.difficulty] }),
+    setup: (o, rng) => {
+        const zone = zoneOf(o);
+        return { stages: vaultStages(rng, o.difficulty, zone), seconds: zone ? ZONE[zone].seconds : SECONDS[o.difficulty], penalty: zone ? ZONE[zone].penalty : PENALTY[o.difficulty], ...(zone ? { zone } : {}) };
+    },
     start: () => ({ stage: 0, penaltyMs: 0, jamUntil: 0 }),
     actions: {
         solve: (s, seat, action, ctx) => {

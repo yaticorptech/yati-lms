@@ -39,7 +39,7 @@ describe('Group Brain rooms', () => {
     test('the ten games are offered', async () => {
         const r = await p[0].call('GET', '/rooms/games');
         // The eleven, then the solo quiz games added 2026-10-29.
-        assert.deepEqual(r.body.games.map((g) => g.id), ['chess', 'memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'finalvault', 'lostkingdom', ...require('../../src/competitions/games/soloquiz').SOLO_QUIZ, ...require('../../src/competitions/games/race').RACE, ...require('../../src/competitions/games/turns').TURNS]);
+        assert.deepEqual(r.body.games.map((g) => g.id), ['chess', 'memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'finalvault', ...require('../../src/competitions/games/soloquiz').SOLO_QUIZ, ...require('../../src/competitions/games/race').RACE, ...require('../../src/competitions/games/turns').TURNS, ...require('../../src/competitions/games/catalogquiz').CATALOG_QUIZ].filter((id) => !require('../../src/competitions/games').RETIRED.includes(id)));
         const chess = r.body.games.find((g) => g.id === 'chess');
         assert.deepEqual([chess.minSeats, chess.maxSeats], [2, 2]);
         // Every game for 2 to 6, but the ones for two (Chess, Tic-Tac-Toe, Last Stone).
@@ -52,7 +52,8 @@ describe('Group Brain rooms', () => {
         assert.match(room.code, /^[A-Z0-9]{6}$/);
         assert.equal(room.status, 'waiting');
         assert.equal(room.host, true);
-        assert.equal(room.options.difficulty, 'easy');
+        // Memory Matrix is played in Master Minds only (games/zones.js, 2026-11-14): the zone sets the difficulty.
+        assert.equal(room.options.difficulty, 'hard');
 
         // Not in it: no look inside without the code.
         assert.equal((await p[1].call('GET', `/play/${room.id}`)).status, 403);
@@ -139,10 +140,10 @@ describe('Group Brain rooms', () => {
         assert.equal(six.maxSeats, 6);
         for (const x of p.slice(1)) assert.equal((await x.call('POST', '/rooms/join', { code: six.code })).status, 200, 'a 5th player fits in a room for 6');
         for (const x of p) await x.call('POST', `/play/${six.id}/leave`);
-        const ten = (await p[0].call('POST', '/rooms', { game: 'synonymmatch', options: { players: 10 } })).body.game;
+        const ten = (await p[0].call('POST', '/rooms', { game: 'mathsprint', options: { players: 10 } })).body.game;
         assert.equal(ten.maxSeats, 10, 'a room for 10');
         await p[0].call('POST', `/play/${ten.id}/leave`);
-        assert.equal((await p[0].call('POST', '/rooms', { game: 'synonymmatch', options: { players: 24 } })).status, 400, '24 is too many');
+        assert.equal((await p[0].call('POST', '/rooms', { game: 'mathsprint', options: { players: 24 } })).status, 400, '24 is too many');
     });
 
     test('leaving a game on: the rest play on, and the last one still in wins', async () => {
@@ -201,8 +202,9 @@ describe('Group Brain rooms', () => {
         await leaveAll(room.id);
     });
 
+    // Every game played in some age zone (games/zones.js GROUP_ZONES); the others are not open for group play.
     test('every game starts with its players and shows each of them the same round', async () => {
-        const ids = (await p[0].call('GET', '/rooms/games')).body.games.map((g) => g.id).filter((id) => id !== 'chess' && !require('../../src/competitions/games/turns').TURNS.includes(id));
+        const ids = (await p[0].call('GET', '/rooms/games')).body.games.filter((g) => g.zones.length).map((g) => g.id).filter((id) => id !== 'chess' && !require('../../src/competitions/games/turns').TURNS.includes(id));
         for (const id of ids) {
             const room = await make(p[0], id, 'easy');
             for (const x of [p[1], p[2]]) { await x.call('POST', '/rooms/join', { code: room.code }); await x.call('POST', `/play/${room.id}/ready`, {}); }

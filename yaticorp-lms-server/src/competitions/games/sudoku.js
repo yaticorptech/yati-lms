@@ -17,9 +17,13 @@
  */
 const { GameError, clone } = require('./contract');
 const { PALETTE, LEVELS } = require('./quizCore');
+const { zoneOf } = require('./zones');
 
 const CLUES = { easy: 40, medium: 32, hard: 27 };
 const MINUTES = { easy: 15, medium: 20, hard: 25 };
+// By the room's age zone (./zones.js, 2026-11-13): Rising Brains an easier 9×9 (36 numbers given), Master Minds a
+// hard one (26). (The board is always 9×9: the screen draws no other.) A room made before zones goes by its difficulty.
+const ZONE = { young: { clues: 42, minutes: 15 }, smart: { clues: 36, minutes: 20 }, master: { clues: 26, minutes: 25 } };
 const MAX_MISTAKES = 5;
 const HINTS = 3;
 const BONUS = [200, 150, 100, 50];
@@ -152,10 +156,12 @@ const engine = {
     create(seats, options, ctx) {
         if (!Array.isArray(seats) || seats.length < 2 || seats.length > engine.maxSeats) throw new GameError(`Sudoku Challenge needs 2 to ${engine.maxSeats} players.`);
         const level = LEVELS.includes(options?.difficulty) ? options.difficulty : 'medium';
-        const { puzzle, solution } = makePuzzle(ctx.rng, CLUES[level]);
+        const zone = zoneOf(options);
+        const { puzzle, solution } = makePuzzle(ctx.rng, zone ? ZONE[zone].clues : CLUES[level]);
         return {
             game: 'sudoku',
             difficulty: level,
+            ...(zone ? { zone } : {}),
             status: 'active',
             seats: seats.map((x) => ({ name: x.name || 'Player', side: x.side })),
             puzzle,
@@ -167,7 +173,7 @@ const engine = {
             finishedAt: seats.map(() => null),
             out: [],
             startedAt: ctx.now,
-            endsAt: ctx.now + MINUTES[level] * 60000,
+            endsAt: ctx.now + (zone ? ZONE[zone].minutes : MINUTES[level]) * 60000,
             result: null,
             message: 'Go! Fill the grid: every row, column and 3×3 box holds 1 to 9 once.',
             finishedAtGame: null

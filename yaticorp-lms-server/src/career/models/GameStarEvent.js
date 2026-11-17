@@ -21,5 +21,7 @@ const gameStarEventSchema = new mongoose.Schema(
 );
 
 gameStarEventSchema.index({ createdAt: 1, userId: 1 });
+// One student's history, newest or oldest first (the performance page, 2026-11-14).
+gameStarEventSchema.index({ userId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('CareerGameStarEvent', gameStarEventSchema, 'career_game_star_events');

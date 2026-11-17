@@ -125,7 +125,7 @@ function Round({ progress, onExit }) {
             {q.toBinary ? 'Write in binary' : 'Read as decimal'}
           </p>
           <p
-            className={`mt-2 rounded-2xl px-4 py-5 text-center font-mono text-4xl font-black tracking-[0.2em] tabular-nums ring-1 ring-inset ${
+            className={`mt-2 rounded-2xl px-3 py-5 text-center font-mono text-3xl font-black tracking-[0.15em] break-all tabular-nums sm:px-4 sm:text-4xl sm:tracking-[0.2em] ring-1 ring-inset ${
               flash === 'right'
                 ? 'bg-emerald-50 text-emerald-800 ring-emerald-300'
                 : flash === 'wrong'
@@ -142,7 +142,7 @@ function Round({ progress, onExit }) {
                 type="button"
                 onClick={() => choose(option)}
                 disabled={busy}
-                className={`fp-press min-h-14 rounded-2xl bg-surface font-mono text-xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset ${busy ? '' : 'hover:bg-emerald-50 hover:ring-emerald-300'} ${toneOf(option)}`}
+                className={`fp-press min-h-14 min-w-0 rounded-2xl bg-surface px-1 font-mono text-lg break-all sm:text-xl font-black text-ink-900 ring-1 ring-line-200 transition-all ring-inset ${busy ? '' : 'hover:bg-emerald-50 hover:ring-emerald-300'} ${toneOf(option)}`}
               >
                 {option}
               </button>
