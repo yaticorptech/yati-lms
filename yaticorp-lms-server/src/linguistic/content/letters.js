@@ -61,18 +61,53 @@ const indic = (code) => {
     if (code === 'ta') vowels.push(L('ஃ', 'akh (aytham)'));
     else for (const [off, say] of [[0x02, 'am'], [0x03, 'ah']]) if (real(at(s.base, off))) vowels.push(L(at(s.base, 0x05) + at(s.base, off), say));
     const consonants = consonantOrder(code).filter((o) => !s.skip.includes(o)).map((o) => [at(s.base, o), CONSONANT_SAY[o]]).filter(([c]) => real(c)).map(([c, say]) => L(c, say));
-    const ka = at(s.base, 0x15);
     const signOffs = Object.keys(SIGN_SAY).map(Number).filter((o) => s.dravidian || ![0x46, 0x4a].includes(o));
-    const signs = signOffs.map((o) => [at(s.base, o), signSay(o)]).filter(([c]) => real(c)).map(([c, say]) => L(ka + c, `k${say}`));
     const anusvara = at(s.base, 0x02);
-    if (real(anusvara)) signs.push(L(ka + anusvara, 'kam'));
+    // A consonant with every vowel sign — ಕಾ kaa, ಕಿ ki … ಕಂ kam (was ka's alone, "Vowel signs").
+    const family = (o) => {
+        const c = at(s.base, o), stem = CONSONANT_SAY[o].replace(/a$/, '');
+        const out = signOffs.map((x) => [at(s.base, x), signSay(x)]).filter(([sg]) => real(sg)).map(([sg, say]) => L(c + sg, stem + say));
+        if (real(anusvara)) out.push(L(c + anusvara, `${stem}am`));
+        return out;
+    };
+    const offs = consonantOrder(code).filter((o) => !s.skip.includes(o) && real(at(s.base, o)));
     const half = Math.ceil(consonants.length / 2);
     return [
         { id: 'vowels', title: 'Vowels', letters: vowels },
         { id: 'consonants-1', title: 'Consonants 1', letters: consonants.slice(0, half) },
         { id: 'consonants-2', title: 'Consonants 2', letters: consonants.slice(half) },
-        { id: 'signs', title: 'Vowel signs', letters: signs }
+        // Two consonants a lesson, each with every vowel sign, and each sign's twin in the other (ಕಾ ↔ ಖಾ) for the
+        // mixed quiz (alphabet.js). The first keeps the old lesson's place (id 'signs'); the others come after it.
+        ...familyPairs(offs).slice(0, FAMILY_LESSONS).map((pair, i) => {
+            const rows = pair.map(family);
+            const letters = rows.flatMap((row, r) => row.map((l, k) => (pair.length > 1 ? { ...l, twin: rows[1 - r][k].char } : l)));
+            return { id: i === 0 ? 'signs' : `signs-${i + 1}`, title: `${pair.map((o) => at(s.base, o)).join(' ')} with vowel signs`, twins: pair.length > 1, letters };
+        }),
+        // The joined letters (2026-11-14), Kannada and Hindi.
+        ...(JOINED[code] || [])
     ];
+};
+
+/*
+ * The consonants with their vowel signs, two a lesson (2026-11-13, the user: "add the kha letter also, the same as the
+ * first image [ಕಾ — ಕಾಗೆ…], then ask mixed questions on ka and kha … make it two by two: ga and gha … till la; don't
+ * use nga and nya, they are difficult"): each with its breathy twin — ಕ ಖ, ಗ ಘ, ಚ ಛ, ಜ ಝ, ಟ ಠ, ಡ ಢ, ತ ಥ, ದ ಧ, ಪ ಫ,
+ * ಬ ಭ — and the ones with none two by two in their order: ಣ ನ, ಮ ಯ, ರ ಲ. Up to la; nga and nya left out.
+ */
+const BREATHY = [0x16, 0x18, 0x1b, 0x1d, 0x20, 0x22, 0x25, 0x27, 0x2b, 0x2d];
+// Only the first, ಕ ಖ (2026-11-14, the user: "delete from ga, gha to the last in that unit, remove all of that"). The
+// pairs after it (ಗ ಘ … ರ ಲ) and their words (letterWords/families.js) are kept here, unused: a bigger number brings
+// them back. Their lessons already in the database are left out of the path (alphabet.js `inUse`).
+const FAMILY_LESSONS = 1;
+const familyPairs = (offs) => {
+    const upto = offs.indexOf(0x32);
+    const list = (upto < 0 ? offs : offs.slice(0, upto + 1)).filter((o) => o !== 0x19 && o !== 0x1e);
+    const pairs = [], singles = [];
+    for (let i = 0; i < list.length; i++) {
+        if (BREATHY.includes(list[i + 1]) && list[i + 1] === list[i] + 1 && !BREATHY.includes(list[i])) { pairs.push([list[i], list[i + 1]]); i++; } else singles.push(list[i]);
+    }
+    for (let i = 0; i < singles.length; i += 2) pairs.push(singles.slice(i, i + 2));
+    return pairs.sort((a, b) => list.indexOf(a[0]) - list.indexOf(b[0]));
 };
 
 /**
@@ -115,6 +150,84 @@ const ENGLISH = [
 // it is given the small letter, "a", said once by its name (L, `once`).
 // Each word in a short sentence too (2026-10-31: "in the quiz, not one word — one sentence using that letter's word").
 ].map(([c, say, word, pic, sentence]) => ({ ...L(c, say, `${c} is for ${word}.`), word, pic, sentence }));
+
+/*
+ * More Letters lessons (2026-11-14, the user: "keep 6 lessons in each unit … add more lessons if there are fewer";
+ * chose new lessons for the Letters unit too): Kannada and Hindi, the joined letters — a letter doubled (ಕ್ಕ in ಅಕ್ಕ)
+ * and two letters joined (ಕ್ರ in ಕ್ರಿಕೆಟ್, ಸ್ತ in ಪುಸ್ತಕ); English, letter pairs (sh ch th), vowel teams (ee oo ai) and
+ * blends (bl cr st). Each with a word that has it — starting with it, or with it inside (coloured on its card) — its
+ * picture and a sentence. `place`: the lesson's number in its unit (seedKey "kn:letters-beginner-17"), after every
+ * lesson there was, and never one used before (5–16 were ಗ ಘ … ರ ಲ, taken out 2026-11-14).
+ * Written here, with no outside service: a native speaker should check them.
+ */
+const W = (char, say, word, wordSay, pic, sentence, sentenceSay, sentenceEn, inside) => ({
+    ...L(char.normalize('NFC'), say), word: word.normalize('NFC'), wordSay, pic, sentence: sentence.normalize('NFC'), sentenceSay, sentenceEn, ...(inside ? { inside: inside.normalize('NFC') } : {})
+});
+const JOINED = {
+    kn: [
+        { id: 'joined-1', place: 17, wordsOnly: true, title: 'Joined letters 1: ಕ್ಕ ತ್ತ ಪ್ಪ', letters: [
+            W('ಕ್ಕ', 'kka', 'ಅಕ್ಕ', 'akka', '👧', 'ನನ್ನ ಅಕ್ಕ ಕಾಲೇಜಿಗೆ ಹೋಗುತ್ತಾಳೆ.', 'nanna akka kālējige hōguttāḷe', 'My elder sister goes to college.', 'ಕ್ಕ'),
+            W('ತ್ತ', 'tta', 'ಕತ್ತೆ', 'katte', '🐴', 'ಕತ್ತೆ ಭಾರ ಹೊರುತ್ತದೆ.', 'katte bhāra horuttade', 'The donkey carries loads.', 'ತ್ತ'),
+            W('ಪ್ಪ', 'ppa', 'ಅಪ್ಪ', 'appa', '👨', 'ಅಪ್ಪ ಕೆಲಸಕ್ಕೆ ಹೋದರು.', 'appa kelasakke hōdaru', 'Father went to work.', 'ಪ್ಪ'),
+            W('ಲ್ಲ', 'lla', 'ಹಲ್ಲು', 'hallu', '🦷', 'ನಾನು ಹಲ್ಲು ಉಜ್ಜುತ್ತೇನೆ.', 'nānu hallu ujjuttēne', 'I brush my teeth.', 'ಲ್ಲ'),
+            W('ಮ್ಮ', 'mma', 'ತಮ್ಮ', 'tamma', '👦', 'ನನ್ನ ತಮ್ಮ ಶಾಲೆಗೆ ಹೋಗುತ್ತಾನೆ.', 'nanna tamma śālege hōguttāne', 'My younger brother goes to school.', 'ಮ್ಮ'),
+            W('ಟ್ಟ', 'ṭṭa', 'ಬೆಟ್ಟ', 'beṭṭa', '⛰️', 'ಬೆಟ್ಟದ ಮೇಲೆ ದೇವಸ್ಥಾನ ಇದೆ.', 'beṭṭada mēle dēvasthāna ide', 'There is a temple on the hill.', 'ಟ್ಟ'),
+            W('ಡ್ಡ', 'ḍḍa', 'ಲಡ್ಡು', 'laḍḍu', '🍬', 'ಹಬ್ಬದಲ್ಲಿ ಲಡ್ಡು ಮಾಡುತ್ತಾರೆ.', 'habbadalli laḍḍu māḍuttāre', 'They make laddus at festivals.', 'ಡ್ಡ'),
+            W('ನ್ನ', 'nna', 'ಅನ್ನ', 'anna', '🍚', 'ಬಿಸಿ ಅನ್ನ ರುಚಿ.', 'bisi anna ruci', 'Hot rice is tasty.', 'ನ್ನ')
+        ] },
+        { id: 'joined-2', place: 18, wordsOnly: true, title: 'Joined letters 2: ಕ್ರ ಪ್ರ ತ್ರ', letters: [
+            W('ಕ್ರ', 'kra', 'ಕ್ರಿಕೆಟ್', 'krikeṭ', '🏏', 'ಮಕ್ಕಳು ಕ್ರಿಕೆಟ್ ಆಡುತ್ತಾರೆ.', 'makkaḷu krikeṭ āḍuttāre', 'The children play cricket.'),
+            W('ಪ್ರ', 'pra', 'ಪ್ರಾಣಿ', 'prāṇi', '🐾', 'ಆನೆ ದೊಡ್ಡ ಪ್ರಾಣಿ.', 'āne doḍḍa prāṇi', 'The elephant is a big animal.'),
+            W('ತ್ರ', 'tra', 'ಚಿತ್ರ', 'citra', '🖼️', 'ಅವನು ಸುಂದರ ಚಿತ್ರ ಬಿಡಿಸಿದನು.', 'avanu sundara citra biḍisidanu', 'He drew a beautiful picture.', 'ತ್ರ'),
+            W('ಸ್ತ', 'sta', 'ಪುಸ್ತಕ', 'pustaka', '📚', 'ಇದು ನನ್ನ ಪುಸ್ತಕ.', 'idu nanna pustaka', 'This is my book.', 'ಸ್ತ'),
+            W('ಷ್ಟ', 'ṣṭa', 'ಕಷ್ಟ', 'kaṣṭa', '😓', 'ಈ ಲೆಕ್ಕ ಕಷ್ಟ.', 'ī lekka kaṣṭa', 'This sum is difficult.', 'ಷ್ಟ'),
+            W('ಕ್ಷ', 'kṣa', 'ಪಕ್ಷಿ', 'pakṣi', '🐦', 'ಪಕ್ಷಿ ಆಕಾಶದಲ್ಲಿ ಹಾರುತ್ತದೆ.', 'pakṣi ākāśadalli hāruttade', 'The bird flies in the sky.', 'ಕ್ಷ'),
+            W('ಗ್ರ', 'gra', 'ಗ್ರಾಮ', 'grāma', '🏘️', 'ನಮ್ಮ ಗ್ರಾಮ ಸುಂದರವಾಗಿದೆ.', 'namma grāma sundaravāgide', 'Our village is beautiful.'),
+            W('ದ್ಯ', 'dya', 'ವಿದ್ಯಾರ್ಥಿ', 'vidyārthi', '🧑‍🎓', 'ಅವನು ಒಳ್ಳೆಯ ವಿದ್ಯಾರ್ಥಿ.', 'avanu oḷḷeya vidyārthi', 'He is a good student.', 'ದ್ಯ')
+        ] }
+    ],
+    hi: [
+        { id: 'joined-1', place: 17, wordsOnly: true, title: 'Joined letters 1: क्क त्त च्च', letters: [
+            W('क्क', 'kka', 'चक्का', 'cakkā', '🎡', 'साइकिल का चक्का घूमता है।', 'sāikil kā cakkā ghūmtā hai', 'The bicycle wheel turns.', 'क्क'),
+            W('त्त', 'tta', 'पत्ता', 'pattā', '🍃', 'पेड़ से पत्ता गिरा।', 'peṛ se pattā girā', 'A leaf fell from the tree.', 'त्त'),
+            W('च्च', 'cca', 'बच्चा', 'baccā', '👶', 'बच्चा सो रहा है।', 'baccā so rahā hai', 'The baby is sleeping.', 'च्च'),
+            W('ल्ल', 'lla', 'बिल्ली', 'billī', '🐈', 'बिल्ली छत पर बैठी है।', 'billī chat par baiṭhī hai', 'The cat is sitting on the roof.', 'ल्ल'),
+            W('म्म', 'mma', 'चम्मच', 'cammac', '🥄', 'चम्मच से खाना खाओ।', 'cammac se khānā khāo', 'Eat with a spoon.', 'म्म'),
+            W('ट्ट', 'ṭṭa', 'मिट्टी', 'miṭṭī', '🌱', 'खेत की मिट्टी उपजाऊ है।', 'khet kī miṭṭī upjāū hai', 'The soil of the field is fertile.', 'ट्ट'),
+            W('ड्ड', 'ḍḍa', 'लड्डू', 'laḍḍū', '🍬', 'मुझे लड्डू पसंद हैं।', 'mujhe laḍḍū pasand haĩ', 'I like laddus.', 'ड्ड'),
+            W('न्न', 'nna', 'गन्ना', 'gannā', '🎋', 'गन्ना मीठा होता है।', 'gannā mīṭhā hotā hai', 'Sugarcane is sweet.', 'न्न')
+        ] },
+        { id: 'joined-2', place: 18, wordsOnly: true, title: 'Joined letters 2: क्ष त्र ज्ञ', letters: [
+            W('क्ष', 'kṣa', 'कक्षा', 'kakṣā', '🏫', 'मैं कक्षा में पढ़ता हूँ।', 'maĩ kakṣā mẽ paṛhtā hū̃', 'I study in class.', 'क्ष'),
+            W('त्र', 'tra', 'पत्र', 'patra', '✉️', 'मैंने एक पत्र लिखा।', 'maĩne ek patra likhā', 'I wrote a letter.', 'त्र'),
+            W('ज्ञ', 'gya (jña)', 'विज्ञान', 'vijñān', '🔬', 'विज्ञान रोचक विषय है।', 'vijñān rocak viṣay hai', 'Science is an interesting subject.', 'ज्ञ'),
+            W('श्र', 'shra', 'श्रमिक', 'śramik', '👷', 'श्रमिक मेहनत करता है।', 'śramik mehnat kartā hai', 'The worker works hard.'),
+            W('द्ध', 'ddha', 'बुद्ध', 'buddh', '🧘', 'भगवान बुद्ध शांति के प्रतीक हैं।', 'bhagvān buddh śānti ke pratīk haĩ', 'Lord Buddha is a symbol of peace.', 'द्ध'),
+            W('प्र', 'pra', 'प्रकाश', 'prakāś', '💡', 'सूरज से प्रकाश मिलता है।', 'sūraj se prakāś miltā hai', 'We get light from the sun.'),
+            W('क्र', 'kra', 'क्रिकेट', 'krikeṭ', '🏏', 'बच्चे क्रिकेट खेलते हैं।', 'bacce krikeṭ khelte haĩ', 'The children play cricket.'),
+            W('स्त', 'sta', 'नमस्ते', 'namaste', '🙏', 'सबको नमस्ते कहो।', 'sabko namaste kaho', 'Say namaste to everyone.', 'स्त')
+        ] }
+    ]
+};
+const E = (char, say, word, pic, sentence, inside) => ({ ...L(char, say, `${char} is for ${word}.`), word, pic, sentence, ...(inside ? { inside } : {}) });
+const ENGLISH_MORE = [
+    { id: 'pairs', place: 17, title: 'Letter pairs: sh ch th', letters: [
+        E('sh', 'sh', 'ship', '🚢', 'A big ship carries goods.'), E('ch', 'ch', 'chair', '🪑', 'Please sit on the chair.'),
+        E('th', 'th', 'three', '3️⃣', 'I have three pencils.'), E('wh', 'w (wh)', 'whale', '🐋', 'The whale lives in the sea.'),
+        E('ph', 'f (ph)', 'phone', '📱', 'My phone is ringing.'), E('qu', 'kw (qu)', 'quilt', '🛏️', 'Grandma made a warm quilt.')
+    ] },
+    { id: 'vowel-teams', place: 18, wordsOnly: true, title: 'Vowel teams: ee oo ai', letters: [
+        E('ee', 'ee (long e)', 'bee', '🐝', 'The bee makes honey.', 'ee'), E('oo', 'oo', 'spoon', '🥄', 'Eat with a spoon.', 'oo'),
+        E('ai', 'ai (long a)', 'snail', '🐌', 'The snail moves slowly.', 'ai'), E('oa', 'oa (long o)', 'goat', '🐐', 'The goat eats grass.', 'oa'),
+        E('ay', 'ay (long a, at the end)', 'tray', '🍽️', 'She carries tea on a tray.', 'ay'), E('ou', 'ow (ou)', 'mouth', '👄', 'Open your mouth.', 'ou')
+    ] },
+    { id: 'blends', place: 19, title: 'Blends: bl cr st', letters: [
+        E('bl', 'bl', 'block', '🧱', 'The child builds with a block.'), E('cr', 'cr', 'crab', '🦀', 'The crab walks sideways.'),
+        E('st', 'st', 'star', '⭐', 'A star shines at night.'), E('tr', 'tr', 'truck', '🚚', 'The truck is very long.'),
+        E('fl', 'fl', 'flag', '🚩', 'The flag is on the pole.'), E('gr', 'gr', 'green', '🟩', 'Leaves are green.')
+    ] }
+];
+
 const thirds = (list, titles) => { const n = Math.ceil(list.length / titles.length); return titles.map(([id, title], i) => ({ id, title, letters: list.slice(i * n, (i + 1) * n) })); };
 
 const LATIN = {
@@ -274,6 +387,8 @@ Object.assign(WORDS, require('./letterWords/south'), require('./letterWords/nort
 // And the letters that had none (2026-11-04, "give the word for that letter", all languages): a word that starts with
 // it, or one with it inside (its 8th field, the part to colour). A letter's own word, where it had one, stays.
 for (const [code, words] of Object.entries(require('./letterWords/more'))) WORDS[code] = { ...words, ...WORDS[code] };
+// And the consonants with their vowel signs, two a lesson (2026-11-13): ಖಾ ಖಾರ, ಗಾ ಗಾಳಿಪಟ… (Kannada and Hindi).
+for (const [code, words] of Object.entries(require('./letterWords/families'))) WORDS[code] = { ...words, ...WORDS[code] };
 
 /** A course's letters, each with its word where it has one (`WORDS`). An empty sound is left out. */
 const withWords = (code, groups) => (WORDS[code] ? groups.map((g) => ({ ...g, letters: g.letters.map((l) => {
@@ -286,7 +401,8 @@ const groupsOfScript = (code) => {
     if (SCRIPTS[code]) return indic(code);
     if (LATIN[code]) return latin(code);
     switch (code) {
-        case 'en': return thirds(ENGLISH, [['letters-1', 'Letters A–I'], ['letters-2', 'Letters J–R'], ['letters-3', 'Letters S–Z']]);
+        // And letter pairs, vowel teams and blends (2026-11-14).
+        case 'en': return [...thirds(ENGLISH, [['letters-1', 'Letters A–I'], ['letters-2', 'Letters J–R'], ['letters-3', 'Letters S–Z']]), ...ENGLISH_MORE];
         case 'ru': return thirds(RUSSIAN, [['letters-1', 'Letters А–К'], ['letters-2', 'Letters Л–Х'], ['letters-3', 'Letters Ц–Я']]);
         case 'ar': return thirds(ARABIC, [['letters-1', 'Letters ا–ذ'], ['letters-2', 'Letters ر–غ'], ['letters-3', 'Letters ف–ي']]);
         case 'ur': return thirds(URDU, [['letters-1', 'Letters ا–ذ'], ['letters-2', 'Letters ر–ق'], ['letters-3', 'Letters ک–ے']]);

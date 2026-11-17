@@ -89,6 +89,44 @@ const TOPICS = [
         phrases: ['If I could change one thing, …', 'It would work like this: …', 'This would help because …', 'Some people may say …, but …'],
         sample: 'If I could change one thing in my city, I would put solar panels on every government building. It would work like this: the panels would be paid for by the city, and the electricity would be used in offices, schools and hospitals. This would help in two ways. Firstly, renewable energy from the sun would cut the emissions from power plants, so the air would be cleaner. Secondly, the money that is saved could be used to build rainwater tanks, which would help us during a drought. I would also ask every office to recycle its paper and plastic. Some people may say that solar panels are too expensive, but they pay for themselves in a few years. So I believe this one change would make a real difference.',
         kn: { prompt: 'ನಿಮ್ಮ ನಗರವನ್ನು ಹೆಚ್ಚು ಹಸಿರಾಗಿಸಲು ನೀವು ಒಂದು ಬದಲಾವಣೆ ಮಾಡಬಹುದಾದರೆ, ಅದು ಏನಾಗಿರುತ್ತದೆ? ಅದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ ಮತ್ತು ಏಕೆ ಸಹಾಯವಾಗುತ್ತದೆ ಎಂದು ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ವಿವರಿಸಿ.', points: ['ನಿಮ್ಮ ಬದಲಾವಣೆ ಏನು ಎಂದು ಸ್ಪಷ್ಟವಾಗಿ ಹೇಳಿ.', 'ಅದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ ಎಂದು ಹಂತ ಹಂತವಾಗಿ ವಿವರಿಸಿ.', 'ಅದು ಜನರಿಗೆ ಅಥವಾ ಪ್ರಕೃತಿಗೆ ಸಹಾಯ ಮಾಡುವ ಎರಡು ರೀತಿಗಳನ್ನು ಹೇಳಿ.', 'ಅದು ಎದುರಿಸಬಹುದಾದ ಒಂದು ಸಮಸ್ಯೆಗೆ ಉತ್ತರಿಸಿ, ನಂತರ ಮುಕ್ತಾಯಗೊಳಿಸಿ.'] }
+    },
+    // Four more (2026-11-14, the user: "keep 6 lessons in each unit"; Section 2's Speaking in units of six): after the
+    // topics' talks (orders 5 and 6), so its second unit has six. New topics, none the same as a talk before.
+    {
+        order: 5, part: 1, title: 'Talk: technology and study',
+        prompt: 'How has technology changed the way you study? Talk about one tool you use, how it helps you, and one problem it causes.',
+        points: ['Name the tool and say how often you use it.', 'Explain how it helps you study.', 'Describe one problem it causes.', 'End with how you deal with that problem.'],
+        words: ['innovation', 'research', 'device', 'network'],
+        phrases: ['The tool I use most is …', 'It helps me because …', 'The problem is that …', 'To deal with this, I …'],
+        sample: 'The tool I use most for my studies is a note-taking app on my phone. I use it every day, in class and at home. It helps me because all my notes are in one place, and I can search them in seconds before an exam. I can also share them with friends who missed a class. The problem is that my phone also has games and social media, and it is easy to get distracted. To deal with this, I switch off notifications while I study and keep the phone on the other side of the room. That way, the device works for me, and not the other way round.',
+        kn: { prompt: 'ತಂತ್ರಜ್ಞಾನ ನೀವು ಓದುವ ರೀತಿಯನ್ನು ಹೇಗೆ ಬದಲಾಯಿಸಿದೆ? ನೀವು ಬಳಸುವ ಒಂದು ಸಾಧನ, ಅದು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡುತ್ತದೆ, ಮತ್ತು ಅದು ತರುವ ಒಂದು ಸಮಸ್ಯೆಯ ಬಗ್ಗೆ ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ಮಾತನಾಡಿ.', points: ['ಸಾಧನದ ಹೆಸರು ಹೇಳಿ, ಅದನ್ನು ಎಷ್ಟು ಬಾರಿ ಬಳಸುತ್ತೀರಿ ಎಂದು ಹೇಳಿ.', 'ಅದು ಓದಲು ಹೇಗೆ ಸಹಾಯ ಮಾಡುತ್ತದೆ ಎಂದು ವಿವರಿಸಿ.', 'ಅದು ತರುವ ಒಂದು ಸಮಸ್ಯೆಯನ್ನು ಹೇಳಿ.', 'ಆ ಸಮಸ್ಯೆಯನ್ನು ಹೇಗೆ ನಿಭಾಯಿಸುತ್ತೀರಿ ಎಂದು ಹೇಳಿ ಮುಗಿಸಿ.'] }
+    },
+    {
+        order: 5, part: 2, title: 'Talk: staying healthy',
+        prompt: 'What do you do to stay healthy? Talk about your food, exercise and sleep, and one habit you want to change.',
+        points: ['Talk about what you eat in a normal day.', 'Say how you exercise, and how often.', 'Say how much you sleep.', 'Name one habit you want to change, and how.'],
+        words: ['nutrition', 'immunity', 'symptom', 'recovery'],
+        phrases: ['On a normal day, I eat …', 'For exercise, I …', 'I usually sleep for …', 'One habit I want to change is …'],
+        sample: 'Staying healthy is something I take seriously, especially since my exams started. On a normal day, I eat idli or upma for breakfast, rice, dal and vegetables for lunch, and chapati at night. I try to eat one fruit every day for good nutrition. For exercise, I play badminton with my friends three evenings a week, and I walk to college. I usually sleep for about seven hours. One habit I want to change is drinking too much tea late at night, because it stops me from sleeping well. From next week, I will drink warm milk instead and switch off my phone by eleven.',
+        kn: { prompt: 'ಆರೋಗ್ಯವಾಗಿರಲು ನೀವು ಏನು ಮಾಡುತ್ತೀರಿ? ನಿಮ್ಮ ಆಹಾರ, ವ್ಯಾಯಾಮ ಮತ್ತು ನಿದ್ರೆ, ಹಾಗೂ ನೀವು ಬದಲಾಯಿಸಲು ಬಯಸುವ ಒಂದು ಅಭ್ಯಾಸದ ಬಗ್ಗೆ ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ಮಾತನಾಡಿ.', points: ['ಸಾಮಾನ್ಯ ದಿನ ನೀವು ಏನು ತಿನ್ನುತ್ತೀರಿ ಎಂದು ಹೇಳಿ.', 'ನೀವು ಹೇಗೆ, ಎಷ್ಟು ಬಾರಿ ವ್ಯಾಯಾಮ ಮಾಡುತ್ತೀರಿ ಎಂದು ಹೇಳಿ.', 'ನೀವು ಎಷ್ಟು ಹೊತ್ತು ನಿದ್ರಿಸುತ್ತೀರಿ ಎಂದು ಹೇಳಿ.', 'ಬದಲಾಯಿಸಲು ಬಯಸುವ ಒಂದು ಅಭ್ಯಾಸ ಮತ್ತು ಹೇಗೆ ಎಂದು ಹೇಳಿ.'] }
+    },
+    {
+        order: 6, part: 1, title: 'Talk: a good citizen',
+        prompt: 'What makes a good citizen? Give two examples of things young people can do for their town or village.',
+        points: ['Say what a good citizen is, in your own words.', 'Give a first example of what young people can do.', 'Give a second example.', 'End with one thing you will do yourself.'],
+        words: ['democracy', 'election', 'responsibility', 'rights'],
+        phrases: ['To me, a good citizen is someone who …', 'For example, young people can …', 'Another thing we can do is …', 'Personally, I will …'],
+        sample: 'To me, a good citizen is someone who knows their rights but also takes responsibility for the place they live in. For example, young people can vote in every election once they turn eighteen, and help older people in their area to register. Another thing we can do is keep our streets clean: a group of students can clean one park every month and teach children not to throw plastic. In a democracy, small actions like these add up. Personally, I will join the cleanliness drive in my area this month and bring two friends with me.',
+        kn: { prompt: 'ಒಳ್ಳೆಯ ನಾಗರಿಕ ಎಂದರೆ ಯಾರು? ಯುವಜನರು ತಮ್ಮ ಊರಿಗಾಗಿ ಮಾಡಬಹುದಾದ ಎರಡು ಕೆಲಸಗಳ ಉದಾಹರಣೆಗಳನ್ನು ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ನೀಡಿ.', points: ['ಒಳ್ಳೆಯ ನಾಗರಿಕ ಎಂದರೆ ಯಾರು ಎಂದು ನಿಮ್ಮದೇ ಮಾತುಗಳಲ್ಲಿ ಹೇಳಿ.', 'ಯುವಜನರು ಮಾಡಬಹುದಾದ ಮೊದಲ ಉದಾಹರಣೆ ನೀಡಿ.', 'ಎರಡನೇ ಉದಾಹರಣೆ ನೀಡಿ.', 'ನೀವೇ ಮಾಡುವ ಒಂದು ಕೆಲಸವನ್ನು ಹೇಳಿ ಮುಗಿಸಿ.'] }
+    },
+    {
+        order: 6, part: 2, title: 'Talk: news on social media',
+        prompt: 'Do you believe everything you read on social media? Explain how you check whether a piece of news is true.',
+        points: ['Give your answer in the first sentence.', 'Give an example of a false message you have seen.', 'Explain two ways you check the news.', 'End with advice for your friends.'],
+        words: ['information', 'advertisement', 'opinion', 'audience'],
+        phrases: ['No, I do not believe …', 'Once, I saw a message that …', 'First, I check … Then I …', 'My advice is …'],
+        sample: 'No, I do not believe everything I read on social media, because anyone can post anything. Once, I saw a message saying that colleges would be closed for a month, and many of my classmates shared it. It was false: there was no such information on the college website. Now I always check the news in two ways. First, I look for the same story on a trusted news website. Then I check the date and who wrote it, because old news is often shared again. My opinion is that we should think before we forward. My advice to my friends is simple: if you are not sure, do not share it.',
+        kn: { prompt: 'ಸಾಮಾಜಿಕ ಜಾಲತಾಣದಲ್ಲಿ ಓದುವ ಎಲ್ಲವನ್ನೂ ನೀವು ನಂಬುತ್ತೀರಾ? ಒಂದು ಸುದ್ದಿ ನಿಜವೇ ಎಂದು ನೀವು ಹೇಗೆ ಪರಿಶೀಲಿಸುತ್ತೀರಿ ಎಂದು ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ವಿವರಿಸಿ.', points: ['ಮೊದಲ ವಾಕ್ಯದಲ್ಲೇ ನಿಮ್ಮ ಉತ್ತರ ಹೇಳಿ.', 'ನೀವು ನೋಡಿದ ಒಂದು ಸುಳ್ಳು ಸಂದೇಶದ ಉದಾಹರಣೆ ನೀಡಿ.', 'ಸುದ್ದಿಯನ್ನು ಪರಿಶೀಲಿಸುವ ಎರಡು ವಿಧಾನಗಳನ್ನು ವಿವರಿಸಿ.', 'ನಿಮ್ಮ ಸ್ನೇಹಿತರಿಗೆ ಒಂದು ಸಲಹೆಯೊಂದಿಗೆ ಮುಗಿಸಿ.'] }
     }
 ];
 

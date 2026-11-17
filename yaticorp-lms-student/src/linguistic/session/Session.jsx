@@ -24,7 +24,7 @@ import { tr, line } from '../say';
 import { Chunky, Bar, Mascot } from '../ui';
 import { Diff } from './Finish';
 import { startValue, givenOf, answered, isInfo, sheetOf, xpIn, xpBy } from './logic';
-import { IntroStep, NotesStep, WordsStep, PassageStep, ComicStep, LetterWordsStep, DialogueStep, PairsStep, QuestionStep, TranslateStep, WriteStep, SpeakStep, TalkStep, PracticeReviewStep, Corrections, MoodMascot, SayItStep } from './exercises';
+import { IntroStep, NotesStep, WriteGuideStep, WordsStep, PassageStep, ComicStep, LetterWordsStep, DialogueStep, PairsStep, QuestionStep, TranslateStep, WriteStep, SpeakStep, TalkStep, PracticeReviewStep, Corrections, MoodMascot, SayItStep } from './exercises';
 import '../lingo.css';
 
 /** The session's own full screen, over the app's header and menus. */
@@ -38,7 +38,7 @@ export function SessionFrame({ children, label }) {
     );
 }
 
-const SCREENS = { intro: IntroStep, notes: NotesStep, words: WordsStep, passage: PassageStep, comic: ComicStep, letterWords: LetterWordsStep, dialogue: DialogueStep, pairs: PairsStep, sayit: SayItStep, question: QuestionStep, translate: TranslateStep, write: WriteStep, speak: SpeakStep, talk: TalkStep, practiceReview: PracticeReviewStep };
+const SCREENS = { intro: IntroStep, notes: NotesStep, writeGuide: WriteGuideStep, words: WordsStep, passage: PassageStep, comic: ComicStep, letterWords: LetterWordsStep, dialogue: DialogueStep, pairs: PairsStep, sayit: SayItStep, question: QuestionStep, translate: TranslateStep, write: WriteStep, speak: SpeakStep, talk: TalkStep, practiceReview: PracticeReviewStep };
 const TONE = { right: COLORS.green, wrong: COLORS.red, info: COLORS.blue };
 
 /** The sheet under a checked answer. `T`: its words in the student's language (say.js). */

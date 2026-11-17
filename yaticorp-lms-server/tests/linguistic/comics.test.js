@@ -89,7 +89,9 @@ describe('picture stories', () => {
     });
 
     test('in the Stories track, each after its topic\'s article, a "Picture story" stop (story 2 a "Story film" since 2026-11-07)', async () => {
-        const stories = (await api('GET', '/path')).body.levels.find((l) => l.level === 'advanced').units.find((u) => u.id === 'advanced-stories');
+        // In units of six since 2026-11-14 (Stories 1, Stories 2): all of the track's.
+        const track = (await api('GET', '/path')).body.levels.find((l) => l.level === 'advanced').units.filter((u) => String(u.id).startsWith('advanced-stories'));
+        const stories = { lessons: track.flatMap((u) => u.lessons) };
         const titles = stories.lessons.map((x) => x.title);
         const pics = stories.lessons.filter((x) => x.review === 'comic');
         assert.deepEqual(pics.map((x) => x.title), comics.STORIES.map((x) => `${x.film ? 'Story film' : 'Picture story'}: ${x.title}`));
@@ -111,9 +113,12 @@ describe('picture stories', () => {
         assert.equal(r.body.comic.title, 'The Shared Well');
         assert.equal(r.body.comic.panels.length, 8);
         assert.match(r.body.learn.intro, /panel by panel/);
-        assert.equal(r.body.quiz.length, 5);
-        assert.ok(r.body.quiz.every((q) => q.answer === undefined && q.options.length === 4), 'no answers sent');
-        const answers = Object.fromEntries(comics.build(doc, 'kn').quiz.map((q) => [q.id, q.answer]));
+        // Its five questions, and since 2026-11-16 made up to ten (its own lines heard, …).
+        assert.equal(r.body.quiz.length, 10);
+        assert.ok(r.body.quiz.every((q) => q.answer === undefined), 'no answers sent');
+        assert.ok(r.body.quiz.slice(0, 5).every((q) => q.options.length === 4), 'its own five, four choices each');
+        const whole = svc.serve(doc, { language: 'kn', course: null, lessons: [], placement: { level: 'beginner' }, levelsCompleted: [], plans: [] });
+        const answers = Object.fromEntries(svc.quizOf(whole).map((q) => [q.id, svc.rightAnswerOf(whole, q)]));
         const done = await api('POST', `/lessons/${doc._id}/quiz`, { answers });
         assert.deepEqual([done.body.percent, done.body.passed], [100, true]);
     });

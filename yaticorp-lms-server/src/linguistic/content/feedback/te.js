@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'I, you, we, they తో "don\'t" (do not) వాడండి.',
     withDoesnt: 'he, she, it తో "doesn\'t" (does not) వాడండి.',
     thirdS: 'వర్తమానంలో he, she, it తో క్రియకు -s చేరుతుంది: he goes, she has, it works.',
+    noThirdS: 'I, you, we, they తో క్రియకు -s చేరదు: I go, you have, they work.',
     thereAre: 'ఒకటి కంటే ఎక్కువ వాటికి "there are" (లేదా "there were") వాడండి.',
     participle: 'have, has, had తర్వాత past participle వాడండి: have gone, has eaten, had done.',
     stative: 'know, understand, want వంటి క్రియలకు -ing రాదు: "I understand", "I am understanding" కాదు.',

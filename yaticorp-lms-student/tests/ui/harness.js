@@ -76,7 +76,7 @@ const run = (cmd, args) => new Promise((resolve, reject) =>
  *                 ceiling on the clock the page sees, not on how long the test
  *                 takes. Raise it for a screen that waits on a long timeout.
  */
-export const screen = async ({ entry, api, script, width = 1400, height = 1400, budget = 12000, styles = false, files = {}, modules = {}, device = null, screenshot = null }) => {
+export const screen = async ({ entry, api, script, width = 1400, height = 1400, budget = 12000, styles = false, files = {}, modules = {}, device = null, screenshot = null, frames = null }) => {
     const cache = path.join(ROOT, 'node_modules', '.cache');
     await mkdir(cache, { recursive: true });
     const dir = await mkdtemp(path.join(cache, 'ui-test-'));
@@ -190,7 +190,7 @@ window.addEventListener('unhandledrejection', (e) => window.__errors.push('rejec
         await new Promise((r) => server.listen(0, '127.0.0.1', r));
         const url = `http://127.0.0.1:${server.address().port}/index.html`;
 
-        if (device) return await viaDevTools(url, device, budget + 10000, screenshot);
+        if (device) return await viaDevTools(url, device, budget + 10000, screenshot, frames);
         const dom = await run(CHROME, ['--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run', '--disable-extensions',
             `--window-size=${width},${height}`, `--virtual-time-budget=${budget}`, '--dump-dom', url]);
         const m = dom.match(/<pre id="out">([\s\S]*?)<\/pre>/);
@@ -208,7 +208,9 @@ window.addEventListener('unhandledrejection', (e) => window.__errors.push('rejec
  * Talks to Chrome over its DevTools protocol (Node's own WebSocket), because
  * that is the only way to get a screen narrower than headless Chrome's 500px.
  */
-const viaDevTools = async (url, { width, height, dpr = 3, mobile = true }, timeoutMs, screenshot) => {
+/* `frames` (2026-11-13, to make a video of a screen for the user): a folder; every frame the page paints is saved there
+ * as frame-<ms>.jpg while the script runs. Off unless asked for. */
+const viaDevTools = async (url, { width, height, dpr = 3, mobile = true }, timeoutMs, screenshot, frames = null) => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const port = 9300 + Math.floor(Math.random() * 600);
     const profile = await mkdtemp(path.join(tmpdir(), 'ui-device-'));
@@ -246,6 +248,16 @@ const viaDevTools = async (url, { width, height, dpr = 3, mobile = true }, timeo
 
         await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: dpr, mobile, screenWidth: width, screenHeight: height });
         await send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 });
+        if (frames) {
+            const started = Date.now();
+            ws.addEventListener('message', (m) => {
+                const msg = JSON.parse(m.data);
+                if (msg.method !== 'Page.screencastFrame') return;
+                writeFile(path.join(frames, `frame-${String(Date.now() - started).padStart(7, '0')}.jpg`), Buffer.from(msg.params.data, 'base64')).catch(() => {});
+                ws.send(JSON.stringify({ id: 900000 + msg.params.sessionId, method: 'Page.screencastFrameAck', params: { sessionId: msg.params.sessionId } }));
+            });
+            await send('Page.startScreencast', { format: 'jpeg', quality: 80, everyNthFrame: 1 });
+        }
         await send('Page.navigate', { url });
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {

@@ -61,8 +61,8 @@ export default function LettersChart() {
     const english = chart.course.code === 'en';
     const hear = (char, speak) => { setHeard(char); play(null, english ? char : speak || char, chart.locale); };
     const voice = canSpeakIn(chart.locale);
-    // The vowel signs' own lesson repeats the kagunita's first row: the table has them all.
-    const groups = chart.table ? chart.groups.filter((g) => g.id !== 'signs') : chart.groups;
+    // The vowel signs' own lessons (ಕ ಖ, ಗ ಘ… since 2026-11-13) repeat the kagunita's rows: the table has them all.
+    const groups = chart.table ? chart.groups.filter((g) => !String(g.id).startsWith('signs')) : chart.groups;
     return (
         <div className="space-y-5" data-letters-chart={chart.course.code}>
             <div>

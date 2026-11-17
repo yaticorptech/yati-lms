@@ -9,7 +9,9 @@ const { lessons, placement } = require('../../src/linguistic/content');
 const { validateLesson } = require('../../src/linguistic/validate');
 const { lessonQuiz, questionById } = require('../../src/linguistic/vocabQuiz');
 const { placementLevel } = require('../../src/linguistic/service');
-const { MODULES, LEVELS } = require('../../src/linguistic/models');
+const { MODULES } = require('../../src/linguistic/models');
+// The sections of written content and the placement bands (the sections added on 2026-11-14 are made by more.js).
+const { CONTENT_LEVELS: LEVELS } = require('../../src/linguistic/levels');
 
 describe('the seeded lessons', () => {
     test('every module has lessons at every level, and every lesson passes the admin check', () => {

@@ -6,7 +6,7 @@
  */
 const PDFDocument = require('pdfkit');
 
-const LEVEL = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
+const { LEVEL_LABEL: LEVEL } = require('./levels');
 const INDIGO = '#3730a3', VIOLET = '#6d28d9', INK = '#1e293b', MUTED = '#64748b', GOLD = '#b45309';
 
 /** Fit text to a width by shrinking it, down to `min` points. */

@@ -164,22 +164,43 @@ const lessonAsk = (words, i, seed) => {
     return questionFor(words, i, turn[i % turn.length], seed) || questionFor(words, i, 'blank', seed) || questionFor(words, i, 'meaning', seed);
 };
 /** Word i asked at `stage` ('hear', 'review'): the first way, from the `by`-th on, that fits the word and is not in `not`. */
-const askAt = (words, i, stage, seed, not = [], by = i) => {
+const fitAt = (words, i, stage, seed, not = [], by = i) => {
     for (const k of turned(WAYS[stage][kindOfWords(words)], by)) {
         if (not.includes(k)) continue;
         const q = questionFor(words, i, k, seed);
         if (q) return q;
     }
-    return questionFor(words, i, 'meaning', seed);
+    return null;
 };
+const askAt = (words, i, stage, seed, not = [], by = i) => fitAt(words, i, stage, seed, not, by) || questionFor(words, i, 'meaning', seed);
 /** A unit's Listening: each word heard, not the way its Words lesson asked it. */
 const hearQuiz = (words, seed) => (words || []).map((_, i) => askAt(words, i, 'hear', seed, [lessonAsk(words, i, 'k')?.kind])).filter(Boolean);
-/** A unit review: each word a third way — neither its Words lesson's nor its Listening's. */
-const unitQuiz = (words, seed) => (words || []).map((_, i) => {
-    const first = lessonAsk(words, i, 'k')?.kind;
-    const heard = askAt(words, i, 'hear', 'k', [first])?.kind;
-    return askAt(words, i, 'review', seed, [first, heard]);
-}).filter(Boolean);
+/*
+ * A unit review: each word a third way — neither its Words lesson's nor its Listening's. Each unit starts further along
+ * the ways (`turn`, the unit's place in its section; 2026-11-14, the user on a unit review: "don't repeat the questions
+ * in every unit, ask different ones") — every unit had asked "which word means", "write it", a synonym, an antonym.
+ */
+const turnStep = (words) => Math.max(1, Math.floor(WAYS.review[kindOfWords(words)].length / 2));
+// A review's own ways, one word after another: a way not used yet in it where one fits (no "hear it, pick its meaning"
+// four times), else any but the word's lessons' ways.
+const reviewWays = (words, seed, picks, by, not, used = []) => picks.map((i, k) => {
+    const q = fitAt(words, i, 'review', seed, [...not(i), ...used], by(i, k)) || askAt(words, i, 'review', seed, not(i), by(i, k));
+    if (q) used.push(q.kind);
+    return q;
+});
+const lessonsKinds = (words, i) => { const first = lessonAsk(words, i, 'k')?.kind; return [first, askAt(words, i, 'hear', 'k', [first])?.kind]; };
+const unitQuiz = (words, seed, turn = 0, used = []) => reviewWays(words || [], seed, (words || []).map((_, i) => i), (i) => i + turn * turnStep(words), (i) => lessonsKinds(words, i), used).filter(Boolean);
+/**
+ * The unit before's words, asked again in a unit review (two of them): a way neither their lessons nor their own unit
+ * review asked them (2026-11-14: "negotiate" was asked the same in two units running). `turn`: that unit's place.
+ */
+const beforeQuiz = (words, seed, size = 2, turn = 0, used = []) => {
+    const list = words || [];
+    const n = Math.min(size, list.length);
+    const picks = [...new Set(Array.from({ length: n }, (_, k) => Math.floor((k * list.length) / n)))];
+    const own = unitQuiz(list, 'k', turn).map((q) => q.kind);
+    return reviewWays(list, seed, picks, (i, k) => k + (turn + 1) * turnStep(list), (i) => [...lessonsKinds(list, i), own[i]], used).filter(Boolean);
+};
 
 /**
  * A level review's quiz: `size` of the words, spread through the list, each
@@ -206,4 +227,4 @@ const sentenceQuestion = (s, k, pool, seed) => {
     return askedIn(q, { word: s.target, kannada: s.helper, lang: s.lang });
 };
 
-module.exports = { lessonQuiz, reviewQuiz, hearQuiz, unitQuiz, sentenceQuestion, questionFor, questionById, seeded, shuffle, KINDS };
+module.exports = { lessonQuiz, reviewQuiz, hearQuiz, unitQuiz, beforeQuiz, sentenceQuestion, questionFor, questionById, askAt, seeded, shuffle, KINDS };

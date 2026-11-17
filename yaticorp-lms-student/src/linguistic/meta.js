@@ -32,13 +32,19 @@ export const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'tr
 // Each level is a section of the path, with its CEFR level. Named plainly since 2026-11-16 ("make it beginner");
 // it was Rookie / Explorer / Achiever from 2026-10-24.
 export const LEVELS = [
-    { id: 'beginner', label: 'Beginner', section: 'Beginner', cefr: 'A1', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-    // Hidden (2026-10-29, the server's levels.js): its lessons and old certificates are still named by it.
-    { id: 'intermediate', label: 'Intermediate', section: 'Intermediate', cefr: 'A2–B1', chip: 'bg-amber-50 text-amber-700 ring-amber-200', hidden: true },
-    { id: 'advanced', label: 'Advanced', section: 'Advanced', cefr: 'B2', chip: 'bg-rose-50 text-rose-700 ring-rose-200' }
+    // `named`: its level word written in the section's heading (2026-11-14). The level word (2026-11-16, the user: "section 1,
+    // section 2 and section 3 will be Beginner, section 4 and section 5 will be Advanced"): two groups.
+    { id: 'beginner', label: 'Beginner', section: 'Rookie', cefr: 'A1', named: true, chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+    // Two sections added and Intermediate shown again (2026-11-14, the user: "add more sections … six units in each").
+    // `bare`: no heading card on the path (2026-11-16, the user: "remove these two cards" — Sections 2 and 3, part of Beginner).
+    { id: 'elementary', label: 'Beginner', section: 'Daily life', cefr: 'A2', named: true, bare: true, chip: 'bg-sky-50 text-sky-700 ring-sky-200' },
+    { id: 'intermediate', label: 'Beginner', section: 'Explorer', cefr: 'B1', named: true, bare: true, chip: 'bg-amber-50 text-amber-700 ring-amber-200' },
+    { id: 'advanced', label: 'Advanced', section: 'Achiever', cefr: 'B2', named: true, chip: 'bg-rose-50 text-rose-700 ring-rose-200' },
+    // No heading card either (2026-11-16, the user: "remove this card also" — Section 5, part of Advanced).
+    { id: 'professional', label: 'Advanced', section: 'Work and the world', cefr: 'C1', named: true, bare: true, chip: 'bg-violet-50 text-violet-700 ring-violet-200' }
 ];
 export const levelOf = (id) => LEVELS.find((l) => l.id === id) || LEVELS[0];
-/** The sections a course shows: Beginner and Advanced (Intermediate hidden, 2026-10-29). */
+/** The sections a course shows (all five since 2026-11-14). */
 export const SHOWN_LEVELS = LEVELS.filter((l) => !l.hidden);
 /** Whether a section of the path ends with an assessment that opens the next (2026-10-29). */
 export const hasAssessment = (section) => !!section?.units?.some((u) => u.lessons?.some((l) => l.review === 'assessment'));
@@ -232,22 +238,33 @@ export const canSpeakIn = (lang) => usesServerVoice(lang) || (typeof window !== 
 const SERVER_LANGS = new Set(['as', 'bn', 'en', 'gu', 'hi', 'kn', 'ml', 'mr', 'ne', 'or', 'pa', 'sa', 'ta', 'te', 'ur']);
 const clips = new Map(); // key → Promise of the clip's object URL (made, or being made)
 let playing = null; let asked = 0;
+/*
+ * The AI voices for now only in a build (2026-11-12, the user: "add system audio, temporarily disable the TTS package —
+ * for development"): on `npm run dev` the device's own voice reads everything and no unit's audio pack is asked for
+ * (aiVoiceOn false). VITE_AI_VOICE=on (in .env.development.local) brings them back in development; a build has them.
+ */
+const ENV = import.meta.env || {};
+const AI_VOICE = !ENV.DEV || ENV.VITE_AI_VOICE === 'on';
 // On (2026-11-06, user: "use the tts inside this project"). Set false to fall back to the device voice.
-// OFF for now (2026-11-12, user: "add system audio, temporarily disable tts package"): the device voice reads
-// everything and no audio pack is asked for. Set true again to turn the AI voice back on.
-const SERVER_VOICE_ON = false;
+const SERVER_VOICE_ON = AI_VOICE;
 const usesServerVoice = (lang) => SERVER_VOICE_ON && SERVER_LANGS.has(norm(lang).split('-')[0]);
 const base = (lang) => norm(lang).split('-')[0];
 /*
  * English is spoken by Kokoro-82M in the browser itself (2026-11-07): the model is downloaded once, kept on the
  * device, and makes each clip locally, with no call to the server. If it cannot load, the server voice reads it.
  */
-const KOKORO_ON = false; // OFF for now with the server voice (2026-11-12); true to turn it back on
+const KOKORO_ON = AI_VOICE;
 const usesKokoro = (lang) => KOKORO_ON && base(lang) === 'en' && kokoroSupported();
 // `voice`: 'f' (the default) or 'm', a man's, with how it is said after a colon — 'm:mood-sad,pitch-low' (2026-11-12:
 // a story's people in their own voices, with their feelings). speechText.js (voiceSpec) makes them.
 const plainVoice = (voice) => !voice || voice === 'f';
-const clipKey = (text, lang, voice) => `${usesKokoro(lang) ? 'kokoro:' : ''}${base(lang)}|${String(text).trim()}${!plainVoice(voice) ? `|${voice}` : ''}`;
+/*
+ * A letter's clip said once (2026-11-12, the user: "don't pronounce the one letter two times"): the voice service now
+ * keeps only its first burst, and the letters it had made were trimmed so. Asked for afresh — v3 and a key of its own —
+ * past the copies of the old ones on the device and in the browser's cache. (Kokoro's English letters are made here.)
+ */
+const clipV = (text, lang) => (!usesKokoro(lang) && [...String(text).trim()].length <= 3 ? 3 : 2);
+const clipKey = (text, lang, voice) => `${usesKokoro(lang) ? 'kokoro:' : ''}${clipV(text, lang) === 3 ? 'once:' : ''}${base(lang)}|${String(text).trim()}${!plainVoice(voice) ? `|${voice}` : ''}`;
 /*
  * English people in their own Kokoro voices (2026-11-13, the story film: "résumé, certificates — not pronounced
  * right" in the old Indian-English recordings): the narrator and women af_heart, men am_michael, an older man (a low,
@@ -259,7 +276,7 @@ const kokoroVoiceOf = (spec) => {
     const voice = man ? (low ? 'bm_george' : high ? 'am_puck' : 'am_michael') : (low ? 'bf_emma' : high ? 'af_nicole' : 'af_heart');
     return { voice, speed: slow ? 0.9 : 1 };
 };
-const fromServer = (text, lang, voice) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2, ...(plainVoice(voice) ? {} : { voice }) }, responseType: 'blob', timeout: 600000 }).then((r) => r.data);
+const fromServer = (text, lang, voice) => client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: clipV(text, lang), ...(plainVoice(voice) ? {} : { voice }) }, responseType: 'blob', timeout: 600000 }).then((r) => r.data);
 const makeClip = (text, lang, voice) => (usesKokoro(lang) ? kokoroBlob(text, kokoroVoiceOf(voice)).catch((e) => { console.warn("[kokoro] falling back to server voice:", e); return fromServer(text, lang); }) : fromServer(text, lang, voice));
 /*
  * Clips are kept on the device too (2026-11-06, the audio pack): in the browser's Cache Storage, so a unit's
@@ -314,7 +331,7 @@ const free = () => { const next = waiting.shift(); if (next) next(); else clipFe
 const keptOnServer = async (text, lang, voice) => {
     await slot();
     try {
-        const r = await client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: 2, cached: 1, ...(plainVoice(voice) ? {} : { voice }) }, responseType: 'blob', timeout: 30000 });
+        const r = await client.get('/tts', { params: { text: String(text).trim(), lang: base(lang), v: clipV(text, lang), cached: 1, ...(plainVoice(voice) ? {} : { voice }) }, responseType: 'blob', timeout: 30000 });
         return r.status === 204 || !r.data?.size ? null : r.data;
     } finally { free(); }
 };
