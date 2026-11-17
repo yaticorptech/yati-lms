@@ -63,6 +63,8 @@ const NOT_AFTER_AUX = `(?<!\\b(?:${AUX})\\s)`;
 const ADVERB = '(?:(always|usually|often|sometimes|never|also|really|still|just|only|even|generally|normally)\\s+)?';
 // Verbs whose plain form is never a past tense too ("he read it yesterday" is right).
 const PRESENT = VERBS.filter((v) => !['have', 'do', 'read', 'put', 'cost', 'cut', 'hit', 'let', 'set', 'shut', 'quit', 'hurt'].includes(v) && past(v) !== v);
+// A present verb's -s form back to its own (goes → go), for I, you, we and they (2026-11-16).
+const BASE_OF = Object.fromEntries([...PRESENT.map((v) => [third(v), v]), ['goes', 'go'], ['does', 'do']]);
 const STATIVE = { knowing: 'know', understanding: 'understand', believing: 'believe', wanting: 'want', needing: 'need', owning: 'own', preferring: 'prefer', belonging: 'belong' };
 const TO_VERBS = ['go', 'come', 'become', 'buy', 'learn', 'make', 'take', 'get', 'be', 'see', 'travel', 'join', 'speak', 'save', 'invest', 'live', 'eat', 'do', 'have', 'visit', 'open', 'apply', 'meet', 'talk', 'tell', 'give', 'find', 'pay', 'spend', 'earn', 'improve', 'start', 'finish', 'borrow', 'study', 'teach', 'sell', 'write', 'read', 'play', 'become', 'try'];
 // Not "complete", "lead" or "live", which follow "are" as adjectives too (we are complete, he is lead singer).
@@ -122,6 +124,11 @@ const RULES = [
     { re: /\b(I|we|they|you)\s+(doesn't|doesn’t|does not)\b/g, fix: (m, s, d) => `${s} ${d === 'does not' ? 'do not' : 'don\'t'}`, why: 'With I, you, we or they, use "don\'t" (do not).' },
     { re: new RegExp(`${NOT_AFTER_AUX}\\b(he|she|it)\\s+(don't|don’t|do not)\\b`, 'gi'), fix: (m, s, d) => `${s} ${d === 'do not' ? 'does not' : 'doesn\'t'}`, why: 'With he, she or it, use "doesn\'t" (does not).' },
     { re: new RegExp(`${NOT_AFTER_AUX}\\b(he|she|it)\\s+${ADVERB}(have|do|${alt(PRESENT)})\\b(?!['’])`, 'gi'), fix: (m, s, adv, v) => `${s} ${adv ? `${adv} ` : ''}${third(v.toLowerCase())}`, why: 'With he, she or it, the verb takes -s in the present: he goes, she has, it works.' },
+    // And the other way (2026-11-16, the user: "that sentence is wrong — don't say it is correct": "I goes to school"):
+    // with I, you, we or they, the verb has no -s ("has" and "doesn't" have their own rules above).
+    { re: new RegExp(`${NOT_AFTER_AUX}\\b(I|we|they)\\s+${ADVERB}(goes|does|${alt(PRESENT.map(third))})\\b(?!['’])`, 'gi'), fix: (m, s, adv, v) => `${s} ${adv ? `${adv} ` : ''}${BASE_OF[v.toLowerCase()]}`, why: 'With I, you, we or they, the verb has no -s: I go, you have, they work.' },
+    // "You" only where it begins what is said ("I will show you plans": "you" there is not the one doing it).
+    { re: new RegExp(`(?<=(?:^|[.!?,;:]\\s*|\\b(?:and|but|so|because|if|when|while|that|then|although|though)\\s+))(you)\\s+${ADVERB}(goes|does|${alt(PRESENT.map(third))})\\b(?!['’])`, 'gi'), fix: (m, s, adv, v) => `${s} ${adv ? `${adv} ` : ''}${BASE_OF[v.toLowerCase()]}`, why: 'With I, you, we or they, the verb has no -s: I go, you have, they work.' },
     { re: /\bthere\s+(is|was)\s+(many|several|a few|few|two|three|four|five|lots of|so many)\b/gi, fix: (m, v, q) => `there ${v.toLowerCase() === 'is' ? 'are' : 'were'} ${q}`, why: 'With more than one thing, use "there are" (or "there were").' },
 
     // Verb forms.
@@ -329,7 +336,10 @@ const checkEnglish = (text, { spoken = false } = {}) => {
         corrected = `${corrected.trim()}.`;
         mistakes.push({ wrong: null, right: '.', why: 'End a sentence with a full stop (.), a question mark (?) or an exclamation mark (!).' });
     }
-    return { text: base.text, corrected, mistakes };
+    // A word that is not English (2026-11-16, the user: "that sentence is wrong, you give the same as the correct one"):
+    // nothing to put right here — the student writes it again; no "Better" sentence is offered.
+    const rewrite = tokens.some(notEnglish);
+    return { text: base.text, corrected, mistakes, ...(rewrite ? { rewrite: true } : {}) };
 };
 const checkWritten = (text) => checkEnglish(text);
 const checkSpoken = (text) => checkEnglish(text, { spoken: true });

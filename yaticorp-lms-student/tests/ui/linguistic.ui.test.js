@@ -28,6 +28,8 @@ import { createRequire } from 'node:module';
 const comics = createRequire(import.meta.url)('../../../yaticorp-lms-server/src/linguistic/comics.js');
 // The Letters lessons as the server builds them (alphabet.js, 2026-10-31).
 const alphabet = createRequire(import.meta.url)('../../../yaticorp-lms-server/src/linguistic/alphabet.js');
+// A unit's new lessons (2026-11-14, six a unit): more.js.
+const moreLessons = createRequire(import.meta.url)('../../../yaticorp-lms-server/src/linguistic/more.js');
 
 const DASH = {
     student: { firstName: 'Asha' }, level: 'beginner', levelLabel: 'Beginner', placement: null,
@@ -54,8 +56,9 @@ const PATH = {
             // Topic units (2026-10-24): a lesson of each kind in each.
             { id: 'beginner-1', index: 1, kind: 'topic', title: 'Home and family', open: true, lessons: [lesson('v1', 'Home and family', { status: 'completed', bestScore: 100 }), lesson('g1', 'Articles', { module: 'grammar', status: 'completed', bestScore: 80 })] },
             { id: 'beginner-2', index: 2, kind: 'topic', title: 'Food and drink', open: true, lessons: [lesson('v2', 'Food and drink', { order: 2 }), lesson('g2', 'Pronouns', { module: 'grammar', order: 2, open: false })] }] },
-        { level: 'intermediate', label: 'Intermediate', passingScore: 70, open: false, total: 1, completed: 0, complete: false, certificate: null, units: [
-            { id: 'intermediate-1', index: 1, kind: 'topic', title: 'Feelings', open: false, lessons: [lesson('t1', 'Sentences', { module: 'translation', open: false, direction: 'kn-en' })] }] }
+        // A shut section with its heading card: Advanced (Sections 2 and 3 have none since 2026-11-16).
+        { level: 'advanced', label: 'Advanced', passingScore: 75, open: false, total: 1, completed: 0, complete: false, certificate: null, units: [
+            { id: 'advanced-1', index: 1, kind: 'topic', title: 'Feelings', open: false, lessons: [lesson('t1', 'Sentences', { module: 'translation', open: false, direction: 'kn-en' })] }] }
     ]
 };
 
@@ -156,7 +159,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
                 const nodes = Object.fromEntries($$('[data-node]').map((b) => [b.dataset.node, b.dataset.status]));
                 const out = { wide: (() => { ${WIDE} })(), tabs: $$('[data-tab]').map((t) => t.dataset.tab), sections: $$('[data-section]').map((s) => s.dataset.section), nodes,
                     crown: !!$('[data-node="v1"] .lucide-crown'), bubble: $('[data-start-bubble]')?.closest('div').querySelector('[data-node]')?.dataset.node,
-                    jump: $$('[data-jump]').length, shut: $$('[data-section-locked]').length, lockedUnits: $$('[data-unit][data-open="false"] [data-unit-locked]').map((x) => x.closest('[data-unit]').dataset.unit), openGrey: $$('[data-unit][data-open="true"] [data-unit-locked]').length, shutBars: $$('[data-section="intermediate"] [data-section-head] [role="progressbar"]').length, shutLock: !!$('[data-section="intermediate"] [data-section-lock]'), trophies: $$('[data-trophy]').length, mascots: $$('[data-unit] img[src^="/mascot/stills/"]').length,
+                    jump: $$('[data-jump]').length, shut: $$('[data-section-locked]').length, lockedUnits: $$('[data-unit][data-open="false"] [data-unit-locked]').map((x) => x.closest('[data-unit]').dataset.unit), openGrey: $$('[data-unit][data-open="true"] [data-unit-locked]').length, shutBars: $$('[data-section="advanced"] [data-section-head] [role="progressbar"]').length, shutLock: !!$('[data-section="advanced"] [data-section-lock]'), trophies: $$('[data-trophy]').length, mascots: $$('[data-unit] img[src^="/mascot/stills/"]').length,
                     rail: !!$('aside[aria-label="Your progress"]'), width: Math.round($('[data-path]').getBoundingClientRect().width), cards: ['[data-quests]', '[data-plan-card]', '[data-course-card]'].filter((q) => $(q)), xp: $('[data-xp]')?.dataset.xp, streak: $('[data-streak]')?.dataset.streak };
                 $('[data-node="v2"]').click(); await sleep(300);
                 out.card = text($('[data-lesson-card="v2"]'));
@@ -166,6 +169,9 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
                 out.kinds = $$('[data-node]').map((b) => b.dataset.kind);
                 $('[data-guidebook-open="beginner-1"]').click(); await sleep(300);
                 out.guide = $$('[data-guidebook="beginner-1"] li').map(text);
+                // A popup on a phone too (2026-11-13): inside the screen with a gap all round, every corner rounded.
+                const g = $('[data-guidebook]'), gb = g.getBoundingClientRect(), gs = getComputedStyle(g);
+                out.popup = { inside: gb.left >= 15 && gb.right <= innerWidth - 15 && gb.top >= 15 && gb.bottom <= innerHeight - 15, corners: [gs.borderTopLeftRadius, gs.borderBottomRightRadius].every((r) => parseFloat(r) >= 20) };
                 $('[data-guidebook] button[aria-label="Close"]').click(); await sleep(200);
                 $('[data-node="v2"]').click(); await sleep(300);
                 $('[data-start-lesson]').click(); await sleep(300);
@@ -175,12 +181,12 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
             assert.deepEqual(errors, []);
             assert.equal(result.__error, undefined, result.__error);
             assert.deepEqual(result.tabs, [], 'the tabs are the dashboard\'s; the path has its ✕ back to it (2026-10-27)');
-            assert.deepEqual(result.sections, ['beginner', 'intermediate']);
+            assert.deepEqual(result.sections, ['beginner', 'advanced']);
             assert.deepEqual(result.nodes, { v1: 'completed', v2: 'new', g1: 'completed', g2: 'locked', t1: 'locked' });
             assert.equal(result.crown, true, 'a crown for 100%');
             assert.equal(result.bubble, 'v2', 'START over the lesson to take next');
             assert.deepEqual([result.jump, result.shut], [0, 1], 'no "Jump here?" (2026-10-28): the shut section says to finish the one before');
-            assert.deepEqual([result.lockedUnits, result.openGrey], [['intermediate-1'], 0], 'a unit not open: its banner grey, with a lock; the open ones in colour');
+            assert.deepEqual([result.lockedUnits, result.openGrey], [['advanced-1'], 0], 'a unit not open: its banner grey, with a lock; the open ones in colour');
             assert.deepEqual([result.shutBars, result.shutLock], [0, true], 'a section still shut: "Locked", and no progress bar');
             assert.equal(result.trophies, 2); assert.equal(result.mascots, 3);
             assert.deepEqual([result.rail, result.cards], [false, []], 'the side panel and its cards are on the dashboard only (2026-10-26)');
@@ -190,6 +196,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
             assert.deepEqual(result.units, ['Home and family', 'Food and drink', 'Feelings'], 'topic units');
             assert.deepEqual(result.kinds, ['vocabulary', 'grammar', 'vocabulary', 'grammar', 'translation'], 'a lesson of each kind in a unit');
             assert.match(result.locked, /Finish the lessons above to unlock this one/);
+            assert.deepEqual(result.popup, { inside: true, corners: true }, `${name}: the guidebook a popup, inside the screen, rounded all round`);
             assert.equal(result.guide.length, 2); assert.match(result.guide[1], /Articles/); assert.match(result.guide[1], /Grammar/i); assert.match(result.guide[1], /best 80%/i);
             assert.equal(result.session, true, 'START opens the lesson, full screen');
             assert.ok(result.wide <= 1, `nothing wider than the screen (${result.wide}px)`);
@@ -224,8 +231,8 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
             await stepIs('why', '[data-reason="abroad"]');
             out.translateFirst = $$('[data-language]')[0]?.dataset.language;
             await stepIs('translate', '[data-language="ja"]');
-            out.chart = $('[data-goal-chart]')?.dataset.goalChart;
-            await pass();
+            // No "Reach your learning goals faster!" chart since 2026-11-12: straight on to the languages they speak.
+            out.chart = [at(), !!$('[data-goal-chart]')];
             // Last (2026-10-28): the languages they speak, write and read; the one they know best ticked to begin with.
             out.knows = { first: $$('[data-knows][aria-pressed="true"]').map((b) => b.dataset.knows), title: text($('[data-onboarding] h1')), top: $('[data-knows]')?.dataset.knows };
             $('[data-knows="hi"]').click(); await sleep(100);
@@ -246,14 +253,14 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.equal(result.tabs, 0, 'the section waits behind the start screens');
         assert.deepEqual(result.welcome, ['welcome', 'Get started', false], 'first, Get started');
         assert.deepEqual(result.learn, { english: 'true', tiles: 5, found: ['hi'] }, 'English to begin; the languages searched');
-        assert.deepEqual(result.shown, [['welcome', false], ['learn', false], ['chart', false], ['speak', false], ['write', false], ['read', false]], 'the screens with nothing to choose (or already chosen) go on');
+        assert.deepEqual(result.shown, [['welcome', false], ['learn', false], ['speak', false], ['write', false], ['read', false]], 'the screens with nothing to choose (or already chosen) go on');
         assert.deepEqual(result.knows, { first: ['ja'], title: 'Which languages do you speak?', top: 'en', count: '2 chosen', write: 'Which languages can you write?', none: true, read: 'Which languages can you read?' }, 'the three language questions; one or more each');
         const asked = ['why', 'translate', 'level'];
         assert.deepEqual(result.steps, asked.flatMap((n) => [[n, true], [n, false, true]]), 'CONTINUE is grey, and does nothing, until an answer is chosen');
         assert.deepEqual([result.levels, result.cefr, result.levelTitle], [['beginner', 'advanced'], ['A1–A2', 'B2+'], 'Are you a Beginner or an Advanced English learner?'], 'last (2026-11-04): Beginner or Advanced');
         assert.equal(result.times, 0, 'no time to choose (2026-11-04)');
         assert.equal(result.translateFirst, 'en', 'the device\'s language (English, in this browser) first');
-        assert.equal(result.chart, '13', 'where the 90 days of a Beginner take them: week 13');
+        assert.deepEqual(result.chart, ['speak', false], 'no "Reach your learning goals faster!" chart (taken out 2026-11-12): after the language they know, the languages they speak');
         assert.equal(result.last, 'Start learning', 'the level is the last screen (2026-11-04; no "where to start" — everyone starts at Section 1, Unit 1)');
         assert.deepEqual(result.sent, [
             ['/linguistic/about', { reason: 'abroad', know: 0 }], ['/linguistic/knows', { speak: ['ja', 'hi'], write: ['ja'], read: ['ja'] }],
@@ -732,7 +739,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.equal(result.__error, undefined, result.__error);
         assert.equal(result.doors, false, 'its own page, not a dashboard card (the card removed 2026-11-02)');
         assert.equal(result.counts, '2 words 2 letters 1 sentence 1 story');
-        assert.deepEqual(result.topics, ['1 · Letters', '1 · Family', '2 · Stories'], 'every topic, to go to');
+        assert.deepEqual(result.topics, ['1 · Letters', '1 · Family', '4 · Stories'], 'every topic, to go to (Advanced is Section 4 since 2026-11-14)');
         assert.deepEqual([result.letters, result.words, result.sentences, result.story], [2, 2, 1, '📖 The Shared Well Moral: What we share keeps flowing.']);
         assert.equal(result.open, '/linguistic?lesson=l2', 'each lesson can be opened again');
         assert.deepEqual(result.went, [true, true], 'a topic tapped: below the screen before, on it at once');
@@ -1065,6 +1072,220 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.ok(result.pairs.every((p) => /^\S+ \S+/.test(p)), `then match each letter to its word and picture (${result.pairs})`);
         assert.equal(result.inside, true);
         assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    // 2026-11-13, the user: "add the kha letter also, do the same as the first image, then mixed questions … ga and gha … till la".
+    // (ಗ ಘ … ರ ಲ taken out 2026-11-14: ಕ ಖ only.)
+    test('two consonants with their vowel signs (ಕ ಖ): every syllable on a card, ka\'s then kha\'s, one with no word showing its sound; a few matches, each beside its twin', async () => {
+        const built = alphabet.build(alphabet.stubs().find((x) => x.seedKey === 'kn:letters-beginner-4'), 'en');
+        const quiz = alphabet.quizOf(built, 'ui').map(({ id, type, kind, prompt, options, say, sayLang }) => ({ id, type, kind, prompt, options, say, sayLang }));
+        const LESSON = { id: 'lg', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: built.title, review: 'letters', twins: true, direction: null, passingScore: 60, language: 'en', languageName: 'English',
+            course: 'kn', target: 'kn', targetName: 'Kannada', targetLocale: 'kn-IN', learn: built.learn, words: built.words, quiz, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 } };
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/lg'), api: apiModule({ '/linguistic/lessons/lg': LESSON, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => [{ lang: 'kn-IN', name: 'Kannada' }] });
+            window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+            window.__spoken = [];
+            window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang]);
+            await sleep(1000);
+            for (let i = 0; i < 3 && !$('[data-letter-words]'); i++) await press();
+            const cards = $$('[data-letter-word]');
+            const bare = $('[data-letter-sound-only]');
+            const out = { order: cards.map((c) => c.dataset.letterWord), gaa: text($('[data-letter-word="ಖಾ"]')), bare: bare && [bare.dataset.letterWord, text(bare.querySelector('[data-letter-word-say]'))],
+                inside: cards.every((c) => { const r = c.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }), wide: (() => { ${SESSION_WIDE} })() };
+            bare.click(); await sleep(100);
+            out.spoken = window.__spoken.slice(-1)[0];
+            // Each match round played: a tile, then the letter it goes with.
+            const WORDS = ${JSON.stringify(built.words.map((w) => ({ word: w.word, side: w.for ? `${w.pic} ${w.for}` : w.kannada })))};
+            const rounds = [];
+            for (let r = 0; r < 8; r++) {
+                await press(); await sleep(300);
+                const left = $$('[data-pair="kn"]');
+                if (!left.length) break;
+                const key = left.map(text).join(' | ');
+                if (rounds.some((x) => x.key === key)) break;
+                const letters = [];
+                for (const tile of left) {
+                    const w = WORDS.find((x) => x.side === text(tile));
+                    if (!w) continue;
+                    letters.push(w.word);
+                    tile.click(); await sleep(120);
+                    $$('[data-pair]').find((b) => b.dataset.pair !== 'kn' && text(b) === w.word)?.click(); await sleep(300);
+                }
+                rounds.push({ key, letters });
+            }
+            out.rounds = rounds.map((x) => x.letters);
+            out.quizNext = !!$('[data-lingo-session]') && !$('[data-letter-words]');
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.order.length, 26, 'every syllable, with a word or not');
+        assert.deepEqual([result.order[0], result.order[13]], ['ಕಾ', 'ಖಾ'], 'ka\'s cards, then kha\'s');
+        assert.match(result.gaa, /ಖಾ.*🌶️.*ಖಾ — ಖಾರ.*khāra/s);
+        assert.ok(result.bare && /^kh/.test(result.bare[1]), `a syllable with no word shows its sound (${result.bare})`);
+        assert.deepEqual(result.spoken, [result.bare[0], 'kn-IN'], 'and is heard alone');
+        assert.ok(result.rounds.length >= 1 && result.rounds.length <= 3, `a few matches, the quiz asks more (${JSON.stringify(result.rounds)})`);
+        const twinOf = Object.fromEntries(built.words.map((w) => [w.word, w.twin]));
+        assert.ok(result.rounds[0].length >= 2 && result.rounds[0].every((x) => result.rounds[0].includes(twinOf[x])), `each beside its twin (${result.rounds[0]})`);
+        // Matched to their words only, never a syllable to its sound (2026-11-13, the user's "ಚೃ — chru" screen).
+        const wordOf = Object.fromEntries(built.words.map((w) => [w.word, w.for]));
+        assert.ok(result.rounds.flat().every((x) => wordOf[x]), `every match is to a word (${JSON.stringify(result.rounds)})`);
+        assert.equal(result.inside, true);
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    // 2026-11-14, the user: "keep 6 lessons in each unit … a new lesson can't be the same as the lessons before".
+    test('a unit\'s new "More words" lesson: its four new words on cards first (ಗಾಳಿ — wind…), then matching them', async () => {
+        const built = moreLessons.build(moreLessons.stubs().find((x) => x.seedKey === 'kn:more-words-beginner-3~2'), 'en');
+        const LESSON = { id: 'mw', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: built.title, review: 'more', direction: null, passingScore: 60, language: 'en', languageName: 'English',
+            course: 'kn', target: 'kn', targetName: 'Kannada', targetLocale: 'kn-IN', learn: built.learn, words: built.words, quiz: [], progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 } };
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/mw'), api: apiModule({ '/linguistic/lessons/mw': LESSON, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            await sleep(1000);
+            for (let i = 0; i < 3 && !$('[data-flashcard]'); i++) await press();
+            const card = $('[data-flashcard]');
+            const out = { card: text(card) };
+            card.click(); await sleep(150);
+            out.back = text($('[data-flashcard]'));
+            await press(); await sleep(300);
+            out.pairs = $$('[data-pair]').length;
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.match(result.card, /ಗಾಳಿ/, 'the first new word on its card');
+        assert.match(result.back, /wind/, 'its meaning on the back');
+        assert.ok(result.pairs >= 4, `then matching (${result.pairs} tiles)`);
+    });
+
+    // 2026-11-14, the user: "add more sections … six units in each": a new section's conversation, in Kannada.
+    test('a new section\'s conversation in a Kannada course: its lines in Kannada, read in the Kannada voice; then questions in the student\'s language', async () => {
+        const built = moreLessons.build(moreLessons.stubs().find((x) => x.seedKey === 'kn:more-listen-elementary-1'), 'en');
+        const LESSON = { id: 'cv', module: 'speaking', moduleLabel: 'Speaking and Listening', level: 'elementary', title: built.title, review: 'more', direction: null, passingScore: 60, language: 'en', languageName: 'English',
+            course: 'kn', target: 'kn', targetName: 'Kannada', targetLocale: 'kn-IN', learn: built.learn, quiz: built.quiz.map(({ id, type, prompt, options }) => ({ id, type, prompt, options })), progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 } };
+        const { result, errors } = await screen({ entry: app('/linguistic/speaking/cv'), api: apiModule({ '/linguistic/lessons/cv': LESSON, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => [{ lang: 'kn-IN', name: 'Kannada' }] });
+            window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+            window.__spoken = [];
+            window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang]);
+            await sleep(1000);
+            for (let i = 0; i < 4 && !$('[data-dialogue]'); i++) await press();
+            const lines = $$('[data-line]');
+            const out = { lines: lines.length, first: text(lines[0]) };
+            lines[0]?.click(); await sleep(400);
+            out.spoken = window.__spoken.slice(-1)[0] || null;
+            for (let i = 0; i < 4 && !$('[data-choice], [data-option]'); i++) { await press(); await sleep(200); }
+            out.question = text($('h1, h2, [data-question-title]'));
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.lines, built.learn.dialogue.lines.length, 'every line of the conversation');
+        assert.match(result.first, /[ಀ-೿]/, 'in Kannada');
+        if (result.spoken) assert.equal(result.spoken[1], 'kn-IN', 'read in the Kannada voice');
+    });
+
+    // 2026-11-14, the user's "This is ___ house." (us / our / we): "give the voice for the learning language, for the options".
+    test('a sentence with a blank: each choice read aloud in the language learnt as it is tapped; the sentence on its speaker', async () => {
+        const LESSON = { id: 'gb', module: 'grammar', moduleLabel: 'Grammar Practice', level: 'beginner', title: 'Pronouns', direction: null, passingScore: 60, language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'Pronouns.' }, practice: [{ id: 'g1', type: 'mcq', prompt: 'Choose the word that fits: This is ___ house.', options: ['us', 'our', 'we'] }], quiz: [], progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 } };
+        const { result, errors } = await screen({ entry: app('/linguistic/grammar/gb'), api: apiModule({ '/linguistic/lessons/gb': LESSON, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => [{ lang: 'en-IN', name: 'English' }] });
+            window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+            window.__spoken = [];
+            window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang]);
+            await sleep(1000);
+            for (let i = 0; i < 4 && !$('[data-blank-sentence]'); i++) await press();
+            const box = $('[data-blank-sentence]');
+            const out = { box: !!box, speaker: !!box?.querySelector('button') };
+            const our = $$('[role="radio"]').find((b) => text(b).includes('our'));
+            our?.click(); await sleep(400);
+            out.spoken = window.__spoken.slice(-1)[0] || null;
+            out.filled = text($('[data-blank-sentence]'));
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual([result.box, result.speaker], [true, true], 'the sentence, with its speaker');
+        assert.deepEqual(result.spoken, ['our', 'en-IN'], 'the choice heard in English, the language learnt');
+        assert.match(result.filled, /This is\s*our\s*house/);
+    });
+
+    // 2026-11-16, the user's "ಅನಿಲ್ ಏನು ಕೊಳ್ಳುತ್ತಾನೆ?" with Grapes, Mangoes, Bananas, Apples: "add the voice of these options, to all
+    // this type of question".
+    test('a question in Kannada with English choices: each choice heard in English as it is tapped; Kannada choices in Kannada', async () => {
+        const LESSON = { id: 'vo', module: 'grammar', moduleLabel: 'Grammar Practice', level: 'beginner', title: 'At the market', direction: null, passingScore: 60, language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'Shopping.' }, quiz: [], progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 },
+            practice: [{ id: 'g1', type: 'mcq', prompt: 'ಅನಿಲ್ ಏನು ಕೊಳ್ಳುತ್ತಾನೆ?', options: ['Grapes', 'Mangoes', 'Bananas', 'Apples'] },
+                { id: 'g2', type: 'mcq', prompt: 'What does "apple" mean?', options: ['ಸೇಬು', 'ಬಾಳೆಹಣ್ಣು', 'ಮಾವು'] }] };
+        const post = `(url, body) => url.endsWith('/check') ? { correct: true, answer: body.given, explanation: '', events: [] } : { step: body.step }`;
+        const { result, errors } = await screen({ entry: app('/linguistic/grammar/vo'), api: apiModule({ '/linguistic/lessons/vo': LESSON, ...SHELL_API }, post), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => [{ lang: 'en-IN', name: 'English' }, { lang: 'kn-IN', name: 'Kannada' }] });
+            window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+            window.__spoken = [];
+            window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang]);
+            await sleep(1000);
+            for (let i = 0; i < 4 && !$('[data-question="g1"]'); i++) await press();
+            const out = {};
+            $$('[role="radio"]').find((b) => text(b).includes('Apples'))?.click(); await sleep(400);
+            out.english = window.__spoken.slice(-1)[0] || null;
+            for (let i = 0; i < 6 && !$('[data-question="g2"]'); i++) await press();
+            out.at = $('[data-question]')?.dataset.question;
+            const before = window.__spoken.length;
+            $$('[role="radio"]').find((b) => text(b).includes('ಸೇಬು'))?.click(); await sleep(400);
+            out.kannada = window.__spoken.slice(before);
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual(result.english, ['Apples', 'en-IN'], 'the English choice heard in English');
+        assert.equal(result.at, 'g2');
+        // Since the merge with test (2026-11-16, "it should pronounce this"): read too, in its own (Kannada) voice — never in English.
+        assert.deepEqual(result.kannada, [['ಸೇಬು', 'kn-IN']], 'a choice in the student\'s own language: read in its own voice, not in English');
+    });
+
+    // 2026-11-16, the user's "He cut the onions with sharp knife and his eyes watered" marked wrong: "I put the correct
+    // sentence — if it is the comma, don't count the comma". The comma never counted; "a" was left out — now shown.
+    test('tap what you hear, a word left out: the tiles that fit stay plain, the word left out marked in the right sentence', async () => {
+        const SENT = 'He cut the onions with a sharp knife, and his eyes watered.';
+        const tiles = ['He', 'cut', 'the', 'onions', 'with', 'a', 'sharp', 'knife', 'and', 'his', 'eyes', 'watered', 'tasted', 'next'];
+        const LESSON = { id: 'hw', module: 'grammar', moduleLabel: 'Grammar Practice', level: 'beginner', title: 'Deepak cooks lunch', direction: null, passingScore: 60, language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'Cooking.' }, quiz: [], progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 },
+            practice: [{ id: 'top~hear~s3', type: 'hear', prompt: 'Tap what you hear', say: SENT, sayLang: 'en-IN', words: tiles }] };
+        const post = `(url, body) => url.endsWith('/check') ? { correct: false, answer: ${JSON.stringify(SENT)}, explanation: '', events: [] } : { step: body.step }`;
+        const { result, errors } = await screen({ entry: app('/linguistic/grammar/hw'), api: apiModule({ '/linguistic/lessons/hw': LESSON, ...SHELL_API }, post), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            await sleep(1000);
+            for (let i = 0; i < 4 && !$('[data-tiles]'); i++) await press();
+            // The user's answer: no "a".
+            for (const w of ['He', 'cut', 'the', 'onions', 'with', 'sharp', 'knife', 'and', 'his', 'eyes', 'watered']) { $$('[data-tiles] button').find((b) => b.innerText.trim() === w && !b.disabled)?.click(); await sleep(30); }
+            ($('[data-primary]'))?.click(); await sleep(500);
+            return { correction: text($('[data-correction]')), missing: $$('[data-missing]').map(text), wrongTiles: $$('[data-tile-wrong="true"]').map(text), plain: $$('[data-tile-wrong="false"]').length };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.match(result.correction, /He cut the onions with a sharp knife, and his eyes watered\./);
+        assert.deepEqual(result.missing, ['a'], 'the word left out, marked — not the comma');
+        assert.deepEqual(result.wrongTiles, [], 'every tile put in fits the sentence');
+        assert.equal(result.plain, 11);
+    });
+
+    // 2026-11-14, the user's picture of a golden chest: "make the gift the same".
+    test('the treasure chest on the path is drawn as a chest (shut, opened once collected, grey while locked); tapped, it offers to open', async () => {
+        const chest = (id, status, open) => ({ id, stop: 'chest', type: 'chest', title: 'Treasure chest', summary: '', open, status, bestScore: null, attempts: 0 });
+        const unit = { ...PATH.levels[0].units[0], lessons: [...PATH.levels[0].units[0].lessons, chest('chest-1', 'new', true), chest('chest-2', 'completed', true), chest('chest-3', 'new', false)] };
+        const path = { ...PATH, levels: [{ ...PATH.levels[0], units: [unit, ...PATH.levels[0].units.slice(1)] }, ...PATH.levels.slice(1)] };
+        const { result, errors } = await screen({ entry: app('/linguistic'), api: apiModule({ ...SHELL_API, '/linguistic/path': path }), styles: true, device: DEVICES.galaxyA55, script: `
+            await sleep(1500);
+            const nodes = $$('[data-kind="chest"]');
+            const out = nodes.map((n) => ({ svg: !!n.querySelector('svg rect'), w: Math.round(n.querySelector('svg').getBoundingClientRect().width), grey: !!n.querySelector('svg')?.style.filter, status: n.dataset.status }));
+            nodes[0].click(); await sleep(400);
+            const open = [...document.querySelectorAll('button')].find((b) => text(b) === 'Open');
+            return { out, open: !!open };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.out.length, 3, 'the three chests');
+        assert.ok(result.out.every((c) => c.svg && c.w >= 90), `drawn, about 100px wide (${JSON.stringify(result.out)})`);
+        assert.deepEqual(result.out.map((c) => c.grey), [false, false, true], 'grey only while locked');
+        assert.equal(result.open, true, 'tapped: "Open"');
     });
 
     test('a Letters lesson (2026-10-31, from scratch): straight to matching each letter with its sound (the cards are the chart\'s), no spelling drill', async () => {
@@ -1509,10 +1730,9 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         const ES = { id: 'tb', module: 'translation', moduleLabel: 'Translation Practice', level: 'advanced', title: 'At work', direction: 'en-kn', passingScore: 60,
             course: 'es', target: 'es', targetName: 'Spanish', targetLocale: 'es-ES', language: 'en', languageName: 'English',
             learn: { intro: 'Translate.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 }, items: [],
-            blanks: [{ id: 'blank~i1', type: 'blanks', prompt: 'La ___ se ha ___ al lunes.', parts: ['La ', null, ' se ha ', null, ' al lunes.'], hint: 'The meeting has been postponed to Monday.',
+            quiz: [{ id: 'blank~i1', type: 'blanks', prompt: 'La ___ se ha ___ al lunes.', parts: ['La ', null, ' se ha ', null, ' al lunes.'], hint: 'The meeting has been postponed to Monday.',
                 words: ['aplazado', 'informe', 'lunes', 'reunión'], meaningLang: 'en', tileMeanings: [['postponed'], ['report'], ['Monday'], ['meeting']],
-                partWords: [[['La', ['the']], [' ', null]], null, [[' ', null], ['se', ['(passive)', 'itself']], [' ', null], ['ha', ['has']], [' ', null]], null, [[' ', null], ['al', ['to the']], [' ', null], ['lunes', ['Monday']], ['.', null]]] }],
-            quiz: [{ id: 'q1', type: 'translation', source: 'casa', bank: ['house', 'water'] }] };
+                partWords: [[['La', ['the']], [' ', null]], null, [[' ', null], ['se', ['(passive)', 'itself']], [' ', null], ['ha', ['has']], [' ', null]], null, [[' ', null], ['al', ['to the']], [' ', null], ['lunes', ['Monday']], ['.', null]]] }, { id: 'q1', type: 'translation', source: 'casa', bank: ['house', 'water'] }] };
         const ja = await screen({ entry: app('/linguistic/translation/tj'), api: apiModule({ '/linguistic/lessons/tj': JA }, '(url, body) => ({ step: body.step })'), styles: true, device: DEVICES.galaxyA55, script: `
             ${DRIVE}
             await sleep(1000);
@@ -1673,13 +1893,188 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.match(result.mcq.cornerPose, /sad\.png$/, 'wrong there: sad');
     });
 
+    test('sentences to choose are read aloud as each is tapped, without their picture (2026-11-12, the user: "why is this sentence\'s voice not coming"); other choices stay quiet', async () => {
+        const LESSON = { id: 'sv', module: 'vocabulary', moduleLabel: 'Letters', level: 'beginner', title: 'Letters: A to I', passingScore: 60, language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'Letters.' }, progress: { status: 'started', step: 'quiz', bestScore: null, attempts: 0 }, words: [],
+            quiz: [{ id: 'L~7~word', type: 'mcq', kind: 'letterWord', prompt: '“H” ಅಕ್ಷರದಿಂದ ಶುರುವಾಗುವ ಪದ ಯಾವ ವಾಕ್ಯದಲ್ಲಿದೆ?', options: ['🐘 The elephant is very big.', '🎩 He wears a hat in the sun.', '🍎 I eat a red apple.', '🍦 I like cold ice cream.'], optionsSay: 'en-IN' },
+                // Letters to choose, read too (2026-11-12, "give the voice for this also"): each by its name once.
+                { id: 'L~1~first', type: 'mcq', kind: 'wordLetter', prompt: '“apple” ಯಾವ ಅಕ್ಷರದಿಂದ ಶುರುವಾಗುತ್ತದೆ?', options: ['A', 'B', 'C', 'D'], optionsSay: 'en-IN', optionsSpeak: { A: 'a', B: 'b', C: 'c', D: 'd' } },
+                // Which letter makes a sound: not read (its sound would be the answer).
+                { id: 'L~2~letter', type: 'mcq', kind: 'soundLetter', prompt: 'Which letter makes the sound "ka"?', options: ['ಕ', 'ಗ', 'ಮ', 'ನ'] }] };
+        const post = `(url, body) => url.endsWith('/quiz/check') ? { correct: true, answer: body.given, explanation: '' } : url.endsWith('/quiz') ? { score: 2, total: 2, percent: 100, passed: true, passingScore: 60, events: [], results: [] } : { step: body.step }`;
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/sv'), api: apiModule({ '/linguistic/lessons/sv': LESSON }, post), styles: true, device: DEVICES.galaxyA55, budget: 30000, script: `
+            ${DRIVE}
+            window.__spoken = [];
+            window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+            window.speechSynthesis.getVoices = () => [{ name: 'Samantha', lang: 'en-US' }];
+            window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang]);
+            await sleep(1000);
+            for (let i = 0; i < 4 && !$('[data-option]'); i++) await press();
+            await sleep(200);
+            const out = { first: text($('[data-question] h1')) };
+            // The picture a little bigger than its words (2026-11-12, "give this icon a little big").
+            const pic = $('[data-option="1"] [data-big-pic]');
+            out.pic = pic && [pic.textContent, Math.round(parseFloat(getComputedStyle(pic).fontSize) / parseFloat(getComputedStyle(pic.parentElement).fontSize) * 10) / 10, text($('[data-option="1"]'))];
+            window.__spoken = [];
+            $('[data-option="1"]').click(); await sleep(250);
+            out.sentence = window.__spoken.slice();
+            $('[data-primary]').click(); await sleep(400);
+            for (let i = 0; i < 3 && text($('[data-question] h1')) === out.first; i++) await press();
+            await sleep(250);
+            window.__spoken = [];
+            $('[data-option="0"]').click(); await sleep(250);
+            out.letters = { title: text($('[data-question] h1')), spoken: window.__spoken.slice() };
+            $('[data-primary]').click(); await sleep(400);
+            const second = text($('[data-question] h1'));
+            for (let i = 0; i < 3 && text($('[data-question] h1')) === second; i++) await press();
+            await sleep(250);
+            window.__spoken = [];
+            $('[data-option="0"]').click(); await sleep(250);
+            out.sound = { title: text($('[data-question] h1')), spoken: window.__spoken.slice() };
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.match(result.first, /“H”/);
+        assert.deepEqual(result.pic, ['🎩', 1.4, '2 🎩 He wears a hat in the sun.'], 'the picture 1.4 times its words; the text the same (its number first)');
+        assert.equal(result.sentence.length, 1, `one reading (${JSON.stringify(result.sentence)})`);
+        assert.equal(result.sentence[0][0], 'He wears a hat in the sun.', 'the sentence, without its picture');
+        assert.match(result.sentence[0][1], /^en/, 'in English');
+        assert.match(result.letters.title, /apple/);
+        assert.deepEqual(result.letters.spoken.map((x) => x[0]), ['a'], 'a letter to choose read by its name once: "a", not "capital A"');
+        assert.match(result.sound.title, /sound/);
+        assert.deepEqual(result.sound.spoken, [], 'which letter makes a sound: the letters not read (that would answer it)');
+    });
+
+    test('choose the picture (2026-11-13, the user\'s picture "Select the correct picture for “사슴”"): the word in the language learnt, heard as it opens; four pictures in two rows, named in the student\'s language; checked: the right one green, the wrong red', async () => {
+        const LESSON = { id: 'se', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Animals', passingScore: 60, language: 'kn', languageName: 'Kannada',
+            course: 'ko', target: 'ko', targetName: 'Korean', targetLocale: 'ko-KR',
+            learn: { intro: 'Words.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 }, words: [],
+            sees: [{ id: 'see~mother', type: 'seeword', prompt: 'Choose the picture for "어머니".', ask: '어머니', say: '어머니', sayLang: 'ko-KR', options: ['ಸಂಜೆ', 'ಊಟ', 'ಮನೆ', 'ತಾಯಿ'],
+                pics: { 'ಸಂಜೆ': '🌇', 'ಊಟ': '🍽️', 'ಮನೆ': '🏠', 'ತಾಯಿ': '👩‍👧' } }],
+            quiz: [{ id: 'q1', type: 'mcq', prompt: 'What does "집" mean?', options: ['ಮನೆ', 'ನೀರು'] }] };
+        const post = `(url, body) => url.endsWith('/check') ? (body.given === 'ತಾಯಿ' ? { correct: true, answer: 'ತಾಯಿ', explanation: '', events: [] } : { correct: false, answer: 'ತಾಯಿ', explanation: '"어머니" is "ತಾಯಿ".', events: [] }) : { step: body.step }`;
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/se'), api: apiModule({ '/linguistic/lessons/se': LESSON }, post), styles: true, device: DEVICES.galaxyA55, budget: 30000, script: `
+            ${DRIVE}
+            window.__spoken = [];
+            window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+            window.speechSynthesis.getVoices = () => [{ name: 'Yuna', lang: 'ko-KR' }];
+            window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang]);
+            await sleep(1000);
+            for (let i = 0; i < 4 && !$('[data-see-cards]'); i++) await press();
+            await sleep(300);
+            const cards = $$('[data-see-card]'), boxes = cards.map((c) => c.getBoundingClientRect());
+            const out = { title: text($('[data-see-title]')), word: text($('[data-see-word]')), heard: window.__spoken.slice(),
+                cards: cards.map((c) => [c.querySelector('[data-picture]')?.dataset.picture, text(c).replace(/\\s+/g, ' ').trim()]),
+                grid: Math.abs(boxes[0].top - boxes[1].top) < 2 && Math.abs(boxes[2].top - boxes[3].top) < 2 && boxes[2].top > boxes[0].bottom - 1 };
+            $('[data-option="2"]').click(); await sleep(100);
+            $('[data-primary]').click(); await sleep(450);
+            const colour = (o) => getComputedStyle($('[data-see-card="' + o + '"]')).borderColor;
+            out.checked = { right: colour('ತಾಯಿ'), wrong: colour('ಮನೆ') };
+            out.sent = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/check')).map((c) => [c[2].section, c[2].id, c[2].given]);
+            out.wide = (() => { ${SESSION_WIDE} })();
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.title, '“어머니” ಗೆ ಸರಿಯಾದ ಚಿತ್ರವನ್ನು ಆರಿಸಿ', 'the title in Kannada, the word in Korean');
+        assert.equal(result.word, '어머니');
+        assert.deepEqual(result.heard, [['어머니', 'ko-KR']], 'the word heard as it opens, in Korean');
+        assert.deepEqual(result.cards, [['🌇', '1 🌇 (ಸಂಜೆ)'], ['🍽️', '2 🍽️ (ಊಟ)'], ['🏠', '3 🏠 (ಮನೆ)'], ['👩‍👧', '4 👩‍👧 (ತಾಯಿ)']], 'four pictures, each named in Kannada, numbered');
+        assert.equal(result.grid, true, 'two rows of two');
+        assert.deepEqual(result.sent, [['see', 'see~mother', 'ಮನೆ']], 'checked in the practice');
+        assert.match(result.checked.right, /rgb\(88, 204, 2\)/, 'the right picture green');
+        assert.match(result.checked.wrong, /rgb\(255, 75, 75\)|rgb\(234, 43, 43\)/, 'the wrong one red');
+        assert.ok(result.wide <= 1, `inside the phone (${result.wide}px)`);
+    });
+
+    test('spell the word (2026-11-13, the user\'s picture of a dress and its letter tiles): its title in the student\'s language, the picture and its meaning, the letters mixed up; tapped in order, each heard; checked as a quiz question', async () => {
+        const LESSON = { id: 'sp', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Home and family', passingScore: 60, language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'Words.' }, progress: { status: 'started', step: 'quiz', bestScore: null, attempts: 0 }, words: [],
+            quiz: [{ id: 'spell~mother', type: 'letters', prompt: 'Spell the word for "ತಾಯಿ".', ask: 'ತಾಯಿ', pic: '👩‍👧', words: ['r', 'm', 'o', 'e', 'h', 't'], sayLang: 'en-IN' },
+                { id: 'q1', type: 'mcq', prompt: 'What does "ಮನೆ" mean?', options: ['house', 'water'] }, { id: 'q2', type: 'mcq', prompt: 'What does "ನೀರು" mean?', options: ['water', 'house'] }] };
+        const post = `(url, body) => url.endsWith('/check') ? { correct: body.id !== 'spell~mother' || body.given === 'm o t h e r', answer: 'mother', explanation: '', events: [] } : { step: body.step }`;
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/sp'), api: apiModule({ '/linguistic/lessons/sp': LESSON }, post), styles: true, device: DEVICES.galaxyA55, budget: 30000, script: `
+            ${DRIVE}
+            window.__spoken = [];
+            window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+            window.speechSynthesis.getVoices = () => [{ name: 'Samantha', lang: 'en-US' }];
+            window.speechSynthesis.speak = (u) => window.__spoken.push(u.text);
+            await sleep(1000);
+            for (let i = 0; i < 4 && !$('[data-spell]'); i++) await press();
+            await sleep(200);
+            const tile = (w) => $$('[data-tiles] button').find((b) => b.innerText.trim() === w && !b.classList.contains('invisible'));
+            const out = { title: text($('[data-question] h1')), pic: text($('[data-spell-pic]')), ask: text($('[data-spell-ask]')), tiles: $$('[data-tiles] button').map((b) => b.innerText.trim()), waits: $('[data-primary]').disabled };
+            window.__spoken = [];
+            for (const w of ['m', 'o', 't', 'h', 'e', 'r']) { tile(w).click(); await sleep(120); }
+            out.placed = $$('[data-placed] button').map((b) => b.innerText.trim());
+            out.heard = window.__spoken.slice();
+            out.ready = !$('[data-primary]').disabled;
+            $('[data-primary]').click(); await sleep(700);
+            out.sent = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/quiz/check')).map((c) => [c[2].id, c[2].given]);
+            for (let i = 0; i < 20 && $('[data-spell]'); i++) await sleep(150);
+            out.on = !$('[data-spell]');
+            out.wide = (() => { ${SESSION_WIDE} })();
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.title, 'ಪದವನ್ನು ಜೋಡಿಸಿ', 'the title in Kannada');
+        assert.deepEqual([result.pic, result.ask], ['👩‍👧', 'ತಾಯಿ'], 'the picture and its meaning');
+        assert.deepEqual(result.tiles, ['r', 'm', 'o', 'e', 'h', 't'], 'its letters, mixed up');
+        assert.equal(result.waits, true, 'Check waits for the letters');
+        assert.deepEqual(result.placed, ['m', 'o', 't', 'h', 'e', 'r'], 'tapped in order');
+        assert.deepEqual(result.heard, ['m', 'o', 't', 'h', 'e', 'r'], 'each letter heard as it goes in');
+        assert.equal(result.ready, true);
+        assert.deepEqual(result.sent, [['spell~mother', 'm o t h e r']], 'checked as a quiz question');
+        assert.equal(result.on, true, 'right: on to the next');
+        assert.ok(result.wide <= 1, `inside the phone (${result.wide}px)`);
+    });
+
+    test('which of these is …? (2026-11-12, the user\'s Duolingo picture): its title in the student\'s language with the meaning; three picture cards in a row, numbered; a card (or its number) chosen and heard; checked: the right card green, the wrong red', async () => {
+        const LESSON = { id: 'pc', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Home and family', passingScore: 60, language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'Words.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 }, words: [],
+            quiz: [{ id: 'pic~mother', type: 'picture', prompt: 'Which of these is "ತಾಯಿ"?', ask: 'ತಾಯಿ', options: ['mother', 'house', 'sun'], pics: { mother: '👩‍👧', house: '🏠', sun: '☀️' }, sayLang: 'en-IN' }, { id: 'q1', type: 'mcq', prompt: 'What does "ಮನೆ" mean?', options: ['house', 'water'] }] };
+        const post = `(url, body) => url.endsWith('/check') ? (body.given === 'mother' ? { correct: true, answer: 'mother', explanation: '', events: [] }
+            : { correct: false, answer: 'mother', explanation: '"ತಾಯಿ" is "mother".', events: [] }) : { step: body.step }`;
+        const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/pc'), api: apiModule({ '/linguistic/lessons/pc': LESSON }, post), styles: true, device: DEVICES.galaxyA55, budget: 30000, script: `
+            ${DRIVE}
+            window.__spoken = [];
+            window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+            window.speechSynthesis.getVoices = () => [{ name: 'Samantha', lang: 'en-US' }];
+            window.speechSynthesis.speak = (u) => window.__spoken.push(u.text);
+            await sleep(1000);
+            for (let i = 0; i < 4 && !$('[data-picture-cards]'); i++) await press();
+            await sleep(200);
+            const cards = $$('[data-picture-card]');
+            const boxes = cards.map((c) => c.getBoundingClientRect());
+            const out = { title: text($('[data-picture-title]')), cards: cards.map((c) => [c.dataset.pictureCard, c.querySelector('[data-picture]')?.dataset.picture, text(c).replace(/\\s+/g, ' ').trim()]),
+                row: boxes.every((b) => Math.abs(b.top - boxes[0].top) < 2) && boxes[0].right <= boxes[1].left && boxes[1].right <= boxes[2].left, waits: $('[data-primary]').disabled };
+            // Its number pressed: chosen, and its word heard.
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true })); window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' })); await sleep(200);
+            out.chosen = [$$('[data-picture-card][aria-checked="true"]').map((c) => c.dataset.pictureCard), window.__spoken.slice(-1)[0], $('[data-primary]').disabled];
+            $('[data-primary]').click(); await sleep(450);
+            const colour = (o) => getComputedStyle($('[data-picture-card="' + o + '"]')).borderColor;
+            out.checked = { right: colour('mother'), wrong: colour('house') };
+            out.sent = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/check')).map((c) => [c[1].endsWith('/quiz/check') ? 'quiz' : c[2].section, c[2].id, c[2].given]);
+            out.wide = (() => { ${SESSION_WIDE} })();
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.title, 'ಇವುಗಳಲ್ಲಿ ಯಾವುದು “ತಾಯಿ”?', 'in Kannada, as the picture');
+        assert.deepEqual(result.cards, [['mother', '👩‍👧', '👩‍👧 mother 1'], ['house', '🏠', '🏠 house 2'], ['sun', '☀️', '☀️ sun 3']], 'each its picture, word and number');
+        assert.equal(result.row, true, 'three in a row');
+        assert.equal(result.waits, true, 'Check waits for a card');
+        assert.deepEqual(result.chosen, [['house'], 'house', false], 'pressing 2: house chosen and heard; Check ready');
+        assert.deepEqual(result.sent, [['quiz', 'pic~mother', 'house']], 'a quiz question since 2026-11-12');
+        assert.match(result.checked.right, /rgb\(88, 204, 2\)|rgb\(8\d, 2\d\d, \d+\)/, `the right card green (${result.checked.right})`);
+        assert.match(result.checked.wrong, /rgb\(2[0-9]{2}, 7\d, 7\d\)|rgb\(255, 75, 75\)/, `the wrong card red (${result.checked.wrong})`);
+        assert.ok(result.wide <= 1, `inside the phone (${result.wide}px)`);
+    });
+
     test('complete the conversation (2026-11-07, the user\'s Duolingo picture): its title in the student\'s language; the question heard by itself and on its speaker, its meaning on tap; a reply heard and shown in the empty bubble; checked; a wrong one, the right one in green', async () => {
         const LESSON = { id: 'ch', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', level: 'beginner', title: 'Home and family', passingScore: 60, language: 'kn', languageName: 'Kannada',
             learn: { intro: 'Words.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 }, words: [],
-            chats: [{ id: 'chat~b1a', type: 'chat', who: 'f', prompt: 'Do you have a pet?', ask: 'Do you have a pet?', say: 'Do you have a pet?', sayLang: 'en-IN',
+            quiz: [{ id: 'chat~b1a', type: 'chat', who: 'f', prompt: 'Do you have a pet?', ask: 'Do you have a pet?', say: 'Do you have a pet?', sayLang: 'en-IN',
                 options: ['It is near the bus stand.', 'Yes, I have a cat.', 'It is hot and sunny.'], meaningLang: 'kn', askMeaning: 'ನಿಮ್ಮ ಬಳಿ ಸಾಕುಪ್ರಾಣಿ ಇದೆಯೇ?',
-                optionMeanings: { 'Yes, I have a cat.': 'ಹೌದು, ನನ್ನ ಬಳಿ ಒಂದು ಬೆಕ್ಕು ಇದೆ.', 'It is near the bus stand.': 'ಅದು ಬಸ್ ನಿಲ್ದಾಣದ ಹತ್ತಿರ ಇದೆ.', 'It is hot and sunny.': 'ಬಿಸಿಲು ಇದೆ, ತುಂಬಾ ಸೆಕೆ.' } }],
-            quiz: [{ id: 'q1', type: 'mcq', prompt: 'What does "ಮನೆ" mean?', options: ['house', 'water'] }] };
+                optionMeanings: { 'Yes, I have a cat.': 'ಹೌದು, ನನ್ನ ಬಳಿ ಒಂದು ಬೆಕ್ಕು ಇದೆ.', 'It is near the bus stand.': 'ಅದು ಬಸ್ ನಿಲ್ದಾಣದ ಹತ್ತಿರ ಇದೆ.', 'It is hot and sunny.': 'ಬಿಸಿಲು ಇದೆ, ತುಂಬಾ ಸೆಕೆ.' } }, { id: 'q1', type: 'mcq', prompt: 'What does "ಮನೆ" mean?', options: ['house', 'water'] }] };
         const post = `(url, body) => url.endsWith('/check') ? (body.given === 'Yes, I have a cat.' ? { correct: true, answer: 'Yes, I have a cat.', explanation: '', events: [] }
             : { correct: false, answer: 'Yes, I have a cat.', explanation: 'ಹೌದು, ನನ್ನ ಬಳಿ ಒಂದು ಬೆಕ್ಕು ಇದೆ.', events: [] }) : { step: body.step }`;
         const { result, errors } = await screen({ entry: app('/linguistic/vocabulary/ch'), api: apiModule({ '/linguistic/lessons/ch': LESSON }, post), styles: true, device: DEVICES.galaxyA55, budget: 30000, script: `
@@ -1715,7 +2110,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             out.oneVoice = window.__voices.map((x) => x.slice(1));
             $('[data-primary]').click(); await sleep(400);
             out.wrong = { right: text($('[data-option="1"]')), rightColor: getComputedStyle($('[data-option="1"]')).borderColor, reply: getComputedStyle($('[data-chat-reply]')).borderColor };
-            out.sent = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/check')).map((c) => [c[2].section, c[2].id, c[2].given]);
+            out.sent = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/check')).map((c) => [c[1].endsWith('/quiz/check') ? 'quiz' : c[2].section, c[2].id, c[2].given]);
             out.wide = (() => { ${SESSION_WIDE} })();
             return out;` });
         assert.deepEqual(errors, []);
@@ -1731,7 +2126,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.deepEqual(result.picked.heard, ['It is near the bus stand.'], 'a reply heard as it is tapped');
         assert.equal(result.picked.reply, 'It is near the bus stand.', 'and shown in the reply bubble');
         assert.match(result.picked.meaning, /ಅದು ಬಸ್ ನಿಲ್ದಾಣದ ಹತ್ತಿರ ಇದೆ/, 'with its meaning');
-        assert.deepEqual(result.sent, [['chat', 'chat~b1a', 'It is near the bus stand.']]);
+        assert.deepEqual(result.sent, [['quiz', 'chat~b1a', 'It is near the bus stand.']], 'a quiz question since 2026-11-12');
         assert.match(result.wrong.right, /^2\s*Yes, I have a cat\.$/, 'wrong: the right reply marked');
         assert.equal(result.wrong.rightColor, 'rgb(88, 204, 2)', 'in green');
         assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
@@ -1740,8 +2135,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
     test('tap what you hear (2026-11-06, the user\'s Duolingo picture): its title in the student\'s language, the sentence heard by itself, again and slowly; each tile heard as it goes in; built and checked in its order', async () => {
         const LESSON = { id: 'he', module: 'translation', moduleLabel: 'Translation Practice', level: 'beginner', title: 'Pets', direction: 'kn-en', passingScore: 60, language: 'kn', languageName: 'Kannada',
             learn: { intro: 'Translate.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 }, items: [],
-            hears: [{ id: 'hear~i1', type: 'hear', prompt: 'Tap what you hear', say: 'Oh, your cat is very cute.', sayLang: 'en-IN', words: ['very', 'cat', 'cute', 'your', 'Oh', 'is', 'yes'] }],
-            quiz: [{ id: 'q1', type: 'mcq', prompt: 'What does "ಮನೆ" mean?', options: ['house', 'water'] }] };
+            quiz: [{ id: 'hear~i1', type: 'hear', prompt: 'Tap what you hear', say: 'Oh, your cat is very cute.', sayLang: 'en-IN', words: ['very', 'cat', 'cute', 'your', 'Oh', 'is', 'yes'] }, { id: 'q1', type: 'mcq', prompt: 'What does "ಮನೆ" mean?', options: ['house', 'water'] }] };
         const post = `(url, body) => url.endsWith('/check') ? (body.given === 'Oh your cat is very cute' ? { correct: true, verdict: 'exact', answer: 'Oh, your cat is very cute.', explanation: '', events: [] }
             : { correct: false, verdict: 'wrong', answer: 'Oh, your cat is very cute.', explanation: '', events: [] }) : { step: body.step }`;
         const { result, errors } = await screen({ entry: app('/linguistic/translation/he'), api: apiModule({ '/linguistic/lessons/he': LESSON }, post), styles: true, device: DEVICES.galaxyA55, budget: 30000, script: `
@@ -1763,7 +2157,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             out.placed = $$('[data-placed] button').map((b) => b.textContent);
             for (const w of ['is', 'very', 'cute']) { tile(w).click(); await sleep(60); }
             $('[data-primary]').click(); await sleep(1000);
-            out.sent = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/check')).map((c) => [c[2].section, c[2].id, c[2].given]);
+            out.sent = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/check')).map((c) => [c[1].endsWith('/quiz/check') ? 'quiz' : c[2].section, c[2].id, c[2].given]);
             for (let i = 0; i < 20 && $('[data-hear]'); i++) await sleep(150);
             out.on = !$('[data-hear]');
             out.wide = (() => { ${SESSION_WIDE} })();
@@ -1775,7 +2169,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.deepEqual(result.again, [['Oh, your cat is very cute.', 1], ['Oh, your cat is very cute.', 0.6]], 'again on the speaker; slowly on the turtle');
         assert.deepEqual(result.tiles, ['Oh', 'your', 'cat'], 'each tile heard as it goes in');
         assert.deepEqual(result.placed, ['Oh', 'your', 'cat']);
-        assert.deepEqual(result.sent, [['hear', 'hear~i1', 'Oh your cat is very cute']], 'checked by the server, in its order');
+        assert.deepEqual(result.sent, [['quiz', 'hear~i1', 'Oh your cat is very cute']], 'checked by the server, in its order (a quiz question since 2026-11-12)');
         assert.equal(result.on, true, 'right: on to the next');
         assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
     });
@@ -2044,6 +2438,68 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
 
     // 2026-11-07, the user: "after one lesson of a unit, End session goes straight to that unit's next one — not to another
     // unit or another lesson"; chose: the next lesson, its START showing.
+    // 2026-11-13, the user's Duolingo picture ("UP NEXT … JUMP HERE?" — both ways: unit by unit, and this).
+    // 2026-11-13, the user: "except Kannada, Hindi and English, lock the other languages for every card except the developer ones".
+    test('only English, Kannada and Hindi to learn: on the start screen the other languages are shown locked and cannot be chosen', async () => {
+        const fresh = { ...DASH, started: false, goalSet: false, languages: [...DASH.languages, { code: 'en', name: 'English', native: 'English', group: 'world' }],
+            courses: DASH.courses.map((c) => (['en', 'kn', 'hi'].includes(c.code) ? c : { ...c, locked: true })) };
+        const { result, errors } = await screen({ entry: app('/linguistic'), api: apiModule({ ...SHELL_API, '/linguistic/': fresh }), styles: true, device: DEVICES.galaxyA55, script: `
+            await sleep(1200);
+            const btn = () => $('[data-lingo-session] [data-primary]');
+            btn().click(); await sleep(400);
+            const tiles = $$('[data-course]');
+            const out = { locked: tiles.filter((t) => t.dataset.locked).map((t) => t.dataset.course), open: tiles.filter((t) => !t.dataset.locked).map((t) => t.dataset.course),
+                disabled: tiles.filter((t) => t.dataset.locked).every((t) => t.disabled), lockIcon: tiles.filter((t) => t.dataset.locked).every((t) => !!t.querySelector('svg.lucide-lock')) };
+            const shut = tiles.find((t) => t.dataset.locked);
+            shut.click(); await sleep(150);
+            out.shutChosen = shut.getAttribute('aria-pressed');
+            $('[data-course="hi"]').click(); await sleep(150);
+            out.hindiChosen = $('[data-course="hi"]').getAttribute('aria-pressed');
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual(result.open.sort(), ['en', 'hi', 'kn'], 'English, Kannada and Hindi open');
+        assert.ok(result.locked.length > 0, `the others locked (${result.locked})`);
+        assert.deepEqual([result.disabled, result.lockIcon], [true, true], 'each locked one disabled, with a lock');
+        assert.equal(result.shutChosen, 'false', 'a locked one cannot be chosen');
+        assert.equal(result.hindiChosen, 'true', 'Hindi can');
+    });
+
+    test('jump here?: under an open unit, the shut one after it — "Up next", its name, "Jump here?"; one further on, its name and its last try; tapped, its test opens', async () => {
+        const N = 'new';
+        const jumpPath = { ...PATH, current: 'a1', levels: [{ ...PATH.levels[0], open: true, units: [
+            { id: 'beginner-1', index: 1, kind: 'topic', title: 'Family', open: true, lessons: ['a1', 'a2'].map((id, i) => lesson(id, `Lesson ${i + 1}`, { status: N })) },
+            { id: 'beginner-2', index: 2, kind: 'topic', title: 'Food and drink', open: false, jump: { review: 'ra' }, lessons: ['b1', 'b2'].map((id, i) => lesson(id, `Lesson ${i + 1}`, { status: N, open: false })) },
+            { id: 'beginner-3', index: 3, kind: 'topic', title: 'School and friends', open: false, jump: { review: 'rb', percent: 40 }, lessons: ['c1', 'c2'].map((id, i) => lesson(id, `Lesson ${i + 1}`, { status: N, open: false })) }] }] };
+        // Its test: the review of the unit before it.
+        const REVIEW = { id: 'ra', module: 'vocabulary', moduleLabel: 'Vocabulary Builder', review: 'unit', level: 'beginner', title: 'Family review', passingScore: 60, language: 'kn', languageName: 'Kannada',
+            learn: { intro: 'A review of the unit.' }, progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 }, words: [],
+            quiz: [{ id: 'meaning:0', type: 'mcq', prompt: 'What does "ಮನೆ" mean?', options: ['house', 'water'] }] };
+        const post = `(url, body) => url.endsWith('/jump-unit') ? { unit: body.unit, lesson: 'ra', module: 'vocabulary' } : { step: body.step }`;
+        const { result, errors } = await screen({ entry: app('/linguistic'), api: apiModule({ '/linguistic/lessons/ra': REVIEW, ...SHELL_API, '/linguistic/path': jumpPath }, post), styles: true, device: DEVICES.galaxyA55, script: `
+            await sleep(1500);
+            const card = (id) => $('[data-jump-unit="' + id + '"]');
+            const look = (id) => card(id) && { upNext: !!card(id).querySelector('[data-jump-up-next]'), text: text(card(id)).replace(/\\s+/g, ' ').trim(), button: text(card(id).querySelector('[data-jump-here]')) };
+            const out = { open: !!card('beginner-1'), b: look('beginner-2'), c: look('beginner-3') };
+            // The card sits under the open unit's last lesson, above the shut unit's banner.
+            const lastOpen = $$('[data-unit="beginner-1"] [data-node]').pop();
+            out.order = lastOpen.getBoundingClientRect().bottom <= card('beginner-2').getBoundingClientRect().top;
+            card('beginner-2').querySelector('[data-jump-here]').click(); await sleep(1500);
+            out.sent = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/jump-unit')).map((c) => c[2]);
+            out.opened = { path: !!$('[data-unit]'), session: !!$('[data-lingo-session]') };
+            out.wide = (() => { ${WIDE} })();
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.open, false, 'no card on an open unit');
+        assert.deepEqual(result.b, { upNext: true, text: 'UP NEXT Food and drink JUMP HERE?', button: 'JUMP HERE?' }, 'the next unit: Up next, its name, Jump here? (in capitals, as the picture)');
+        assert.deepEqual(result.c, { upNext: false, text: 'School and friends Last try: 40% JUMP HERE?', button: 'JUMP HERE?' }, 'one further on: its name and its last try');
+        assert.equal(result.order, true, 'under the open unit');
+        assert.deepEqual(result.sent, [{ unit: 'beginner-2' }], 'its test asked for');
+        assert.deepEqual(result.opened, { path: false, session: true }, 'the test opens');
+        assert.ok(result.wide <= 1, `inside the phone (${result.wide}px)`);
+    });
+
     test('a lesson of a unit done, back on the path: the very next lesson of that unit, its START card open — not an earlier one left undone, not another unit', async () => {
         // Unit 1 of five lessons: the 2nd left undone (one who can open every lesson), the 3rd just finished.
         const unitPath = (status) => ({ ...PATH, current: 'n1', levels: [{ ...PATH.levels[0], units: [
@@ -2203,6 +2659,68 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.equal(result.below, true, 'below the answer');
         assert.deepEqual(result.after, { label: 'auto', inline: true, bar: false }, 'once checked (wrong): the bar running out (2026-11-05) in the same place');
         assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
+    // 2026-11-16, the user, of the HR email to write: "first you should teach the user before asking this kind of question…
+    // then related questions so they can fill it".
+    test('an email to write: first how an email is written, then questions on it (checked here), then the email', async () => {
+        const GUIDE = { type: 'email', title: 'ಇಮೇಲ್ ಬರೆಯುವುದು ಹೇಗೆ', intro: 'ಬರೆಯುವ ಮೊದಲು ಅದರ ಭಾಗಗಳನ್ನು ತಿಳಿಯಿರಿ.',
+            parts: [{ name: 'ವಿಷಯ ಸಾಲು (Subject)', say: 'ಇಮೇಲ್ ಯಾವುದರ ಬಗ್ಗೆ ಎಂದು ಕೆಲವೇ ಪದಗಳಲ್ಲಿ ಹೇಳಿ.', example: 'Subject: Request to renew a library book' },
+                { name: 'ಮುಕ್ತಾಯ (Closing)', say: 'ಧನ್ಯವಾದ ಹೇಳಿ, ನಂತರ ನಿಮ್ಮ ಹೆಸರು.', example: 'Thank you for your help.\nKind regards,\nRavi Kumar' }],
+            phrasesTitle: 'ಉಪಯುಕ್ತ ಪದಗಳು, ವಾಕ್ಯಗಳು', phrases: ['Could you please…?', 'Kind regards,'], exampleTitle: 'ಒಂದು ಉದಾಹರಣೆ', example: 'Subject: Request to renew a library book\n\nDear Librarian,\n\nKind regards,\nRavi Kumar',
+            next: 'ಮುಂದೆ: ನಿಮ್ಮ ಬರವಣಿಗೆಯ ಬಗ್ಗೆ ಕೆಲವು ಪ್ರಶ್ನೆಗಳು, ನಂತರ ನೀವೇ ಬರೆಯುವಿರಿ.' };
+        const WRITE = {
+            id: 'wg', module: 'reading', moduleLabel: 'Reading and Writing', level: 'advanced', title: 'Writing', summary: '', direction: null, passingScore: 60, language: 'kn', review: 'write',
+            learn: { intro: 'Write.' }, progress: { status: 'new', step: 'practice', bestScore: null, attempts: 0 }, writeGuides: { email: GUIDE },
+            writing: [{ id: 'w2', type: 'email', prompt: 'HR ಮ್ಯಾನೇಜರ್‌ಗೆ ಇಮೇಲ್ ಬರೆಯಿರಿ.', promptEn: 'Write a professional email to an HR manager.', minWords: 70, checklist: [],
+                asks: [{ id: 'w2~subject', type: 'mcq', prompt: 'Subject ಸಾಲಿನಲ್ಲಿ ಏನು ಬರೆಯುವಿರಿ?', how: 'ನೀವು ಯಾವುದರ ಬಗ್ಗೆ ಬರೆಯುತ್ತಿದ್ದೀರಿ ಎಂದು ಹೇಳುವುದನ್ನು ಆರಿಸಿ.', options: ['Subject: Hello', 'Subject: Follow-up on internship application', 'Subject: Read this now!!!'], optionsSay: 'en-IN',
+                    task: { label: 'ನಿಮ್ಮ ಬರವಣಿಗೆ', text: 'HR ಮ್ಯಾನೇಜರ್‌ಗೆ ಇಮೇಲ್ ಬರೆಯಿರಿ.' } },
+                    { id: 'w2~greeting', type: 'mcq', prompt: 'ಈ ಇಮೇಲ್ ಅನ್ನು ಹೇಗೆ ಆರಂಭಿಸಬೇಕು?', options: ['Hey!!', 'Dear Ms Rao,', 'Hi buddy,'], optionsSay: 'en-IN' }] }],
+            quiz: []
+        };
+        const RIGHT = { 'w2~subject': 'Subject: Follow-up on internship application', 'w2~greeting': 'Dear Ms Rao,' };
+        const post = `(url, body) => url.endsWith('/check') ? { correct: body.given === (${JSON.stringify(RIGHT)})[body.id], answer: (${JSON.stringify(RIGHT)})[body.id], explanation: 'ಏಕೆಂದರೆ', events: [] } : { step: body.step }`;
+        const { result, errors } = await screen({ entry: app('/linguistic/reading/wg'), api: apiModule({ '/linguistic/lessons/wg': WRITE }, post), styles: true, device: DEVICES.galaxyA55, budget: 30000, script: `
+            ${DRIVE}
+            await sleep(1000);
+            const seen = [];
+            const where = () => $('[data-write-guide]') ? 'guide' : $('[data-question]') ? $('[data-question]').dataset.question : $('[data-writing]') ? 'write' : null;
+            for (let i = 0; i < 4 && !$('[data-write-guide]'); i++) await press();
+            const g = $('[data-write-guide]');
+            const out = { guide: g && { type: g.dataset.writeGuide, parts: $$('[data-guide-part]').length, examples: $$('[data-guide-example]').map((e) => e.innerText),
+                phrases: $$('[data-guide-phrases] > span').map(text), whole: !!$('[data-guide-whole]'), speakers: g.querySelectorAll('button').length } };
+            seen.push(where());
+            out.wide = (() => { ${SESSION_WIDE} })();
+            for (let i = 0; i < 12 && where() !== 'write'; i++) {
+                const at = where();
+                if (at === 'w2~subject' && !out.task) { out.task = text($('[data-ask-task]')); out.how = text($('[data-ask-how]')); }
+                if (at && at.includes('~') && !$('[data-sheet]')) {
+                    const right = (${JSON.stringify(RIGHT)})[at];
+                    $$('[data-question] button[role="radio"]').find((b) => b.innerText.includes(right))?.click(); await sleep(120);
+                }
+                await press();
+                const now = where();
+                if (seen.at(-1) !== now) seen.push(now);
+            }
+            out.seen = seen;
+            out.checks = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/check')).map((c) => [c[2].section, c[2].id, c[2].given]);
+            out.write = !!$('[data-writing="w2"]');
+            return out;
+        ` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.equal(result.guide?.type, 'email', 'how an email is written, first');
+        assert.equal(result.guide.parts, 2, 'its parts, each with an example line');
+        assert.deepEqual(result.guide.examples, ['Subject: Request to renew a library book', 'Thank you for your help.\nKind regards,\nRavi Kumar'], 'each part\'s example, its lines kept');
+        assert.deepEqual(result.guide.phrases, ['Could you please…?', 'Kind regards,']);
+        assert.ok(result.guide.whole, 'a whole example');
+        assert.ok(result.guide.speakers >= 5, `each line to hear (${result.guide.speakers})`);
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+        assert.deepEqual(result.seen, ['guide', 'w2~subject', 'w2~greeting', 'write'], 'taught, then asked, then written');
+        assert.match(result.task || '', /ನಿಮ್ಮ ಬರವಣಿಗೆ\s*HR ಮ್ಯಾನೇಜರ್‌ಗೆ ಇಮೇಲ್ ಬರೆಯಿರಿ\./, 'the question shows the task it is about (2026-11-16)');
+        assert.equal(result.how, 'ನೀವು ಯಾವುದರ ಬಗ್ಗೆ ಬರೆಯುತ್ತಿದ್ದೀರಿ ಎಂದು ಹೇಳುವುದನ್ನು ಆರಿಸಿ.', 'and how to choose, under the question');
+        assert.deepEqual(result.checks, [['writeguide', 'w2~subject', 'Subject: Follow-up on internship application'], ['writeguide', 'w2~greeting', 'Dear Ms Rao,']], 'each answer checked by the server');
+        assert.ok(result.write, 'then the email to write');
     });
 
     // 2026-11-07, the user, of "I said what time I wake up" under the box: "why did you put this?"; chose: it ticks itself.
@@ -2406,6 +2924,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             const review = $('[data-practice-review]')?.dataset.practiceReview;
             await press(); await sleep(300);
             const intro = text($('[data-answer-area] h1'));
+            const introText = text($('[data-answer-area]'));
             await press();
             const blank = text($('[data-question="q1"] p'));
             $$('[data-option]').find((b) => b.innerText.trim().endsWith('An')).click(); await sleep(60);
@@ -2421,7 +2940,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             // Review answers (2026-11-04): the practice questions asked before the quiz, then the quiz's.
             $('[data-review-answers]')?.click(); await sleep(200);
             const groups = [...document.querySelectorAll('[data-review-group]')].map((g) => [g.dataset.reviewGroup, [...g.querySelectorAll('[data-review-item]')].map((li) => li.dataset.reviewItem + ': ' + text(li))]);
-            return { covers, learn, hearts, disabled, wrong, again, review, intro, blank, filled, q1, placed, q2, wide, groups,
+            return { covers, learn, hearts, disabled, wrong, again, review, intro, introText, blank, filled, q1, placed, q2, wide, groups,
                 finish: $('[data-finish]')?.dataset.finish, title: text($('[data-finish-title]')), stats: $$('[data-stat]').map(text), parts: $$('[data-xp-part]').map(text),
                 steps: window.__calls.filter((c) => c[1].endsWith('/step')).map((c) => c[2].step),
                 checks: window.__calls.filter((c) => c[1].endsWith('/quiz/check')).map((c) => c[2]),
@@ -2436,6 +2955,8 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.deepEqual(result.again, { same: true, mark: true, empty: true, correction: false }, 'then the same question again, fresh; right this time, on to the quiz');
         assert.equal(result.review, '1', 'the practice question got wrong, reviewed before the quiz (2026-11-04)');
         assert.equal(result.intro, 'ರಸಪ್ರಶ್ನೆ ಸಮಯ!', '"Quiz time!" in Kannada, the student\'s language (2026-10-24)');
+        // The right answers needed, not only the percent (2026-11-16, the user: "what is that 65%?"): 2 questions at 60% → both.
+        assert.match(result.introText, /2 ಪ್ರಶ್ನೆಗಳು\. ಪಾಠ ಮುಗಿಸಲು ಕನಿಷ್ಠ 2 ಸರಿ ಉತ್ತರ \(60%\) ಬೇಕು\./, result.introText);
         assert.equal(result.blank, '… apple a day.'); assert.equal(result.filled, 'An apple a day.', 'the choice shows in the blank');
         assert.deepEqual(result.q1, { sheet: null, next: true }, 'right: no sheet, straight to the next question (2026-10-27)');
         assert.match(result.placed, /This\s*is\s*good/); assert.equal(result.q2, null, 'right: no sheet, straight to the result');
@@ -2725,8 +3246,8 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.deepEqual(result.sheets, [null, null, null], 'no right or wrong shown during the test');
         assert.equal(result.hearts, false, 'no hearts in a test');
         assert.deepEqual(result.sent, { answers: { pl1: 'is', pl2: 'since', pl3: 'have' } });
-        assert.equal(result.title, 'Your level: Intermediate');
-        assert.deepEqual(result.stats, ['BEGINNER 1/1', 'INTERMEDIATE 1/1', 'ADVANCED 0/1']);
+        assert.equal(result.title, 'Your level: Beginner', 'Intermediate is shown as Beginner (Sections 1–3, 2026-11-15)');
+        assert.deepEqual(result.stats, ['SECTION 1 1/1', 'SECTION 3 1/1', 'SECTION 4 0/1'], 'each section asked about, by its number; none with no questions');
     });
 
     test('your language: a device set to Japanese is offered Japanese, once; the chip opens the choice any time', async () => {
@@ -2993,9 +3514,8 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
     test('fill in the blanks (2026-11-05, Duolingo\'s "ಬಿಟ್ಟ ಸ್ಥಳ ತುಂಬಿ"): its title in the student\'s language, a tile tapped fills the next box, a box tapped gives it back, CHECK once every box is full; wrong — red, the right sentence, the same question again by itself; right — on; the results in Kannada', async () => {
         const LESSON = { id: 'fb', module: 'translation', moduleLabel: 'Translation Practice', level: 'beginner', title: 'Daily life', direction: 'kn-en', passingScore: 60, language: 'kn', languageName: 'Kannada',
             learn: { intro: 'Translate.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 }, items: [],
-            blanks: [{ id: 'blank~i1', type: 'blanks', prompt: 'I ___ to ___ every day.', parts: ['I ', null, ' to ', null, ' every day.'], hint: 'ನಾನು ಪ್ರತಿದಿನ ಶಾಲೆಗೆ ನಡೆಯುತ್ತೇನೆ.', words: ['school', 'water', 'walk', 'house', 'run'] }],
-            quiz: [{ id: 'q1', type: 'mcq', prompt: 'What does "house" mean?', options: ['ಮನೆ', 'ನೀರು'] }] };
-        const post = `(url, body) => url.endsWith('/check') ? { correct: body.section !== 'blanks' || body.given === 'walk school', verdict: body.section !== 'blanks' || body.given === 'walk school' ? 'exact' : 'wrong', answer: 'I walk to school every day.', explanation: '', events: [] }
+            quiz: [{ id: 'blank~i1', type: 'blanks', prompt: 'I ___ to ___ every day.', parts: ['I ', null, ' to ', null, ' every day.'], hint: 'ನಾನು ಪ್ರತಿದಿನ ಶಾಲೆಗೆ ನಡೆಯುತ್ತೇನೆ.', words: ['school', 'water', 'walk', 'house', 'run'] }, { id: 'q1', type: 'mcq', prompt: 'What does "house" mean?', options: ['ಮನೆ', 'ನೀರು'] }, { id: 'q2', type: 'mcq', prompt: 'What does "water" mean?', options: ['ನೀರು', 'ಮನೆ'] }] };
+        const post = `(url, body) => url.endsWith('/check') ? { correct: body.id !== 'blank~i1' || body.given === 'walk school', verdict: body.id !== 'blank~i1' || body.given === 'walk school' ? 'exact' : 'wrong', answer: 'I walk to school every day.', explanation: '', events: [] }
             : url.endsWith('/quiz') ? { passed: true, percent: 100, passingScore: 60, results: [{ id: 'q1', prompt: 'What does "house" mean?', given: 'ಮನೆ', correct: true }], events: [], next: { title: 'Food' } } : { step: body.step }`;
         const { result, errors } = await screen({ entry: app('/linguistic/translation/fb'), api: apiModule({ '/linguistic/lessons/fb': LESSON }, post), styles: true, budget: 30000, script: `
             ${DRIVE}
@@ -3013,7 +3533,8 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             tile('school').click(); await sleep(60); tile('walk').click(); await sleep(80);
             const full = { boxes: boxes(), check: $('[data-primary]').disabled };
             $('[data-primary]').click(); await sleep(400);
-            const wrong = { sheet: sheet(), red: getComputedStyle($('[data-blank="0"]')).color, correction: text($('[data-correction]')), auto: $('[data-auto-next]')?.dataset.autoNext, locked: $('[data-blank="0"]').disabled };
+            const wrong = { red: getComputedStyle($('[data-blank="0"]')).color, correction: text($('[data-correction]')), auto: $('[data-auto-next]')?.dataset.autoNext || null, locked: $('[data-blank="0"]').disabled };
+            // In the quiz (2026-11-12) as in the practice: the same question again by itself (only the first try counts).
             await sleep(3600);
             const again = { at: !!$('[data-question="blank~i1"]'), boxes: boxes(), correction: !!$('[data-correction]') };
             tile('walk').click(); await sleep(60); tile('school').click(); await sleep(80);
@@ -3029,10 +3550,10 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.deepEqual(result.one, { boxes: ['school', ''], hidden: ['school'], check: true, spoken: [['school', 'en-IN']] }, 'a tile tapped: read aloud (2026-11-05, like Duolingo), into the first empty box, its place left empty; one box still empty, CHECK still grey');
         assert.deepEqual(result.back, { boxes: ['', ''], hidden: [] }, 'a box tapped: its word back among the tiles');
         assert.deepEqual(result.full, { boxes: ['school', 'walk'], check: false }, 'every box full: CHECK');
-        assert.deepEqual(result.wrong, { sheet: null, red: 'rgb(234, 43, 43)', correction: 'I walk to school every day.', auto: '3000', locked: true }, 'wrong: the words in red, the right sentence in green, on by itself');
+        assert.deepEqual(result.wrong, { red: 'rgb(234, 43, 43)', correction: 'I walk to school every day.', auto: '3000', locked: true }, 'wrong: the words in red, the right sentence in green, on by itself');
         assert.deepEqual(result.again, { at: true, boxes: ['', ''], correction: false }, 'then the same question again, empty');
         assert.equal(result.after, false, 'right: on to the next');
-        assert.deepEqual(result.sent.filter((b) => b.section).map((b) => [b.section, b.id, b.given]), [['blanks', 'blank~i1', 'school walk'], ['blanks', 'blank~i1', 'walk school']], 'the words in the boxes\' order, checked by the server');
+        assert.deepEqual(result.sent.filter((b) => b.id === 'blank~i1').map((b) => [b.id, b.given]), [['blank~i1', 'school walk'], ['blank~i1', 'walk school']], 'the words in the boxes\' order, checked by the server (a quiz question since 2026-11-12)');
         assert.equal(result.finish.title, 'ಪರಿಪೂರ್ಣ ಪಾಠ!', 'the result in Kannada: "Perfect lesson!"');
         assert.doesNotMatch(result.finish.next || '', /ಮುಂದಿನದು/, 'no "Next up" line (2026-11-07, the user: "better you don\'t put the Next up")');
         assert.ok(result.finish.stats.includes('ಅದ್ಭುತ') && result.finish.stats.includes('ಸಮಯ') && !result.finish.stats.includes('ಗಳಿಸಿದ XP'), `the stats in Kannada; no new XP here, so no XP card (2026-11-07) (${result.finish.stats})`);

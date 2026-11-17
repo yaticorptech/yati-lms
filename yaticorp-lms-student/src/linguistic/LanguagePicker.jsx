@@ -52,7 +52,7 @@ const Field = ({ label, value, onChange, disabled, groups, tone, hint, attr = {}
             <select className="sr-only" tabIndex={-1} aria-hidden="true" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} {...attr}>
                 {groups.map((g) => (
                     <optgroup key={g.label} label={g.label}>
-                        {g.items.map((i) => <option key={i.value} value={i.value} disabled={i.disabled}>{i.option || i.title}</option>)}
+                        {g.items.map((i) => <option key={i.value} value={i.value} disabled={i.disabled} data-locked={i.locked || undefined}>{i.option || i.title}</option>)}
                     </optgroup>
                 ))}
             </select>
@@ -150,8 +150,10 @@ export default function LanguagePicker({ languages, courses = [], current, cours
     ];
     const learnItem = (c) => ({
         value: c.code, title: c.name, sub: c.native && c.native !== c.name ? c.native : null, mark: c.code === 'en' ? 'En' : langOf(c.code).mark,
-        disabled: !c.full && c.code === speak, note: !c.full && c.code === speak ? 'you speak it' : c.done ? 'finished' : !c.full && c.begun ? 'started' : null,
-        option: `${c.name}${!c.full && c.code === speak ? ' (you speak it)' : c.done ? ' · finished' : !c.full && c.begun ? ' · started' : ''}`
+        // A locked language (2026-11-13: only English, Kannada and Hindi, but for the developer cards): shown, not chosen.
+        disabled: (!c.full && c.code === speak) || !!c.locked, locked: !!c.locked,
+        note: !c.full && c.code === speak ? 'you speak it' : c.locked ? 'locked' : c.done ? 'finished' : !c.full && c.begun ? 'started' : null,
+        option: `${c.name}${!c.full && c.code === speak ? ' (you speak it)' : c.locked ? ' · locked' : c.done ? ' · finished' : !c.full && c.begun ? ' · started' : ''}`
     });
     const learnGroups = [
         { label: 'All five skills', items: list.filter((c) => c.full).map(learnItem) },

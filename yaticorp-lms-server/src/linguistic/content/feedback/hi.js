@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'I, you, we या they के साथ "don\'t" (do not) लगाएँ।',
     withDoesnt: 'he, she या it के साथ "doesn\'t" (does not) लगाएँ।',
     thirdS: 'वर्तमान काल में he, she या it के साथ क्रिया में -s लगता है: he goes, she has, it works.',
+    noThirdS: 'I, you, we या they के साथ क्रिया में -s नहीं लगता: I go, you have, they work.',
     thereAre: 'एक से अधिक चीज़ों के लिए "there are" (या "there were") लगाएँ।',
     participle: 'have, has या had के बाद past participle लगाएँ: have gone, has eaten, had done.',
     stative: 'know, understand और want जैसी क्रियाओं में -ing नहीं लगता: "I understand", "I am understanding" नहीं।',

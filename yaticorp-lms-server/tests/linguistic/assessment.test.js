@@ -37,11 +37,11 @@ const answersOf = (quiz) => Object.fromEntries(quiz.map((q) => [q.id, q.answer])
 describe('Beginner and Advanced, and the assessment between them', () => {
     test('two sections; Beginner ends with its assessment', async () => {
         const path = (await api('GET', '/path')).body;
-        assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'advanced'], 'Intermediate hidden');
+        assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional'], 'five sections (2026-11-14): Daily life and Work and the world added, Intermediate shown again');
         const last = path.levels[0].units.at(-1).lessons.at(-1);
         assert.deepEqual([last.id, last.title, last.type, last.open], [String(gate._id), 'Beginner assessment', 'checkpoint', false], 'the very last stop of Beginner, shut until the lessons before it are done');
-        assert.equal(path.levels[1].units.flatMap((u) => u.lessons).some((x) => x.title === 'Advanced assessment'), false, 'none after the last section');
-        assert.equal((await svc.lessonsFor(await svc.progressOf(s.user._id))).some((l) => l.level === 'intermediate'), false, 'no Intermediate lesson in the student\'s course');
+        assert.equal(path.levels.find((l) => l.level === 'advanced').units.flatMap((u) => u.lessons).some((x) => x.title === 'Advanced assessment'), false, 'none in Advanced (by skill: it has none, 2026-11-14)');
+        assert.equal((await svc.lessonsFor(await svc.progressOf(s.user._id))).some((l) => l.level === 'intermediate'), true, 'Intermediate shown again (2026-11-14)');
     });
 
     test('20 questions on Beginner, asked without the answers, 50% to pass', async () => {
@@ -72,7 +72,7 @@ describe('Beginner and Advanced, and the assessment between them', () => {
         assert.deepEqual([again.body.percent, again.body.passed], [50, true], 'taken again, any time: 10 of 20 is enough');
         const path = (await api('GET', '/path')).body;
         assert.equal(path.levels[1].open, true, 'Advanced opens');
-        assert.equal((await api('GET', '/')).body.level, 'advanced');
+        assert.equal((await api('GET', '/')).body.level, 'elementary', 'on to the next section: Daily life (2026-11-14)');
     });
 
     test('Bhagyashree\'s account 240100045056 (2026-10-29, for testing): every section and unit open from the start; no one else', async () => {
@@ -81,11 +81,11 @@ describe('Beginner and Advanced, and the assessment between them', () => {
         try {
             assert.equal((await tApi('POST', '/level', { level: 'beginner' })).status, 200);
             const shut = (await tApi('GET', '/path')).body;
-            assert.deepEqual(shut.levels.map((l) => l.open), [true, false], 'an ordinary card: Advanced shut');
+            assert.deepEqual(shut.levels.map((l) => l.open), [true, false, false, false, false], 'an ordinary card: the sections after Beginner shut');
             // The same student, as that card (written with spaces, as some are stored).
             svc.noteOpenAll({ _id: t.user._id, cardNumber: '2401 0004 5056' });
             const path = (await tApi('GET', '/path')).body;
-            assert.deepEqual(path.levels.map((l) => l.open), [true, true]);
+            assert.deepEqual(path.levels.map((l) => l.open), [true, true, true, true, true]);
             const lessons = path.levels.flatMap((l) => l.units.flatMap((u) => u.lessons)).filter((x) => !x.stop);
             assert.ok(lessons.every((x) => x.open), 'every unit\'s lessons, in both sections');
             const adv = lessons.find((x) => x.title !== 'Beginner assessment' && path.levels[1].units.some((u) => u.lessons.includes(x)));

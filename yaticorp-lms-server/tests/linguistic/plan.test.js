@@ -45,7 +45,7 @@ describe('the learning plan', () => {
         assert.equal(r.status, 200);
         const p = r.body.plan;
         assert.deepEqual([p.days, p.day, p.schedule.length], [90, 1, 90], '90 days, not the 14 sent');
-        assert.equal(p.schedule[0].lessons[0].title, 'Letters A–I', 'from Section 1, Unit 1');
+        assert.equal(p.schedule[0].lessons[0].title, 'Letters test', 'from Section 1, Unit 1: the letters test first (2026-11-13)');
         assert.equal(p.schedule.reduce((n, d) => n + d.lessons.length, 0), p.total, 'every lesson has its day');
         assert.equal((await svc.progressOf(asha.user._id)).plans[0].auto, true);
         assert.equal((await call('POST', '/plan', { days: 180 })).body.plan.days, 90, 'made once: asked again, it stays');
@@ -58,7 +58,7 @@ describe('the learning plan', () => {
         assert.equal((await takeEntry(dev, true)).passed, true);
         const p = (await call('GET', '/plan')).body.plan;
         assert.deepEqual([p.days, p.day], [60, 1]);
-        assert.ok(p.schedule.every((d) => d.lessons.every((x) => x.level === 'advanced')), 'only the Advanced lessons');
+        assert.ok(p.schedule.every((d) => d.lessons.every((x) => ['advanced', 'professional'].includes(x.level))), 'only the Advanced lessons and the section after it (2026-11-14)');
         assert.ok(p.total > 0 && p.schedule.reduce((n, d) => n + d.lessons.length, 0) === p.total);
 
         assert.equal((await takeEntry(asha, false)).passed, false);
@@ -71,7 +71,8 @@ describe('the learning plan', () => {
         assert.equal(r.status, 200);
         const o = r.body.options;
         assert.deepEqual(o.map((x) => x.days), [14, 30, 60, 90, 180]);
-        assert.deepEqual(o.map((x) => x.tier), ['main', 'main', 'full', 'full', 'full']);
+        // Five sections since 2026-11-14: two months is short for every lesson now.
+        assert.deepEqual(o.map((x) => x.tier), ['main', 'main', 'main', 'full', 'full']);
         assert.ok(o[0].lessons < o[4].lessons, 'fewer lessons in the short plan');
         assert.ok(o[0].perDay > o[2].perDay && o[0].minutes >= o[2].minutes);
         const adv = (await api('GET', '/plan/options?course=en&language=kn&level=advanced')).body.options;
@@ -85,7 +86,7 @@ describe('the learning plan', () => {
         assert.equal(p.schedule.length, 14);
         assert.equal(p.schedule.reduce((n, d) => n + d.lessons.length, 0), p.total, 'every lesson has its day');
         assert.ok(p.schedule[0].today && p.schedule[0].lessons.length >= 4, 'today: four or five lessons');
-        assert.equal(p.schedule[0].lessons[0].title, 'Letters A–I', 'starting with the letters (2026-10-31)');
+        assert.equal(p.schedule[0].lessons[0].title, 'Letters test', 'starting with the letters (2026-10-31): their test first (2026-11-13)');
 
         const path = (await api('GET', '/path')).body;
         const types = typesOf(path);
@@ -102,7 +103,7 @@ describe('the learning plan', () => {
     test('a lesson done today is ticked in today\'s place, and the rest stay shared out', async () => {
         const first = (await api('GET', '/plan')).body.plan.schedule[0].lessons[0];
         const lesson = svc.serve(await LinguisticLesson.findById(first.id).lean(), {});
-        const answers = Object.fromEntries(svc.quizOf(lesson).map((q) => [q.id, q.answer]));
+        const answers = Object.fromEntries(svc.quizOf(lesson).map((q) => [q.id, svc.rightAnswerOf(lesson, q)]));
         assert.equal((await api('POST', `/lessons/${first.id}/quiz`, { answers })).body.passed, true);
         const p = (await api('GET', '/plan')).body.plan;
         assert.equal(p.done, 1);

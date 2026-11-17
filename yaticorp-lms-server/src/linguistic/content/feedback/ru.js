@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'С I, you, we или they используйте "don\'t" (do not).',
     withDoesnt: 'С he, she или it используйте "doesn\'t" (does not).',
     thirdS: 'С he, she или it глагол в настоящем времени получает -s: he goes, she has, it works.',
+    noThirdS: 'С I, you, we или they глагол не получает -s: I go, you have, they work.',
     thereAre: 'Если предметов больше одного, используйте "there are" (или "there were").',
     participle: 'После have, has или had — причастие прошедшего времени: have gone, has eaten, had done.',
     stative: 'Глаголы вроде know, understand и want не употребляются с -ing: "I understand", а не "I am understanding".',

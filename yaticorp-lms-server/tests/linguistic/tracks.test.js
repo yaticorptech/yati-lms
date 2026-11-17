@@ -29,19 +29,26 @@ describe('Advanced by skill', () => {
     test('Beginner keeps its topic units; Advanced has six tracks, every one open at its first lesson', async () => {
         const p = (await api('GET', '/path')).body;
         assert.ok(p.levels[0].units.slice(0, -1).every((u) => u.kind === 'topic'));
-        const adv = p.levels[1];
+        const adv = p.levels.find((l) => l.level === 'advanced');
         assert.equal(adv.open, true);
-        assert.deepEqual(adv.units.map((u) => u.title), ['Stories', 'Listening', 'Speaking', 'Writing', 'Translation', 'Words & grammar']);
+        // Each skill in units of six (2026-11-14, the user: "keep 6 lessons in each unit"; chose "split into units of 6").
+        assert.deepEqual([...new Set(adv.units.map((u) => u.skillTitle))], ['Stories', 'Listening', 'Speaking', 'Writing', 'Translation', 'Words & grammar']);
+        assert.ok(adv.units.every((u) => u.lessons.length <= 6), adv.units.map((u) => `${u.title} ${u.lessons.length}`).join(', '));
+        assert.deepEqual(adv.units.filter((u) => u.skillTitle === 'Words & grammar').map((u) => [u.id, u.title, u.lessons.length]).slice(0, 2), [['advanced-words', 'Words & grammar 1', 6], ['advanced-words-2', 'Words & grammar 2', 6]], 'the first unit keeps its id');
         for (const u of adv.units) {
-            assert.equal(u.open, true, u.title);
-            assert.deepEqual(u.lessons.slice(0, 2).map((x) => x.open), [true, false], `${u.title}: its first lesson open, the next after it`);
             assert.ok(u.note, `${u.title}: what it is for`);
             assert.ok(!u.lessons.some((x) => x.stop), `${u.title}: no chests or practice stops`);
+            // Each skill's first unit open at its first lesson; its later units wait for the one before (one chain a skill).
+            if (u.trackPart === 1) {
+                assert.equal(u.open, true, u.title);
+                assert.deepEqual(u.lessons.slice(0, 2).map((x) => x.open), [true, false], `${u.title}: its first lesson open, the next after it`);
+            } else assert.equal(u.open, false, `${u.title}: shut until ${u.skillTitle} ${u.trackPart - 1} is done`);
         }
         // Each article followed by its topic's picture story (comics.js, 2026-10-31).
-        assert.deepEqual((await track('stories')).lessons.map((x) => x.type), ['story', 'comic', 'story', 'comic', 'story', 'comic', 'story', 'comic'], 'the four articles, each with a picture story after it');
-        assert.deepEqual((await track('listening')).lessons.map((x) => x.module), ['speaking', 'speaking', 'speaking', 'speaking'], 'the four conversations');
-        assert.deepEqual((await track('writing')).lessons.map((x) => x.type), ['writing', 'writing', 'writing', 'writing']);
+        const stories = adv.units.filter((u) => u.skillTitle === 'Stories').flatMap((u) => u.lessons);
+        assert.deepEqual(stories.map((x) => x.type), ['story', 'comic', 'story', 'comic', 'story', 'comic', 'story', 'comic', 'story', 'story', 'story', 'story'], 'the four articles, each with a picture story after it; then four new stories (2026-11-14)');
+        assert.deepEqual((await track('listening')).lessons.map((x) => x.module), Array(6).fill('speaking'), 'the four conversations, and two new ones (2026-11-14)');
+        assert.deepEqual((await track('writing')).lessons.map((x) => x.type), Array(6).fill('writing'), 'the four articles\' writing, and two new tasks (2026-11-14)');
     });
 
     test('a story is read and asked about, its writing kept for the Writing track', async () => {

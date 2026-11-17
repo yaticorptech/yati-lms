@@ -54,7 +54,9 @@ export default function Sections() {
                                     <h2 className="mt-0.5 text-2xl font-black leading-tight drop-shadow-sm sm:text-3xl">{lv.section}</h2>
                                     <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-extrabold">
                                         <span className="rounded-full bg-white px-2.5 py-1" style={{ color: s.open ? c.edge : '#8F96A3' }} data-cefr>{lv.cefr}</span>
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1"><LayoutList size={12} /> {units.length} {units.some((u) => u.kind === 'track') ? `skill${units.length === 1 ? '' : 's'}` : `unit${units.length === 1 ? '' : 's'}`}</span>
+                                        {/* The level word (2026-11-16: Sections 1–3 Beginner, 4–5 Advanced). */}
+                                        {lv.named && <span className="rounded-full bg-white/20 px-2.5 py-1" data-level-word>{lv.label}</span>}
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1"><LayoutList size={12} /> {units.length} unit{units.length === 1 ? '' : 's'}{units.some((u) => u.kind === 'track') ? ` · ${new Set(units.map((u) => u.skillTitle || u.title)).size} skills` : ''}</span>
                                         <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1"><BookOpen size={12} /> {s.total} lessons</span>
                                     </p>
                                 </div>
@@ -66,7 +68,7 @@ export default function Sections() {
                             <div className="relative mt-3">
                                 <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/85">You will learn</p>
                                 <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                                    {units.map((u) => <li key={u.id} className="rounded-full bg-white/20 px-2.5 py-1 text-xs font-bold ring-1 ring-white/25 sm:text-[13px]">{u.title}</li>)}
+                                    {[...new Set(units.map((u) => u.skillTitle || u.title))].map((title) => <li key={title} className="rounded-full bg-white/20 px-2.5 py-1 text-xs font-bold ring-1 ring-white/25 sm:text-[13px]">{title}</li>)}
                                 </ul>
                             </div>
                         </div>
