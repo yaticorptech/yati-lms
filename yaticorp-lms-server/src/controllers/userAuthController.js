@@ -19,7 +19,7 @@ const refuseDevice = (res, user, device, conflict) => res.status(409).json({
 });
 
 /** A sign-in that got through: counted, joined to its organization, answered with the token. */
-const finishLogin = async (req, res, user) => {
+const finishLogin = async (req, res, user, extra = {}) => {
     const { deviceId } = deviceOf(req);
     // Counted before the response is shaped, so `loginCount` below is
     // this sign-in's number rather than the previous one — the client
@@ -47,7 +47,11 @@ const finishLogin = async (req, res, user) => {
         level: user.level || 1,
         loginCount,
         role: 'student',
-        token: generateToken(user._id, 'student', { did: deviceId, sid: await startSession(user) })
+        token: generateToken(user._id, 'student', { did: deviceId, sid: await startSession(user) }),
+        // A demo (presentation) card: the app keeps its compulsory prompts out of the way (2026-11-19).
+        ...(require('../services/fullAccess').hasFullAccess(user) ? { demoCard: true } : {}),
+        // A demo card's scan: the app then offers every dashboard (services/demoDashboards.js).
+        ...extra
     });
 };
 
@@ -149,7 +153,7 @@ const getUserProfile = async (req, res) => {
         }
 
         res.json({
-            user: { ...user.toObject(), qrNumber },
+            user: { ...user.toObject(), qrNumber, ...(require('../services/fullAccess').hasFullAccess(user) ? { demoCard: true } : {}) },
             enrollments
         });
     } catch (error) {
@@ -256,14 +260,16 @@ const normalizePictureUrl = (value) => {
 // @access  Private/User
 const updateUserProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select('email organizationId').lean();
+        const user = await User.findById(req.user._id).select('email organizationId cardNumber').lean();
         if (!user) return res.status(404).json({ message: 'User not found' });
+        // A demo (presentation) card is in the demo organisation only to show it: no photo in uniform is asked of it (2026-11-19).
+        const demoCard = require('../services/fullAccess').hasFullAccess(user);
 
         if (req.body.profilePicture !== undefined) {
             const pic = normalizePictureUrl(String(req.body.profilePicture || '').trim());
             // In an institution (2026-11-16) the picture is their real photo in uniform: it is the one on
             // the admit card and marks card, so a ready-made avatar is refused.
-            if (pic && user.organizationId && isAvatarPicture(pic)) {
+            if (pic && user.organizationId && !demoCard && isAvatarPicture(pic)) {
                 return res.status(400).json({ code: 'UNIFORM_PHOTO_REQUIRED', message: 'Your institution needs your real photo in uniform. Please upload a photo instead of an avatar.' });
             }
             if (pic === '') {

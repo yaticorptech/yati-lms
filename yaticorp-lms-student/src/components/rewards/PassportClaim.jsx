@@ -1,6 +1,6 @@
 /**
  * AI Passport claim: a student scans the QR on the last page of their AI
- * Passport book (or types the ID under it). The first scan links the book to
+ * Passport book. The first scan links the book to
  * their card for good and adds the welcome reward once. Server: /api/user/passport.
  *
  *   variant="card"  — the box at the top of the wallet; once linked, which book is theirs.
@@ -38,9 +38,9 @@ function Camera({ id, onRead, onFail }) {
     return <div id={id} className="mx-auto w-full max-w-xs overflow-hidden rounded-xl bg-slate-900" />;
 }
 
-/** The scan / type form, and what the claim said. */
+/** Scan only: the camera reads the QR and links it. A code that came in from the QR link is confirmed with one tap. */
 function ClaimForm({ idBase, initialCode = '', autoScan, reward, onDone, onCancel, compact }) {
-    const [typed, setTyped] = useState(initialCode);
+    const [pending, setPending] = useState(String(initialCode || '').trim());
     const [scanning, setScanning] = useState(Boolean(autoScan && !initialCode));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
@@ -55,7 +55,7 @@ function ClaimForm({ idBase, initialCode = '', autoScan, reward, onDone, onCance
             window.dispatchEvent(new Event('yati:progress-changed'));
             onDone(r.data);
         } catch (err) {
-            if (['PASSPORT_TAKEN', 'CARD_HAS_PASSPORT', 'PASSPORT_NOT_FOUND', 'PASSPORT_INACTIVE'].includes(err.response?.data?.code)) clearPendingPassport();
+            if (['PASSPORT_TAKEN', 'CARD_HAS_PASSPORT', 'PASSPORT_NOT_FOUND', 'PASSPORT_INACTIVE'].includes(err.response?.data?.code)) { clearPendingPassport(); setPending(''); }
             setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Your AI Passport could not be linked. Please try again.'));
         } finally { setBusy(false); }
     };
@@ -64,26 +64,24 @@ function ClaimForm({ idBase, initialCode = '', autoScan, reward, onDone, onCance
         <div className="space-y-3">
             {scanning && (
                 <div>
-                    <Camera id={`${idBase}-camera`} onRead={(t) => { setTyped(''); claim(t); }}
-                        onFail={() => { setScanning(false); setError('The camera is not available. Type the ID printed under the QR instead.'); }} />
+                    <Camera id={`${idBase}-camera`} onRead={(t) => claim(t)}
+                        onFail={() => { setScanning(false); setError('The camera is not available. Allow camera access and try again.'); }} />
                     <p className="mt-2 text-center text-xs text-slate-500">Hold the QR on your passport's last page up to the camera</p>
                 </div>
             )}
-            <form onSubmit={(e) => { e.preventDefault(); claim(typed); }} className="flex gap-2">
-                <label htmlFor={`${idBase}-id`} className="sr-only">AI Passport ID</label>
-                <input id={`${idBase}-id`} value={typed} onChange={(e) => { setTyped(e.target.value.toUpperCase()); setError(''); }} maxLength={64} autoComplete="off"
-                    placeholder={scanning ? 'Or type the ID under the QR' : 'AI Passport ID'}
-                    className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm tracking-wider outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100" />
-                <button type="submit" disabled={busy || !typed.trim()} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-violet-700 disabled:opacity-50">
-                    {busy ? <Loader2 size={14} className="animate-spin" /> : <Gift size={14} />} {compact ? 'Link' : reward > 0 ? 'Claim' : 'Link'}
+            {!scanning && pending && !busy && (
+                <button type="button" onClick={() => claim(pending)} className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white shadow-sm hover:bg-violet-700">
+                    <Gift size={15} aria-hidden /> {reward > 0 && !compact ? 'Claim' : 'Link'} passport
                 </button>
-            </form>
+            )}
             <div className="flex items-center justify-between gap-2">
-                <button type="button" onClick={() => { setError(''); setScanning((s) => !s); }} className="inline-flex min-h-[32px] items-center gap-1 text-xs font-bold text-violet-700 hover:underline">
-                    <ScanLine size={13} aria-hidden /> {scanning ? 'Stop camera' : 'Scan with camera'}
-                </button>
+                {!busy && (
+                    <button type="button" onClick={() => { setError(''); setScanning((s) => !s); }} className="inline-flex min-h-[32px] items-center gap-1 text-xs font-bold text-violet-700 hover:underline">
+                        <ScanLine size={13} aria-hidden /> {scanning ? 'Stop camera' : error ? 'Scan again' : 'Scan with camera'}
+                    </button>
+                )}
                 {onCancel && (
-                    <button type="button" onClick={onCancel} className="inline-flex min-h-[32px] items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800">
+                    <button type="button" onClick={onCancel} className="ml-auto inline-flex min-h-[32px] items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800">
                         <X size={13} aria-hidden /> {compact ? 'Cancel' : 'Later'}
                     </button>
                 )}

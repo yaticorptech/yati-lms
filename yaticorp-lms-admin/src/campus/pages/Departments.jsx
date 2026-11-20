@@ -9,7 +9,8 @@ import { Building2, Plus, Pencil, Trash2, KeyRound, Users, BookOpen, Landmark, U
 import api, { CAMPUS, errorOf } from '../api';
 import { useAuth } from '../context';
 import { LayoutDashboard } from 'lucide-react';
-import { PageHead, Card, Button, Dialog, Field, Input, Select, Banner, Chip, Empty, Skeleton, LoadFailed, useData, useToast, useConfirm, useSubmit } from '../ui';
+import { PageHead, Card, Button, Dialog, Field, Input, Select, Banner, Chip, Empty, Skeleton, LoadFailed, useData, useToast, useConfirm, useSubmit, plural } from '../ui';
+import { studentAppUrl } from '../../utils/studentUrl';
 
 const PUC_STREAMS = ['Arts', 'Commerce', 'Science'];
 /**
@@ -508,7 +509,7 @@ export default function Departments() {
         const tab = window.open('', '_blank');
         try {
             const { data: r } = await api.post(`${CAMPUS}/departments/${d._id}/hod-dashboard`);
-            const target = `${(import.meta.env.VITE_STUDENT_URL || 'http://localhost:5173').replace(/\/$/, '')}/admin-access/teacher#code=${encodeURIComponent(r.code)}`;
+            const target = `${studentAppUrl('http://localhost:5173').replace(/\/$/, '')}/admin-access/teacher#code=${encodeURIComponent(r.code)}`;
             if (tab) tab.location.href = target; else window.location.assign(target);
         } catch (err) { if (tab) tab.close(); toast(errorOf(err, 'Could not open the HOD’s dashboard.'), 'error'); }
     };

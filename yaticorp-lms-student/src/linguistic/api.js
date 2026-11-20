@@ -1,5 +1,6 @@
 /** Linguistic Ability — the calls, on YATICORPX3's axios client (as interview/api.js). */
 import client from '../utils/api';
+import { noteLetterVoice } from './letterVoice';
 import { askIfDriveRequired } from '../integrations/google/driveGate';
 
 const unwrap = (err) => {
@@ -43,11 +44,12 @@ const checkPost = async (p, b) => {
 };
 
 export const linguisticApi = {
-    dashboard: () => get('/'),
+    // With the revision of the course's recorded letters (letterVoice.js), as the letters page has too.
+    dashboard: () => get('/').then(noteLetterVoice),
     /** The learning path: each level's units and lessons, with which are open and which is next. */
     path: () => get('/path'),
     // Every letter of the course's language on one page (2026-10-31).
-    letters: () => get('/letters'),
+    letters: () => get('/letters').then(noteLetterVoice),
     /** Start at a level chosen instead of taking the placement test. */
     chooseLevel: (level) => post('/level', { level }),
     /** Straight to a section not open yet (2026-10-31): its jump test, one try → { lesson, module }. */
@@ -104,6 +106,14 @@ export const linguisticApi = {
     /** The certificate PDF, as a Blob. */
     certificatePdf: (level, course = null) => client.get(`/linguistic/certificates/${level}/pdf${course ? `?course=${encodeURIComponent(course)}` : ''}`, { responseType: 'blob' }).then((r) => r.data)
         .catch((err) => { askIfDriveRequired(err, 'So the certificates you earn here are kept in your own Google Drive.'); return unwrap(err); }),
+    /** IELTS mock tests (2026-11-17): the tests, my attempts and where to book the real exam. */
+    ielts: () => get('/ielts'),
+    ieltsStart: (testId) => post('/ielts/attempts', { testId }),
+    ieltsAttempt: (id) => get(`/ielts/attempts/${id}`),
+    // Writing and Speaking are marked by the AI examiner: up to two minutes.
+    ieltsSubmit: (id, section, body) => client.post(`/linguistic/ielts/attempts/${id}/${section}`, body, { timeout: 120000 }).then((r) => r.data).catch(unwrap),
+    ieltsDiscard: (id) => del(`/ielts/attempts/${id}`),
+    ieltsRedo: (id, section) => del(`/ielts/attempts/${id}/${section}`),
     hideCertificate: (level, course = null) => del(`/certificates/${level}${course ? `?course=${encodeURIComponent(course)}` : ''}`)
 };
 

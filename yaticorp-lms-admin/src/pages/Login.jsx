@@ -9,9 +9,10 @@ import { Eye, EyeOff } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 import { isNative } from '../native/platform';
 import api from '../utils/api';
+import { studentAppUrl } from '../utils/studentUrl';
 
 // The Terms and Privacy Policy pages are the student site's (/terms, /privacy).
-const STUDENT_URL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
+const STUDENT_URL = studentAppUrl('http://localhost:5174');
 const Login = () => {
     const { admin, login, verify2FA } = useAuth();
 

@@ -4,7 +4,8 @@
  *   GET    /                    every demo card (built-in and scanned), with its account
  *   POST   /        { code }    add one: a scanned QR or a typed card number
  *   DELETE /:cardNumber         no longer a demo card (scanned ones only)
- *   POST   /:cardNumber/reset   a fresh start: the account's data wiped, the account kept
+ *   POST   /:cardNumber/reset   a fresh start: the account's data wiped, the account kept —
+ *                               and the card's demo teacher with it (services/demoDashboards.js)
  */
 const express = require('express');
 const Card = require('../models/Card');
@@ -25,7 +26,11 @@ const cardFor = async (code) => {
 };
 
 router.get('/', async (req, res) => {
-    try { res.json({ cards: await demo.listDemoCards() }); } catch (e) { fail(res, e, 'load the demo cards'); }
+    try {
+        const dashboards = require('../services/demoDashboards');
+        // The dashboards every demo card opens, and the organisation they share.
+        res.json({ cards: await demo.listDemoCards(), dashboards: dashboards.DASHBOARDS, organization: await dashboards.organizationSummary() });
+    } catch (e) { fail(res, e, 'load the demo cards'); }
 });
 
 router.post('/', async (req, res) => {
@@ -59,6 +64,7 @@ router.post('/:cardNumber/reset', async (req, res) => {
         const user = card ? await demo.ensureAccount(card) : await require('../utils/cardNumber').findUserByCardNumber(n);
         if (!user) return res.status(404).json({ message: 'That card has no account to reset.' });
         await demo.resetAccount(user._id);
+        await require('../services/demoDashboards').resetTeacher(n);
         res.json({ message: `${user.name} is reset — a brand-new card again.`, cards: await demo.listDemoCards() });
     } catch (e) { fail(res, e, 'reset the card'); }
 });

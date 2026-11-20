@@ -46,6 +46,8 @@ const listDemoCards = async () => {
     const scanned = await Card.find({ demo: true }).select('CardNumber qrCodeNumber demoAddedAt').lean();
     const numbers = [...DEMO_CARDS, ...scanned.map((c) => normaliseCardNumber(c.CardNumber)).filter((n) => !DEMO_CARDS.has(n))];
     const users = await User.find({ cardNumber: { $in: numbers } }).select('name cardNumber lastActiveDate xp level createdAt').lean();
+    // Each card's demo teacher, once its teacher dashboard has been opened (services/demoDashboards.js).
+    const teachers = await require('./demoDashboards').teachersFor(numbers);
     return numbers.map((n) => {
         const card = scanned.find((c) => normaliseCardNumber(c.CardNumber) === n);
         const user = users.find((u) => normaliseCardNumber(u.cardNumber) === n);
@@ -53,7 +55,8 @@ const listDemoCards = async () => {
             cardNumber: n,
             builtIn: DEMO_CARDS.has(n),
             addedAt: card?.demoAddedAt || null,
-            account: user ? { id: user._id, name: user.name, lastActiveDate: user.lastActiveDate || null, xp: user.xp || 0, level: user.level || 1 } : null
+            account: user ? { id: user._id, name: user.name, lastActiveDate: user.lastActiveDate || null, xp: user.xp || 0, level: user.level || 1 } : null,
+            teacher: teachers.get(n) || null
         };
     });
 };

@@ -6,6 +6,7 @@ import ProfileImage from '../components/ProfileImage';
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import DeviceLimitDialog from '../components/DeviceLimitDialog';
+import DemoDashboardChooser from '../components/DemoDashboardChooser';
 import { Navigate, Link, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import SupportDialog from '../components/SupportDialog';
@@ -261,6 +262,8 @@ const Login = () => {
     const { user, login, replaceDevice, enterApp } = useContext(AuthContext);
     // A 3rd device: the popup to swap it in (components/DeviceLimitDialog).
     const [deviceConflict, setDeviceConflict] = useState(null);
+    // A demo card's scan: its session and switch pass, held while the presenter picks a dashboard (components/DemoDashboardChooser).
+    const [demoSession, setDemoSession] = useState(null);
     // Where the student was heading when they were asked to sign in (a link
     // to a lesson, a page left when the session ended). Only a path in this
     // app is taken; anything else means the dashboard.
@@ -365,7 +368,9 @@ const Login = () => {
                 else if (err.response?.data?.code !== 'TEACHER_CARD') throw err;
                 else res = await teacherApi.post('/auth/card-scan', { code: decodedText });
             }
-            // A demo (presentation) card signs in by its scan alone: straight to the dashboard.
+            // A demo (presentation) card signs in by its scan alone, and opens any dashboard: the presenter picks.
+            if (res.data?.token && res.data?.demo) { setDemoSession(res.data); return; }
+            // A developer card signs in by its scan alone: straight to the dashboard.
             if (res.data?.token && res.data?.role !== 'teacher') { enterApp(res.data, next); return; }
             // A developer teacher card signs in by its scan alone too.
             if (res.data?.token) { enterTeacher(res.data); return; }
@@ -469,6 +474,7 @@ const Login = () => {
             <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-56 -z-10 h-[30rem] w-[30rem] rounded-full bg-violet-600/15 blur-[140px]" />
             {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
             {showContact && <SupportDialog onClose={() => setShowContact(false)} page="login" tone="dark" />}
+            {demoSession && <DemoDashboardChooser token={demoSession.demoSwitch} session={demoSession} name={demoSession.name} onClose={() => setDemoSession(null)} />}
             {deviceConflict && (
                 <DeviceLimitDialog conflict={deviceConflict} onClose={() => setDeviceConflict(null)}
                     onReplace={(removeId) => replaceDevice(deviceConflict.ticket, removeId, next)} />

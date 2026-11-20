@@ -1,5 +1,6 @@
 /**
- * The Institution app's components — one design language for every page:
+ * Campus's components (first written for a separate Institution app, merged here 2026-11-19) —
+ * one design language for every page:
  * porcelain paper, petrol-teal ink, brass for what is official. Tokens in
  * index.css. Kept to what the pages use.
  */

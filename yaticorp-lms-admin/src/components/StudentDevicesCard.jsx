@@ -6,7 +6,7 @@
  * `base` is the devices endpoint: /admin/users/:id/devices or /organizations/me/students/:id/devices.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { MonitorSmartphone, Smartphone, Laptop, RotateCcw, Home, Loader2 } from 'lucide-react';
+import { MonitorSmartphone, Smartphone, Laptop, RotateCcw, Home, Loader2, Trash2 } from 'lucide-react';
 import api from '../utils/api';
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
@@ -29,6 +29,11 @@ export default function StudentDevicesCard({ base, className = '' }) {
     const reset = () => {
         if (!window.confirm('Reset this student’s devices? Every device is signed out, and they can sign in on new ones (and get their yearly removal back).')) return;
         act('reset', () => api.delete(base));
+    };
+
+    const remove = (d) => {
+        if (!window.confirm(`Remove ${d.name || 'this device'}? It is signed out, and the student can sign in on a new device in its place.`)) return;
+        act(`rm:${d.deviceId}`, () => api.delete(`${base}/${encodeURIComponent(d.deviceId)}`));
     };
 
     if (!data) return <section className={`h-32 animate-pulse rounded-2xl border border-slate-200 bg-white ${className}`} />;
@@ -68,7 +73,11 @@ export default function StudentDevicesCard({ base, className = '' }) {
                             <li key={d.deviceId} className="flex items-center gap-3 py-2.5 text-sm">
                                 <Icon size={17} className="shrink-0 text-slate-400" />
                                 <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">{d.name || 'A device'}</span>
-                                <span className="shrink-0 text-xs text-slate-500">added {fmt(d.addedAt)} · last used {fmt(d.lastSeenAt)}</span>
+                                <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">added {fmt(d.addedAt)} · last used {fmt(d.lastSeenAt)}</span>
+                                <button type="button" onClick={() => remove(d)} disabled={!!busy} aria-label={`Remove ${d.name || 'device'}`} title="Remove this device"
+                                    className="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:opacity-40">
+                                    {busy === `rm:${d.deviceId}` ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Remove
+                                </button>
                             </li>
                         );
                     })}

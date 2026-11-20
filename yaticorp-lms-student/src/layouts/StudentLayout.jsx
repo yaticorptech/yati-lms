@@ -49,6 +49,7 @@ import CompetitionAlerts from '../competitions/CompetitionAlerts';
 import ReminderPopup from '../competitions/ReminderPopup';
 import ResultsCelebration from '../competitions/ResultsCelebration';
 import PassportClaimPopup from '../components/rewards/PassportClaimPopup';
+import DemoBar from '../components/DemoBar';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -1039,6 +1040,8 @@ const StudentLayout = () => {
                 anything scrolled to (a #wallet link, a tab strip, a focused
                 field) lands below it rather than behind it. */}
             <main ref={mainRef} className="flex-1 overflow-auto overscroll-y-contain scroll-pt-16 bg-slate-50 sidebar:pt-0 pt-16 relative">
+                {/* A demo (presentation) card: says so, and changes to its teacher or organisation dashboard. */}
+                <DemoBar as="student" name={user?.name} className="sidebar:px-8" />
                 {/* A superadmin working in this student's dashboard: everything
                     they do counts as the student's own, so it is said plainly,
                     with the way out beside it. */}

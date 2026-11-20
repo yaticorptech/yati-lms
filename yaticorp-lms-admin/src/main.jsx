@@ -20,14 +20,6 @@ if (window.location.pathname.endsWith('/index.html')) {
   window.history.replaceState(null, '', `${BASE}/`)
 }
 
-// Signing out of Campus (the Institution app) lands here with ?logout=1: this
-// session ends too, or the sign-in page would send them straight back.
-if (new URLSearchParams(window.location.search).get('logout') === '1') {
-  localStorage.removeItem('adminToken')
-  localStorage.removeItem('adminData')
-  window.history.replaceState(null, '', window.location.pathname)
-}
-
 const root = ReactDOM.createRoot(document.getElementById('root'))
 root.render(
   <React.StrictMode>

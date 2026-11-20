@@ -33,8 +33,6 @@ const buildAllowedOrigins = () => {
     // Add from individual env vars
     if (process.env.FRONTEND_URL) origins.add(process.env.FRONTEND_URL.trim());
     if (process.env.ADMIN_URL) origins.add(process.env.ADMIN_URL.trim());
-    // The institution app (yaticorp-lms-institution): Campus for departments, the exam board and teachers.
-    if (process.env.INSTITUTION_URL) origins.add(process.env.INSTITUTION_URL.trim());
 
     // Add from comma-separated ALLOWED_ORIGINS env var
     if (process.env.ALLOWED_ORIGINS) {
@@ -106,6 +104,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Import Routes
 app.use('/api/i18n', require('./src/routes/i18nMissing'));        // text the app could not translate yet
+app.use('/api/auth/demo', require('./src/routes/demoDashboardRoutes'));   // a demo card's teacher and organisation dashboards
 app.use('/api/auth', require('./src/routes/authRoutes'));       // All credential/auth routes
 app.use('/api/admin/teachers', require('./src/teacher/admin'));   // before /api/admin's own routes
 app.use('/api/admin/demo-cards', require('./src/routes/demoCardRoutes'));   // presentation cards (Admin → Demo cards)
