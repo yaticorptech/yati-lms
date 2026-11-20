@@ -21,6 +21,7 @@ export default function TensePick({ onExit }) {
   return (
     <QuizGame
       gameId="tense-pick"
+      dark={['intermediate', 'analytical'].includes(currentAgeBand())}
       title="Tense Pick"
       tone="bg-gradient-to-br from-fuchsia-500 to-pink-700"
       questions={questions}
@@ -32,7 +33,7 @@ export default function TensePick({ onExit }) {
             <p className="text-sm font-bold text-ink-500">{young ? 'Pick the word that fits.' : 'Choose the correct form.'}</p>
             <p className={`mt-2 font-black leading-snug text-ink-900 ${young ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'}`}>
               {before}
-              <span className="mx-1 inline-block min-w-16 border-b-4 border-fuchsia-400 align-baseline" aria-label="blank">&nbsp;</span>
+              <span className="mx-1 inline-block min-w-16 border-b-4 border-amber-300 align-baseline" aria-label="blank">&nbsp;</span>
               {after}
             </p>
             <p className="mt-2 text-base font-bold text-fuchsia-700">({q.verb})</p>

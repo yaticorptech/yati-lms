@@ -39,14 +39,6 @@ export const COACH = {
       'Sort them so each peg is one colour, in as few moves as you can.'
     ],
     tip: 'The middle peg is your busiest road — keep a space free on it.'
-  },
-  'emoji-equations': {
-    steps: [
-      'Each picture stands for a number.',
-      'Line 1 gives the first picture; each next line gives one more.',
-      'Answer the last line — × comes before + and −.'
-    ],
-    tip: 'Write the values down as you find them: 🍎 = 10, 🍌 = 4 …'
   }
 };
 
@@ -56,6 +48,5 @@ export const BLURB = {
   'focus-filter': 'Watch the middle fish, ignore the rest — then hunt the targets.',
   'dual-image-recall': 'Two scenes from memory: what changed, and what they shared.',
   'tower-strategy': 'Sort the rings: one colour on each peg.',
-  'emoji-equations': 'Crack what each picture is worth!',
   'clue-chain': 'One crown in every row, column and garden — no touching!'
 };

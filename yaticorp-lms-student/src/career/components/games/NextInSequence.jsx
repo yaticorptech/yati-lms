@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import QuizGame from './QuizGame';
-import { bandWithin, currentAgeBand } from './levels';
+import useGameProgress, { bandWithin, currentAgeBand } from './levels';
+import SequenceQuest from './SequenceQuest';
 import { SEQUENCES } from '../../data/brainPuzzles';
 import { buildSequences } from '../../data/genSequences';
 import { seeded, numberDistractors } from '../../data/seeded';
@@ -37,7 +38,19 @@ const legacyPool = () => {
   return [...generated, ...written];
 };
 
-export default function NextInSequence({ onExit, gameId = 'next-in-sequence', bands, title = 'Next in Sequence' }) {
+/** Rising Brains (Classes 6–10) play the arcade run (SequenceQuest, 2026-11-19); other bands keep the quiz. */
+export default function NextInSequence(props) {
+  const band = sequenceBand(bandWithin(currentAgeBand(), props.bands));
+  if ((band === 'intermediate' || band === 'analytical') && !props.title) return <QuestGame onExit={props.onExit} gameId={props.gameId || 'next-in-sequence'} bands={props.bands} />;
+  return <QuizSequence {...props} />;
+}
+
+function QuestGame({ onExit, gameId, bands }) {
+  const progress = useGameProgress(gameId, { bands });
+  return <SequenceQuest progress={progress} onExit={onExit} />;
+}
+
+function QuizSequence({ onExit, gameId = 'next-in-sequence', bands, title = 'Next in Sequence' }) {
   const band = sequenceBand(bandWithin(currentAgeBand(), bands));
   const questions = useMemo(() => {
     const own = buildBandSequences(band);

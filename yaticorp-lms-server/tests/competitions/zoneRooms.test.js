@@ -52,7 +52,8 @@ describe('Rooms by age zone', () => {
         assert.equal(r.body.zone, 'young');
         assert.equal(r.body.source, 'class');
         assert.equal(r.body.readiness['memory-match'], 1);
-        assert.deepEqual(r.body.groupZones.sudoku, ['smart']);
+        assert.deepEqual(r.body.groupZones.memorymatch, ['young', 'smart', 'master']); // every section (2026-11-17)
+        assert.equal(r.body.groupZones.sudoku, undefined, 'Sudoku is not a group game');
     });
 
     test('a Class 4 host makes a Young Thinkers room: easy, zone in the view', async () => {
@@ -73,18 +74,18 @@ describe('Rooms by age zone', () => {
     });
 
     test('the zone wins over a difficulty that does not match it; a game not in the zone is refused', async () => {
-        const r = await smart.call('POST', '/rooms', { game: 'finalvault', zone: 'young', options: { difficulty: 'hard' } });
+        const r = await smart.call('POST', '/rooms', { game: 'memorymatch', zone: 'young', options: { difficulty: 'hard' } });
         assert.equal(r.status, 201, r.body.message);
         assert.equal(r.body.game.options.difficulty, 'easy');
         await leave(smart, r.body.game.id);
-        const no = await smart.call('POST', '/rooms', { game: 'sudoku', zone: 'young' });
+        const no = await smart.call('POST', '/rooms', { game: 'cipherlab', zone: 'young' });
         assert.equal(no.status, 403);
-        assert.match(no.body.message, /Sudoku Challenge isn't played in Young Thinkers/);
+        assert.match(no.body.message, /isn't open for group play/);
         assert.equal((await smart.call('POST', '/rooms', { game: 'sequence', zone: 'giant' })).status, 400);
     });
 
     test('a young student can join a Master Minds room by code (every zone open); the room stays hard', async () => {
-        const made = await master.call('POST', '/rooms', { game: 'finalvault', options: { players: 4 } });
+        const made = await master.call('POST', '/rooms', { game: 'memorymatrix', options: { players: 4 } });
         assert.equal(made.status, 201, made.body.message);
         assert.equal(made.body.game.zone, 'master');
         assert.equal(made.body.game.options.difficulty, 'hard');
@@ -103,8 +104,16 @@ describe('Rooms by age zone', () => {
         await PlayGame.updateOne({ _id: made.body.game.id }, { $set: { status: 'abandoned' } });
     });
 
+    test('games removed from group play (2026-11-17) cannot be opened in any zone', async () => {
+        for (const game of ['cipherlab', 'probability', 'quantarena', 'decisions']) { // Deduction is back (2026-11-17)
+            const r = await master.call('POST', '/rooms', { game, zone: 'master' });
+            assert.equal(r.status, 403, game);
+            assert.match(r.body.message, /isn't open for group play/);
+        }
+    });
+
     test('a smart host can make a Master Minds room: hard, in the master zone', async () => {
-        const r = await smart.call('POST', '/rooms', { game: 'deduction', zone: 'master' });
+        const r = await smart.call('POST', '/rooms', { game: 'memorymatrix', zone: 'master' });
         assert.equal(r.status, 201, r.body.message);
         assert.equal(r.body.game.zone, 'master');
         assert.equal(r.body.game.options.difficulty, 'hard');
@@ -122,25 +131,25 @@ describe('Rooms by age zone', () => {
 
 describe('Online tables by age zone', () => {
     test('seats are only matched within one zone; classes may differ inside it', async () => {
-        const a = await smart.call('POST', '/rooms/online', { game: 'deduction', players: 4, fee: 0 });
+        const a = await smart.call('POST', '/rooms/online', { game: 'sequence', players: 4, fee: 0 });
         assert.equal(a.status, 200, a.body.message);
-        const b = await master.call('POST', '/rooms/online', { game: 'deduction', players: 4, fee: 0 });
+        const b = await master.call('POST', '/rooms/online', { game: 'memorymatrix', players: 4, fee: 0 });
         assert.equal(b.status, 200, b.body.message);
         assert.notEqual(b.body.game.id, a.body.game.id, 'a Master Minds table, not the Smart one');
-        const c = await smart2.call('POST', '/rooms/online', { game: 'deduction', players: 4, fee: 0 });
+        const c = await smart2.call('POST', '/rooms/online', { game: 'sequence', players: 4, fee: 0 });
         assert.equal(c.body.game.id, a.body.game.id, 'Class 8 and Class 9 share a Rising Brains table');
         const t = (await smart.call('GET', `/play/${a.body.game.id}`)).body.game;
         assert.equal(t.options.zone, 'smart');
         assert.equal(t.options.difficulty, 'medium');
 
         // The master student may practise in Rising Brains: a separate seat at the smart table.
-        const d = await master.call('POST', '/rooms/online', { game: 'deduction', players: 4, fee: 0, zone: 'smart' });
+        const d = await master.call('POST', '/rooms/online', { game: 'sequence', players: 4, fee: 0, zone: 'smart' });
         assert.equal(d.body.game.id, a.body.game.id);
-        for (const [u, id] of [[smart, a], [smart2, a], [master, d]]) await leave(u, id.body.game.id);
+        for (const [u, id] of [[smart, a], [smart2, a], [master, d], [master, b]]) await leave(u, id.body.game.id);
     });
 
     test('a zone above is open online: a young student takes a seat at a Rising Brains table', async () => {
-        const r = await young.call('POST', '/rooms/online', { game: 'spotthechange', players: 4, fee: 0, zone: 'smart' });
+        const r = await young.call('POST', '/rooms/online', { game: 'sequence', players: 4, fee: 0, zone: 'smart' });
         assert.equal(r.status, 200, r.body.message);
         const t = (await young.call('GET', `/play/${r.body.game.id}`)).body.game;
         assert.equal(t.options.zone, 'smart');

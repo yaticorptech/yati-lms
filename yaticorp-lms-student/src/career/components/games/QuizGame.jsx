@@ -51,7 +51,7 @@ const trimOptions = (q, max) => {
   return [q.answer, ...shuffle(q.options.filter((o) => o !== q.answer)).slice(0, max - 1)];
 };
 
-export default function QuizGame({ gameId, bands, title, tone, questions, renderPrompt, onExit, alternate = false }) {
+export default function QuizGame({ gameId, bands, title, tone, questions, renderPrompt, onExit, alternate = false, stage = null, renderOption = null, dark = false }) {
   const progress = useGameProgress(gameId, { bands });
   return (
     <Round
@@ -63,11 +63,20 @@ export default function QuizGame({ gameId, bands, title, tone, questions, render
       renderPrompt={renderPrompt}
       onExit={onExit}
       alternate={alternate}
+      stage={stage}
+      renderOption={renderOption}
+      dark={dark}
     />
   );
 }
 
-function Round({ progress, title, tone, questions, renderPrompt, onExit, alternate }) {
+/*
+ * A game may dress the round (2026-11-18, Spelling Fix "attractive, colourful"): `stage` — a className for a coloured
+ * stage around the question and answers; `renderOption(option, state)` — the inside of each answer button, state
+ * 'idle' | 'right' | 'wrong' | 'dim'. The logic is the same for every game.
+ */
+// `dark` (2026-11-19, Rising Brains' vocabulary games): a pure-dark screen, the question on a premium card (vx-*).
+function Round({ progress, title, tone, questions, renderPrompt, onExit, alternate, stage, renderOption, dark }) {
   const ageBand = progress.ageBand || null;
   const young = isYoung(ageBand);
   const config = configFor(progress.levelNo, ageBand);
@@ -78,7 +87,7 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit, alterna
   const [started, setStarted] = useState(false);
   const mascot = useMascot();
   // A longer pause after a wrong answer when there is a "why" to read.
-  const { busy, showWrong, toneOf } = useAnswerReveal(questions.some((q) => q.explain) ? WRONG_WITH_EXPLAIN_MS : undefined);
+  const { busy, showWrong, toneOf, state: revealOf } = useAnswerReveal(questions.some((q) => q.explain) ? WRONG_WITH_EXPLAIN_MS : undefined);
 
   /**
    * The questions for this level.
@@ -268,15 +277,18 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit, alterna
       }
     >
       {started && !over && (
-        <div className="mx-auto w-full max-w-md min-w-0 text-center">
+        <div className={`mx-auto w-full max-w-md min-w-0 text-center ${stage || ''} ${dark ? `vx-quiz flex flex-col justify-start max-sm:flex-1 ${{ 'sentence-gap': 'vx-t1', 'tense-pick': 'vx-t2' }[progress.gameId] || 'vx-t0'}` : ''}`}>
+          {dark && <p className="mb-2 max-sm:mt-1 text-xs font-black tracking-[0.16em] text-violet-600 uppercase">Question {index + 1} of {deck.length}</p>}
+          <div className={dark ? 'vx-card flex flex-col justify-center px-4 py-8 sm:px-6' : ''}>
           {current.picture && (
             <div className={`mb-3 leading-none select-none ${young ? 'text-7xl sm:text-8xl' : 'text-6xl'}`} aria-hidden="true">
               {current.picture}
             </div>
           )}
           {renderPrompt(current)}
+          </div>
 
-          <div className={`mt-5 grid gap-2 sm:mt-6 sm:gap-2.5 ${pairUp ? 'grid-cols-2' : ''} ${young ? (options.length === 3 && longest <= 12 ? 'sm:grid-cols-3' : longest > 24 ? '' : 'sm:grid-cols-2') : 'sm:grid-cols-2'}`}>
+          <div className={`mt-5 grid gap-2 sm:mt-6 sm:gap-2.5 ${renderOption ? `grid-cols-1 gap-3 ${options.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}` : `${pairUp ? 'grid-cols-2' : ''} ${young ? (options.length === 3 && longest <= 12 ? 'sm:grid-cols-3' : longest > 24 ? '' : 'sm:grid-cols-2') : 'sm:grid-cols-2'}`}`}>
             {options.map((option) => {
               const isAnswer = option === current.answer;
               const picked = chosen === option;
@@ -287,7 +299,7 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit, alterna
                   type="button"
                   onClick={() => answer(option)}
                   disabled={show || busy}
-                  className={`fp-press flex min-w-0 items-center justify-center gap-2 rounded-2xl px-3 text-center font-black [overflow-wrap:anywhere] ${young ? 'min-h-16 py-2 text-lg sm:text-xl' : 'min-h-14 py-2 text-base'} ring-1 transition-all ring-inset ${toneOf(option)} ${
+                  className={renderOption ? `fp-press relative block w-full min-w-0 rounded-2xl text-center transition-all ${revealOf(option) === 'wrong' ? 'gs-wrong' : ''}` : dark ? `vx-opt fp-press relative flex min-h-16 min-w-0 items-center justify-center gap-2 px-3 py-2 text-center text-lg [overflow-wrap:anywhere] ${{ right: 'vx-right gs-right', wrong: 'vx-wrong gs-wrong', dim: 'vx-dim', idle: '' }[revealOf(option) || (show && isAnswer ? 'right' : show && picked ? 'wrong' : show ? 'dim' : 'idle')] || ''}` : `fp-press flex min-w-0 items-center justify-center gap-2 rounded-2xl px-3 text-center font-black [overflow-wrap:anywhere] ${young ? 'min-h-16 py-2 text-lg sm:text-xl' : 'min-h-14 py-2 text-base'} ring-1 transition-all ring-inset ${toneOf(option)} ${
                     busy
                       ? 'bg-surface-50 text-ink-900 ring-line-200'
                       : show && isAnswer
@@ -299,16 +311,18 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit, alterna
                           : 'bg-surface-50 text-ink-900 ring-line-200 hover:bg-journey-50 hover:ring-journey-300'
                   }`}
                 >
+                  {renderOption ? renderOption(option, revealOf(option) || (show && isAnswer ? 'right' : show && picked ? 'wrong' : show ? 'dim' : 'idle'), options.indexOf(option)) : <>
+                  {dark && <span className="vx-key">{'ABCD'[options.indexOf(option)]}</span>}
                   {show && isAnswer && <Check className="h-4 w-4 shrink-0" strokeWidth={3} />}
                   {show && picked && !isAnswer && <X className="h-4 w-4 shrink-0" strokeWidth={3} />}
-                  {option}
+                  {option}</>}
                 </button>
               );
             })}
           </div>
 
           {answered && current.explain && (
-            <p className={`mt-4 flex items-start justify-center gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-left text-amber-900 ring-1 ring-amber-200 ring-inset ${young ? 'text-base' : 'text-sm'}`}>
+            <p className={`mt-4 flex items-start justify-center gap-1.5 rounded-xl px-3 py-2 text-left ring-1 ring-inset bg-amber-50 text-amber-900 ring-amber-200 ${young ? 'text-base' : 'text-sm'}`}>
               <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
               <span>{current.explain}</span>
             </p>
@@ -321,7 +335,7 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit, alterna
                 setChosen(null);
                 setIndex((i) => i + 1);
               }}
-              className="fp-press mt-5 min-h-11 rounded-xl bg-gradient-to-r from-journey-500 to-indigo-600 px-6 text-sm font-black text-white"
+              className={dark ? 'vx-cta fp-press mt-5 min-h-12 w-full px-6 text-base' : 'fp-press mt-5 min-h-11 rounded-xl bg-gradient-to-r from-journey-500 to-indigo-600 px-6 text-sm font-black text-white'}
             >
               {index + 1 === deck.length ? 'See result' : 'Next question'}
             </button>

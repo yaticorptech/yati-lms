@@ -272,7 +272,7 @@ export const INKS = [
   { name: 'RED', label: 'Red', class: 'text-rose-500', button: 'bg-gradient-to-b from-rose-400 to-rose-500', edge: '#be123c' },
   { name: 'BLUE', label: 'Blue', class: 'text-sky-500', button: 'bg-gradient-to-b from-sky-400 to-sky-500', edge: '#0369a1' },
   { name: 'GREEN', label: 'Green', class: 'text-emerald-500', button: 'bg-gradient-to-b from-emerald-400 to-emerald-500', edge: '#047857' },
-  { name: 'YELLOW', label: 'Yellow', class: 'text-amber-400', button: 'bg-gradient-to-b from-amber-300 to-amber-400', edge: '#b45309' },
+  { name: 'YELLOW', label: 'Yellow', class: 'text-yellow-400', button: 'bg-gradient-to-b from-yellow-300 to-yellow-400', edge: '#a16207' },
   { name: 'PURPLE', label: 'Purple', class: 'text-violet-500', button: 'bg-gradient-to-b from-violet-400 to-violet-500', edge: '#6d28d9' }
 ];
 export const BLOB_SHAPES = ['circle', 'square', 'triangle', 'star', 'heart'];
@@ -338,21 +338,39 @@ const GRID_PICTURES = ['🍎', '⭐', '🐶', '🚗', '🎈', '🐱', '🌙', '�
  * Grid Recall. Young bands see pictures appear in cells (`pictures`); Master Minds see two patterns one after the
  * other (`twoStage`) and recall the SECOND first, then the FIRST.
  */
+/*
+ * From level 2 the young bands put the pictures back (2026-11-18, the user): the pictures show and hide, then 4
+ * choices sit under the grid — the shown pictures and look-alikes that were never there — and each one is picked
+ * and placed on the square where it was. Level 1 stays "tap where they were".
+ */
+const PLACE_FROM_LEVEL = 2;
+const PLACE_CHOICES = 4;
+const placeMode = (levelNo) => ((levelNo || 1) >= PLACE_FROM_LEVEL ? { place: true, choices: PLACE_CHOICES } : { place: false });
+
+/*
+ * Lit tiles for Rising Brains and Master Minds (2026-11-18, the user: "start easy — they should keep on playing"):
+ * easy 3; medium 4, then 5 from level 15; hard 5, then 6 from level 25.
+ */
+const gridLit = (d, levelNo = 1) => (d === 1 ? 3 : d === 2 ? (levelNo >= 15 ? 5 : 4) : levelNo >= 25 ? 6 : 5);
+
 export function gridConfig({ ageBand, difficulty = 1, levelNo = 1 } = {}) {
   const band = bandKey(ageBand);
   const r = bandRamp(band, levelNo);
   const d = Math.min(3, Math.max(1, difficulty));
   if (band === 'foundation') {
-    return { band, young: true, size: 3, lit: lerp(2, 3, r), showMs: lerp(2600, 2000, r), rounds: 5, target: 3, pictures: true, twoStage: false };
+    return { band, young: true, size: 3, lit: lerp(2, 3, r), showMs: lerp(2600, 2000, r), rounds: 5, target: 3, pictures: true, twoStage: false, ...placeMode(levelNo) };
   }
   if (band === 'developing') {
-    return { band, young: true, size: r >= 0.5 ? 4 : 3, lit: lerp(3, 5, r), showMs: lerp(2200, 1600, r), rounds: 5, target: r >= 0.5 ? 4 : 3, pictures: true, twoStage: false };
+    const place = placeMode(levelNo);
+    // Placing is harder than tapping: at most 4 pictures to put back, so every one of them is among the 4 choices.
+    return { band, young: true, size: r >= 0.5 ? 4 : 3, lit: place.place ? Math.min(4, lerp(3, 5, r)) : lerp(3, 5, r), showMs: lerp(2200, 1600, r) + (place.place ? 600 : 0), rounds: 5, target: r >= 0.5 ? 4 : 3, pictures: true, twoStage: false, ...place };
   }
   if (band === 'advanced') {
-    return { band, young: false, size: d === 3 ? 5 : 4, lit: between(3, 4, levelNo) + (d - 2), showMs: between(1600, 1100, levelNo), rounds: 5, target: between(3, 4, levelNo), pictures: false, twoStage: true };
+    // One pattern only (2026-11-18, the user: "two sets appear — make it one").
+    return { band, young: false, size: d === 3 ? 5 : 4, lit: gridLit(d, levelNo), showMs: between(1900, 1300, levelNo), rounds: 5, target: between(3, 4, levelNo), pictures: false, twoStage: false };
   }
   return {
-    band, young: false, size: d === 1 ? 3 : d === 2 ? 4 : 5, lit: between(3, 6, levelNo) + (d - 1) * 2,
+    band, young: false, size: d === 3 ? 5 : 4, lit: gridLit(d, levelNo),
     showMs: between(1600, 900, levelNo), rounds: 5, target: between(3, 5, levelNo), pictures: false, twoStage: false
   };
 }
@@ -373,7 +391,9 @@ export function gridRounds(config, rng = Math.random) {
       const faces = shuffle(GRID_PICTURES, rng);
       first.forEach((cell, i) => { pictures[cell] = faces[i % faces.length]; });
     }
-    return { first, second, pictures };
+    // Place mode: the shown pictures, topped up to 4 with ones that were not on the grid, shuffled.
+    const choices = config.place ? shuffle([...new Set([...first.map((c) => pictures[c]), ...shuffle(GRID_PICTURES, rng)])].slice(0, Math.max(config.choices, first.length)), rng) : [];
+    return { first, second, pictures, choices };
   });
 }
 

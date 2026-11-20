@@ -8,14 +8,18 @@ const { CATALOG, EXTRA, SECTIONS, CATEGORIES, gamesIn, sectionForClass } = await
 const serverIds = fs.readFileSync(new URL('../../../yaticorp-lms-server/src/career/data/gameIds.js', import.meta.url), 'utf8');
 const EXISTING = [...serverIds.slice(serverIds.indexOf('GAME_IDS = '), serverIds.indexOf(serverIds.includes('// The 84 games') ? '// The 84 games' : ']);')).matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]);
 
-test('3 sections × 4 categories × 7 games = 84', () => {
-  assert.equal(CATALOG.length, 84);
-  for (const s of SECTIONS) for (const c of CATEGORIES) assert.equal(gamesIn(s.key, c.key).length, 7, `${s.key}/${c.key}`);
+// 2026-11-18 (the user): Master Minds' maths trimmed to one game; every other category keeps seven.
+// Games per section and category, as the user has trimmed them (latest 2026-11-20: WORDCRAFT added to Master Minds vocabulary).
+const SIZE = (s, c) => ({ master: { math: 4, logic: 5, memory: 5, vocab: 6 }, smart: {} }[s]?.[c] ?? (s === 'smart' ? 6 : 7));
+const TOTAL = SECTIONS.reduce((n, s) => n + CATEGORIES.reduce((m, c) => m + SIZE(s.key, c.key), 0), 0);
+test('3 sections × 4 categories, seven games each (Master Minds maths: one)', () => {
+  assert.equal(CATALOG.length, TOTAL);
+  for (const s of SECTIONS) for (const c of CATEGORIES) assert.equal(gamesIn(s.key, c.key).length, SIZE(s.key, c.key), `${s.key}/${c.key}`);
 });
 
 test('no id or title twice: each game belongs to one section', () => {
-  assert.equal(new Set(CATALOG.map((g) => g.id)).size, 84);
-  assert.equal(new Set(CATALOG.map((g) => g.title)).size, 84);
+  assert.equal(new Set(CATALOG.map((g) => g.id)).size, TOTAL);
+  assert.equal(new Set(CATALOG.map((g) => g.title)).size, TOTAL);
 });
 
 test('ready games exist; split/extend come from an existing game; new ids are not taken', () => {
@@ -28,7 +32,7 @@ test('ready games exist; split/extend come from an existing game; new ids are no
 
 // Retired with the game built on it (2026-11-16: Clue Chain, built on Scale Balance, was replaced by Penguin Slide).
 // The server still accepts the id, so old records stay valid.
-const RETIRED = new Set(['scale-balance', 'logic-detective', 'match-back']); // Match Back: its Dual-Stream Memory removed 2026-11-16 // Logic Detective: removed by the user, 2026-11-16
+const RETIRED = new Set(['water-sort', 'pixel-logic', 'brain-heist', 'semantic-precision', 'word-lock', 'emoji-phrase', 'star-trail', 'tile-slide', 'light-beam', 'path-painter', 'ice-glide', 'tower-shift', 'matrix-recall', 'fraction-match', 'emoji-equations', 'pattern-recall', 'number-forge', 'binary-blitz', 'rounding-rush', 'scale-balance', 'logic-detective', 'match-back', 'deduction', 'probability-lab', 'algorithm-builder', 'spin-match', 'quick-compare', 'cipher-challenge']); // 2026-11-17: Master Minds' hard games removed (Spatial Rotation Vault was built on Spin Match) // Match Back: its Dual-Stream Memory removed 2026-11-16 // Logic Detective: removed by the user, 2026-11-16
 test('every existing game is either placed or kept as an extra', () => {
   const placed = new Set(CATALOG.filter((g) => g.status === 'ready').map((g) => g.id));
   for (const id of EXISTING) assert.ok(placed.has(id) || EXTRA.includes(id) || CATALOG.some((g) => g.from === id) || RETIRED.has(id), id);

@@ -157,7 +157,9 @@ function SoundBar({ audio, prefs, style }) {
     );
 }
 
-export default function FinalVaultTable({ view, onAction, busy }) {
+// `solo` (2026-11-19): played alone from Master Minds · Logic (career/components/games/FinalVault.jsx) — no standings,
+// no "everyone" in the briefing.
+export default function FinalVaultTable({ view, onAction, busy, solo = false }) {
     const me = view.me;
     const over = view.status !== 'active';
     const { left, share } = usePhaseClock(view);
@@ -394,7 +396,7 @@ export default function FinalVaultTable({ view, onAction, busy }) {
 
                     {/* The standings (a phone has them under the chamber). */}
                     <ol className={`absolute z-30 hidden flex-col justify-evenly gap-[0.35cqw] overflow-hidden rounded-[0.8cqw] p-[0.6cqw] @min-[560px]:flex ${dark}`} style={box(ch.board)} aria-label="Standings" data-race>
-                        {standings.map(({ s, i, p, score }, rank) => (
+                        {!solo && standings.map(({ s, i, p, score }, rank) => (
                             <li key={i} className={`flex items-center gap-[0.6cqw] border-b border-[#b8893a]/20 px-[0.5cqw] last:border-0 ${view.you === i ? 'bg-[#f4c55a]/10' : ''} ${p.left ? 'opacity-45' : ''}`} style={{ flex: '0 1 auto', minHeight: 0, paddingTop: '0.25cqw', paddingBottom: '0.25cqw' }} data-racer={i}>
                                 <span className={`flex shrink-0 items-center justify-center rounded-full font-black ${['bg-[#e0ab48] text-[#2a1c0b]', 'bg-[#9ca3af] text-[#111]', 'bg-[#c2703d] text-white'][rank] || 'text-[#f5e6c4]'}`} style={{ width: fs(14, 1.6, 30), height: fs(14, 1.6, 30), fontSize: fs(8, 0.95, 17) }}>{rank + 1}</span>
                                 <span className="flex shrink-0 items-center justify-center rounded-full border-2 font-black text-white" style={{ background: s.color, borderColor: rank === 0 ? '#f4c55a' : '#d9c7a0', width: fs(16, 1.9, 38), height: fs(16, 1.9, 38), fontSize: fs(8, 1, 18) }}>{(s.name || '?').trim().charAt(0).toUpperCase()}</span>
@@ -430,7 +432,7 @@ export default function FinalVaultTable({ view, onAction, busy }) {
                         <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]" data-briefing>
                             <div className="max-w-lg text-center text-[#f5e6c4]">
                                 <h2 className="font-extrabold text-[#f4c55a]" style={{ ...cinzel, fontSize: fs(22, 3.4, 56) }}>The Final Vault</h2>
-                                <p className="mt-2" style={{ fontSize: fs(13, 1.3, 20) }}>Solve 5 puzzles to open the treasure vault. Everyone gets the same puzzles. The first to open the vault wins. A wrong answer adds {view.penalty} seconds to your time.</p>
+                                <p className="mt-2" style={{ fontSize: fs(13, 1.3, 20) }}>{solo ? `Solve 5 puzzles to open the treasure vault before the time runs out. A wrong answer adds ${view.penalty} seconds to your time.` : `Solve 5 puzzles to open the treasure vault. Everyone gets the same puzzles. The first to open the vault wins. A wrong answer adds ${view.penalty} seconds to your time.`}</p>
                                 <p className="mt-3 font-black tabular-nums" style={{ ...cinzel, fontSize: fs(30, 5, 80) }}>{Math.max(1, secondsLeft)}</p>
                                 {!prefs.started && <button type="button" onClick={() => audio.start()} className={`${goldButton} mt-3 px-6 py-2.5`} style={{ fontSize: fs(12, 1.1, 18) }}>🔊 Start with sound</button>}
                             </div>
@@ -485,8 +487,8 @@ export default function FinalVaultTable({ view, onAction, busy }) {
             )}
 
             {/* On a phone: the standings and the clues, under the chamber. */}
-            <section className={`rounded-2xl bg-[#1d140a] p-3 text-[#f5e6c4] ring-1 ring-[#b8893a]/50 ${wide ? 'hidden' : ''}`} aria-label="Standings" data-vault-standings>
-                {standings.map(({ s, i, p, score }, rank) => (
+            <section className={`rounded-2xl bg-[#1d140a] p-3 text-[#f5e6c4] ring-1 ring-[#b8893a]/50 ${wide || (solo && !view.clues?.length) ? 'hidden' : ''}`} aria-label="Standings" data-vault-standings>
+                {!solo && standings.map(({ s, i, p, score }, rank) => (
                     <div key={i} className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-base ${view.you === i ? 'bg-[#f4c55a]/10' : ''}`}>
                         <span className="w-4 text-center text-xs font-black">{rank + 1}</span>
                         <span className="h-3 w-3 rounded-full" style={{ background: s.color }} aria-hidden="true" />

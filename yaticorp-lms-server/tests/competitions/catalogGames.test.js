@@ -145,16 +145,17 @@ describe('Catalogue group games: questions', () => {
 
 describe('Catalogue group games: rooms', () => {
     const SEATS = [{ name: 'A', side: 0 }, { name: 'B', side: 1 }, { name: 'C', side: 2 }];
-    test('every one is a room game in exactly one zone', () => {
+    // 2026-11-17: only Equation Rush is still offered in a zone; the others keep their engines for past rooms.
+    test('every one is a room game in at most one zone', () => {
         for (const id of CATALOG_QUIZ) {
             assert.ok(ROOM_GAMES.includes(id), id);
-            assert.equal((GROUP_ZONES[id] || []).length, 1, `${id}: ${GROUP_ZONES[id]}`);
+            assert.ok((GROUP_ZONES[id] || []).length <= 1, `${id}: ${GROUP_ZONES[id]}`);
         }
     });
 
     for (const id of CATALOG_QUIZ) {
         test(`${id}: a room deals a full game, the same for everyone, and keeps the answer back`, () => {
-            const [zone] = GROUP_ZONES[id];
+            const [zone = null] = GROUP_ZONES[id] || [];
             for (const difficulty of ['easy', 'medium', 'hard']) {
                 for (const z of [zone, null]) {
                     const opts = z ? { zone: z, difficulty: ZONE_DIFFICULTY[z] } : { difficulty };

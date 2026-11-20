@@ -32,6 +32,20 @@ const tone = (c, type, freq, dur, vol, at = 0) => {
 };
 
 export const sfx = {
+  /** An arrow sliding away (Arrow Escape, 2026-11-19): a soft rising whoosh of filtered noise. */
+  whoosh() {
+    const c = audio();
+    if (!c) return;
+    const dur = 0.32; const t0 = c.currentTime;
+    const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource(); src.buffer = buf;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+    bp.frequency.setValueAtTime(500, t0); bp.frequency.exponentialRampToValueAtTime(2600, t0 + dur);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.06); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(bp).connect(g).connect(c.destination); src.start(t0); src.stop(t0 + dur);
+  },
   /** A wrong answer: two low buzzes, falling. */
   wrong() {
     const c = audio();

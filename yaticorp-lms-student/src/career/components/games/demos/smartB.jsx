@@ -103,7 +103,6 @@ const EQUATIONS = [
 
 const FRACTIONS = [[[3, 4], [5, 6], 2], [[2, 3], [4, 6], 1], [[5, 8], [3, 5], 0]];
 const DUEL = ['Mine is bigger', 'Equal', 'Bot’s is bigger'];
-const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 function Frac({ n, d }) {
   return (
     <span className="inline-flex flex-col items-center text-xl leading-none font-black">
@@ -114,13 +113,11 @@ function Frac({ n, d }) {
   );
 }
 
-const LAB = [
-  { name: 'Number pyramid', rule: 'Each brick = the two below it added', rows: [[15], [8, 7], [3, 5, 2]], hidden: ['1-1', '0-0'] },
-  { name: 'Magic square', rule: 'Every row, column and diagonal makes 15', rows: [[2, 7, 6], [9, 5, 1], [4, 3, 8]], hidden: ['0-1', '1-1', '2-2'] },
-  { name: 'Step grid', rule: 'Across: +2 each time · Down: +5', rows: [[1, 3, 5], [6, 8, 10], [11, 13, 15]], hidden: ['1-1', '2-0', '2-2'] }
+const MAZE = [
+  { rule: 'Every step goes to a BIGGER number', vals: [2, 9, 4, 5, 3, 7, 6, 8, 11], path: [0, 3, 6, 7, 8] },
+  { rule: 'Step ONLY on the 3 times table', vals: [3, 7, 10, 12, 6, 8, 5, 9, 15], path: [0, 3, 4, 7, 8] },
+  { rule: 'Every step ADDS 4', vals: [1, 3, 9, 5, 9, 13, 2, 6, 17], path: [0, 3, 4, 5] }
 ];
-const labCell = (r, c, n) => [50 + (c - (n - 1) / 2) * 21 - 9.5, 29 + r * 17];
-
 const RELAY = [
   [6, [['Juice : water = 2 : 3. With 6 cups of juice, how many cups of water?', 9], ['On a map 1 cm = 4 km. A road is 9 cm long. How many km?', 36]]],
   [12, [['12 sweets are shared 1 : 2. How many in the bigger share?', 8], ['Red : blue = 1 : 4. With 8 red beads, how many blue?', 32]]],
@@ -448,75 +445,28 @@ export const DEMOS = {
     };
   } },
 
-  'fraction-battle': { frames: 7, draw: (f, ex) => {
-    const [[a, b], [c, d], ans] = FRACTIONS[ex];
-    const L = (b * d) / gcd(b, d);
-    const secs = 12 - Math.min(f, 2) * 2;
-    return {
-      body: (
-        <div className="relative h-full">
-          <Box s={[44, 13, 52, 4]} className="flex gap-1">
-            {[0, 1, 2, 3, 4].map((i) => <span key={i} className={`h-full flex-1 rounded-full ${i === 0 ? 'bg-emerald-500' : i === 1 ? 'bg-rose-500' : i === 2 ? (f >= 5 ? 'bg-emerald-500' : 'bg-amber-300') : 'bg-slate-200'}`} />)}
-          </Box>
-          <Box s={[4, 19, 92, 6]} className="flex items-center justify-between text-xs font-black uppercase">
-            <span className="text-teal-800">Duel · which is bigger?</span><span className="text-slate-500">{secs}s</span>
-          </Box>
-          <Box s={[4, 26, 92, 2.5]} className="overflow-hidden rounded-full bg-slate-200">
-            <span className="block h-full rounded-full bg-teal-500" style={{ width: `${(secs / 12) * 100}%` }} />
-          </Box>
-          <Box s={[4, 31, 44, 30]} className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-emerald-50 text-emerald-900 ring-2 ring-emerald-300">
-            <span className="text-xs leading-none font-black uppercase">Your card</span><Frac n={a} d={b} />
-          </Box>
-          <Box s={[52, 31, 44, 30]} className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-rose-50 text-rose-900 ring-2 ring-rose-300">
-            <span className="text-xs leading-none font-black uppercase">Fracto-Bot</span><Frac n={c} d={d} />
-          </Box>
-          {DUEL.map((label, i) => (
-            <Box key={label} s={[4 + i * 32, 64, 28, 15]} className={`flex items-center justify-center rounded-xl px-1 text-center text-xs leading-tight font-black ring-2 ring-inset ${f >= 2 && i === ans ? 'bg-emerald-100 ring-emerald-500' : 'bg-white ring-slate-200'}`}>{label}</Box>
-          ))}
-          {f >= 3 && (
-            <Box s={[4, 82, 92, 15]} className="flex flex-col justify-center rounded-xl bg-emerald-50 px-2 text-xs text-emerald-900 ring-1 ring-emerald-200">
-              <b>+1 You!</b>
-              <span className="font-semibold">{a}/{b} = {(a * L) / b}/{L} and {c}/{d} = {(c * L) / d}/{L}</span>
-            </Box>
-          )}
-        </div>
-      ),
-      hand: f === 1 || f === 2 ? [18 + ans * 32, 71, f === 2] : REST,
-      step: f < 1 ? 0 : f < 3 ? 1 : 2,
-      phase: f < 1 ? 'Duel the bot' : f < 3 ? 'Which is bigger?' : f < 5 ? '+1 You!' : 'Round won!'
-    };
-  } },
 
-  'number-pattern-lab': { frames: 8, draw: (f, ex) => {
-    const p = LAB[ex];
-    const k = p.hidden.length;
-    const filled = Math.min(k, f);
-    const solved = f > k + 1;
+
+  // Number Maze: keep the rule, from 🚩 to 🏁.
+  'number-pattern-lab': { frames: 7, draw: (f, ex) => {
+    const { rule, vals, path } = MAZE[ex];
+    const n = Math.min(path.length, Math.max(1, f));
+    const done = f > path.length;
     return {
       body: (
-        <div className="relative h-full">
-          <Box s={[4, 12.5, 92, 14]} className="flex flex-col items-center justify-center rounded-xl bg-indigo-50 px-2 text-center leading-tight ring-1 ring-indigo-100">
-            <span className="text-xs font-black tracking-wider text-indigo-500 uppercase">{p.name}</span>
-            <span className="text-xs font-bold text-slate-800">{p.rule}</span>
-          </Box>
-          {p.rows.flatMap((row, r) => row.map((v, c) => {
-            const j = p.hidden.indexOf(`${r}-${c}`);
-            const [x, y] = labCell(r, c, row.length);
-            const tone = j < 0 ? 'bg-white text-slate-900 ring-1 ring-slate-200'
-              : solved ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-400'
-                : j === filled - 1 && f <= k ? 'bg-indigo-100 text-indigo-800 ring-2 ring-indigo-500' : 'bg-sky-50 text-sky-700 ring-2 ring-sky-300';
-            return <Box key={`${r}-${c}`} s={[x, y, 19, 15]} className={`flex items-center justify-center rounded-xl text-base font-black tabular-nums ${tone}`}>{j < 0 || j < filled ? v : '?'}</Box>;
-          }))}
-          <Box s={[25, 83, 50, 12]} className={`flex items-center justify-center rounded-xl text-sm font-black text-white ${solved ? 'bg-emerald-500' : 'bg-emerald-600'}`}>{solved ? 'Perfect! +2' : 'Check board'}</Box>
+        <div className="relative h-full bg-gradient-to-br from-indigo-900 via-indigo-800 to-teal-900">
+          <Box s={[6, 10, 88, 12]} className="flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 via-violet-600 to-pink-600 px-2 text-center text-xs font-black text-white">{rule}</Box>
+          {vals.map((v, i) => {
+            const k = path.indexOf(i);
+            const on = k >= 0 && k < n;
+            return <Box key={i} s={[20 + (i % 3) * 21, 27 + Math.floor(i / 3) * 21, 18, 18]} className={`flex items-center justify-center rounded-lg text-base font-black ${done && on ? 'bg-emerald-400 text-emerald-950' : on ? 'bg-amber-300 text-amber-950' : 'bg-white text-slate-800'}`}>{v}{i === path[0] ? '🚩' : i === path[path.length - 1] ? '🏁' : ''}</Box>;
+          })}
+          <Box s={[10, 91, 80, 7]} className={`flex items-center justify-center rounded-lg text-[0.65rem] font-black ${done ? 'bg-emerald-500 text-white' : 'bg-white/15 text-white'}`}>{done ? 'You made it out!' : 'Slide one square at a time'}</Box>
         </div>
       ),
-      hand: f >= 1 && f <= k ? (() => {
-        const [r, c] = p.hidden[f - 1].split('-').map(Number);
-        const [x, y] = labCell(r, c, p.rows[r].length);
-        return [x + 9.5, y + 7.5, true];
-      })() : f === k + 1 ? [50, 89, true] : REST,
-      step: f < 1 ? 0 : f <= k ? 1 : 2,
-      phase: f < 1 ? 'Read the rule' : f <= k ? 'Fill the ? cells' : f === k + 1 ? 'Check board' : 'Board solved!'
+      hand: !done && f >= 1 ? [20 + (path[n - 1] % 3) * 21 + 9, 27 + Math.floor(path[n - 1] / 3) * 21 + 9, true] : REST,
+      step: f < 1 ? 0 : done ? 2 : 1,
+      phase: f < 1 ? 'Read the rule' : done ? 'Reached 🏁!' : 'Keep the rule each step'
     };
   } },
 

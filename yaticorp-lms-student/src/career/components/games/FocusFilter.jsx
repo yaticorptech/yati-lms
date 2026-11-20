@@ -27,9 +27,14 @@ const START = {
 };
 
 const makeReducer = (level, config) => {
-  const nextTrial = (s) => (s.trial + 1 >= level.trials.length
-    ? { ...s, part: 'break' }
-    : { ...s, trial: s.trial + 1, stage: 'gap', stageAt: s.ms, verdict: null });
+  // At the end of each block of swimmers: straight into that block's search board (no break screen, 2026-11-18).
+  const blockOf = (t) => Math.floor(t / level.chunk);
+  const nextTrial = (s) => {
+    const endOfBlock = s.trial + 1 >= level.trials.length || blockOf(s.trial + 1) !== blockOf(s.trial);
+    if (endOfBlock && blockOf(s.trial) < level.boards.length) return { ...s, part: 'search', board: blockOf(s.trial), boardAt: s.ms, tapped: [], boardDone: false };
+    if (s.trial + 1 >= level.trials.length) return { ...s, part: 'done' };
+    return { ...s, trial: s.trial + 1, stage: 'gap', stageAt: s.ms, verdict: null };
+  };
   const endBoard = (s) => ({ ...s, boardDone: true, boardAt: s.ms, points: [...s.points, boardPoints(level.boards[s.board], s.tapped)] });
   return (s, a) => {
     if (s.part === 'done') return s;
@@ -46,6 +51,8 @@ const makeReducer = (level, config) => {
           const since = t.ms - t.boardAt;
           if (!t.boardDone && since >= config.boardSeconds * 1000) return endBoard(t);
           if (t.boardDone && since >= BOARD_DONE_MS) {
+            // Back to the swimmers for the next block, else the next board, else done.
+            if (t.trial + 1 < level.trials.length) return { ...t, part: 'arrows', trial: t.trial + 1, stage: 'gap', stageAt: t.ms, verdict: null };
             return t.board + 1 >= level.boards.length
               ? { ...t, part: 'done' }
               : { ...t, board: t.board + 1, boardAt: t.ms, tapped: [], boardDone: false };
@@ -132,9 +139,9 @@ function Round({ progress, onExit }) {
   const boardLeft = Math.max(0, config.boardSeconds * 1000 - (s.ms - s.boardAt));
   const flipRule = config.switches > 0;
 
-  const objective = `Part 1 — ${level.trials.length} schools of fish: which way is the MIDDLE fish swimming? Ignore the others! Answer with Left / Right (or the arrow keys) within ${(config.windowMs / 1000).toFixed(1)} s.${
+  const objective = `Swimmers and search boards take turns. Swimmers (fish, then birds, paper planes and arrows as levels rise): which way is the MIDDLE one going? Ignore the others! Answer with Left / Right (or the arrow keys) within ${(config.windowMs / 1000).toFixed(1)} s.${
     flipRule ? ' A GOLDEN school 🐠 means answer the OPPOSITE way.' : ''
-  } Part 2 — ${level.boards.length} search boards: tap every target symbol before ${config.boardSeconds} s run out; a wrong tap costs a point. Score ${level.pass} of ${level.max} to clear the level.`;
+  } Search boards (${level.boards.length}): tap every target symbol before ${config.boardSeconds} s run out; a wrong tap costs a point. Score ${level.pass} of ${level.max} to clear the level.`;
 
   return (
     <GameShell
@@ -167,160 +174,151 @@ function Round({ progress, onExit }) {
       }
       footer={<p className="text-sm">Fish: Left / Right buttons, ← → keys or F / J. Accuracy scores the points; your reaction time is shown at the end. Pause any time.</p>}
     >
-      {started && !over && (
-        <div className="mx-auto w-full max-w-xl">
-          {/* Parts: 1 arrows · 2 search */}
-          <div className="mb-3 flex items-center justify-center gap-2" aria-hidden>
-            {[['arrows', '1 · Fish'], ['search', '2 · Search']].map(([k, label]) => {
-              const on = s.part === k || (k === 'arrows' && s.part === 'break');
-              const done = k === 'arrows' && (s.part === 'break' || s.part === 'search');
+      {started && !over && (() => {
+        const kind = level.creatures[Math.min(Math.floor(s.trial / level.chunk), level.creatures.length - 1)];
+        const look = SCENE[kind];
+        const block = Math.floor(s.trial / level.chunk);
+        const inBlock = s.trial - block * level.chunk;
+        const blockLen = Math.min(level.chunk, level.trials.length - block * level.chunk);
+        return (
+        <div className="mx-auto flex w-full max-w-xl flex-col max-sm:flex-1">
+          {/* The rounds: swimmers and search boards taking turns (2026-11-18). */}
+          <div className="mb-3 flex items-center justify-center gap-1.5" aria-hidden>
+            {level.boards.map((_, k) => {
+              const doneFish = s.trial >= (k + 1) * level.chunk - 1 && (s.part !== 'arrows' || block > k);
+              const doneBoard = s.points.length > k;
+              const nowFish = s.part === 'arrows' && block === k;
+              const nowBoard = s.part === 'search' && s.board === k;
               return (
-                <span key={k} className={`rounded-full px-3 py-1 text-xs font-black tracking-wide ${done ? 'bg-emerald-100 text-emerald-700' : on ? 'bg-gradient-to-r from-sky-400 to-teal-500 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>
-                  {done ? '✓ ' : ''}{label}
+                <span key={k} className="flex items-center gap-1.5">
+                  <span className={`grid h-7 min-w-7 place-items-center rounded-full px-2 text-xs font-black ${nowFish ? 'bg-indigo-600 text-white shadow-md' : doneFish ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>{SCENE[level.creatures[k]].icon}</span>
+                  <span className={`grid h-7 min-w-7 place-items-center rounded-full px-2 text-xs font-black ${nowBoard ? 'bg-fuchsia-600 text-white shadow-md' : doneBoard ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>🔎</span>
+                  {k < level.boards.length - 1 && <span className="h-0.5 w-3 rounded bg-slate-200" />}
                 </span>
               );
             })}
           </div>
 
           {s.part === 'arrows' && (
-            <>
-              <div className="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-b from-sky-100 via-cyan-100 to-teal-200 p-4 shadow-[0_16px_32px_-20px_rgba(14,116,144,0.6)] ring-1 ring-cyan-200">
-                <span aria-hidden className="absolute bottom-2 left-4 text-2xl opacity-70">🪸</span>
-                <span aria-hidden className="absolute right-5 bottom-3 text-xl opacity-70">🌿</span>
-                <span aria-hidden className="absolute top-10 right-8 text-sm opacity-60">🫧</span>
-                <span aria-hidden className="absolute top-16 left-10 text-xs opacity-50">🫧</span>
-                <div className="relative mb-3 flex items-center justify-between gap-2">
-                  <p className="text-xs font-black tracking-[0.14em] text-cyan-800 uppercase">Fish {s.trial + 1} / {level.trials.length}</p>
-                  <div className="flex items-center gap-1.5">
-                    {s.streak >= 2 && <span className="gs-rise rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-black text-orange-600 ring-1 ring-orange-200">🔥 {s.streak} in a row</span>}
-                    {s.lastRt !== null && s.stage === 'fb' && s.verdict === 'ok' && <span className="gs-rise rounded-full bg-white px-2.5 py-0.5 text-xs font-black text-sky-700 ring-1 ring-sky-200">⚡ {s.lastRt} ms</span>}
-                    {flipRule && <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[0.7rem] font-black text-amber-700 ring-1 ring-amber-300">🐠 golden = opposite</span>}
-                  </div>
-                </div>
-                <div
-                  className={`relative flex h-36 items-center justify-center rounded-2xl ring-2 transition-colors duration-200 sm:h-40 ${
-                    s.stage === 'fb' ? (s.verdict === 'ok' ? 'bg-emerald-50/80 ring-emerald-300' : 'bg-rose-50/80 ring-rose-300') : trial.flip && s.stage === 'show' ? 'bg-amber-50/80 ring-amber-300' : 'bg-white/50 ring-white'
-                  }`}
-                  role="img"
-                  aria-label={s.stage === 'show' ? `Fish swimming ${trialArrows(trial).map((d) => (d === 'L' ? 'left' : 'right')).join(', ')}${trial.flip ? ', golden: answer the opposite' : ''}` : 'Get ready'}
-                >
-                  {s.stage === 'show' && (
-                    <div className="flex gap-1 sm:gap-2">
-                      {trialArrows(trial).map((d, i) => (
-                        <Fish key={i} dir={d} golden={trial.flip} className="w-14 drop-shadow-[0_4px_3px_rgba(8,47,73,0.25)] sm:w-[4.5rem]" />
-                      ))}
-                    </div>
-                  )}
-                  {s.stage === 'gap' && <span className="text-4xl font-black text-cyan-700/40" aria-hidden="true">+</span>}
-                  {s.stage === 'fb' && (
-                    <span className={`flex items-center gap-2 text-2xl font-black ${s.verdict === 'ok' ? 'text-emerald-600' : 'text-rose-600'}`} role="status">
-                      <span className={`grid h-10 w-10 place-items-center rounded-full text-xl text-white ${s.verdict === 'ok' ? 'bg-emerald-500' : 'bg-rose-500'}`} aria-hidden>{s.verdict === 'ok' ? '✓' : '✗'}</span>
-                      {s.verdict === 'ok' ? 'Right!' : s.verdict === 'miss' ? 'Too slow' : 'Wrong way'}
-                    </span>
-                  )}
-                </div>
-                <div className="relative mt-3 flex justify-center gap-1" aria-hidden>
-                  {level.trials.map((_, i) => (
-                    <span key={i} className={`h-1.5 rounded-full transition-all ${i < s.trial ? 'w-3 bg-cyan-500' : i === s.trial ? 'w-6 bg-sky-700' : 'w-3 bg-white'}`} />
-                  ))}
-                </div>
+            <div className={`ff-stage relative flex flex-col overflow-hidden rounded-[1.75rem] p-4 shadow-[0_22px_44px_-22px_rgba(15,23,42,0.7)] ring-1 ring-white/20 max-sm:flex-1 sm:p-5 ${look.bg}`}>
+              <span aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_30%_0%,rgba(255,255,255,0.35),transparent_60%)]" />
+              <div className="relative flex items-center justify-between gap-2">
+                <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-black text-white ring-1 ring-white/30 backdrop-blur">{look.icon} {look.name} · {inBlock + 1} of {blockLen}</span>
+                <span className="flex items-center gap-1.5">
+                  {s.lastRt !== null && s.stage === 'fb' && s.verdict === 'ok' && <span className="gs-rise rounded-full bg-white/90 px-2.5 py-1 text-xs font-black text-slate-800">⚡ {s.lastRt} ms</span>}
+                  {flipRule && <span className="rounded-full bg-amber-300 px-2.5 py-1 text-[0.7rem] font-black text-amber-950">Gold = opposite</span>}
+                </span>
               </div>
-              <p className="mt-3 text-center text-sm font-bold text-slate-500">Which way is the <b className="text-slate-800">middle</b> fish swimming?</p>
-              <div className="mt-2 grid grid-cols-2 gap-3">
-                {[['L', 'Left', ArrowLeft, '← / F', 'from-sky-400 to-blue-500'], ['R', 'Right', ArrowRight, '→ / J', 'from-teal-400 to-emerald-500']].map(([dir, name, Icon, keys, tone]) => (
-                  <button
-                    key={dir}
-                    type="button"
-                    onClick={() => dispatch({ type: 'answer', dir })}
-                    aria-label={name}
-                    className={`fp-press flex min-h-[4.5rem] flex-col items-center justify-center rounded-2xl bg-gradient-to-b ${tone} text-white shadow-[0_10px_20px_-10px_rgba(14,116,144,0.8)] ring-2 ring-white transition active:translate-y-0.5`}
-                  >
-                    <span className="flex items-center gap-2 text-lg font-black">
-                      {dir === 'L' && <Icon className="h-6 w-6" aria-hidden="true" />}{name}{dir === 'R' && <Icon className="h-6 w-6" aria-hidden="true" />}
-                    </span>
-                    <span className="mt-0.5 rounded-md bg-white/25 px-1.5 text-[0.65rem] font-bold">{keys}</span>
+              <div className="relative mt-3 flex flex-1 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/25 backdrop-blur-sm" style={{ minHeight: '9.5rem' }}
+                role="img" aria-label={s.stage === 'show' ? `${look.name}: ${trialArrows(trial).map((d) => (d === 'L' ? 'left' : 'right')).join(', ')}${trial.flip ? ', golden: answer the opposite' : ''}` : 'Get ready'}>
+                {s.stage === 'show' && (
+                  <div className="flex gap-1 sm:gap-2">
+                    {trialArrows(trial).map((d, i) => (
+                      <Swimmer key={i} kind={kind} dir={d} golden={trial.flip} className={`w-14 drop-shadow-[0_6px_6px_rgba(2,6,23,0.35)] sm:w-[4.5rem] ${i === 2 ? 'scale-110' : ''}`} />
+                    ))}
+                  </div>
+                )}
+                {s.stage === 'gap' && <span className="text-4xl font-black text-white/60" aria-hidden="true">+</span>}
+                {s.stage === 'fb' && (
+                  <span className={`gs-rise grid h-16 w-16 place-items-center rounded-full text-3xl font-black text-white shadow-lg ring-4 ring-white/60 ${s.verdict === 'ok' ? 'bg-emerald-500' : 'bg-rose-500'}`} role="status">{s.verdict === 'ok' ? '✓' : s.verdict === 'miss' ? '⏱' : '✗'}</span>
+                )}
+              </div>
+              <p className="relative mt-4 text-center text-base font-black text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.3)]">Which way is the <span className="rounded-md bg-white/25 px-1.5">middle</span> one going?</p>
+              <div className="relative mt-3 grid grid-cols-2 gap-3">
+                {[['L', 'Left', ArrowLeft], ['R', 'Right', ArrowRight]].map(([dir, name, Icon]) => (
+                  <button key={dir} type="button" onClick={() => dispatch({ type: 'answer', dir })} aria-label={name}
+                    className="fp-press flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-white text-lg font-black text-slate-900 shadow-[0_6px_0_rgba(15,23,42,0.25)] transition hover:-translate-y-0.5 active:translate-y-1 active:shadow-[0_2px_0_rgba(15,23,42,0.25)]">
+                    {dir === 'L' && <Icon className={`h-6 w-6 ${look.text}`} aria-hidden="true" />}{name}{dir === 'R' && <Icon className={`h-6 w-6 ${look.text}`} aria-hidden="true" />}
                   </button>
                 ))}
               </div>
-            </>
-          )}
-
-          {s.part === 'break' && (
-            <div className="gs-rise overflow-hidden rounded-[1.75rem] bg-white text-center shadow-[0_16px_36px_-20px_rgba(79,70,229,0.6)] ring-1 ring-indigo-100">
-              <div className="bg-gradient-to-r from-sky-400 to-teal-500 px-5 py-4 text-white">
-                <p className="text-xs font-black tracking-[0.16em] uppercase opacity-80">Part 1 done</p>
-                <p className="mt-1 text-2xl font-black">Fish school complete 🐟</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 p-4">
-                <div className="rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200">
-                  <p className="text-3xl font-black text-emerald-700 tabular-nums">{s.arrowsRight}/{level.trials.length}</p>
-                  <p className="text-xs font-bold text-emerald-700/70">arrows right</p>
-                </div>
-                <div className="rounded-2xl bg-sky-50 p-3 ring-1 ring-sky-200">
-                  <p className="text-3xl font-black text-sky-700 tabular-nums">{avgRt ? `${avgRt}` : '—'}<span className="text-base">{avgRt ? ' ms' : ''}</span></p>
-                  <p className="text-xs font-bold text-sky-700/70">average reaction</p>
-                </div>
-                <div className="col-span-2 rounded-2xl bg-orange-50 p-2 ring-1 ring-orange-200">
-                  <p className="text-sm font-black text-orange-600">🔥 Best streak: {s.bestStreak}</p>
-                </div>
-              </div>
-              <p className="px-5 text-sm font-semibold text-slate-600">
-                Part 2: {level.boards.length} search boards. Tap every target — and only the targets — within {config.boardSeconds} seconds each.
-              </p>
-              <button type="button" onClick={() => dispatch({ type: 'search' })} className="fp-press my-4 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-600 px-8 py-3 text-base font-black text-white shadow-lg shadow-indigo-500/30" autoFocus>
-                Start the search →
-              </button>
             </div>
           )}
 
           {s.part === 'search' && (
-            <div className="overflow-hidden rounded-[1.75rem] bg-gradient-to-b from-fuchsia-50 to-indigo-50 p-3 shadow-[0_16px_36px_-22px_rgba(79,70,229,0.6)] ring-1 ring-indigo-100 sm:p-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black tracking-wide text-slate-500 uppercase">Board {s.board + 1}/{level.boards.length} · find</span>
-                  <span className="grid h-11 min-w-11 place-items-center rounded-xl bg-gradient-to-b from-fuchsia-500 to-violet-600 px-2 font-mono text-2xl font-black text-white shadow-md">{board.target}</span>
-                </div>
-                <span className="rounded-full bg-white px-3 py-1 text-sm font-black text-slate-700 tabular-nums shadow-sm ring-1 ring-slate-200">
+            <div className="ff-search relative flex flex-col overflow-hidden rounded-[1.75rem] p-4 shadow-[0_22px_44px_-22px_rgba(76,29,149,0.7)] ring-1 ring-white/20 max-sm:flex-1 sm:p-5">
+              <span aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_80%_0%,rgba(255,255,255,0.3),transparent_60%)]" />
+              <div className="relative mb-3 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-sm font-black text-white">
+                  🔎 Find every
+                  <span className="grid h-11 min-w-11 place-items-center rounded-xl bg-white px-2 font-mono text-2xl font-black text-fuchsia-700 shadow-[0_4px_0_rgba(15,23,42,0.25)]">{board.target}</span>
+                </span>
+                <span className="rounded-full bg-white/20 px-3 py-1 text-sm font-black text-white tabular-nums ring-1 ring-white/30">
                   {s.tapped.filter((i) => board.cells[i] === board.target).length}/{board.targets.length} found
                 </span>
               </div>
-              <div className="mb-3 h-2.5 overflow-hidden rounded-full bg-white ring-1 ring-slate-200" role="progressbar" aria-label="Board time left" aria-valuemin={0} aria-valuemax={config.boardSeconds} aria-valuenow={Math.ceil(boardLeft / 1000)}>
-                <div className={`h-full rounded-full bg-gradient-to-r transition-[width] duration-75 ease-linear ${boardLeft < 4000 ? 'from-rose-400 to-rose-600' : 'from-fuchsia-400 to-indigo-500'}`} style={{ width: `${s.boardDone ? 0 : (boardLeft / (config.boardSeconds * 1000)) * 100}%` }} />
+              <div className="relative mb-3 h-2.5 overflow-hidden rounded-full bg-white/20" role="progressbar" aria-label="Board time left" aria-valuemin={0} aria-valuemax={config.boardSeconds} aria-valuenow={Math.ceil(boardLeft / 1000)}>
+                <div className={`h-full rounded-full transition-[width] duration-75 ease-linear ${boardLeft < 4000 ? 'bg-rose-300' : 'bg-gradient-to-r from-amber-200 to-yellow-300'}`} style={{ width: `${s.boardDone ? 0 : (boardLeft / (config.boardSeconds * 1000)) * 100}%` }} />
               </div>
-              <div className="grid gap-1.5 sm:gap-2" style={{ gridTemplateColumns: `repeat(${board.cols}, minmax(0, 1fr))` }}>
+              <div className="relative grid flex-1 content-center gap-1.5 sm:gap-2" style={{ gridTemplateColumns: `repeat(${board.cols}, minmax(0, 1fr))` }}>
                 {board.cells.map((glyph, i) => {
                   const tapped = s.tapped.includes(i);
                   const isT = glyph === board.target;
                   const missed = s.boardDone && isT && !tapped;
                   return (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => { tapWrong(i); dispatch({ type: 'tap', i }); }}
-                      disabled={s.boardDone || tapped}
+                    <button key={i} type="button" onClick={() => { tapWrong(i); dispatch({ type: 'tap', i }); }} disabled={s.boardDone || tapped}
                       aria-label={`${glyph}${tapped ? (isT ? ', found' : ', wrong') : ''}`}
-                      className={`relative flex aspect-square min-h-11 items-center justify-center rounded-xl font-mono text-2xl font-black shadow-sm transition sm:text-3xl ${
+                      className={`relative flex aspect-square min-h-11 items-center justify-center rounded-xl font-mono text-2xl font-black transition sm:text-3xl ${
                         tapped
-                          ? (isT ? 'scale-95 bg-gradient-to-b from-emerald-300 to-emerald-400 text-emerald-950 ring-2 ring-emerald-500' : 'gs-wrong bg-gradient-to-b from-rose-300 to-rose-400 text-rose-950 ring-2 ring-rose-500')
-                          : missed ? 'bg-amber-200 text-amber-900 ring-2 ring-amber-400' : 'bg-white text-slate-800 ring-1 ring-slate-200 hover:-translate-y-0.5 hover:ring-fuchsia-300'
-                      }`}
-                    >
+                          ? (isT ? 'scale-95 bg-emerald-400 text-white shadow-[0_0_14px_2px_rgba(52,211,153,0.6)]' : 'gs-wrong bg-rose-500 text-white')
+                          : missed ? 'bg-amber-300 text-amber-950' : 'bg-white/90 text-slate-800 shadow-[0_3px_0_rgba(15,23,42,0.18)] hover:-translate-y-0.5 hover:bg-white'
+                      }`}>
                       {glyph}
-                      {tapped && isT && <span aria-hidden className="absolute top-0.5 right-1 text-[0.6rem] text-emerald-800">✓</span>}
                     </button>
                   );
                 })}
               </div>
               {s.boardDone && (
-                <p className="mt-3 text-center text-sm font-black text-slate-700" role="status" aria-live="polite">
-                  +{s.points[s.points.length - 1]} points{board.targets.some((i) => !s.tapped.includes(i)) ? ' — the yellow ones were missed' : ' — all found! ✨'}
+                <p className="relative mt-3 text-center text-sm font-black text-white" role="status" aria-live="polite">
+                  +{s.points[s.points.length - 1]} points{board.targets.some((i) => !s.tapped.includes(i)) ? ' — the gold ones were missed' : ' — all found! ✨'}
                 </p>
               )}
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
     </GameShell>
+  );
+}
+
+/** Each kind of swimmer's stage (2026-11-18, premium): ocean, sunset sky, mint sky, night. */
+const SCENE = {
+  fish: { name: 'Fish', icon: '🐟', bg: 'bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-700', text: 'text-blue-600' },
+  bird: { name: 'Birds', icon: '🐦', bg: 'bg-gradient-to-br from-amber-300 via-rose-400 to-violet-600', text: 'text-rose-600' },
+  plane: { name: 'Paper planes', icon: '✈️', bg: 'bg-gradient-to-br from-emerald-300 via-teal-500 to-cyan-700', text: 'text-teal-600' },
+  arrow: { name: 'Arrows', icon: '➤', bg: 'bg-gradient-to-br from-indigo-500 via-violet-600 to-fuchsia-700', text: 'text-violet-600' }
+};
+
+/** A swimmer of any kind, facing `dir` ('L' or 'R'); gold means "answer the opposite way". */
+export function Swimmer({ kind = 'fish', dir, golden = false, className = '' }) {
+  if (kind === 'fish') return <Fish dir={dir} golden={golden} className={className} />;
+  const flip = dir === 'L' ? { transform: 'scaleX(-1)' } : undefined;
+  const [main, dark] = golden ? ['#fbbf24', '#d97706'] : kind === 'bird' ? ['#fb7185', '#be123c'] : kind === 'plane' ? ['#ffffff', '#99f6e4'] : ['#ffffff', '#c4b5fd'];
+  if (kind === 'bird') {
+    return (
+      <svg viewBox="0 0 64 40" className={className} style={flip} aria-hidden="true">
+        <path d="M8 22 L0 16 L2 24 L0 30 Z" fill={dark} />
+        <ellipse cx="30" cy="24" rx="22" ry="11" fill={main} />
+        <path d="M22 22 Q32 2 42 20 Z" fill={dark} />
+        <circle cx="46" cy="18" r="9" fill={main} />
+        <path d="M54 17 L63 20 L54 22 Z" fill="#f59e0b" />
+        <circle cx="48" cy="16" r="2.2" fill="#0f172a" />
+      </svg>
+    );
+  }
+  if (kind === 'plane') {
+    return (
+      <svg viewBox="0 0 64 40" className={className} style={flip} aria-hidden="true">
+        <path d="M2 20 L62 4 L36 36 L28 24 Z" fill={main} stroke="#0f766e" strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M28 24 L62 4 L24 32 Z" fill={dark} stroke="#0f766e" strokeWidth="1.2" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 64 40" className={className} style={flip} aria-hidden="true">
+      <path d="M4 14 H38 V4 L62 20 L38 36 V26 H4 Z" fill={main} stroke={dark} strokeWidth="2" strokeLinejoin="round" />
+    </svg>
   );
 }
 

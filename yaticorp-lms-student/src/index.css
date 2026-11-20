@@ -729,3 +729,239 @@ body.teacher-ui { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sa
 /* Explore Individual Games: the categories row glows once when the page arrives at it. */
 @keyframes gs-flash { 0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); } 30% { box-shadow: 0 0 0 6px rgba(139, 92, 246, 0.35); } 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); } }
 .gs-flash { animation: gs-flash 1.2s ease-out 0.35s both; border-radius: 1rem; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Treasure Path (2026-11-18, the user: "attractive, colourful, realistic"):
+   the island's grass, water, sand trail and wooden plank, and the little
+   motions — waves bobbing, the treasure glowing, the explorer hopping.
+   ────────────────────────────────────────────────────────────────────────── */
+.tp-map { background: #8fcf5f; }
+.tp-grass-a { background: radial-gradient(circle at 30% 25%, rgba(255,255,255,0.22), transparent 55%), linear-gradient(160deg, #a6dd72, #8cc95a); box-shadow: inset 0 0 0 0.5px rgba(60,110,20,0.18); }
+.tp-grass-b { background: radial-gradient(circle at 70% 70%, rgba(255,255,255,0.16), transparent 55%), linear-gradient(160deg, #98d465, #82c04f); box-shadow: inset 0 0 0 0.5px rgba(60,110,20,0.18); }
+.tp-sand { background: radial-gradient(rgba(161,98,7,0.18) 1px, transparent 1.5px) 0 0 / 7px 7px, linear-gradient(160deg, #fbe3a8, #f2cd7f); box-shadow: inset 0 0 6px rgba(161,98,7,0.25); }
+.tp-wood { background: repeating-linear-gradient(90deg, #b7791f 0 6px, #a16207 6px 8px); }
+.tp-water { background: radial-gradient(ellipse at 50% 120%, rgba(255,255,255,0.35), transparent 60%), linear-gradient(180deg, #67d0f5, #1f9bd8); background-size: 100% 100%, 100% 100%; position: relative; overflow: hidden; }
+.tp-water::after { content: ''; position: absolute; inset: -20% -50%; background: repeating-linear-gradient(170deg, transparent 0 9px, rgba(255,255,255,0.28) 9px 11px); animation: tp-waves 3s linear infinite; }
+.tp-plank { background: repeating-linear-gradient(0deg, rgba(0,0,0,0.06) 0 2px, transparent 2px 14px), linear-gradient(180deg, #c58b4a, #a86c33); box-shadow: inset 0 2px 6px rgba(0,0,0,0.25); }
+.tp-drop { filter: drop-shadow(0 3px 2px rgba(0,0,0,0.35)); position: relative; z-index: 1; }
+.tp-bob { animation: tp-bob 2.4s ease-in-out infinite; position: relative; z-index: 1; }
+.tp-goal { animation: tp-glow 1.6s ease-in-out infinite; }
+.tp-explorer { filter: drop-shadow(0 4px 2px rgba(0,0,0,0.35)); z-index: 2; }
+.tp-walking { animation: tp-hop 0.36s ease-in-out infinite; }
+@keyframes tp-waves { from { transform: translateX(0); } to { transform: translateX(22px); } }
+@keyframes tp-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes tp-glow { 0%, 100% { filter: drop-shadow(0 0 2px rgba(250,204,21,0.6)) drop-shadow(0 3px 2px rgba(0,0,0,0.3)); transform: scale(1); } 50% { filter: drop-shadow(0 0 10px rgba(250,204,21,0.95)) drop-shadow(0 3px 2px rgba(0,0,0,0.3)); transform: scale(1.08); } }
+@keyframes tp-hop { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+@media (prefers-reduced-motion: reduce) { .tp-water::after, .tp-bob, .tp-goal, .tp-walking { animation: none; } }
+.tp-gem { filter: drop-shadow(0 0 6px rgba(56,189,248,0.8)) drop-shadow(0 3px 2px rgba(0,0,0,0.3)); }
+
+/* Odd One Out in pictures (2026-11-18): cards pop in one after another, the odd one bounces when found. */
+.oo-card { animation: oo-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+.oo-pop { animation: oo-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.oo-win { animation: oo-bounce 0.6s ease; }
+.oo-stage { animation: oo-fade 0.3s ease both; }
+@keyframes oo-in { from { opacity: 0; transform: scale(0.6) translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes oo-bounce { 0%, 100% { transform: translateY(-4px); } 40% { transform: translateY(-14px) scale(1.05); } 70% { transform: translateY(-2px); } }
+@keyframes oo-fade { from { opacity: 0.4; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .oo-card, .oo-pop, .oo-win, .oo-stage { animation: none; } }
+
+/* Pattern Path (2026-11-18): the "?" glows until it is filled; the river under the stepping stones moves. */
+.pp-glow { animation: pp-glow 1.4s ease-in-out infinite; }
+.ring-dashed { outline: 3px dashed rgba(255,255,255,0.95); outline-offset: -6px; }
+.pp-river { background: repeating-linear-gradient(170deg, transparent 0 14px, rgba(255,255,255,0.18) 14px 16px); animation: tp-waves 4s linear infinite; }
+@keyframes pp-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.7); transform: scale(1); } 50% { box-shadow: 0 0 18px 4px rgba(255,255,255,0.85); transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { .pp-glow, .pp-river { animation: none; } }
+
+/* Treasure Path for Young Thinkers (2026-11-18): an old parchment map and a riddle scroll. */
+.th-map { background: radial-gradient(ellipse at 30% 25%, rgba(255,255,255,0.35), transparent 55%), radial-gradient(rgba(146,64,14,0.08) 1px, transparent 1.5px) 0 0 / 9px 9px, linear-gradient(160deg, #f6e1b0, #e8c784 60%, #d9ad62); box-shadow: inset 0 0 38px rgba(120,53,15,0.55), 0 12px 26px -10px rgba(120,53,15,0.55); }
+.th-scroll { background: linear-gradient(180deg, #fdf3dc, #f8e6bd); box-shadow: inset 0 0 18px rgba(146,64,14,0.18); }
+
+/* Mini Maze Mission board (2026-11-18, from the user's picture): an orange frame, a bouncy rabbit, glowing stars. */
+.mm-frame { background: linear-gradient(160deg, #fb923c, #f97316 45%, #ea580c); box-shadow: inset 0 2px 0 rgba(255,255,255,0.45), inset 0 -3px 0 rgba(154,52,18,0.45), 0 12px 26px -10px rgba(194,65,12,0.55); }
+.mm-star { filter: drop-shadow(0 0 6px rgba(250,204,21,0.9)) drop-shadow(0 2px 2px rgba(0,0,0,0.2)); }
+.mm-pop { animation: oo-in 0.25s ease-out; }
+.th-card { background: radial-gradient(ellipse at 50% 0%, #fff6dd, transparent 70%), linear-gradient(180deg, #fbe3ad, #f3c97a); border: 3px solid #e9b25c; box-shadow: inset 0 0 22px rgba(146,64,14,0.25), 0 10px 22px -10px rgba(120,53,15,0.5); }
+.th-banner { background: linear-gradient(180deg, #a5612b, #7a3f16); border: 2px solid #5b2c0c; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 0 #4a230a; text-shadow: 0 2px 0 rgba(0,0,0,0.35); }
+.th-medal { background: radial-gradient(circle, #fff7e0 55%, #fde68a 70%); box-shadow: 0 0 0 5px #f6b21a, 0 0 0 7px #fde68a, 0 4px 8px rgba(0,0,0,0.25); }
+
+/* Slide to open My progress (2026-11-18): the chevrons drift towards the end of the track. */
+.pp-chevrons { display: inline-block; animation: pp-drift 1.2s ease-in-out infinite; }
+@keyframes pp-drift { 0%, 100% { transform: translateX(0); opacity: 0.7; } 50% { transform: translateX(5px); opacity: 1; } }
+.pp-sheet { animation: pp-up 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+@keyframes pp-up { from { transform: translateY(40px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .pp-chevrons, .pp-sheet { animation: none; } }
+
+
+
+/* Sound Alike (2026-11-18, "a professional card"): white, a fine border, an indigo accent along the top, the picture in a soft tile. */
+.sa-page { background: #fff; border: 1px solid #e5e7f0; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 16px 32px -20px rgba(30,41,59,0.35); }
+.sa-page::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899); }
+.sa-page > div.mb-3 { display: inline-grid; place-items: center; width: 5.5rem; height: 5.5rem; margin-bottom: 0.9rem; border-radius: 1.25rem; background: linear-gradient(160deg, #eef2ff, #f5f3ff); border: 1px solid #e0e7ff; font-size: 3rem !important; }
+
+/* Count & Catch (2026-11-18): a bright morning sky; clouds that drift. */
+.cc-sky { background: linear-gradient(180deg, #38bdf8 0%, #7dd3fc 35%, #e0f2fe 70%, #f0fdf4 100%); }
+.cc-cloud { animation: cc-drift 14s ease-in-out infinite alternate; }
+@keyframes cc-drift { from { transform: translateX(0); } to { transform: translateX(40px); } }
+@media (prefers-reduced-motion: reduce) { .cc-cloud { animation: none; } }
+
+/* Phones (2026-11-18): the game board fills the screen's height; the game sits in the middle of it, a game card
+   that wants to (Audio Echo) stretching to the full height. */
+@media (max-width: 639px) {
+  .gs-board { min-height: calc(100dvh - 17rem); align-items: stretch; }
+  .gs-board > .gs-inner, .gs-board > .gs-inner > .gs-zoom { display: flex; flex-direction: column; flex: 1 1 auto; }
+  /* Centred, never re-laid-out: a game's own grid stays a grid (2026-11-18 fix — forcing flex flattened Grid Recall
+     into one column). A game that wants the full height says so itself (max-sm:flex-1). */
+  .gs-board > .gs-inner > .gs-zoom { justify-content: center; }
+}
+
+/* Star Map (2026-11-18): a deep night sky, faint twinkling stars, glowing stars that pulse, a draining bar. */
+.sm-twinkle { background-image: radial-gradient(1.5px 1.5px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 72% 12%, #fff, transparent), radial-gradient(1.5px 1.5px at 88% 46%, #fff, transparent), radial-gradient(1px 1px at 30% 70%, #fff, transparent), radial-gradient(1.5px 1.5px at 55% 88%, #fff, transparent), radial-gradient(1px 1px at 6% 92%, #fff, transparent); opacity: 0.6; animation: sm-tw 3s ease-in-out infinite alternate; }
+.sm-star { filter: drop-shadow(0 0 10px rgba(253,224,71,0.95)); animation: sm-pulse 1.2s ease-in-out infinite alternate; }
+.sm-drain { width: 100%; animation-name: sm-drain; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes sm-tw { from { opacity: 0.35; } to { opacity: 0.75; } }
+@keyframes sm-pulse { from { transform: scale(0.92); } to { transform: scale(1.08); } }
+@keyframes sm-drain { from { width: 100%; } to { width: 0%; } }
+@media (prefers-reduced-motion: reduce) { .sm-twinkle, .sm-star { animation: none; } }
+
+/* Focus Filter search board (2026-11-18, premium): a violet-to-magenta stage. */
+.ff-search { background: linear-gradient(150deg, #8b5cf6, #a21caf 55%, #db2777); }
+
+/* Next in Sequence — the four-stage level (2026-11-19) */
+.nq-in { animation: nq-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+.nq-bob { animation: nq-bob 2.4s ease-in-out infinite alternate; }
+.nq-pulse { animation: nq-pulse 0.7s ease-in-out infinite alternate; }
+.nq-lift { filter: drop-shadow(0 0 5px #fde047) drop-shadow(0 0 2px #fde047); }
+@keyframes nq-in { from { opacity: 0; transform: translateX(28px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes nq-bob { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+@keyframes nq-pulse { from { opacity: 0.35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .nq-in, .nq-bob, .nq-pulse { animation: none; } }
+
+/* Dark full-screen board (GameShell dark, 2026-11-19, Pipe Flow): on a phone the game is the whole screen under the
+   header — no card around it, pure dark. */
+.gs-dark { background: #05060b !important; box-shadow: none !important; --tw-ring-shadow: 0 0 #0000 !important; }
+.gs-darkwrap > span[aria-hidden] { display: none; }
+@media (max-width: 639px) {
+  .gs-dark { border-radius: 0 !important; padding: 0.875rem 0.375rem 1.25rem !important; min-height: calc(100dvh - 14rem); }
+  /* Everything behind the dark board is dark too — the page's sides and the strip under it, behind the bottom bar. */
+  *:has(.gs-dark) { background: #05060b !important; border-color: transparent !important; box-shadow: none !important; }
+}
+
+/* Tower Strategy (2026-11-19): a lifted ring bobs gently. */
+.ts-float image { animation: ts-float 0.9s ease-in-out infinite alternate; }
+@keyframes ts-float { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .ts-float image { animation: none; } }
+
+/* Rising Brains · Vocabulary (2026-11-19): the dark premium kit — a card, answer tiles, the main button. */
+.vx-card { --c1: #4f46e5; --c2: #7c3aed; --c3: #db2777; position: relative; overflow: hidden; background: radial-gradient(90% 70% at 15% 0%, rgba(255,255,255,0.3), transparent 55%), linear-gradient(135deg, var(--c1) 0%, var(--c2) 48%, var(--c3) 100%); border-radius: 1.5rem; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), inset 0 0 0 1px rgba(255,255,255,0.24); }
+/* Answer tiles (2026-11-19, the user: "shining white, edges in colours; green / red only when answered"). */
+.vx-opt { --edge: #3b82f6; --deep: #1d4ed8; position: relative; overflow: hidden; border-radius: 1rem; border: 2.5px solid var(--edge); background: #ffffff; color: #14123a; font-weight: 900; letter-spacing: 0.005em; box-shadow: inset 0 2px 0 #fff, 0 5px 0 var(--deep), 0 0 18px -6px var(--edge); transition: filter 0.15s, transform 0.1s; }
+.vx-opt:nth-child(4n+2) { --edge: #f43f5e; --deep: #be123c; }
+.vx-opt:nth-child(4n+3) { --edge: #f59e0b; --deep: #b45309; }
+.vx-opt:nth-child(4n+4) { --edge: #10b981; --deep: #047857; }
+.vx-opt:not(:disabled):hover { filter: brightness(1.04); box-shadow: inset 0 2px 0 #fff, 0 5px 0 var(--deep), 0 0 24px -4px var(--edge); }
+.vx-opt:not(:disabled):active { transform: translateY(3px); }
+.vx-key { position: absolute; left: 0.5rem; top: 0.3rem; font-size: 10px; font-weight: 900; color: var(--edge); }
+.vx-opt.vx-right { border-color: #bbf7d0; background: linear-gradient(180deg, #22c55e, #15803d); color: #fff; box-shadow: 0 5px 0 #14532d, 0 0 22px -2px rgba(74,222,128,0.9); }
+.vx-opt.vx-wrong { border-color: #fecaca; background: linear-gradient(180deg, #ef4444, #991b1b); color: #fff; box-shadow: 0 5px 0 #7f1d1d; }
+.vx-opt.vx-right .vx-key, .vx-opt.vx-wrong .vx-key { color: rgba(255,255,255,0.8); }
+.vx-opt.vx-dim { opacity: 0.4; }
+.vx-cta { border-radius: 0.9rem; background: linear-gradient(90deg, #8b5cf6, #d946ef); color: #fff; font-weight: 900; box-shadow: 0 5px 0 #5b21b6; }
+.vx-cta:active { transform: translateY(3px); box-shadow: 0 2px 0 #5b21b6; }
+.vx-quiz .text-ink-900 { color: #fff; }
+.vx-quiz .text-ink-500 { color: #fff; }
+.vx-quiz .text-fuchsia-700 { color: #fde68a; }
+
+/* The game header band's shine (2026-11-19): a soft light that sweeps across now and then. */
+.gs-shine { background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.28) 50%, transparent 65%); background-size: 250% 100%; animation: gs-shine 5s ease-in-out infinite; }
+@keyframes gs-shine { 0%, 55% { background-position: 130% 0; } 100% { background-position: -130% 0; } }
+@media (prefers-reduced-motion: reduce) { .gs-shine { animation: none; background-position: 50% 0; } }
+
+/* Running Total — Rising Brains (2026-11-19): a highlighted card with a glow. */
+.rt-card { box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), inset 0 0 0 1px rgba(255,255,255,0.25), 0 24px 44px -20px rgba(13,148,136,0.85), 0 0 0 6px rgba(45,212,191,0.14); }
+
+/* Phones (2026-11-19, the user: "two cards — make it only one"): the board is not a card inside a card; the game
+   sits straight on one white card. Dark games keep their own full-screen board. */
+@media (max-width: 639px) {
+  .gs-board:not(.gs-dark) { box-shadow: none !important; --tw-ring-shadow: 0 0 #0000 !important; --tw-shadow: 0 0 #0000 !important; border-radius: 0 !important; background: transparent !important; padding-left: 0.25rem !important; padding-right: 0.25rem !important; }
+  div:has(> div > div > .gs-board:not(.gs-dark)) { background: #ffffff !important; padding: 0.75rem !important; }
+  div:has(> div > div > .gs-board:not(.gs-dark)) > span[aria-hidden] { display: none; }
+}
+
+/* Everything written on a question card is white (2026-11-19, the user: "white, not gray"). */
+.vx-card { color: #fff; }
+
+/* Number Maze (2026-11-19): a deep board that the white squares sit on. */
+.nm-board { background: radial-gradient(ellipse at 20% 0%, rgba(99,102,241,0.5), transparent 60%), linear-gradient(165deg, #1e1b4b, #312e81 60%, #134e4a); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 18px 36px -20px rgba(49,46,129,0.9); }
+
+/* A quiz's question card: everything on it white (2026-11-19). */
+.vx-quiz .vx-card * { color: #fff; }
+.vx-quiz .vx-card [class*='border-'] { border-color: #fde68a; }
+
+/* Speed, Time & Distance (2026-11-19): a dusk landscape behind the timeline. */
+.sd-scene { background: radial-gradient(ellipse at 80% 0%, rgba(251,191,36,0.35), transparent 55%), linear-gradient(180deg, #1e3a8a 0%, #312e81 55%, #14532d 100%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), 0 18px 36px -22px rgba(30,58,138,0.9); }
+
+/* Speak Up (2026-11-19): the microphone pulses while it listens. */
+.su-live { animation: su-live 1s ease-in-out infinite; }
+@keyframes su-live { 0%, 100% { box-shadow: 0 0 0 0 rgba(244,63,94,0.55); } 50% { box-shadow: 0 0 0 14px rgba(244,63,94,0); } }
+@media (prefers-reduced-motion: reduce) { .su-live { animation: none; } }
+
+/* Arrow Escape (2026-11-19, redrawn): thin brown lines on warm paper; a true dark theme on request. */
+.ae-light { background: #f4ecdd; color: #6b4a2b; }
+.ae-dark { background: #14110d; color: #e8dcc6; }
+.ae-light .ae-line { stroke: var(--ae-ink, #6b4a2b); } .ae-light .ae-head { fill: var(--ae-ink, #6b4a2b); }
+.ae-dark .ae-line { stroke: #e8dcc6; } .ae-dark .ae-head { fill: #e8dcc6; }
+.ae-light .ae-title { color: #b7791f; } .ae-dark .ae-title { color: #f2c46d; }
+.ae-light .ae-chip { background: #fbf6ec; color: #6b4a2b; box-shadow: inset 0 0 0 1px #e3d5bd; }
+.ae-dark .ae-chip { background: #221d16; color: #e8dcc6; box-shadow: inset 0 0 0 1px #3a3126; }
+.ae-light .ae-sub { color: #9a7b55; } .ae-dark .ae-sub { color: #a8987e; }
+.ae-life-on { background: #5ba7e8; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.12); } .ae-life-off { background: #cbbfa9; }
+.ae-arrow { cursor: pointer; }
+.ae-arrow.ae-red .ae-line { stroke: #d1503f; } .ae-arrow.ae-red .ae-head { fill: #d1503f; }
+.ae-arrow.ae-hint .ae-line { stroke: #2f9e6e; } .ae-arrow.ae-hint .ae-head { fill: #2f9e6e; }
+.ae-arrow.ae-hint { animation: ae-pulse 0.9s ease-in-out infinite alternate; }
+.ae-guide-ok { fill: rgba(47,158,110,0.28); } .ae-guide-bad { fill: rgba(209,80,63,0.28); }
+.ae-block { fill: none; stroke: #d1503f; stroke-width: 0.06; animation: ae-ping 0.6s ease-out; }
+@keyframes ae-pulse { from { opacity: 1; } to { opacity: 0.4; } }
+@keyframes ae-ping { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ae-arrow.ae-hint, .ae-block { animation: none; } }
+
+/* Jigsaw (2026-11-19) */
+.jg-show { animation: jg-fade 0.4s ease-out; }
+.jg-snap { animation: jg-snap 0.45s ease-out; }
+.jg-bad { animation: gs-shake 0.38s ease; }
+@keyframes jg-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes jg-snap { 0% { opacity: 0.4; } 60% { opacity: 1; filter: brightness(1.3); } 100% { filter: none; } }
+@media (prefers-reduced-motion: reduce) { .jg-show, .jg-snap, .jg-bad { animation: none; } }
+
+/* Memory Match (2026-11-19): every card shines — a glossy top and a light that sweeps across. */
+.mm-shine { box-shadow: inset 0 2px 0 rgba(255,255,255,0.55), 0 4px 10px -4px rgba(76,29,149,0.45); }
+.mm-shine::before { content: ''; position: absolute; inset: 0 0 55% 0; border-radius: inherit; background: linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0)); pointer-events: none; }
+.mm-sheen { position: absolute; inset: -20% -60%; pointer-events: none; background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.7) 50%, transparent 60%); transform: translateX(-60%); animation: mm-sheen 2.8s ease-in-out infinite; }
+@keyframes mm-sheen { 0% { transform: translateX(-60%); } 55%, 100% { transform: translateX(60%); } }
+@media (prefers-reduced-motion: reduce) { .mm-sheen { animation: none; opacity: 0; } }
+/* Arrow Escape on the page itself, black ink (2026-11-20) */
+.ae-plain { background: transparent; }
+.ae-plain .ae-line { stroke: #111111; } .ae-plain .ae-head { fill: #111111; }
+.ae-plain .ae-arrow.ae-red .ae-line { stroke: #d1503f; } .ae-plain .ae-arrow.ae-red .ae-head { fill: #d1503f; }
+.ae-plain .ae-arrow.ae-hint .ae-line { stroke: #2f9e6e; } .ae-plain .ae-arrow.ae-hint .ae-head { fill: #2f9e6e; }
+
+/* WORDCRAFT (2026-11-20) */
+.wc-press { transition: transform 0.12s ease, filter 0.15s ease; }
+.wc-press:active { transform: scale(0.96); }
+.wc-in { animation: wc-in 0.42s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+@keyframes wc-in { from { opacity: 0; transform: translateY(14px) scale(0.985); } to { opacity: 1; transform: none; } }
+.wc-pop { animation: wc-pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+@keyframes wc-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.wc-drop { animation: wc-drop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes wc-drop { from { opacity: 0; transform: translateY(-18px) rotate(-3deg) scale(0.9); } to { opacity: 1; transform: none; } }
+.wc-shake { animation: wc-shake 0.45s ease both; }
+@keyframes wc-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
+.wc-live { animation: wc-live 1.1s ease-in-out infinite; }
+@keyframes wc-live { 0%, 100% { box-shadow: 0 0 0 0 rgba(244,63,94,0.55); } 50% { box-shadow: 0 0 0 16px rgba(244,63,94,0); } }
+.wc-dial { transition: stroke-dashoffset 1s cubic-bezier(0.2, 0.9, 0.3, 1); animation: wc-dial 1s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+@keyframes wc-dial { from { stroke-dashoffset: 314; } }
+.wc-bar { animation: wc-bar 0.8s cubic-bezier(0.2, 0.9, 0.3, 1) both; transform-origin: left; }
+@keyframes wc-bar { from { transform: scaleX(0); } }
+.wc-word { background: linear-gradient(90deg, #fff 0%, #f5d0fe 40%, #fdba74 70%, #fff 100%); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: wc-shine 6s linear infinite; }
+@keyframes wc-shine { to { background-position: 200% center; } }
+@media (prefers-reduced-motion: reduce) { .wc-in, .wc-pop, .wc-drop, .wc-shake, .wc-live, .wc-dial, .wc-bar, .wc-word { animation: none !important; } }

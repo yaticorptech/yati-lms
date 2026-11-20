@@ -18,6 +18,7 @@ module.exports = makeEngine({
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 10, max: 60, fallback: 25 },
     revealMs: 5000,
+    quickReveal: true, // group play: the options coloured for a moment, no answer box, then on (2026-11-17)
     // By the room's age zone (./zones.js): Young Thinkers shapes, colours and counting; Master Minds the harder series.
     pick: (count, rng, level, met, zone) => (zone === 'young' ? make(PATTERNS_YOUNG, count, rng, 'easy')
         : zone === 'master' ? make(PATTERNS_MASTER, count, rng, 'hard')

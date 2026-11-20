@@ -124,7 +124,7 @@ describe('presence in the lobby', () => {
     });
 
     test('a host who vanishes hands the room to a player still there', async () => {
-        const made = (await p[0].call('POST', '/rooms', { game: 'spatialiq' })).body.game;
+        const made = (await p[0].call('POST', '/rooms', { game: 'patternmaster' })).body.game;
         await p[2].call('POST', '/rooms/join', { code: made.code });
         await PlayGame.updateOne({ _id: made.id }, { $set: { 'seats.0.lastSeenAt': new Date(Date.now() - 120000) } });
         const g = (await p[2].call('GET', `/play/${made.id}`)).body.game;

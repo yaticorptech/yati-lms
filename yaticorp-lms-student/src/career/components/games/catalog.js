@@ -73,7 +73,6 @@ const RAW = {
             ['number-recall', 'Number Recall', 'ready'],
             ['sequence-vault', 'Sequence Vault', 'new'],
             ['grid-navigator', 'Audio Echo', 'new'],
-            ['pattern-recall', "Chef's Memory", 'new'],
             ['focus-filter', 'Focus Filter', 'new'],
             ['dual-image-recall', 'Dual-Image Recall', 'extend:spot-the-change']
         ],
@@ -82,12 +81,11 @@ const RAW = {
             ['sudoku-challenge', 'Sudoku Challenge', 'split:mini-sudoku'],
             ['tower-strategy', 'Tower Strategy', 'extend:last-stone'],
             ['constraint-grid', 'Pipe Flow', 'new'],
-            ['emoji-equations', 'Emoji Equations', 'new'],
             ['clue-chain', 'Crown Garden', 'new'],
             ['chess-challenge', 'Chess', 'new']
         ],
         vocab: [
-            ['word-scramble', 'Word Scramble', 'ready'],
+            // Word Scramble removed from Rising Brains (2026-11-19, the user); Letter Builder (Young Thinkers) is still built on it.
             ['sentence-gap', 'Sentence Gap', 'ready'],
             ['tense-pick', 'Tense Pick', 'ready'],
             ['analogy-master', 'Analogy Master', 'new'],
@@ -98,8 +96,7 @@ const RAW = {
         math: [
             ['running-total', 'Running Total', 'ready'],
             ['equation-rush', 'Equation Rush', 'extend:missing-operator'],
-            ['fraction-battle', 'Fraction Battle', 'extend:fraction-match'],
-            ['number-pattern-lab', 'Number Pattern Lab', 'new'],
+            ['number-pattern-lab', 'Number Maze', 'new'], // 2026-11-19: the user's pick (id kept from Number Pattern Lab)
             ['ratio-relay', 'Ratio Relay', 'new'],
             ['data-dash', 'Data Dash', 'new'],
             ['mental-math-circuit', 'Mental Math Circuit', 'new']
@@ -109,38 +106,33 @@ const RAW = {
         memory: [
             ['grid-recall', 'Grid Recall', 'ready'],
             ['reverse-recall', 'Reverse Recall', 'ready'],
-            ['matrix-recall', 'Matrix Recall', 'new'],
             ['departure-board', 'Departure Board', 'new'],
             ['rule-switch', 'Rule Switch', 'split:colour-match'],
-            ['spatial-rotation-vault', 'Spatial Rotation Vault', 'extend:spin-match'],
             ['interference-recall', 'Interference Recall', 'extend:seen-before']
         ],
-        logic: [
-            ['tower-shift', 'Tower Shift', 'ready'],
-            ['cipher-lab', 'Cipher Lab', 'extend:cipher-challenge'],
-            ['algorithm-builder', 'Algorithm Architect', 'ready'],
-            ['deduction', 'Deduction Chamber', 'ready'],
-            ['boolean-breaker', 'Boolean Breaker', 'new'],
+        logic: [ // 2026-11-19 (the user): only these two
+            ['chess-master', 'Chess Master', 'new'],
             ['network-logic', 'Network Logic', 'new'],
-            ['strategic-constraint-lab', 'Strategic Constraint Lab', 'new']
+            ['final-vault', 'The Final Vault', 'new'], // 2026-11-19: the group game, played solo
+            ['jigsaw', 'Jigsaw', 'new'], // 2026-11-19: replaces Water Sort
+            ['arrow-escape', 'Arrow Escape', 'new'] // 2026-11-19: clear the arrows in the right order
         ],
         vocab: [
             ['synonym-match', 'Synonyms & Antonyms', 'ready'],
             ['idiom-sense', 'Idiom Sense', 'ready'],
-            ['semantic-precision', 'Semantic Precision', 'new'],
-            ['argument-analyzer', 'Argument Analyzer', 'new'],
-            ['verbal-architect', 'Verbal Architect', 'new'],
-            ['nuance-navigator', 'Nuance Navigator', 'new'],
-            ['word-relation-matrix', 'Word Relation Matrix', 'new']
+            ['word-search', 'Word Search', 'new'],
+            ['word-relation-matrix', 'Word Relation Matrix', 'new'],
+            ['speak-up', 'Speak Up', 'new'], // 2026-11-19: read aloud, tongue twister, interview, story retell
+            ['wordcraft', 'WORDCRAFT', 'new'] // 2026-11-20: six speaking & vocabulary challenges, three a level
         ],
         math: [
+            // 2026-11-18 (the user): Number Forge, Sum Pop, Change Maker, Best Buy, Number Trail and Estimate It
+            // removed; Binary Blitz and Rounding Rush removed completely too.
             ['percent-snap', 'Percent Snap', 'ready'],
-            ['number-forge', 'Number Forge', 'ready'],
-            ['probability-lab', 'Probability Lab', 'ready'],
-            ['quantitative-arena', 'Quantitative Arena', 'extend:quick-compare'],
-            ['numerical-optimization', 'Numerical Optimization', 'new'],
-            ['statistical-inference', 'Statistical Inference', 'new'],
-            ['decision-theory-arena', 'Decision Theory Arena', 'new']
+            // 2026-11-19, the user's picks: Rising Brains' Running Total and Data Dash for adults, and a new journey game
+            ['running-total-pro', 'Running Total Pro', 'new'],
+            ['data-chart-quiz', 'Data Chart Quiz', 'new'],
+            ['speed-distance', 'Speed, Time & Distance', 'new']
         ]
     }
 };
@@ -153,7 +145,7 @@ export const CATALOG = Object.freeze(Object.entries(RAW).flatMap(([section, cats
     }))));
 
 /** Existing games with no slot in the 84: kept playable, records untouched, until it is decided where they go. */
-export const EXTRA = Object.freeze(['code-breaker', 'lights-out', 'shape-matrix', 'word-roots', 'antonym-match', 'binary-blitz', 'number-bonds', 'rounding-rush', 'clock-read']);
+export const EXTRA = Object.freeze(['code-breaker', 'lights-out', 'shape-matrix', 'word-roots', 'antonym-match', 'number-bonds', 'clock-read']);
 
 /** The section a class belongs to: 1–5 young, 6–10 smart, 11–12 master; null when unknown. */
 export const sectionForClass = (n) => (!Number.isInteger(n) || n < 1 ? null : n <= 5 ? 'young' : n <= 10 ? 'smart' : 'master');

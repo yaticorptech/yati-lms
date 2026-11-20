@@ -25,11 +25,7 @@ test('every catalogue game with a room game maps to a room game played in its se
         assert.ok(ROOM_GAMES.includes(room), `${room} is not a room game`);
         assert.ok((GROUP_ZONES[room] || []).includes(byId[gameId].section), `${room} is not played in ${byId[gameId].section} (${gameId})`);
     }
-    // A room game is played only in the sections of the catalogue games it stands for.
-    for (const room of new Set(Object.values(MULTIPLAYER))) {
-        const sections = [...new Set(Object.keys(MULTIPLAYER).filter((g) => MULTIPLAYER[g] === room).map((g) => byId[g].section))].sort();
-        assert.deepEqual([...GROUP_ZONES[room]].sort(), sections, room);
-    }
+    // Since 2026-11-17 every group game is played in all three sections (the user), so each covers its solo game's.
 });
 
 test('the student app has the same map, and the same group zones', async () => {

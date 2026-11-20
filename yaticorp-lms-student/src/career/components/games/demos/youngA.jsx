@@ -1,5 +1,6 @@
 /** Game-specific demos (see GameDemo.jsx) for group youngA: Young Thinkers — bright, friendly, big pictures. */
-import { COLOURS as BOOK_COLOUR_INFO, COLOUR_KEYS as BOOK_COLOURS, PICTURES as BOOK_PICTURES } from '../../../data/bands/colouringBook';
+import { MAP_H as TH_H, MAP_W as TH_W, NODES as TH_NODES, PLACES as TH_PLACES, explorerArt as thExplorerArt, mapArt as thMapArt } from '../treasureMap';
+import { CHARACTERS as BOOK_CHARACTERS, COLOURS as BOOK_COLOUR_INFO, COLOUR_KEYS as BOOK_COLOURS } from '../../../data/bands/colouringBook';
 
 const BOOK_HEX = Object.fromEntries(Object.entries(BOOK_COLOUR_INFO).map(([k, v]) => [k, v.hex]));
 
@@ -72,10 +73,11 @@ const COLOUR_CARDS = [
 const MOVE = { u: [-1, 0], d: [1, 0], l: [0, -1], r: [0, 1] };
 const ARROW = { u: '↑', d: '↓', l: '←', r: '→' };
 const walk = (start, moves, n) => moves.slice(0, n).reduce(([r, c], m) => [r + MOVE[m][0], c + MOVE[m][1]], start);
+// The gem is picked up on the way (after `gem` steps); the chest stays locked until then (2026-11-18).
 const TREASURE = [
-  { start: [2, 0], moves: ['r', 'r', 'u'], rocks: ['1,1', '3,2', '0,0', '0,3'] },
-  { start: [0, 0], moves: ['d', 'd', 'r'], rocks: ['1,1', '0,2', '3,0', '2,3'] },
-  { start: [3, 3], moves: ['u', 'l', 'l'], rocks: ['3,1', '1,2', '1,1', '0,3'] }
+  { start: [3, 0], moves: ['u', 'u', 'r', 'r', 'd'], gem: 2, rocks: ['3,1', '2,1', '0,3', '3,3'], water: ['0,1'] },
+  { start: [0, 0], moves: ['r', 'r', 'r', 'd', 'd', 'l'], gem: 3, rocks: ['1,1', '1,2', '3,0'], water: ['2,0'] },
+  { start: [3, 3], moves: ['l', 'l', 'u', 'u', 'r'], gem: 2, rocks: ['2,2', '2,3', '0,0'], water: ['1,0'] }
 ];
 const PAD_POS = { u: [82.5, 52], l: [72.8, 66], d: [82.5, 66], r: [92.2, 66] };
 const MAZES = [
@@ -90,7 +92,7 @@ const wallsOf = (m, r, c) => ({
 });
 
 // ---- Colouring Book pictures (the game's own, data/bands/colouringBook.js) ------------------------------------------
-const BOOK = ['an apple', 'a house', 'a butterfly'].map((name) => BOOK_PICTURES.find((p) => p.name === name));
+const BOOK = ['a teddy bear', 'a cupcake', 'a kitten'].map((name) => BOOK_CHARACTERS.find((p) => p.name === name));
 
 // ---- Shape Builder pieces: cells { r, c, t } with t = F (full) or the corner a half-square keeps -----------------
 const POLY = { F: '0,0 1,0 1,1 0,1', tl: '0,0 1,0 0,1', tr: '0,0 1,0 1,1', br: '1,0 1,1 0,1', bl: '0,0 1,1 0,1' };
@@ -177,31 +179,53 @@ export const DEMOS = {
     }
   },
 
-  // Animal Pair Safari: leafy card backs; an animal (amber) pairs with its sound, home or baby (sky).
+  // Animal Pair Safari (2026-11-18, like the game): 8 cards, 2 rows of 4 — a green 🌿 back, an animal (amber) or its
+  // partner (sky: says / lives in / baby). Turn two; a pair goes green, a miss flashes red.
   'animal-pair-safari': {
-    frames: 8,
+    frames: 11,
     draw: (f, ex) => {
       const sets = [
-        [['🐄', 'cow'], ['🐕', 'dog'], ['🦆', 'duck'], ['🔊', 'Woof!', 'says'], ['🔊', 'Moo!', 'says'], ['🔊', 'Quack!', 'says']],
-        [['🐝', 'bee'], ['🐟', 'fish'], ['🐦', 'bird'], ['🌊', 'water', 'lives in'], ['🍯', 'hive', 'lives in'], ['🪺', 'nest', 'lives in']],
-        [['🐔', 'hen'], ['🦁', 'lion'], ['🐸', 'frog'], ['🪨', 'den', 'lives in'], ['🐣', 'chick', 'baby'], ['🪷', 'pond', 'lives in']]
+        [['🐄', 'cow'], ['🐕', 'dog'], ['🦆', 'duck'], ['🐈', 'cat'], ['🔊', 'Moo!', 'says'], ['🔊', 'Woof!', 'says'], ['🔊', 'Quack!', 'says'], ['🔊', 'Meow!', 'says']],
+        [['🐝', 'bee'], ['🐟', 'fish'], ['🐦', 'bird'], ['🦁', 'lion'], ['🍯', 'hive', 'lives in'], ['🌊', 'water', 'lives in'], ['🪺', 'nest', 'lives in'], ['🪨', 'den', 'lives in']],
+        [['🐔', 'hen'], ['🐑', 'sheep'], ['🐸', 'frog'], ['🐄', 'cow'], ['🐣', 'chick', 'baby'], ['🐑', 'lamb', 'baby'], ['🐸', 'tadpole', 'baby'], ['🐄', 'calf', 'baby']]
       ][ex];
-      return flipDemo(f, ex, (c) => {
-        const [pic, word, label] = sets[c.logical];
-        const up = c.open || c.done;
-        return (
-          <div className={`flex h-full flex-col items-center justify-center rounded-xl leading-none transition-all duration-300 ${
-            c.done ? 'scale-95 bg-emerald-50 ring-2 ring-emerald-300' : c.miss ? 'bg-rose-50 ring-2 ring-rose-300' : up ? (label ? 'bg-sky-50 ring-2 ring-sky-300' : 'bg-amber-50 ring-2 ring-amber-300') : 'bg-gradient-to-br from-lime-400 to-emerald-600 shadow-md'}`}>
-            {up ? (
-              <>
-                <span className="text-2xl sm:text-3xl">{pic}</span>
-                {label && <span className="mt-0.5 text-[0.7rem] font-black text-sky-700 uppercase">{label}</span>}
-                <span className="mt-0.5 text-xs font-black text-slate-800">{word}</span>
-              </>
-            ) : <span className="text-2xl">🌿</span>}
+      // Logical pairs: 0/4, 1/5, 2/6, 3/7. Slots shuffled per example.
+      const perm = [[0, 5, 2, 7, 4, 1, 6, 3], [3, 6, 0, 5, 2, 7, 4, 1], [6, 1, 4, 3, 0, 7, 2, 5]][ex];
+      const script = [
+        { open: [], done: [], tap: null }, { open: [0], done: [], tap: 0 }, { open: [0, 4], done: [], tap: 4 },
+        { open: [1], done: [0, 4], tap: 1 }, { open: [1, 6], done: [0, 4], tap: 6, miss: true }, { open: [2], done: [0, 4], tap: 2 },
+        { open: [2, 6], done: [0, 4], tap: 6 }, { open: [1, 5], done: [0, 4, 2, 6], tap: 5 }, { open: [3, 7], done: [0, 4, 2, 6, 1, 5], tap: 7 },
+        { open: [], done: [0, 1, 2, 3, 4, 5, 6, 7], tap: null }, { open: [], done: [0, 1, 2, 3, 4, 5, 6, 7], tap: null }
+      ][f];
+      const slotPos = (slot) => [6 + (slot % 4 + 0.5) * 22, 15 + (Math.floor(slot / 4) + 0.5) * 40];
+      return {
+        body: (
+          <div className="absolute inset-x-[6%] top-[15%] bottom-[5%] grid grid-cols-4 grid-rows-2 gap-1.5">
+            {perm.map((logical, slot) => {
+              const [pic, word, label] = sets[logical];
+              const done = script.done.includes(logical);
+              const open = script.open.includes(logical);
+              const miss = script.miss && open;
+              const up = open || done;
+              return (
+                <div key={slot} className={`flex min-h-0 flex-col items-center justify-center gap-0.5 rounded-xl leading-none transition-all duration-300 ${
+                  done ? 'scale-95 bg-emerald-50 ring-2 ring-emerald-300' : miss ? 'bg-rose-50 ring-2 ring-rose-300' : up ? (label ? 'bg-sky-50 shadow-md ring-2 ring-sky-300' : 'bg-amber-50 shadow-md ring-2 ring-amber-300') : 'bg-gradient-to-br from-lime-400 to-emerald-600 shadow-md'}`}>
+                  {up ? (
+                    <>
+                      <span className="text-xl sm:text-2xl">{pic}</span>
+                      {label && <span className="text-[0.5rem] font-black text-sky-700 uppercase sm:text-[0.6rem]">{label}</span>}
+                      <span className="text-[0.6rem] font-black text-slate-900 sm:text-xs">{word}</span>
+                    </>
+                  ) : <span className="text-xl opacity-90">🌿</span>}
+                </div>
+              );
+            })}
           </div>
-        );
-      });
+        ),
+        hand: script.tap === null ? IDLE : [...slotPos(perm.indexOf(script.tap)), true],
+        step: f === 0 ? 0 : f < 9 ? 1 : 2,
+        phase: ['Tap a card', 'An animal!', 'Its partner — a pair!', 'Tap a card', 'Not a pair', 'Remember where…', 'A pair!', 'A pair!', 'A pair!', 'All pairs found! 🎉', 'All pairs found! 🎉'][f]
+      };
     }
   },
 
@@ -246,26 +270,59 @@ export const DEMOS = {
     }
   },
 
-  // Light-Up Garden: pictures pop up on a 3 × 3 grid, hide, then tap where they were (they turn green).
+  // Light-Up Garden (2026-11-18, like the game): pictures pop up on the grid and hide. Example 1 is level 1 — tap where
+  // they were. Examples 2–3 are level 2 on — pick each picture from the 4 below and put it back on its square.
   'light-up-garden': {
-    frames: 7,
+    frames: 8,
     draw: (f, ex) => {
       const lit = GARDEN[ex];
       const cells = Object.keys(lit).map(Number);
-      const tapped = f >= 3 ? cells.slice(0, Math.min(3, f - 2)) : [];
+      const place = ex > 0;
+      const two = cells.slice(0, 2);
+      const cellPos = (i) => [28.25 + ((i % 3) + 0.5) * 14.5, 12 + (Math.floor(i / 3) + 0.5) * 19.3];
+      const tray = place ? [lit[two[1]], '🐸', lit[two[0]], '🚀'] : [];
+      const trayPos = (k) => [14 + k * 18.5 + 8.25, 85];
+      // place mode: f3 pick A · f4 put A · f5 pick B · f6 put B · f7 done
+      const placed = place ? (f >= 6 ? two : f >= 4 ? [two[0]] : []) : [];
+      const holding = place && (f === 3 ? lit[two[0]] : f === 5 ? lit[two[1]] : null);
+      const tapped = !place && f >= 3 ? cells.slice(0, Math.min(3, f - 2)) : [];
+      const showing = f < 2;
+      const shown = place ? two : cells;
+      let hand = IDLE;
+      if (place) {
+        if (f === 3) hand = [...trayPos(tray.indexOf(lit[two[0]])), true];
+        if (f === 4) hand = [...cellPos(two[0]), true];
+        if (f === 5) hand = [...trayPos(tray.indexOf(lit[two[1]])), true];
+        if (f === 6) hand = [...cellPos(two[1]), true];
+      } else if (f >= 3 && f < 6) hand = [...cellPos(cells[f - 3]), true];
       return {
         body: (
-          <div className={`${SQUARE} grid grid-cols-3 gap-1.5`}>
-            {[...Array(9).keys()].map((i) => {
-              const showing = f < 2 && lit[i];
-              const hit = tapped.includes(i);
-              return <div key={i} className={`grid place-items-center rounded-xl text-2xl ring-1 ring-slate-200 transition-all sm:text-3xl ${showing ? 'bg-amber-50 ring-2 ring-amber-300' : hit ? 'bg-emerald-400' : 'bg-slate-100'}`}>{showing || hit ? lit[i] : ''}</div>;
-            })}
-          </div>
+          <>
+            <div className="absolute top-[12%] left-1/2 grid h-[58%] aspect-square -translate-x-1/2 grid-cols-3 grid-rows-3 gap-1">
+              {[...Array(9).keys()].map((i) => {
+                const show = showing && shown.includes(i);
+                const done = placed.includes(i);
+                const hit = tapped.includes(i);
+                return (
+                  <div key={i} className={`grid place-items-center rounded-lg text-xl ring-1 ring-slate-200 transition-all sm:text-2xl ${show ? 'bg-amber-50 ring-2 ring-amber-300' : done ? 'bg-emerald-50 ring-2 ring-emerald-400' : hit ? 'bg-emerald-400' : holding ? 'bg-slate-100 ring-2 ring-violet-200' : 'bg-slate-100'}`}>
+                    {show || done || hit ? lit[i] : ''}
+                  </div>
+                );
+              })}
+            </div>
+            {place && f >= 2 && (
+              <div className="absolute top-[74%] bottom-[4%] left-[14%] flex gap-[2%]">
+                {tray.map((p, k) => {
+                  const used = placed.some((c) => lit[c] === p);
+                  return <span key={k} className={`grid aspect-square h-full place-items-center rounded-xl text-xl transition-all sm:text-2xl ${used ? 'bg-slate-100 opacity-30' : holding === p ? 'scale-105 bg-violet-100 ring-[3px] ring-violet-500' : 'bg-white shadow-sm ring-2 ring-slate-200'}`}>{p}</span>;
+                })}
+              </div>
+            )}
+          </>
         ),
-        hand: f >= 3 && f < 6 ? [...pos3(cells[f - 3]), true] : IDLE,
-        step: f < 2 ? 0 : f < 3 ? 1 : 2,
-        phase: ['Look!', 'Look!', 'Remember where', 'Tap where they were', 'Tap where they were', 'Tap where they were', 'Well done!'][f]
+        hand,
+        step: f < 2 ? 0 : f < 7 ? 1 : 2,
+        phase: f < 2 ? 'Look!' : f === 2 ? (place ? 'They hide — 4 pictures below' : 'They hide!') : f < 7 ? (place ? (f % 2 ? 'Pick a picture' : 'Put it where it was') : 'Tap where they were') : 'Well done! 🎉'
       };
     }
   },
@@ -323,106 +380,146 @@ export const DEMOS = {
     }
   },
 
-  // Colouring Book: an outline picture, crayons on the right; pick a crayon, tap a part, it fills — part by part.
+  // Colouring Book (2026-11-18, like the game): a cute character on the cream page, coloured for a look, then hidden;
+  // the crayons below — pick one, tap a part, it fills.
   'picture-logic': {
-    frames: 7,
+    frames: 10,
     draw: (f, ex) => {
       const pic = BOOK[ex];
-      const n = pic.parts.length;
-      const done = Math.min(n, Math.max(0, Math.round(((f - 1) / 4) * n)));
-      const solved = f >= 6;
-      const next = Math.min(n - 1, done);
       const crayons = BOOK_COLOURS.filter((k) => pic.parts.some((p) => p.c === k));
-      const tapAt = pic.parts[next].at;
-      return {
-        body: (
-          <div className="absolute inset-x-[5%] top-[12%] bottom-[4%] flex items-center justify-center gap-[4%]">
-            <svg viewBox="-2 -2 104 104" className={`h-full max-h-full w-auto rounded-xl bg-white ${solved ? 'drop-shadow-[0_0_10px_rgba(16,185,129,0.6)]' : ''}`} aria-hidden>
-              {pic.parts.map((p, i) => <path key={i} d={p.d} fill={i < done || solved ? BOOK_HEX[p.c] : '#fff'} stroke="#1f2937" strokeWidth="1.8" strokeLinejoin="round" className="transition-[fill] duration-300" />)}
-              {(pic.decor || []).map((d, i) => <path key={`d${i}`} d={d.d} fill={d.fill || 'none'} stroke="#1f2937" strokeWidth="1.8" />)}
-            </svg>
-            <div className="flex flex-col gap-1.5 rounded-xl bg-slate-100 p-1.5">
-              {crayons.map((k) => <span key={k} className={`h-5 w-5 rounded-full ring-2 ${!solved && f >= 1 && pic.parts[next].c === k ? 'ring-slate-900' : 'ring-white'}`} style={{ backgroundColor: BOOK_HEX[k] }} />)}
-            </div>
-          </div>
-        ),
-        hand: f >= 1 && f <= 5 ? [26 + tapAt[0] * 0.42, 14 + tapAt[1] * 0.8, true] : IDLE,
-        step: f === 0 ? 0 : f < 6 ? 1 : 2,
-        phase: f === 0 ? 'Look at the picture' : f < 6 ? 'Pick a crayon, tap a part' : `You coloured ${pic.name}!`
-      };
-    }
-  },
-
-  // Treasure Path: a lime map with rocks; tap arrow cards into the program, press Go, the explorer walks to the 💰.
-  'treasure-path': {
-    frames: 9,
-    draw: (f, ex) => {
-      const m = TREASURE[ex];
-      const cards = m.moves.slice(0, Math.min(3, f));
-      const stepsWalked = f >= 5 ? Math.min(3, f - 4) : 0;
-      const at = walk(m.start, m.moves, stepsWalked);
-      const goal = walk(m.start, m.moves, 3);
-      const trail = [0, 1, 2, 3].slice(0, stepsWalked + 1).map((n) => walk(m.start, m.moves, n).join(','));
-      const won = f >= 7;
+      // Three colours to show: the first part of each of the first three crayons.
+      const steps = crayons.slice(0, 3).map((k) => ({ k, part: pic.parts.findIndex((p) => p.c === k) }));
+      const looking = f < 2;
+      const solved = f >= 9;
+      const stepNo = f >= 3 ? Math.floor((f - 3) / 2) : -1; // which colour is being done
+      const coloured = new Set(steps.filter((_, i) => i < stepNo || (i === stepNo && (f - 3) % 2 === 1)).map((st) => st.part));
+      const holding = stepNo >= 0 && stepNo < 3 ? steps[stepNo].k : null;
+      const fillOf = (i, p) => (looking || solved || coloured.has(i) ? BOOK_HEX[p.c] : '#fff');
+      const drawPos = ([x, y]) => [28.25 + x * 0.435, 9 + y * 0.58];
+      const crayonPos = (j) => [22 + ((j % 4) + 0.5) * 14, 73 + Math.floor(j / 4) * 13 + 6];
+      const decorAfter = (i) => (pic.decor || []).filter((d) => d.after === i);
+      const line = (d, k) => <path key={k} d={d.d} fill={d.fill || 'none'} stroke={d.stroke || '#1f2937'} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />;
+      let hand = IDLE;
+      if (stepNo >= 0 && stepNo < 3) hand = (f - 3) % 2 === 0 ? [...crayonPos(crayons.indexOf(steps[stepNo].k)), true] : [...drawPos(pic.parts[steps[stepNo].part].at), true];
       return {
         body: (
           <>
-            <div className="absolute top-[12%] bottom-[4%] left-[3%] grid aspect-square grid-cols-4 overflow-hidden rounded-xl bg-lime-100 ring-2 ring-lime-300">
-              {[...Array(16).keys()].map((i) => {
-                const r = Math.floor(i / 4); const c = i % 4; const k = `${r},${c}`;
-                const here = at[0] === r && at[1] === c;
-                return (
-                  <div key={k} className={`grid place-items-center border border-lime-200/70 text-xl sm:text-2xl ${m.rocks.includes(k) ? 'bg-stone-200' : trail.includes(k) && f >= 5 ? 'bg-amber-100' : ''}`}>
-                    {here ? (won ? '🥳' : '🧒') : m.rocks.includes(k) ? '🪨' : goal[0] === r && goal[1] === c ? '💰' : ''}
-                  </div>
-                );
-              })}
+            <div className="absolute top-[7%] left-1/2 h-[63%] aspect-square -translate-x-1/2 rounded-xl bg-[#fffaf0] p-[3%] ring-1 ring-amber-200">
+              <svg viewBox="-2 -2 104 104" className={`h-full w-full rounded-lg bg-white ${solved ? 'drop-shadow-[0_0_10px_rgba(16,185,129,0.6)]' : ''}`} aria-hidden>
+                {pic.parts.map((p, i) => [
+                  <path key={i} d={p.d} fill={fillOf(i, p)} stroke="#1f2937" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" className="transition-[fill] duration-300" />,
+                  ...decorAfter(i).map((d, k) => line(d, `a${i}${k}`))
+                ])}
+                {(pic.decor || []).filter((d) => d.after == null).map((d, i) => line(d, `d${i}`))}
+              </svg>
+              {looking && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/85 px-2 text-[0.6rem] font-black text-white">⏳ 7s</span>}
             </div>
-            <div className="absolute top-[12%] right-[3%] flex h-[24%] w-[29%] flex-wrap content-center items-center justify-center gap-1 rounded-xl bg-white p-1 ring-1 ring-slate-200">
-              {cards.length === 0 && <span className="text-center text-xs font-bold text-slate-400">Your arrows</span>}
-              {cards.map((d, i) => <span key={i} className={`grid h-7 w-7 place-items-center rounded-lg text-base font-black text-white ${f >= 5 && f < 8 && i === stepsWalked - 1 ? 'bg-amber-500' : 'bg-teal-600'}`}>{ARROW[d]}</span>)}
+            <div className="absolute top-[73%] bottom-[2%] left-[22%] grid w-[56%] grid-cols-4 gap-x-1 rounded-xl bg-gradient-to-b from-amber-50 to-orange-50 ring-1 ring-amber-200">
+              {crayons.map((k) => (
+                <span key={k} className={`flex items-center justify-center rounded-lg transition-transform ${holding === k ? '-translate-y-0.5 bg-white ring-2 ring-slate-900' : ''}`}>
+                  <svg viewBox="0 0 28 56" className="h-[90%] max-h-9" aria-hidden>
+                    <path d="M8 16 L14 2 L20 16 Z" fill={BOOK_HEX[k]} stroke="rgba(0,0,0,0.25)" />
+                    <rect x="6" y="15" width="16" height="39" rx="3" fill={BOOK_HEX[k]} stroke="rgba(0,0,0,0.25)" />
+                    <rect x="6" y="22" width="16" height="4" fill="rgba(255,255,255,0.55)" />
+                  </svg>
+                </span>
+              ))}
             </div>
-            <div className="absolute top-[44%] right-[3%] grid h-[29%] w-[29%] grid-cols-3 grid-rows-2 gap-1">
-              {['.', 'u', '.', 'l', 'd', 'r'].map((d, i) => d === '.' ? <span key={i} /> : <span key={i} className="grid place-items-center rounded-lg bg-teal-500 text-base font-black text-white">{ARROW[d]}</span>)}
-            </div>
-            <span className={`absolute right-[3%] bottom-[4%] grid h-[16%] w-[29%] place-items-center rounded-xl text-base font-black text-white ${f === 4 ? 'bg-emerald-700' : 'bg-emerald-600'}`}>Go ▶</span>
           </>
         ),
-        hand: f >= 1 && f <= 3 ? [...PAD_POS[m.moves[f - 1]], true] : f === 4 ? [82.5, 88, true] : IDLE,
-        step: f === 0 ? 0 : f < 4 ? 1 : 2,
-        phase: f === 0 ? 'Find the treasure' : f < 4 ? 'Add arrow cards' : f < 7 ? 'Go! Walking…' : 'Treasure found!'
+        hand,
+        step: looking ? 0 : f < 9 ? 1 : 2,
+        phase: looking ? 'Look at the colours!' : f === 2 ? 'It hides — colour from memory' : solved ? `You coloured ${pic.name}! 🎉` : (f - 3) % 2 === 0 ? 'Pick a crayon' : 'Tap the part'
       };
     }
   },
 
-  // Odd One Out: four word buttons; three belong together, tap the outsider, the reason shows.
-  'odd-one-out': {
-    frames: 6,
+  // Treasure Path: an island map — pick up the gem 💎 first, then the locked chest 🔐 opens 💰 (2026-11-18).
+  // Frames: look · one frame per arrow card · press Go · one frame per step walked · the chest opens.
+  'treasure-path': {
+    frames: 15,
     draw: (f, ex) => {
-      const [words, odd, why] = [
-        [['Apple', 'Banana', 'Carrot', 'Mango'], 2, 'The others are fruits.'],
-        [['Cow', 'Lion', 'Dog', 'Goat'], 1, 'The others are farm animals.'],
-        [['Pen', 'Pencil', 'Crayon', 'Hammer'], 3, 'The others are for writing.']
-      ][ex];
-      const picked = f >= 3;
+      const m = TREASURE[ex];
+      const n = m.moves.length;
+      const addEnd = n;             // frames 1..n add the cards
+      const goAt = n + 1;           // the Go press
+      const walked = f > goAt ? Math.min(n, f - goAt) : 0;
+      const at = walk(m.start, m.moves, walked);
+      const gemAt = walk(m.start, m.moves, m.gem);
+      const goal = walk(m.start, m.moves, n);
+      const hasGem = walked >= m.gem;
+      const won = walked >= n;
+      const cards = m.moves.slice(0, Math.min(n, f));
+      const trail = Array.from({ length: walked + 1 }, (_, k) => walk(m.start, m.moves, k).join(','));
       return {
         body: (
           <>
-            <p className="absolute inset-x-[6%] top-[14%] text-center text-base font-black text-slate-900 sm:text-lg">Which one does not belong?</p>
-            <div className="absolute inset-x-[6%] top-[32%] bottom-[19%] grid grid-cols-2 grid-rows-2 gap-1.5">
-              {words.map((w, i) => (
-                <div key={w} className={`grid place-items-center rounded-xl text-base font-black ring-1 transition-colors sm:text-lg ${
-                  picked && i === odd ? 'bg-emerald-50 text-emerald-800 ring-2 ring-emerald-300' : picked ? 'bg-slate-50 text-slate-400 ring-slate-200' : f >= 1 && i !== odd ? 'bg-sky-50 text-slate-900 ring-sky-200' : 'bg-white text-slate-900 ring-slate-200'}`}>
-                  {picked && i === odd ? `✓ ${w}` : w}
+            <div className="absolute top-[12%] bottom-[4%] left-[3%] aspect-square rounded-2xl bg-gradient-to-br from-amber-700 to-amber-900 p-1">
+              <div className="grid h-full w-full grid-cols-4 overflow-hidden rounded-xl">
+                {[...Array(16).keys()].map((i) => {
+                  const r = Math.floor(i / 4); const c = i % 4; const k = `${r},${c}`;
+                  const here = at[0] === r && at[1] === c;
+                  const water = m.water.includes(k);
+                  return (
+                    <div key={k} className={`grid place-items-center text-lg sm:text-2xl ${water ? 'tp-water' : walked && trail.includes(k) ? 'tp-sand' : (r + c) % 2 ? 'tp-grass-a' : 'tp-grass-b'}`}>
+                      {here ? <span className="tp-explorer">{won ? '🥳' : '🧒'}</span>
+                        : m.rocks.includes(k) ? <span className="tp-drop">🪨</span>
+                          : water ? <span className="text-sm">🌊</span>
+                            : gemAt[0] === r && gemAt[1] === c && !hasGem ? <span className="tp-gem">💎</span>
+                              : goal[0] === r && goal[1] === c ? <span className={hasGem ? 'tp-goal' : ''}>{hasGem ? '💰' : '🔐'}</span> : ''}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="tp-plank absolute top-[12%] right-[3%] flex h-[24%] w-[29%] flex-wrap content-center items-center justify-center gap-1 rounded-xl p-1">
+              {cards.length === 0 && <span className="text-center text-xs font-bold text-amber-50">Your arrows</span>}
+              {cards.map((d, i) => <span key={i} className={`grid h-6 w-6 place-items-center rounded-md text-sm font-black text-white ${walked && !won && i === walked - 1 ? 'bg-amber-500' : 'bg-teal-500'}`}>{ARROW[d]}</span>)}
+            </div>
+            <div className="absolute top-[44%] right-[3%] grid h-[29%] w-[29%] grid-cols-3 grid-rows-2 gap-1">
+              {['.', 'u', '.', 'l', 'd', 'r'].map((d, i) => d === '.' ? <span key={i} /> : <span key={i} className="grid place-items-center rounded-lg bg-gradient-to-b from-sky-400 to-blue-600 text-base font-black text-white shadow-[0_2px_0_#1e40af]">{ARROW[d]}</span>)}
+            </div>
+            <span className={`absolute right-[3%] bottom-[4%] grid h-[16%] w-[29%] place-items-center rounded-xl bg-gradient-to-b from-orange-400 to-rose-500 text-base font-black text-white shadow-[0_3px_0_#be123c] ${f === goAt ? 'translate-y-0.5' : ''}`}>Go ▶</span>
+          </>
+        ),
+        hand: f >= 1 && f <= addEnd ? [...PAD_POS[m.moves[f - 1]], true] : f === goAt ? [82.5, 88, true] : IDLE,
+        step: f === 0 ? 0 : f <= addEnd ? 1 : 2,
+        phase: f === 0 ? 'Gem first, then the chest' : f <= addEnd ? 'Add arrow cards' : !hasGem ? 'Go! Off to the gem…' : !won ? 'Got the gem 💎 — the chest opens!' : 'Treasure found! 🎉'
+      };
+    }
+  },
+
+  // Odd One Out (2026-11-18, like the game): a coloured stage, four picture cards (or word cards), tap the odd one —
+  // it bounces with a ✓ — then the secret rule is told.
+  'odd-one-out': {
+    frames: 7,
+    draw: (f, ex) => {
+      const [title, bg, cards, odd, why, words] = [
+        ['Who doesn’t fit in? 🕵️', 'from-emerald-400 via-teal-400 to-cyan-500', ['🍎', '🍌', '🥕', '🍇'], 2, '🍎 🍌 🍇 are fruits — 🥕 is a vegetable.', false],
+        ['Up in the sky? ☁️', 'from-sky-300 via-sky-400 to-blue-500', ['🦅', '✈️', '🦋', '🐘'], 3, '🦅 ✈️ 🦋 can fly — 🐘 cannot.', false],
+        ['Read and think 📖', 'from-violet-400 via-purple-400 to-indigo-500', ['Monday', 'apple', 'Friday', 'Sunday'], 1, 'Monday, Friday, Sunday are days.', true]
+      ][ex];
+      const picked = f >= 3;
+      const cardPos = (i) => [12 + ((i % 2) + 0.5) * 38, 22 + (Math.floor(i / 2) + 0.5) * 27];
+      return {
+        body: (
+          <div className={`absolute inset-0 bg-gradient-to-br ${bg}`}>
+            <span className="absolute top-[3%] right-[3%] rounded-full bg-white/90 px-2 py-0.5 text-[0.65rem] font-black text-slate-900 shadow-sm sm:text-xs">{title}</span>
+            <div className="absolute inset-x-[12%] top-[22%] bottom-[24%] grid grid-cols-2 grid-rows-2 gap-2">
+              {cards.map((c, i) => (
+                <div key={c} className={`relative grid place-items-center rounded-2xl transition-all duration-300 ${words ? ['bg-amber-50', 'bg-sky-50', 'bg-pink-50', 'bg-lime-50'][i] : 'bg-white/95'} ${
+                  picked && i === odd ? '-translate-y-1 shadow-[0_4px_0_#047857] ring-[3px] ring-emerald-400' : picked ? 'scale-95 opacity-60' : 'shadow-[0_4px_0_rgba(15,23,42,0.18)]'}`}>
+                  <span className={words ? 'text-sm font-black text-slate-900 sm:text-base' : 'text-2xl drop-shadow sm:text-3xl'}>{c}</span>
+                  {picked && i === odd && <span className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-emerald-500 text-xs font-black text-white">✓</span>}
                 </div>
               ))}
             </div>
-            {f >= 4 && <p className="absolute inset-x-[6%] bottom-[3%] rounded-lg bg-amber-50 px-2 py-1 text-center text-xs font-bold text-amber-900 ring-1 ring-amber-200 sm:text-sm">💡 {why}</p>}
-          </>
+            {f >= 4 && <p className="absolute inset-x-[4%] bottom-[3%] truncate rounded-xl bg-emerald-50 px-2 py-1 text-center text-[0.65rem] font-bold text-emerald-900 ring-1 ring-emerald-200 sm:text-xs">💡 {why}</p>}
+          </div>
         ),
-        hand: f === 2 || f === 3 ? [28 + (odd % 2) * 44, 45 + Math.floor(odd / 2) * 25, f === 3] : IDLE,
+        hand: f === 2 || f === 3 ? [...cardPos(odd), f === 3] : IDLE,
         step: f === 0 ? 0 : f < 3 ? 1 : 2,
-        phase: ['Four things', 'Three belong', 'Which is odd?', 'Correct!', 'Correct!', 'Correct!'][f]
+        phase: ['Four cards', 'Three share a rule', 'Which is odd?', 'Found it!', 'Read why 💡', 'Read why 💡', 'Read why 💡'][f]
       };
     }
   },
@@ -468,43 +565,106 @@ export const DEMOS = {
     }
   },
 
-  // Pattern Path: a row of colours/shapes/numbers with a dashed gap; find the repeat, pick what comes next.
+  // Pattern Path (2026-11-18, like the game): the row on its stage — a train, a necklace or stepping stones — with a
+  // glowing ?, four big picture choices; the right one fills the gap and what repeats is shown.
   'pattern-path': {
-    frames: 6,
+    frames: 7,
     draw: (f, ex) => {
-      const [run, opts, right, unit] = [
-        [['🔴', '🔵', '🔴', '🔵', '🔴'], ['🟢', '🔵', '🔴'], 1, 2],
-        [['⭐', '⭐', '❤️', '⭐', '⭐'], ['⭐', '🌙', '❤️'], 2, 3],
-        [['2', '4', '6', '8', '10'], ['11', '12', '14'], 1, 0]
+      const [style, title, bg, row, opts, right, unit] = [
+        ['train', '🚂 Fill the train!', 'from-sky-300 via-sky-400 to-emerald-300', ['🐶', '🐸', '🐶', '🐸', '🐶'], ['🐱', '🐸', '🐶', '🐵'], 1, ['🐶', '🐸']],
+        ['beads', '📿 Finish the necklace!', 'from-fuchsia-400 via-pink-400 to-rose-300', ['🔴', '🔴', '🔵', '🔴', '🔴'], ['🔴', '🟢', '🔵', '🟡'], 2, ['🔴', '🔴', '🔵']],
+        ['stones', '🪨 Cross the river!', 'from-cyan-400 via-sky-500 to-blue-600', ['⭐', '🌙', '☀️', '⭐', '🌙'], ['⭐', '☀️', '🌙', '❤️'], 1, ['⭐', '🌙', '☀️']]
       ][ex];
       const picked = f >= 3;
+      const spot = (item, i, gap) => {
+        const content = gap ? (picked ? opts[right] : <span className="font-black text-white">?</span>) : item;
+        const glow = gap ? (picked ? 'ring-2 ring-emerald-300' : 'pp-glow ring-2 ring-white') : f >= 1 && f < 3 && i < unit.length ? 'ring-2 ring-amber-300' : '';
+        if (style === 'train') return <span className={`grid aspect-square w-full place-items-center rounded-t-lg rounded-b-sm ${gap && !picked ? 'bg-white/30' : ['bg-rose-400', 'bg-amber-400', 'bg-emerald-400', 'bg-sky-400', 'bg-violet-400', 'bg-rose-400'][i]} ${glow}`}><span className="grid h-[72%] w-[72%] place-items-center rounded-md bg-white/85 text-base sm:text-xl">{content}</span></span>;
+        if (style === 'stones') return <span className={`grid aspect-[4/3] w-full place-items-center rounded-[50%] text-base shadow-[0_3px_0_rgba(15,23,42,0.35)] sm:text-xl ${gap && !picked ? 'bg-white/25' : 'bg-gradient-to-b from-stone-200 to-stone-400'} ${glow}`}>{content}</span>;
+        return <span className={`grid aspect-square w-full place-items-center rounded-full text-base sm:text-xl ${gap && !picked ? 'bg-white/30' : 'bg-gradient-to-br from-white to-pink-100'} ${glow}`}>{content}</span>;
+      };
+      const optPos = (i) => [20 + ((i % 2) + 0.5) * 30, 56 + (Math.floor(i / 2) + 0.5) * 20];
       return {
         body: (
           <>
-            <p className="absolute inset-x-0 top-[14%] text-center text-sm font-bold text-slate-500">{ex === 2 ? 'Which number comes next?' : 'What comes next?'}</p>
-            <div className="absolute inset-x-[3%] top-[27%] flex h-[24%] items-center justify-center gap-1">
-              {[...run, null].map((n, i) => (
-                <span key={i} className={`grid aspect-square h-full max-w-[16%] place-items-center rounded-xl text-xl font-black sm:text-2xl ${
-                  n === null ? (picked ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-400' : 'border-2 border-dashed border-sky-300 bg-sky-100 text-sky-700') : f >= 1 && f < 3 && (unit ? i < unit : true) ? 'bg-amber-100 text-slate-900 ring-2 ring-amber-300' : 'bg-slate-100 text-slate-900'}`}>
-                  {n ?? (picked ? opts[right] : '?')}
-                </span>
-              ))}
+            <div className={`absolute inset-x-[3%] top-[3%] h-[48%] overflow-hidden rounded-2xl bg-gradient-to-br ${bg}`}>
+              <span className="absolute top-[5%] right-[3%] rounded-full bg-white/90 px-2 py-0.5 text-[0.6rem] font-black text-slate-900 sm:text-xs">{title}</span>
+              <div className="absolute inset-x-[3%] top-[30%] bottom-[6%] flex items-center justify-center gap-[1.5%]">
+                {style === 'train' && <span className="w-[12%] text-center text-2xl leading-none sm:text-3xl">🚂</span>}
+                {style === 'beads' && <span aria-hidden className="absolute inset-x-[4%] top-1/2 h-0.5 bg-amber-200" />}
+                {[...row, null].map((item, i) => <span key={i} className={`relative flex items-center ${style === 'train' ? 'w-[12%]' : 'w-[13.5%]'}`}>{spot(item, i, item === null)}</span>)}
+              </div>
             </div>
-            <div className="absolute inset-x-[8%] top-[60%] bottom-[6%] grid grid-cols-3 gap-2">
+            <div className="absolute inset-x-[20%] top-[56%] bottom-[4%] grid grid-cols-2 grid-rows-2 gap-1.5">
               {opts.map((o, i) => (
-                <div key={o} className={`grid place-items-center rounded-2xl text-2xl font-black ring-1 sm:text-3xl ${picked && i === right ? 'bg-emerald-50 text-emerald-800 ring-2 ring-emerald-300' : 'bg-slate-50 text-slate-900 ring-slate-200'}`}>{o}</div>
+                <div key={o} className={`relative grid place-items-center rounded-xl bg-white text-xl transition-all sm:text-2xl ${picked && i === right ? '-translate-y-0.5 shadow-[0_3px_0_#047857] ring-[3px] ring-emerald-400' : picked ? 'scale-95 opacity-50' : 'shadow-[0_3px_0_rgba(15,23,42,0.15)] ring-2 ring-slate-100'}`}>
+                  {o}
+                  {picked && i === right && <span className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-emerald-500 text-xs font-black text-white">✓</span>}
+                </div>
               ))}
             </div>
           </>
         ),
-        hand: f === 2 || f === 3 ? [22 + right * 28, 77, f === 3] : IDLE,
+        hand: f === 2 || f === 3 ? [...optPos(right), f === 3] : IDLE,
         step: f === 0 ? 0 : f < 3 ? 1 : 2,
-        phase: f === 0 ? 'Look at the row' : f < 3 ? (ex === 2 ? 'Add 2 each time' : 'Find what repeats') : 'Correct!'
+        phase: f === 0 ? 'Look at the row' : f < 3 ? `It repeats ${unit.join('')}` : 'Correct! 🎉'
       };
     }
   },
 
-  // Mini Maze Mission: walk the bunny through the walls with the arrow buttons, grab the star, reach the carrot.
+  // Treasure Path for Young Thinkers (2026-11-18, like their game): the user's ancient-map picture; a riddle card with a
+  // wooden banner and bright answer buttons; a right answer walks the explorer on, and at last the chest is reached.
+  'treasure-path:young': {
+    frames: 11,
+    draw: (f, ex) => {
+      const riddles = [
+        [['I say “Moo”. Who am I?', ['🐶', '🐄', '🐔'], 1], ['What comes next? 🔴🔵🔴🔵', ['🔵', '🔴', '🟢'], 1]],
+        [['How many ⭐? ⭐⭐⭐⭐', ['3', '5', '4'], 2], ['Which is the BIGGEST?', ['🐭', '🐘', '🐈'], 1]],
+        [['Today is Thursday. Tomorrow?', ['Sunday', 'Friday', 'Monday'], 1], ['Opposite of HOT 🔥?', ['❄️', '☀️', '⬆️'], 0]]
+      ][ex];
+      // f0 map · f1 riddle 1 · f2 point · f3 tap · f4 walk · f5 riddle 2 · f6 point · f7 tap · f8 walk · f9–10 treasure
+      const at = f >= 9 ? 4 : f >= 8 ? 2 : f >= 4 ? 1 : 0;
+      const q = f >= 5 ? riddles[1] : riddles[0];
+      const place = TH_PLACES[f >= 5 ? 1 : 0];
+      const showQ = (f >= 1 && f <= 3) || (f >= 5 && f <= 7);
+      const tapped = f === 3 || f === 7;
+      const pointing = f === 2 || f === 6 || tapped;
+      const spot = TH_NODES[at];
+      const pills = ['from-orange-400 to-orange-500', 'from-violet-500 to-violet-700', 'from-lime-500 to-green-600'];
+      const optPos = (i) => [24 + i * 26, 87];
+      return {
+        body: (
+          <>
+            <div className="absolute top-[3%] left-1/2 h-[55%] -translate-x-1/2 overflow-hidden rounded-xl" style={{ aspectRatio: `${TH_W} / ${TH_H}` }}>
+              <img src={thMapArt} alt="" className="absolute inset-0 h-full w-full" />
+              {at > 0 && <span className="th-medal absolute aspect-square w-[15.6%] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${TH_NODES[0][0]}%`, top: `${TH_NODES[0][1]}%` }} />}
+              {at === 4 && <span className="tp-goal absolute -translate-x-1/2 -translate-y-1/2 text-2xl" style={{ left: `${TH_NODES[4][0]}%`, top: `${TH_NODES[4][1]}%` }}>✨</span>}
+              <img src={thExplorerArt} alt="" className={`absolute aspect-square w-[15.6%] -translate-x-1/2 -translate-y-1/2 rounded-full transition-all duration-700 ${f === 4 || f === 8 ? 'tp-walking' : ''}`} style={{ left: `${spot[0]}%`, top: `${spot[1]}%` }} />
+            </div>
+            {showQ && (
+              <div className="th-card absolute inset-x-[6%] top-[66%] bottom-[2%] rounded-2xl px-2 pt-1">
+                <span className="th-banner absolute -top-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-md px-2 py-0.5 text-[0.6rem] font-black whitespace-nowrap text-amber-50 sm:text-xs"><img src={place.art} alt="" className="h-4 w-4" />{place.name}</span>
+                <p className="mt-2.5 truncate text-center text-xs font-black text-[#1e2a5a] sm:text-sm">{q[0]}</p>
+                <div className="absolute inset-x-[5%] top-[52%] bottom-[10%] grid grid-cols-3 gap-1.5">
+                  {q[1].map((o, i) => (
+                    <span key={o} className={`grid place-items-center rounded-full bg-gradient-to-b text-xs font-black text-white sm:text-sm ${pills[i]} ${tapped && i === q[2] ? 'ring-2 ring-emerald-300' : tapped ? 'opacity-50' : ''}`}>{o}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(f === 0 || f === 4 || f === 8) && <p className="absolute inset-x-[4%] top-[72%] text-center text-sm font-black text-amber-900">{f === 0 ? 'Solve riddles to reach the chest!' : 'Walking on… 🚶'}</p>}
+            {f >= 9 && <p className="oo-pop th-card absolute inset-x-[12%] top-[68%] rounded-xl py-2 text-center text-base font-black text-amber-900">💰 Treasure found! 🎉</p>}
+          </>
+        ),
+        hand: pointing ? [...optPos(q[2]), tapped] : IDLE,
+        step: f === 0 ? 0 : f < 9 ? 1 : 2,
+        phase: f === 0 ? 'The ancient map' : showQ ? (tapped ? 'Correct!' : 'Solve the riddle') : f < 9 ? 'Walk on!' : 'Treasure! 🎉'
+      };
+    }
+  },
+
+  // Mini Maze Mission (2026-11-18, like the game): a garden maze in a wooden frame, hedges for walls; walk the rabbit
+  // with the blue arrows, grab the star, keep away from the lion, reach the carrot.
   'mini-maze-mission': {
     frames: 8,
     draw: (f, ex) => {
@@ -518,28 +678,30 @@ export const DEMOS = {
       return {
         body: (
           <>
-            <div className="absolute top-[12%] bottom-[4%] left-[3%] grid aspect-square grid-cols-4 rounded-xl bg-emerald-50 p-0.5 ring-2 ring-slate-700">
+            <div className="mm-frame absolute top-[12%] bottom-[4%] left-[3%] aspect-square rounded-xl p-1">
+            <div className="grid h-full w-full grid-cols-4 grid-rows-4 overflow-hidden rounded-lg">
               {[...Array(16).keys()].map((i) => {
                 const r = Math.floor(i / 4); const c = i % 4; const k = `${r},${c}`; const w = wallsOf(m, r, c);
                 const here = at[0] === r && at[1] === c;
                 return (
-                  <div key={k} className={`grid place-items-center border-[3px] text-xl sm:text-2xl ${w.n ? 'border-t-slate-700' : 'border-t-transparent'} ${w.s ? 'border-b-slate-700' : 'border-b-transparent'} ${w.w ? 'border-l-slate-700' : 'border-l-transparent'} ${w.e ? 'border-r-slate-700' : 'border-r-transparent'}`}>
-                    {here ? '🐰' : goal[0] === r && goal[1] === c ? '🥕' : k === m.star && !starTaken ? '⭐' : k === m.puddle ? '💦' : ''}
+                  <div key={k} className={`grid place-items-center border-[3px] text-xl sm:text-2xl ${r === m.start[0] && c === m.start[1] ? 'bg-lime-200' : (r + c) % 2 ? 'bg-[#8fd94a]' : 'bg-[#9ae354]'} ${w.n && r > 0 ? 'border-t-green-700' : 'border-t-transparent'} ${w.s && r < 3 ? 'border-b-green-700' : 'border-b-transparent'} ${w.w && c > 0 ? 'border-l-green-700' : 'border-l-transparent'} ${w.e && c < 3 ? 'border-r-green-700' : 'border-r-transparent'}`}>
+                    {here ? <span className="tp-explorer">🐰</span> : goal[0] === r && goal[1] === c ? <span className="tp-goal">🥕</span> : k === m.star && !starTaken ? <span className="mm-star">⭐</span> : k === m.puddle ? <span className="tp-drop">🦁</span> : ''}
                   </div>
                 );
               })}
             </div>
+            </div>
             <div className="absolute top-[23%] right-[3%] grid h-[62%] w-[31%] grid-cols-3 grid-rows-3 gap-1">
               {['.', 'u', '.', 'l', 'b', 'r', '.', 'd', '.'].map((d, i) => (d === '.' ? <span key={i} /> : d === 'b'
-                ? <span key={i} className="grid place-items-center text-lg">🐰</span>
-                : <span key={i} className={`grid place-items-center rounded-xl text-base font-black shadow-sm ring-2 ${dir === d ? 'bg-teal-100 text-teal-800 ring-teal-400' : 'bg-white text-slate-700 ring-teal-200'}`}>{ARROW[d]}</span>))}
+                ? <span key={i} className="grid place-items-center rounded-full bg-emerald-100 text-lg">🐰</span>
+                : <span key={i} className={`grid place-items-center rounded-xl bg-gradient-to-b from-sky-400 to-blue-600 text-base font-black text-white ${dir === d ? 'translate-y-0.5 shadow-[0_1px_0_#1e40af]' : 'shadow-[0_3px_0_#1e40af]'}`}>{ARROW[d]}</span>))}
             </div>
             <span className="absolute top-1.5 right-2 z-20 rounded-full bg-white/95 px-2 py-0.5 text-xs font-black text-amber-600 ring-1 ring-amber-100">⭐ {starTaken ? 1 : 0}/1</span>
           </>
         ),
         hand: dir ? [...MAZE_PAD[dir], true] : IDLE,
         step: f < 1 ? 0 : won ? 2 : 1,
-        phase: f < 1 ? 'Bunny to the carrot' : won ? 'Yummy carrot!' : f === 1 ? 'Which way?' : 'Step by step'
+        phase: f < 1 ? 'Rabbit to the carrot — not the lion!' : won ? 'Yummy carrot! 🥕' : f === 1 ? 'Which way?' : 'Step by step'
       };
     }
   },
