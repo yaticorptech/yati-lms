@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 const cb = await import('../../src/career/data/bands/colouringBook.js');
 
 test('every picture part has a known colour and a number spot inside the page', () => {
-  for (const p of cb.PICTURES) {
+  for (const p of [...cb.PICTURES, ...cb.SCENES]) {
     assert.ok(p.parts.length >= 2, p.name);
     for (const part of p.parts) {
       assert.ok(cb.COLOURS[part.c], `${p.name}: unknown colour ${part.c}`);
@@ -23,7 +23,10 @@ test('every level of both bands has enough pictures, and the crayons include eve
       const pic = cb.pickPicture(cfg);
       const crayons = cb.paletteFor(pic, cfg.extraColours);
       for (const k of cb.coloursOf(pic)) assert.ok(crayons.includes(k), `${pic.name} is missing ${k}`);
+      assert.ok(crayons.length <= 8, `${pic.name}: ${crayons.length} crayons, more than 2 rows of 4`);
     }
   }
-  assert.equal(cb.bookConfig('foundation', 1).mode, 'copy');
+  assert.equal(cb.bookConfig('foundation', 1).mode, 'remember');
+  assert.equal(cb.bookConfig('foundation', 1).showMs, 7000);
+  assert.ok(cb.pickPicture(cb.bookConfig('foundation', 12)).parts.length >= 10, 'later levels: bigger scenes');
 });

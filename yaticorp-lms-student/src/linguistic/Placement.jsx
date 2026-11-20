@@ -15,7 +15,7 @@ import { Finish } from './session/Finish';
 const BAND_COLOR = { beginner: 'green', intermediate: 'gold', advanced: 'red' };
 const BLURB = {
     beginner: 'We will start with everyday words, simple sentences and short conversations.',
-    intermediate: 'Beginner is open for revision, and Intermediate is ready for you.',
+    intermediate: 'Section 1 is open for revision, and Section 3 is ready for you.',
     advanced: 'Every level is open. Start with Advanced, or revise anything below it.'
 };
 

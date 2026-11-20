@@ -86,6 +86,15 @@ const reverseOf = (code) => {
             if (ts.length === ss.length) ts.forEach((t, i) => tile(t, ss[i]));
         }
     }
+    // Sections 6–10 (2026-11-17): a Chinese or Japanese sentence's sound, and each of its tiles' (one per word of it).
+    for (const [w, say] of require('../../more').sectionWordSaysOf(code)) { if (!whole.has(w)) whole.set(w, say); if (wordsOf(w).length === 1) tile(w, say); }
+    for (const s of require('../../more').sectionTilesOf(code)) {
+        if (!whole.has(s.text)) whole.set(s.text, s.say);
+        const ss = String(s.say).trim().split(/\s+/);
+        if (s.tiles.length === ss.length) s.tiles.forEach((t, i) => tile(t, ss[i]));
+        const pairs = pairWords(ss.join(' '), s.gloss);
+        if (pairs && !hints.has(s.text)) hints.set(s.text, pairs);
+    }
     return (reverse[code] = { whole, tiles, hints });
 };
 

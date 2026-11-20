@@ -3,14 +3,13 @@ import GameShell from './GameShell';
 import useGameProgress, { starsFor, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
 import useTimedRound from './useTimedRound';
-import { COLOURS, bookConfig, coloursOf, paletteFor, pickPicture } from '../../data/bands/colouringBook';
+import { COLOURS, bookConfig, paletteFor, pickPicture } from '../../data/bands/colouringBook';
 
 const SOLVED_MS = 1700;
 const MISS_MS = 500;
 const PEEK_MS = 2000;
 const INK = '#1f2937';
 
-const MODE_BADGE = { copy: '🖍️ Colour it in', numbers: '🔢 Colour by number', remember: '🧠 Remember the colours' };
 
 /**
  * 🖍️ Colouring Book (2026-11-16, replaces Pixel Painter; same id so records are kept). An outline picture as in a
@@ -23,32 +22,67 @@ export default function PictureLogic({ onExit }) {
   return <Round key={`${progress.level}-${progress.attempt}`} progress={progress} onExit={onExit} />;
 }
 
-/** One picture as an outline: `fills` per part (a colour key or null). Taps go to `onPart`. */
+/** A crayon, standing up: a pointed tip, a paper wrapper with two bands, in its colour. */
+function Crayon({ hex, label = '' }) {
+  return (
+    <span className="relative block h-12 w-7 sm:h-16 sm:w-9" aria-hidden>
+      <svg viewBox="0 0 28 56" className="h-full w-full drop-shadow-sm">
+        <path d="M8 16 L14 2 L20 16 Z" fill={hex} stroke="rgba(0,0,0,0.25)" strokeWidth="1" strokeLinejoin="round" />
+        <path d="M11 9 L14 2 L17 9 Z" fill="rgba(0,0,0,0.25)" />
+        <rect x="6" y="15" width="16" height="39" rx="3" fill={hex} stroke="rgba(0,0,0,0.25)" strokeWidth="1" />
+        <rect x="6" y="22" width="16" height="4" fill="rgba(255,255,255,0.55)" />
+        <rect x="6" y="44" width="16" height="4" fill="rgba(255,255,255,0.55)" />
+        <rect x="9" y="17" width="3" height="34" rx="1.5" fill="rgba(255,255,255,0.3)" />
+      </svg>
+      {label && <span className="absolute inset-x-0 top-[55%] text-center text-xs font-black text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">{label}</span>}
+    </span>
+  );
+}
+
+/**
+ * One picture as an outline: `fills` per part (a colour key or null). Taps go to `onPart`.
+ * Drawn like a colouring-book page (2026-11-18): smooth, thinner rounded lines; detail lines finer than the outlines;
+ * a decor line may sit right after a part (`after`) so a background's pattern never runs over the character; and a
+ * scene (`framed`) is a page with soft rounded corners rather than a hard black box.
+ */
 function Drawing({ pic, fills, numbers = null, miss = null, onPart = null, small = false, glow = false }) {
+  const decorAfter = (i) => (pic.decor || []).filter((d) => d.after === i);
+  const decorLine = (d, key) => (
+    <path key={key} d={d.d} fill={d.fill || 'none'} stroke={d.stroke || INK} strokeWidth={small ? 1.6 : d.stroke === '#ffffff' ? 1.6 : 1} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+  );
+  const clipId = `page-${pic.name.replace(/\W/g, '')}`;
   return (
     <svg viewBox="-2 -2 104 104" className={`h-auto w-full ${glow ? 'drop-shadow-[0_0_12px_rgba(16,185,129,0.55)]' : ''}`} role={onPart ? 'group' : 'img'} aria-label={pic.name}>
-      {pic.parts.map((p, i) => {
-        const fill = fills[i] ? COLOURS[fills[i]].hex : miss === i ? '#fecdd3' : '#ffffff';
-        return (
-          <path
-            key={i}
-            d={p.d}
-            fill={fill}
-            stroke={miss === i ? '#e11d48' : INK}
-            strokeWidth={small ? 2 : miss === i ? 2.4 : 1.6}
-            strokeLinejoin="round"
-            className={onPart ? 'cursor-pointer transition-[fill] duration-200 hover:brightness-95' : ''}
-            onClick={onPart ? () => onPart(i) : undefined}
-            role={onPart ? 'button' : undefined}
-            tabIndex={onPart ? 0 : undefined}
-            aria-label={onPart ? `Part ${i + 1}${fills[i] ? `, ${COLOURS[fills[i]].name}` : ', white'}` : undefined}
-            onKeyDown={onPart ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPart(i); } } : undefined}
-          />
-        );
-      })}
-      {(pic.decor || []).map((d, i) => (
-        <path key={`d${i}`} d={d.d} fill={d.fill || 'none'} stroke={INK} strokeWidth={small ? 2 : 1.6} strokeLinecap="round" pointerEvents="none" />
-      ))}
+      {pic.framed && (
+        <defs>
+          <clipPath id={clipId}><rect x="0" y="0" width="100" height="100" rx="7" /></clipPath>
+        </defs>
+      )}
+      <g clipPath={pic.framed ? `url(#${clipId})` : undefined}>
+        {pic.parts.map((p, i) => {
+          const fill = fills[i] ? COLOURS[fills[i]].hex : miss === i ? '#fecdd3' : '#ffffff';
+          return [
+            <path
+              key={i}
+              d={p.d}
+              fill={fill}
+              stroke={miss === i ? '#e11d48' : INK}
+              strokeWidth={small ? 2 : miss === i ? 2 : 1.25}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              className={onPart ? 'cursor-pointer transition-[fill] duration-200 hover:opacity-90' : ''}
+              onClick={onPart ? () => onPart(i) : undefined}
+              role={onPart ? 'button' : undefined}
+              tabIndex={onPart ? 0 : undefined}
+              aria-label={onPart ? `Part ${i + 1}${fills[i] ? `, ${COLOURS[fills[i]].name}` : ', white'}` : undefined}
+              onKeyDown={onPart ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPart(i); } } : undefined}
+            />,
+            ...decorAfter(i).map((d, k) => decorLine(d, `a${i}-${k}`))
+          ];
+        })}
+        {(pic.decor || []).filter((d) => d.after == null).map((d, i) => decorLine(d, `d${i}`))}
+      </g>
+      {pic.framed && <rect x="0" y="0" width="100" height="100" rx="7" fill="none" stroke={INK} strokeWidth="1.6" pointerEvents="none" />}
       {numbers &&
         pic.parts.map((p, i) =>
           fills[i] ? null : (
@@ -63,7 +97,7 @@ function Drawing({ pic, fills, numbers = null, miss = null, onPart = null, small
 
 function Round({ progress, onExit }) {
   const band = progress.ageBand || 'foundation';
-  const config = useMemo(() => bookConfig(band, progress.levelNo), [band, progress.levelNo]);
+  const config = useMemo(() => bookConfig(band, progress.levelNo, progress.level), [band, progress.levelNo, progress.level]);
   const { mode } = config;
   const [pic, setPic] = useState(() => pickPicture(config));
   const [palette, setPalette] = useState(() => paletteFor(pic, config.extraColours));
@@ -89,14 +123,22 @@ function Round({ progress, onExit }) {
   const stars = over && passed ? Math.max(1, timeStars - (misses > 4 ? 1 : 0) - (peeksUsed > 1 ? 1 : 0)) : 0;
   useRecordStars(progress, over, stars, { correct: solved, hints: peeksUsed, score: solved, limitMs: config.seconds * 1000 });
 
-  const numbers = useMemo(() => (mode === 'numbers' ? Object.fromEntries(coloursOf(pic).map((k, i) => [k, i + 1])) : null), [mode, pic]);
+  const numbers = null; // colour-by-number retired (2026-11-17): every level is from memory
   const left = pic.parts.filter((p, i) => fills[i] !== p.c).length;
-  const exampleUp = mode === 'copy' || (mode === 'remember' && (showing || peeking)) || reveal;
-  const looking = mode === 'remember' && showing && !reveal;
+  const looking = showing && !reveal;
+  // While looking or peeking the big scene shows its colours; then only the outline and what the student coloured.
+  const shown = looking || peeking ? pic.parts.map((p) => p.c) : fills;
+  // The 7-second look, counted down on screen.
+  const [lookLeft, setLookLeft] = useState(Math.ceil(config.showMs / 1000));
+  useEffect(() => {
+    if (!started || !looking) return undefined;
+    const t = setInterval(() => setLookLeft((n) => Math.max(0, n - 1)), 1000);
+    return () => clearInterval(t);
+  }, [started, looking]);
 
   // Remember mode: the example shows for a while after each new picture, then hides.
   useEffect(() => {
-    if (mode !== 'remember' || !started || !showing) return undefined;
+    if (!started || !showing) return undefined;
     const t = setTimeout(() => setShowing(false), config.showMs);
     return () => clearTimeout(t);
   }, [mode, started, showing, pic, config.showMs]);
@@ -131,6 +173,7 @@ function Round({ progress, onExit }) {
         setFills(next.parts.map(() => null));
         setCrayon(null);
         setShowing(true);
+        setLookLeft(Math.ceil(config.showMs / 1000));
         setPeeksLeft(config.peeks);
       }
       setReveal(false);
@@ -139,7 +182,7 @@ function Round({ progress, onExit }) {
   }, [reveal, solved, config, seen]);
 
   const colourPart = (i) => {
-    if (over || reveal || looking || fills[i] === pic.parts[i].c) return;
+    if (over || reveal || looking || peeking || fills[i] === pic.parts[i].c) return;
     if (!crayon) { setNudge(true); return; }
     if (pic.parts[i].c !== crayon) {
       setMiss(i);
@@ -155,26 +198,23 @@ function Round({ progress, onExit }) {
     }
   };
 
-  const objective = {
-    copy: `Pick a crayon on the right, then tap a part of the picture to colour it. Use the same colours as the small picture. Colour ${config.puzzles} pictures before time runs out!`,
-    numbers: `Colour by number! Each crayon has a number. Pick a crayon, then tap every part with the same number. Colour ${config.puzzles} pictures before time runs out!`,
-    remember: `Look at the small picture — it hides after a few seconds. Then colour the big picture from memory. Stuck? Press Peek (2 peeks). Colour ${config.puzzles} pictures!`
-  }[mode];
+  const thing = config.objects ? 'picture' : 'scene';
+  const objective = `Look at the coloured ${thing} — it hides after ${config.showMs / 1000} seconds! Then pick a crayon below and colour every part from memory. Forgot a colour? Press Peek to see the coloured ${thing} again for 2 seconds (${config.peeks} peeks). Colour ${config.puzzles} ${thing}s before time runs out!`;
 
   const status = reveal
     ? `You coloured ${pic.name}! ${pic.emoji}`
     : looking
       ? 'Look at the colours carefully… 👀'
       : nudge
-        ? 'First pick a crayon on the right 👉'
+        ? 'First pick a crayon below 👇'
         : !crayon
-          ? 'Pick a crayon on the right 👉'
+          ? 'Pick a crayon below 👇'
           : `${left} part${left === 1 ? '' : 's'} left to colour`;
 
   return (
     <GameShell
       title="Colouring Book"
-      blurb={`Colour ${config.puzzles} pictures before time runs out.`}
+      blurb={`Remember ${config.puzzles} ${thing}s and colour them in.`}
       tone="bg-gradient-to-br from-pink-500 to-orange-400"
       score={`${solved}/${config.puzzles}`}
       scoreLabel="Coloured"
@@ -193,52 +233,53 @@ function Round({ progress, onExit }) {
               passed,
               stars,
               headline: passed ? `Level ${progress.level} cleared!` : 'Time’s up',
-              detail: `${Math.min(solved, config.puzzles)} of ${config.puzzles} pictures coloured`,
+              detail: `${Math.min(solved, config.puzzles)} of ${config.puzzles} ${thing}s coloured`,
               atEnd: progress.atEnd,
               onNext: progress.advance,
               onRetry: progress.retry
             }
           : null
       }
-      footer={<p className="text-center text-sm text-ink-500">Pick a crayon · tap a part to colour it · a wrong colour flashes red</p>}
+      footer={<p className="text-center text-sm text-ink-500">Look for 7 seconds · pick a crayon · tap a part to colour it · a wrong colour flashes red</p>}
     >
       {started && !over && (
         <div className="mx-auto max-w-2xl select-none">
           <div className="mb-3 flex flex-wrap items-center justify-center gap-2 text-center">
-            <span className="rounded-full bg-pink-100 px-3 py-1 text-xs font-black text-pink-700">{MODE_BADGE[mode]}</span>
+            <span className="rounded-full bg-pink-100 px-3 py-1 text-xs font-black text-pink-700">🧠 {pic.emoji} Colour {pic.name} from memory</span>
             <p className={`text-base font-black ${reveal ? 'text-emerald-600' : nudge ? 'text-rose-600' : 'text-ink-700'}`} aria-live="polite">{status}</p>
           </div>
 
-          <div className="flex items-start gap-3 sm:gap-5">
-            {/* The page: the small example on top, the outline picture big under it. */}
-            <div className="min-w-0 flex-1 rounded-3xl bg-white p-3 shadow-sm ring-1 ring-line-200 sm:p-4">
-              {mode !== 'numbers' && (
-                <div className="mx-auto mb-2 w-24 rounded-xl bg-amber-50 p-1.5 shadow-sm ring-1 ring-amber-200 sm:w-28">
-                  <p className="mb-0.5 text-center text-[0.6rem] leading-tight font-black text-amber-800">Colour it like this</p>
-                  <div className="relative">
-                    <Drawing pic={pic} fills={pic.parts.map((p) => p.c)} small />
-                    {!exampleUp && <div className="absolute inset-0 grid place-items-center rounded-lg bg-amber-100 text-3xl" aria-label="Example hidden">🙈</div>}
-                  </div>
-                  {mode === 'remember' && !showing && !reveal && (
-                    <button
-                      type="button"
-                      onClick={() => { setPeeking(true); setPeeksLeft((n) => n - 1); }}
-                      disabled={peeksLeft <= 0 || peeking}
-                      className="fp-press mt-1 w-full rounded-lg bg-amber-400 py-1 text-[0.7rem] font-black text-ink-900 disabled:opacity-40"
-                    >
-                      👀 Peek ({peeksLeft})
-                    </button>
-                  )}
-                </div>
-              )}
-              <div className={`mx-auto w-full max-w-[22rem] transition-transform duration-300 ${reveal ? 'scale-[1.03]' : ''} ${looking ? 'opacity-40' : ''}`}>
-                <Drawing pic={pic} fills={fills} numbers={numbers} miss={miss} onPart={colourPart} glow={reveal} />
+          {/* The drawing on top, the crayons in rows under it (2026-11-18, the user), on a phone and a desktop alike. */}
+          <div className="flex flex-col gap-3 sm:gap-4">
+            {/* The page: the scene, big. Coloured for the look (and a peek), then the outline to colour. */}
+            <div className="relative min-w-0 overflow-hidden rounded-3xl bg-[#fffaf0] p-3 shadow-[0_6px_20px_-8px_rgba(120,80,20,0.25)] ring-1 ring-amber-200/70 sm:p-4" style={{ backgroundImage: 'radial-gradient(rgba(180,140,60,0.13) 1px, transparent 1px)', backgroundSize: '14px 14px' }}>
+              {/* Washi-tape corners: a page stuck into the book. */}
+              <span aria-hidden className="pointer-events-none absolute -top-1 -left-3 h-5 w-14 -rotate-[30deg] rounded-sm bg-pink-300/60" />
+              <span aria-hidden className="pointer-events-none absolute -top-1 -right-3 h-5 w-14 rotate-[30deg] rounded-sm bg-sky-300/60" />
+              <div className={`relative mx-auto w-full max-w-[min(26rem,52vh)] overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-amber-100 transition-transform duration-300 ${reveal ? 'scale-[1.03]' : ''}`}>
+                <Drawing pic={pic} fills={shown} numbers={numbers} miss={miss} onPart={colourPart} glow={reveal} />
+                {looking && (
+                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-ink-900/85 px-3 py-1 text-sm font-black text-white tabular-nums shadow-lg" aria-hidden>⏳ {lookLeft}s</span>
+                )}
               </div>
+              {!showing && !reveal && (
+                <button
+                  type="button"
+                  onClick={() => { setPeeking(true); setPeeksLeft((n) => n - 1); }}
+                  disabled={peeksLeft <= 0 || peeking}
+                  aria-label={`Peek: see the coloured ${thing} again for 2 seconds. ${peeksLeft} left`}
+                  className="fp-press mx-auto mt-3 flex flex-col items-center rounded-xl bg-amber-400 px-4 py-1.5 text-sm font-black text-ink-900 disabled:opacity-40"
+                >
+                  <span>👀 Peek · {peeksLeft} left</span>
+                  <span className="text-[0.7rem] font-bold text-ink-800">See the colours again for 2 seconds</span>
+                </button>
+              )}
             </div>
 
-            {/* The crayons, on the right. */}
-            <div className={`flex w-16 shrink-0 flex-col items-center gap-2 rounded-3xl bg-surface-100 p-2 ring-1 ring-line-200 sm:w-24 ${nudge ? 'animate-pulse ring-2 ring-rose-400' : ''}`} role="radiogroup" aria-label="Crayons">
-              <span className="text-[0.6rem] font-black tracking-wider text-ink-500 uppercase">Crayons</span>
+            {/* The crayons, under the drawing: 4 to a row, at most 2 rows (2026-11-18, the user). */}
+            <div className={`rounded-3xl bg-gradient-to-b from-amber-50 to-orange-50 p-2 ring-1 ring-amber-200/70 sm:p-3 ${nudge ? 'animate-pulse ring-2 ring-rose-400' : ''}`} role="radiogroup" aria-label="Crayons">
+              <p className="mb-1 text-center text-xs font-black tracking-wider text-ink-900 uppercase">Crayons</p>
+              <div className="mx-auto grid max-w-md grid-cols-4 gap-1.5 sm:gap-2">
               {palette.map((k) => {
                 const on = crayon === k;
                 return (
@@ -249,18 +290,14 @@ function Round({ progress, onExit }) {
                     aria-checked={on}
                     aria-label={`${COLOURS[k].name}${numbers?.[k] ? `, number ${numbers[k]}` : ''}`}
                     onClick={() => setCrayon(k)}
-                    className={`fp-press flex w-full flex-col items-center gap-0.5 rounded-2xl py-1.5 transition-all ${on ? 'scale-105 bg-white shadow-md ring-2 ring-ink-900' : 'hover:bg-white/70'}`}
+                    className={`fp-press flex w-full flex-col items-center gap-0.5 rounded-2xl pt-1 pb-1.5 transition-all ${on ? '-translate-y-1 bg-white shadow-md ring-2 ring-ink-900' : 'hover:-translate-y-0.5 hover:bg-white/70'}`}
                   >
-                    <span
-                      className="relative grid h-10 w-10 place-items-center rounded-full text-sm font-black text-white shadow-inner ring-2 ring-white sm:h-12 sm:w-12"
-                      style={{ backgroundColor: COLOURS[k].hex, textShadow: '0 1px 2px rgba(0,0,0,0.45)' }}
-                    >
-                      {numbers?.[k] || ''}
-                    </span>
-                    <span className="hidden text-[0.7rem] font-black text-ink-700 sm:block">{COLOURS[k].name}</span>
+                    <Crayon hex={COLOURS[k].hex} label={numbers?.[k] || ''} />
+                    <span className="text-[0.65rem] font-black text-ink-900 sm:text-[0.7rem]">{COLOURS[k].name}</span>
                   </button>
                 );
               })}
+              </div>
             </div>
           </div>
         </div>

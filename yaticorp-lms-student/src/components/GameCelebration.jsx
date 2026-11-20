@@ -24,7 +24,7 @@ const SPARKS = [
  * `stars` (0–3) draws the stars row when given, `xp` the XP pill once the
  * server has paid it, `primary` ({ label, onClick }) the big button.
  */
-export default function GameCelebration({ eyebrow = 'Level complete', title, subtitle, detail, stars = null, xp = null, primary = null, onClose }) {
+export default function GameCelebration({ eyebrow = 'Level complete', title, subtitle, detail, stars = null, xp = null, times = null, primary = null, onClose }) {
     const titleId = useId();
     useEffect(() => {
         const onKey = (e) => e.key === 'Escape' && onClose();
@@ -82,6 +82,15 @@ export default function GameCelebration({ eyebrow = 'Level complete', title, sub
                         <p className="gc-rise mt-2 text-base font-semibold text-indigo-100" style={{ animationDelay: '0.65s' }}>
                             {subtitle}{subtitle && detail ? ' · ' : ''}{detail}
                         </p>
+                    )}
+                    {/* The student's time, a little big, and another player's under it (2026-11-17, the user). */}
+                    {times && (
+                        <div className="gc-rise mt-4" style={{ animationDelay: '0.7s' }} data-celebration-times>
+                            <p className="text-2xl font-black text-white sm:text-3xl">⏱ Your time: {times.mine}</p>
+                            {times.other && (times.otherName
+                                ? <p className="mt-2 text-base font-semibold text-indigo-100 sm:text-lg">🏅 <span className="text-xl font-black text-amber-300 sm:text-2xl">{times.otherName}</span> completed this in <span className="text-xl font-black text-amber-300 sm:text-2xl">{times.otherTime}</span></p>
+                                : <p className="mt-1 text-sm font-semibold text-indigo-100 sm:text-base">🏅 {times.other}</p>)}
+                        </div>
                     )}
                     {xp > 0 && (
                         <p className="gc-rise mt-4 inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-4 py-1.5 text-sm font-black text-amber-950 shadow-lg shadow-amber-500/30">

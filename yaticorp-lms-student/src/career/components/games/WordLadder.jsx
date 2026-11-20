@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { Lightbulb } from 'lucide-react';
 import GameShell from './GameShell';
 import useGameProgress, { starsForFixed, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
@@ -42,7 +41,6 @@ function Round({ progress, onExit }) {
   const [step, setStep] = useState(0); // rungs climbed on this ladder
   const [typed, setTyped] = useState('');
   const [tries, setTries] = useState(0);
-  const [shown, setShown] = useState(0); // letters revealed on this rung
   const [helped, setHelped] = useState(false); // any letter revealed on this ladder
   const [note, setNote] = useState('');
   const [shake, setShake] = useState(false);
@@ -81,7 +79,6 @@ function Round({ progress, onExit }) {
     setTyped('');
     setNote('');
     setTries(0);
-    setShown(0);
     if (step + 1 < L.steps.length) { setStep((s) => s + 1); return; }
     // The goal!
     setClimbed(L);
@@ -98,7 +95,6 @@ function Round({ progress, onExit }) {
   const reveal = () => {
     if (!rung) return;
     const at = changedAt(prev, rung.word);
-    setShown((n) => n + 1);
     setHelped(true);
     setTyped([...prev].map((ch, i) => (i === at ? rung.word[i] : ch)).join(''));
   };
@@ -125,22 +121,22 @@ function Round({ progress, onExit }) {
       footer={<p className="text-sm">Ladder {Math.min(idx + 1, list.length)} of {list.length} · {len}-letter words</p>}
     >
       {started && L && (
-        <div className="mx-auto w-full max-w-md select-none">
-          <div className="relative overflow-hidden rounded-[2rem] px-5 pt-5 pb-6"
-            style={{ background: 'radial-gradient(80% 60% at 50% 0%,#fef3c7 0%,transparent 70%), linear-gradient(180deg,#fde68a 0%,#fecaca 55%,#e9d5ff 100%)' }}>
+        <div className="vx-t6 mx-auto flex w-full max-w-md select-none flex-col justify-start max-sm:flex-1">
+          <div className="relative overflow-hidden rounded-[1.75rem] px-5 pt-5 pb-6 ring-1 ring-white/10"
+            style={{ background: 'radial-gradient(80% 55% at 50% 0%,rgba(139,92,246,0.4) 0%,transparent 70%), linear-gradient(180deg,#171c33 0%,#0d1020 100%)' }}>
             {/* The goal at the top */}
             <div className="mb-4 text-center">
-              <p className="text-[0.65rem] font-black tracking-[0.18em] text-rose-700 uppercase">Goal 🏁</p>
-              <Tiles word={L.goal} changed={-1} tone="bg-white text-rose-600 ring-2 ring-rose-300" length={len} />
+              <p className="text-[0.65rem] font-black tracking-[0.18em] text-rose-300 uppercase">Goal 🏁</p>
+              <Tiles word={L.goal} changed={-1} tone="bg-gradient-to-b from-rose-400 to-rose-600 text-white" length={len} />
             </div>
 
             {/* The ladder: rails, then the rungs from the top (goal side) down to the start */}
             <div className="relative mx-auto max-w-xs">
-              <span aria-hidden className="absolute inset-y-0 left-1 w-2.5 rounded-full bg-gradient-to-b from-amber-700 to-amber-900" />
-              <span aria-hidden className="absolute inset-y-0 right-1 w-2.5 rounded-full bg-gradient-to-b from-amber-700 to-amber-900" />
+              <span aria-hidden className="absolute inset-y-0 left-1 w-2.5 rounded-full bg-gradient-to-b from-amber-400 to-amber-700" />
+              <span aria-hidden className="absolute inset-y-0 right-1 w-2.5 rounded-full bg-gradient-to-b from-amber-400 to-amber-700" />
               <div className="relative flex flex-col-reverse gap-2 px-5 py-2">
                 {/* Start word (bottom rung) */}
-                <div className="rounded-2xl bg-amber-800/15 py-1.5">
+                <div className="rounded-2xl bg-amber-400/15 py-1.5">
                   <Tiles word={L.start} changed={-1} tone="bg-white text-amber-900 ring-1 ring-amber-300" length={len} />
                 </div>
                 {L.steps.map((st, i) => {
@@ -148,12 +144,12 @@ function Round({ progress, onExit }) {
                   const current = i === step && !climbed;
                   const below = i === 0 ? L.start : L.steps[i - 1].word;
                   return (
-                    <div key={i} className={`rounded-2xl py-1.5 transition ${current ? 'bg-white/70 ring-2 ring-violet-400' : done ? 'bg-emerald-200/50' : 'bg-white/30'} ${current && shake ? 'gs-wrong' : ''}`}>
+                    <div key={i} className={`rounded-2xl py-1.5 transition ${current ? 'bg-violet-500/25 ring-2 ring-violet-400' : done ? 'bg-emerald-500/20' : 'bg-white/[0.05]'} ${current && shake ? 'gs-wrong' : ''}`}>
                       {done
                         ? <Tiles word={st.word} changed={changedAt(below, st.word)} tone="bg-emerald-500 text-white" length={len} />
                         : current
                           ? <Tiles word={typed.toLowerCase().padEnd(len, ' ').slice(0, len)} changed={-1} tone="bg-white text-violet-700 ring-2 ring-dashed ring-violet-300" length={len} />
-                          : <Tiles word="" changed={-1} tone="bg-white/50 ring-1 ring-white" length={len} />}
+                          : <Tiles word="" changed={-1} tone="bg-white/10 ring-1 ring-white/15" length={len} />}
                     </div>
                   );
                 })}
@@ -161,7 +157,7 @@ function Round({ progress, onExit }) {
             </div>
 
             {climbed && (
-              <p className="gs-rise mt-3 text-center text-base font-black text-emerald-700" role="status">
+              <p className="gs-rise mt-3 text-center text-base font-black text-emerald-300" role="status">
                 🎉 {climbed.start.toUpperCase()} → {climbed.goal.toUpperCase()} — you reached the top!
               </p>
             )}
@@ -169,21 +165,18 @@ function Round({ progress, onExit }) {
 
           {/* The clue and your word */}
           {rung && (
-            <form onSubmit={submit} className="mt-4 rounded-3xl bg-white p-4 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.35)] ring-1 ring-slate-200">
-              <p className="text-[0.65rem] font-black tracking-[0.16em] text-violet-500 uppercase">Rung {step + 1} of {L.steps.length} · clue</p>
-              <p className="mt-1 text-lg font-black text-slate-900">“{rung.clue}”</p>
-              <p className="mt-1 text-sm font-semibold text-slate-500">Change one letter of <b className="text-slate-800 uppercase">{prev}</b>.</p>
+            <form onSubmit={submit} className="vx-card mt-3 p-4">
+              <p className="text-[0.65rem] font-black tracking-[0.16em] text-white/90 uppercase">Rung {step + 1} of {L.steps.length} · clue</p>
+              <p className="mt-1 text-lg font-black text-white">“{rung.clue}”</p>
+              <p className="mt-1 text-sm font-semibold text-white">Change one letter of <b className="text-amber-300 uppercase">{prev}</b>.</p>
               <div className="mt-3 flex gap-2">
                 <input ref={input} value={typed} onChange={(e) => setTyped(e.target.value.replace(/[^a-zA-Z]/g, '').slice(0, len))} maxLength={len} autoComplete="off" autoCapitalize="off" spellCheck={false}
                   aria-label="Your word" placeholder={'?'.repeat(len)}
-                  className="min-h-12 flex-1 rounded-xl border-0 bg-slate-50 px-4 text-center text-2xl font-black tracking-[0.3em] text-violet-700 uppercase ring-2 ring-slate-200 outline-none focus:ring-violet-400" />
-                <button type="submit" disabled={typed.length !== len} className="fp-press min-h-12 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-5 text-sm font-black text-white shadow-md disabled:opacity-40">Climb ↑</button>
+                  className="min-h-12 w-full min-w-0 flex-1 rounded-xl border-0 bg-white/10 px-2 text-center text-2xl font-black tracking-[0.3em] text-white uppercase ring-2 ring-white/20 outline-none placeholder:text-white/30 focus:ring-violet-400" />
+                <button type="submit" disabled={typed.length !== len} className="vx-cta fp-press min-h-12 shrink-0 px-4 text-sm disabled:opacity-40">Climb ↑</button>
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
-                <p className={`min-h-5 text-sm font-bold ${note ? 'text-rose-600' : 'text-slate-400'}`} role="status" aria-live="polite">{note || ' '}</p>
-                <button type="button" onClick={reveal} disabled={shown > 0} className="fp-press inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700 ring-1 ring-amber-200 disabled:opacity-40">
-                  <Lightbulb className="h-3.5 w-3.5" aria-hidden /> Show the letter
-                </button>
+                <p className={`min-h-5 text-sm font-bold ${note ? 'text-amber-200' : 'text-white/70'}`} role="status" aria-live="polite">{note || ' '}</p>
               </div>
             </form>
           )}

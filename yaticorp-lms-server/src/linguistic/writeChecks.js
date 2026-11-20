@@ -35,6 +35,10 @@ const CHECKS = {
     'I greeted my teacher politely': { groups: [['dear', 'respected', 'good morning', 'good afternoon', "ma'am", 'madam', 'sir']] },
     'I gave the reason and the date': { groups: [['because', 'as i', 'due to', 'reason', 'since', 'as my', 'for my', 'not feeling well', 'unwell', 'sick', 'fever', 'ill', 'advised', 'so i', 'wedding', 'function', 'appointment'], WHEN] },
     'I ended with "Yours sincerely" and my name': { groups: [['yours sincerely', 'sincerely']] },
+    // Asha's email to the bank manager (2026-11-19).
+    'I greeted the manager politely': { groups: [['dear', 'respected', 'good morning', 'good afternoon', "ma'am", 'madam', 'sir']] },
+    'I thanked them for the interview': { groups: [['thank*', 'thanks', 'grateful'], ['interview*', 'meeting', 'meet*', 'chance', 'opportunity']] },
+    'I said that I accept the job': { groups: [['accept*', 'happy to join', 'glad to join', 'i will join', 'i can join', 'join on', 'take the job', 'take up']] },
     'I wrote the address, date and subject': { subject: true, groups: [['to', 'principal'], ['#', ...MONTHS, 'date']] },
     'I used a formal greeting (Respected Sir / Madam)': { groups: [['respected sir', 'respected madam', 'dear sir', 'dear madam', 'respected']] },
     'I gave reasons for the request': { groups: [['because', 'as', 'due to', 'since', 'so that', 'reason', 'therefore', 'which', 'do not have', "don't have", 'need*', 'difficult', 'problem']] },

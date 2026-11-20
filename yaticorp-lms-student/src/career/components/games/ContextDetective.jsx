@@ -87,24 +87,25 @@ function Round({ progress, onExit }) {
         detail: `${game.meanings} of ${rounds.length} meanings right · clean clue hunts on ${game.clueRounds} · ${game.points} of ${config.max} points`,
         atEnd: progress.atEnd, onNext: progress.advance, onRetry: progress.retry
       } : null}
-      footer={<p className="text-center text-sm text-ink-500">Passage {Math.min(game.index + 1, rounds.length)} of {rounds.length} · Enter locks clues · keys 1–4 pick a meaning</p>}
+      footer={<p className="text-center text-sm text-slate-400">Passage {Math.min(game.index + 1, rounds.length)} of {rounds.length} · Enter locks clues · keys 1–4 pick a meaning</p>}
     >
       {started && round && (
-        <div className="mx-auto w-full max-w-lg">
-          <div className="mb-2 flex items-center justify-between text-xs font-black tracking-wide text-teal-700 uppercase">
+        <div className="vx-t4 mx-auto flex w-full max-w-lg flex-col justify-start max-sm:flex-1">
+          <div className="mb-2 flex items-center justify-between text-xs font-black tracking-wide text-violet-700 uppercase">
             <span>Step {game.phase === 'clues' ? '1 · Find the clues' : '2 · Pick the meaning'}</span>
             {game.phase === 'clues' && <span>{game.tapped.length}/{config.maxTaps} marked</span>}
           </div>
-          <p className="rounded-2xl bg-white p-4 text-[17px] leading-[2.1] text-ink-900 shadow-sm ring-1 ring-teal-100 sm:text-lg" aria-label="Passage. Tap words that are clues.">
+          <div className="vx-card p-4 sm:p-5">
+          <p className="text-[17px] leading-[2.1] font-semibold text-white sm:text-lg" aria-label="Passage. Tap words that are clues.">
             {round.passage.tokens.map((t, i) => {
               const tapped = game.tapped.includes(i);
               const cls = t.target
                 ? 'rounded-md bg-amber-300 px-1 font-black text-amber-950'
                 : reveal
-                  ? tapped && t.clue ? 'rounded-md bg-emerald-200 px-0.5 font-bold text-emerald-900'
-                    : tapped ? 'rounded-md bg-rose-200 px-0.5 text-rose-900 line-through'
+                  ? tapped && t.clue ? 'rounded-md bg-emerald-500/30 px-0.5 font-bold text-emerald-200'
+                    : tapped ? 'rounded-md bg-rose-500/30 px-0.5 text-rose-200 line-through'
                       : t.clue ? 'rounded-md underline decoration-emerald-500 decoration-2 underline-offset-4' : ''
-                  : tapped ? 'rounded-md bg-teal-600 px-0.5 font-bold text-white' : 'rounded-md hover:bg-teal-50';
+                  : tapped ? 'rounded-md bg-white px-0.5 font-bold text-violet-700' : 'rounded-md hover:bg-white/20';
               return (
                 <span key={i}>
                   {t.target || reveal ? (
@@ -116,12 +117,13 @@ function Round({ progress, onExit }) {
               );
             })}
           </p>
+          </div>
 
           {game.phase === 'clues' && (
             <>
-              <p className="mt-3 text-center text-sm font-bold text-ink-700">Which words hint at what <b className="text-amber-700">{word}</b> means? Tap them.</p>
+              <p className="mt-3 text-center text-sm font-bold text-slate-700">Which words hint at what <b className="text-amber-600">{word}</b> means? Tap them.</p>
               <button type="button" onClick={lockClues} disabled={!game.tapped.length}
-                className="fp-press mt-3 w-full rounded-xl bg-teal-600 py-3 text-sm font-black text-white disabled:opacity-40">
+                className="vx-cta fp-press mt-3 w-full py-3 text-base disabled:opacity-40">
                 Lock in my clues
               </button>
             </>
@@ -135,15 +137,13 @@ function Round({ progress, onExit }) {
 
           {game.phase !== 'clues' && (
             <div className="mt-3 grid gap-2">
-              <p className="text-center text-sm font-bold text-ink-700">What does <b className="text-amber-700">{word}</b> mean here?</p>
+              <p className="text-center text-sm font-bold text-slate-700">What does <b className="text-amber-600">{word}</b> mean here?</p>
               {round.options.map((opt, i) => {
                 const state = game.phase === 'done' ? (opt === round.passage.meaning ? 'right' : opt === game.choice ? 'wrong' : null) : null;
                 return (
                   <button key={opt} type="button" onClick={() => choose(opt)} disabled={game.phase !== 'meaning'} aria-label={`${i + 1}: ${opt}`}
-                    className={`fp-press min-h-12 rounded-xl px-4 py-2 text-left text-base font-bold ring-2 ring-inset ${
-                      state === 'right' ? 'gs-right bg-emerald-100 text-emerald-900 ring-emerald-500' : state === 'wrong' ? 'gs-wrong bg-rose-100 text-rose-900 ring-rose-400' : 'bg-white text-ink-900 ring-slate-200'
-                    }`}>
-                    <span className="mr-2 text-ink-500">{i + 1}.</span>{opt}
+                    className={`vx-opt fp-press min-h-12 px-4 py-2 text-left text-base ${state === 'right' ? 'vx-right gs-right' : state === 'wrong' ? 'vx-wrong gs-wrong' : ''}`}>
+                    <span className="mr-2 opacity-60">{i + 1}.</span>{opt}
                   </button>
                 );
               })}
@@ -151,7 +151,7 @@ function Round({ progress, onExit }) {
           )}
 
           {game.phase === 'done' && (
-            <button type="button" onClick={next} autoFocus className="fp-press mt-3 w-full rounded-xl bg-sky-700 py-3 text-sm font-black text-white">
+            <button type="button" onClick={next} autoFocus className="vx-cta fp-press mt-3 w-full py-3 text-base">
               {game.index + 1 < rounds.length ? 'Next passage →' : 'See result'}
             </button>
           )}

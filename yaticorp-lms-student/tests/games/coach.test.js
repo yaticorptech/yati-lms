@@ -9,11 +9,14 @@ const { GAME_COACH, GAME_QUOTE, coachFor, quoteFor } = await import(
    React and the API client, which do not load under node. */
 const GAMES = [
   'memory-match', 'sequence-recall', 'number-recall', 'colour-match', 'spot-the-change', 'grid-recall', 'reverse-recall', 'seen-before', 'dot-count', 'match-back',
-  'code-breaker', 'next-in-sequence', 'odd-one-out', 'deduction', 'lights-out', 'tic-tac-toe', 'mini-sudoku', 'scale-balance', 'shape-matrix', 'spin-match', 'last-stone',
+  'code-breaker', 'next-in-sequence', 'odd-one-out', 'lights-out', 'tic-tac-toe', 'mini-sudoku', 'scale-balance', 'shape-matrix', 'spin-match', 'last-stone',
   'word-scramble', 'synonym-match', 'sentence-gap', 'spelling-fix', 'word-roots', 'typing-sprint', 'antonym-match', 'idiom-sense', 'tense-pick', 'sound-alike',
   'math-sprint', 'quick-compare', 'missing-operator', 'percent-snap', 'running-total', 'binary-blitz', 'speed-sort', 'number-bonds', 'rounding-rush', 'fraction-match', 'clock-read',
-  'picture-logic', 'tower-shift', 'number-forge',
-  'shadow-detective', 'treasure-path', 'probability-lab', 'algorithm-builder'
+  'picture-logic', 'number-forge',
+  'shadow-detective', 'treasure-path',
+  // Master Minds' relaxed set (2026-11-17)
+  'chess-master', 'final-vault', 'jigsaw', 'speak-up', 'wordcraft', 'arrow-escape', 'speed-distance', 'word-search',
+  'sum-pop', 'change-maker', 'best-buy', 'number-trail', 'quick-estimate'
 ];
 
 test('every game has how-to-play steps and a tip of its own', () => {

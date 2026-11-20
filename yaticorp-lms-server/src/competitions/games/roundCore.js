@@ -43,6 +43,7 @@ const { PALETTE, clampNumber, LEVELS } = require('./quizCore');
 
 const READY_MS = 4000;
 const REVEAL_MS = 4000;
+const NEXT_MS = 600;
 
 const playing = (s) => s.seats.map((_, i) => i).filter((i) => !s.out.includes(i));
 
@@ -107,7 +108,9 @@ const makeRoundEngine = (config) => {
         s.log = [...(s.log || []), { index: s.index, results }];
         if (config.after) config.after(s, s.current, s.answers, results);
         s.message = config.revealMessage ? config.revealMessage(s.current, results, s) : `Round ${s.index + 1} done.`;
-        return to(s, 'reveal', now, REVEAL_MS);
+        // No answer screen between rounds (2026-11-17, the user): a moment's pause, then the next round; the results
+        // show at the end. 'next' shows nothing of the answer (the views reveal only in 'reveal' and 'over').
+        return to(s, 'next', now, NEXT_MS);
     };
 
     const settled = (s) => playing(s).every((i) => s.answers[i]);

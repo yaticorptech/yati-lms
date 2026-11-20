@@ -48,7 +48,8 @@ const clampN = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 /** Letters per word, ladders per level, tries per rung before a letter is shown. */
 export const ladderConfig = (ageBand, difficulty = 1, levelNo = 1) => {
   const s = clampN(Math.ceil(levelNo / 3) + ((difficulty || 1) - 1) * 2 + (ageBand === 'analytical' ? 3 : 0), 1, 14);
-  const lengths = s <= 2 ? [3] : s <= 4 ? [3, 4] : s <= 7 ? [4] : s <= 9 ? [4, 5] : [5];
+  // 2026-11-19 (the user): no three-letter ladders — four letters from the first level.
+  const lengths = s <= 7 ? [4] : s <= 9 ? [4, 5] : [5];
   return { lengths, count: 3, pass: 2, tries: s <= 4 ? 3 : 2 };
 };
 

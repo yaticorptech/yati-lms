@@ -8,7 +8,7 @@ import { Download, Lock, Check } from 'lucide-react';
 import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
 const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi } from './api';
-import { COLORS, MODULES, levelOf } from './meta';
+import { COLORS, MODULES, levelOf, sectionsText } from './meta';
 import { Chunky, Panel } from './ui';
 import GemBadge from './parts/GemBadge';
 import { BADGE_LOOK, lookOf } from './parts/gemLooks';
@@ -33,16 +33,17 @@ export default function Badges() {
             {/* The certificates first (asked 2026-10-29), then the achievements. */}
             <section aria-labelledby="ling-certs">
                 <h2 id="ling-certs" className="mb-1 text-2xl font-extrabold text-[#3c3c3c]">{dash.course && dash.course.code !== 'en' ? `${dash.course.name} certificates` : 'Certificates'}</h2>
-                <p className="mb-3 text-[15px] font-semibold text-[#777]">Finish every lesson of a level with an average quiz score of {dash.certificateMinAverage}% or more.</p>
+                <p className="mb-3 text-[15px] font-semibold text-[#777]">Two certificates: Beginner for Sections 1–3, Advanced for the sections after them. Finish every lesson with an average quiz score of {dash.certificateMinAverage}% or more.</p>
                 {error && <p className="mb-2 text-sm font-bold" style={{ color: COLORS.red.ink }} role="alert">{error}</p>}
-                <div className="grid gap-3 sm:grid-cols-3">
-                    {dash.levels.map((l) => {
+                <div className="grid gap-3 sm:grid-cols-2">
+                    {/* Only the two certificates (2026-11-18, the user: "only Beginner and Advanced"). */}
+                    {(dash.certs || []).map((l) => {
                         return (
                             <Panel key={l.level} className="flex flex-col items-center gap-2 p-4 text-center" data-level={l.level}>
                                 {/* The level's badge: bronze, silver, gold. */}
                                 <GemBadge look={BADGE_LOOK[`level_${l.level}`]} earned={!!l.certificate} size={72} />
                                 <p className="text-[17px] font-extrabold text-[#3c3c3c]">{l.label}</p>
-                                <p className="text-sm font-semibold text-[#777]">{l.completed}/{l.total} lessons</p>
+                                <p className="text-sm font-semibold text-[#777]">{sectionsText(l.sections)} · {l.completed}/{l.total} lessons</p>
                                 {l.certificate
                                     ? <Chunky color="gold" onClick={() => download(l.level)} disabled={busy === l.level} className="!min-h-10 w-full !text-xs" data-certificate={l.level}><Download size={15} /> {busy === l.level ? 'Preparing…' : 'Download'}</Chunky>
                                     : <p className="text-xs font-extrabold uppercase tracking-wide text-[#AFAFAF]">{l.complete ? `Lift your average to ${dash.certificateMinAverage}%` : 'Not yet'}</p>}

@@ -120,16 +120,21 @@ export const buildLesson = (lesson) => {
     // Choose the picture (2026-11-13, the user's "Select the correct picture for “사슴”"): a Words lesson's warm-up on a new word.
     (lesson.sees || []).forEach((q) => add({ part: 'practice', kind: 'question', section: 'see', retry: true, q, language }));
     if (m === 'grammar') (lesson.practice || []).forEach((q) => add({ part: 'practice', kind: 'question', section: 'practice', retry: true, q }));
+    // A story's questions straight after it, its writing after them (2026-11-19, the user: "you give the job interview,
+    // then jump to the email without asking about the interview — ask on the topic first"): its quiz comes before.
+    const storyFirst = m === 'reading' && !!learn.passage && (lesson.quiz || []).length > 0;
+    const writes = [];
     if (m === 'reading') {
+        const put = storyFirst ? (s) => writes.push({ ...s, afterQuiz: true }) : add;
         // Taught before it is asked (2026-11-16, the user: "first you should teach the user before asking this kind of
         // question… then related questions so they can fill it"): how an email, a letter or a paragraph is written (once a
         // lesson for each kind), then a few questions on this task, then the task.
         const taught = new Set();
         (lesson.writing || []).forEach((task) => {
             const guide = lesson.writeGuides?.[task.type];
-            if (guide && !taught.has(task.type)) { taught.add(task.type); add({ part: 'practice', kind: 'writeGuide', guide, language }); }
-            (task.asks || []).forEach((q) => add({ part: 'practice', kind: 'question', section: 'writeguide', retry: true, q, language }));
-            add({ part: 'practice', kind: 'write', task });
+            if (guide && !taught.has(task.type)) { taught.add(task.type); put({ part: 'practice', kind: 'writeGuide', guide, language }); }
+            (task.asks || []).forEach((q) => put({ part: 'practice', kind: 'question', section: 'writeguide', retry: true, q, language }));
+            put({ part: 'practice', kind: 'write', task });
         });
     }
     if (m === 'speaking' && lesson.speaking?.prompt) add({ part: 'practice', kind: 'speak', speaking: lesson.speaking });
@@ -154,6 +159,7 @@ export const buildLesson = (lesson) => {
             ? add({ part: 'quiz', kind: 'translate', section: 'quiz', collect: q.id, item: q, direction: q.direction || lesson.direction, language })
             : add({ part: 'quiz', kind: 'question', section: 'quiz', collect: q.id, q, context })));
     }
+    writes.forEach(add);
     return steps.map((st) => ({ language, target, targetLocale, ...st }));
 };
 
@@ -262,7 +268,10 @@ export const xpIn = (events) => (events || []).filter((e) => e.kind === 'xp').re
  * without spaces, by their letters. The words heard, not how each sound was made: the browser cannot tell that.
  */
 const NUMBERS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
-const plain = (t) => String(t || '').toLowerCase().normalize('NFKC').replace(/[\p{P}\p{S}]+/gu, ' ').split(/\s+/).filter(Boolean).map((w) => (/^\d+$/.test(w) && NUMBERS[Number(w)] ? NUMBERS[Number(w)] : w));
+// Hindi spellings the browser writes either way (2026-11-17: "मैं विद्यार्थी हूं" heard for "हूँ"): chandrabindu as
+// anusvara, and no nukta (ज़ = ज), so the same words said match.
+const devanagari = (t) => t.replace(/\u0901/g, '\u0902').replace(/\u093C/g, '');
+const plain = (t) => devanagari(String(t || '').toLowerCase().normalize('NFKC')).replace(/[\p{P}\p{S}]+/gu, ' ').split(/\s+/).filter(Boolean).map((w) => (/^\d+$/.test(w) && NUMBERS[Number(w)] ? NUMBERS[Number(w)] : w));
 export const saidRight = (heard, sentence, locale = 'en') => {
     const want = plain(sentence), got = plain(heard);
     if (!want.length || !got.length) return false;

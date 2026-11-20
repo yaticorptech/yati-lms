@@ -40,8 +40,8 @@ after(async () => {
 });
 
 /** A room of `game` with players `who` (host first), started. */
-const startRoom = async (game, who, difficulty = 'easy') => {
-    const made = await who[0].call('POST', '/rooms', { game, options: { difficulty } });
+const startRoom = async (game, who, difficulty = 'easy', zone = undefined) => {
+    const made = await who[0].call('POST', '/rooms', { game, zone, options: { difficulty } });
     assert.equal(made.status, 201, JSON.stringify(made.body));
     const id = made.body.game.id;
     for (const x of who.slice(1)) {
@@ -99,13 +99,12 @@ describe('scores and results', () => {
         // A Number Logic game played to the end with every answer right in 50 ms.
         const e = engine('numberlogic');
         let s = e.create([{ name: 'A', side: 0 }, { name: 'B', side: 1 }], { questionCount: 5 }, { now: 0, rng: Math.random });
-        for (let t = s.phaseEndsAt; s.status === 'active';) {
-            s = e.tick(s, { now: t, rng: Math.random });
+        // Questions follow each other at once (2026-11-17: no reveal in group play), so answer whenever one is open.
+        while (s.status === 'active') {
             if (s.phase === 'question') {
                 s = e.act(s, 0, { type: 'answer', choice: s.questions[s.index].answer }, { now: s.phaseStartedAt + 50, rng: Math.random });
                 s = e.act(s, 1, { type: 'answer', choice: (s.questions[s.index].answer + 1) % 4 }, { now: s.phaseStartedAt + 3000, rng: Math.random });
-            }
-            t = s.phaseEndsAt || t;
+            } else s = e.tick(s, { now: s.phaseEndsAt, rng: Math.random });
         }
         const g = await PlayGame.create({ kind: 'room', game: 'numberlogic', status: 'finished', state: s, outcome: e.outcome(s), finishedAt: new Date(), seats: [{ userId: p[0].user._id, name: 'Gb Asha', side: 0 }, { userId: p[2].user._id, name: 'Gb Meera', side: 1 }] });
         await results.record(g);
@@ -203,6 +202,8 @@ describe('admin settings and permissions', () => {
         await bossCall('PUT', '/group-brain/admin/settings', { games: { sudoku: { enabled: false, difficulties: ['hard'] }, memorymatrix: { enabled: true, difficulties: ['easy'] } } });
         assert.equal((await p[2].call('POST', '/rooms', { game: 'sudoku' })).status, 403);
         assert.equal((await p[2].call('POST', '/rooms', { game: 'memorymatrix', options: { difficulty: 'hard' } })).status, 400);
+        // A zone whose difficulty is not allowed is refused too (Master Minds is hard).
+        assert.equal((await p[2].call('POST', '/rooms', { game: 'memorymatrix', zone: 'master' })).status, 403);
         const games = (await p[2].call('GET', '/rooms/games')).body.games;
         assert.equal(games.find((g) => g.id === 'sudoku').enabled, false);
         await bossCall('PUT', '/group-brain/admin/settings', { games: { sudoku: { enabled: true, difficulties: ['easy', 'medium', 'hard'] }, memorymatrix: { enabled: true, difficulties: ['easy', 'medium', 'hard'] } } });
@@ -212,7 +213,7 @@ describe('admin settings and permissions', () => {
         assert.equal((await bossCall('POST', '/group-brain/admin/questions', { game: 'wordlogic', prompt: 'Bad one', options: ['a', 'a', 'b', 'c'], answer: 0 })).status, 400);
         const q = await bossCall('POST', '/group-brain/admin/questions', { game: 'wordlogic', prompt: 'Which is a fruit? (admin test)', options: ['Mango', 'Carrot', 'Potato', 'Onion'], answer: 0 });
         assert.equal(q.status, 201);
-        const id = await startRoom('wordlogic', [p[2], p[1]], 'easy');
+        const id = await startRoom('wordlogic', [p[2], p[1]], 'easy', 'smart'); // admin questions are kept out of Young Thinkers
         const g = await PlayGame.findById(id).lean();
         assert.ok(g.state.questions.some((x) => x.prompt === 'Which is a fruit? (admin test)'), 'mixed into the game');
         await p[1].call('POST', `/play/${id}/action`, { action: { type: 'resign' } });

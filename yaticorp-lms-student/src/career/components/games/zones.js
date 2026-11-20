@@ -79,7 +79,6 @@ export const GAME_ZONES = {
     'tic-tac-toe': { skill: 'strategy', also: ['logic'], zones: { young: { role: 'core' }, smart: { role: 'core' }, master: { role: 'core' } } }, // gentle bot (young) · fork puzzles · 4×4 forced wins (master)
     'mini-sudoku': { skill: 'logic', also: ['pattern', 'attention'], zones: { young: { role: 'core' }, smart: { role: 'core' }, master: { role: 'core' } } }, // 4×4 fruit/numbers (young) · 6×6 · 9×9 (master)
     'picture-logic': { skill: 'logic', also: ['spatial', 'critical'], zones: { young: { role: 'core' }, smart: { role: 'core' }, master: { role: 'core' } } }, // picture nonograms (young) · 6–8 · 8–10 grids
-    'tower-shift': { skill: 'strategy', also: ['spatial', 'logic'], zones: { young: { role: 'core' }, smart: { role: 'core' }, master: { role: 'core' } } }, // 2–4 rings (young) · 4–6 rings · next-door-pegs rule (master)
     // Vocabulary & Linguistics (banks written for older readers: none suits Classes 1–2 yet — Part 2)
     'word-scramble': { skill: 'verbal', also: ['pattern'], zones: { young: { role: 'core' }, smart: { role: 'core' }, master: { role: 'core' } } }, // picture words on tiles (young) · school words in context · prefix/suffix clues (master)
     'synonym-match': { skill: 'verbal', also: ['critical'], zones: { young: { role: 'core' }, smart: { role: 'core' }, master: { role: 'core' } } }, // picture words (young) · school/advanced words in context · nuance (master)
@@ -160,32 +159,17 @@ export const ACCESS_MESSAGE = {
  * what rooms are checked against). Only games with a real multiplayer engine. `GROUP_TWIN`: the solo game whose
  * progress shows readiness for a zone above (as the server's unlocks.js SOLO); null: no twin (never unlocked early).
  */
+const ALL = Object.freeze(['young', 'smart', 'master']);
 export const GROUP_ZONES = {
-    // 2026-11-14: each room game in its catalogue game's section only (./multiplayer.js); no twin among the 84 → as before.
-    chess: ['smart', 'master'], spatialiq: ['master'], finalvault: ['young', 'smart', 'master'], spotthechange: ['young', 'smart'], dotcount: ['young'],
-    deduction: ['smart', 'master'],
-    // Young Thinkers
-    memorymatch: ['young'], colourmatch: ['young'], tictactoe: ['young'], oddoneout: ['young'], spellingfix: ['young'], soundalike: ['young'],
-    typingsprint: ['young'], mathsprint: ['young'], speedsort: ['young'],
-    animalpairs: ['young'], rhymes: ['young'], numberhop: ['young'], missingnumber: ['young'],
-    // Rising Brains
-    sequence: ['smart'], numberrecall: ['smart'], patternmaster: ['smart'], sudoku: ['smart'], wordlogic: ['smart'], sentencegap: ['smart'],
-    tensepick: ['smart'], runningtotal: ['smart'],
-    analogies: ['smart'], equationrush: ['smart'], ratiorelay: ['smart'],
-    // Master Minds
-    memorymatrix: ['master'], reverserecall: ['master'], synonymmatch: ['master'], idiomsense: ['master'], percentsnap: ['master'], numberlogic: ['master'],
-    cipherlab: ['master'], probability: ['master'], quantarena: ['master'], decisions: ['master']
+    // 2026-11-17 (the user): the group games exactly as they were just before the three sections — the same 14 in all
+    // three (Lost Kingdom, deleted 2026-11-11, aside). Each room's zone still sets its difficulty.
+    chess: ALL, memorymatrix: ALL, patternmaster: ALL, wordlogic: ALL, sequence: ALL,
+    numberlogic: ALL, numberrecall: ALL, runningtotal: ALL, memorymatch: ALL,
+    typingsprint: ALL, mathsprint: ALL, tictactoe: ALL, finalvault: ALL
 };
 export const GROUP_TWIN = {
-    memorymatch: 'memory-match', memorymatrix: 'grid-recall', sequence: 'sequence-recall', numberrecall: 'number-recall',
-    colourmatch: 'colour-match', spotthechange: null, tictactoe: 'tic-tac-toe', patternmaster: 'next-in-sequence',
-    sudoku: 'mini-sudoku', deduction: 'logic-detective', chess: null, spatialiq: null,
-    finalvault: null, wordlogic: 'word-scramble', idiomsense: 'idiom-sense', typingsprint: 'typing-sprint',
-    mathsprint: 'math-sprint', runningtotal: 'running-total', numberlogic: 'number-forge', dotcount: null,
-    oddoneout: 'odd-one-out', spellingfix: 'spelling-fix', soundalike: 'sound-alike', speedsort: 'speed-sort', sentencegap: 'sentence-gap',
-    tensepick: 'tense-pick', reverserecall: 'reverse-recall', synonymmatch: 'synonym-match', percentsnap: 'percent-snap',
-    animalpairs: 'animal-pair-safari', rhymes: 'rhyme-detective', numberhop: 'number-hop', missingnumber: 'missing-number-race',
-    analogies: 'analogy-master', equationrush: 'equation-rush', ratiorelay: 'ratio-relay', cipherlab: 'cipher-lab',
-    probability: 'probability-lab', quantarena: 'quantitative-arena', decisions: 'decision-theory-arena'
+    chess: null, memorymatrix: 'grid-recall', patternmaster: 'next-in-sequence', wordlogic: 'word-scramble', sequence: 'sequence-recall',
+    numberlogic: 'number-forge', numberrecall: 'number-recall', runningtotal: 'running-total', memorymatch: 'memory-match',
+    typingsprint: 'typing-sprint', mathsprint: 'math-sprint', tictactoe: 'tic-tac-toe', finalvault: null
 };
 export const ZONE_DIFFICULTY = { young: 'easy', smart: 'medium', master: 'hard' };

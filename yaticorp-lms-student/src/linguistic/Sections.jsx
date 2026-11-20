@@ -49,13 +49,17 @@ export default function Sections() {
                                         Section {i + 1}
                                         {here && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] tracking-wider" style={{ color: c.edge }}><Flag size={10} strokeWidth={3} /> You are here</span>}
                                         {!s.open && <span className="inline-flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5 text-[10px] tracking-wider"><Lock size={10} strokeWidth={3} /> Locked</span>}
-                                        {s.complete && <span className="inline-flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5 text-[10px] tracking-wider"><Trophy size={10} strokeWidth={3} /> Completed</span>}
+                                        {/* "Completed" once its whole part is (Beginner: Sections 1–3, Advanced: 4–10 — 2026-11-19); the section alone, "done". */}
+                                        {s.complete && (() => { const part = path.levels.filter((l) => levelOf(l.level).label === lv.label && l.total > 0); const all = part.every((l) => l.complete); return <span className="inline-flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5 text-[10px] tracking-wider" data-section-done={all ? 'part' : 'section'}><Trophy size={10} strokeWidth={3} /> {all ? `${lv.label} completed` : `Section ${i + 1} done`}</span>; })()}
                                     </p>
-                                    <h2 className="mt-0.5 text-2xl font-black leading-tight drop-shadow-sm sm:text-3xl">{lv.section}</h2>
+                                    {/* The level first, highlighted, in front of the section's name (2026-11-18, the user: "highlight
+                                        Beginner and Advanced; put Advanced in front of the headings, Beginner the same"). */}
+                                    <h2 className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xl font-black leading-tight sm:text-3xl">
+                                        {lv.named && <span className="rounded-xl bg-white px-2.5 py-0.5 text-lg uppercase tracking-wide shadow-sm sm:text-xl" style={{ color: s.open ? c.edge : '#8F96A3' }} data-level-word>{lv.label}</span>}
+                                        <span className="drop-shadow-sm">{lv.section}</span>
+                                    </h2>
                                     <p className="mt-2 flex flex-wrap gap-1.5 text-xs font-extrabold">
-                                        <span className="rounded-full bg-white px-2.5 py-1" style={{ color: s.open ? c.edge : '#8F96A3' }} data-cefr>{lv.cefr}</span>
-                                        {/* The level word (2026-11-16: Sections 1–3 Beginner, 4–5 Advanced). */}
-                                        {lv.named && <span className="rounded-full bg-white/20 px-2.5 py-1" data-level-word>{lv.label}</span>}
+                                        <span className="rounded-full bg-white/20 px-2.5 py-1" data-cefr>{lv.cefr}</span>
                                         <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1"><LayoutList size={12} /> {units.length} unit{units.length === 1 ? '' : 's'}{units.some((u) => u.kind === 'track') ? ` · ${new Set(units.map((u) => u.skillTitle || u.title)).size} skills` : ''}</span>
                                         <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1"><BookOpen size={12} /> {s.total} lessons</span>
                                     </p>

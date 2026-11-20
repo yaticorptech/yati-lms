@@ -25,8 +25,9 @@ const COLOUR = { w: 'White', b: 'Black' };
  * chess.js, as in online chess). The board is the group chess table's, as big as the screen allows.
  * Win: 3 stars; a draw: 1 star; a loss: try again.
  */
-export default function ChessChallenge({ onExit }) {
-  const progress = useGameProgress('chess-challenge', { bands: SECTION_BANDS.smart });
+export default function ChessChallenge({ onExit, gameId = 'chess-challenge', section = 'smart' }) {
+  // Master Minds plays it as Chess Master (2026-11-17): its own id and ladder, at its section's bands.
+  const progress = useGameProgress(gameId, { bands: SECTION_BANDS[section] });
   return <Round key={`${progress.level}-${progress.attempt}`} progress={progress} onExit={onExit} />;
 }
 

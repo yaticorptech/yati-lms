@@ -162,10 +162,11 @@ function Round({ progress, onExit }) {
       footer={<p className="text-center text-sm text-ink-500">Equation {Math.min(game.index + 1, level.length)} of {level.length} · keys 1–4 choose a step · type x and Enter</p>}
     >
       {started && eq && (
-        <div className="mx-auto w-full max-w-md">
-          <div className="rounded-2xl bg-slate-900 p-4 font-mono text-white shadow-inner" aria-live="polite">
+        <div className="mx-auto flex w-full max-w-md flex-col justify-center max-sm:flex-1">
+          {/* The equation card, bigger (2026-11-19, the user) */}
+          <div className="rounded-[1.75rem] bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 px-5 py-7 font-mono text-white shadow-[0_22px_40px_-22px_rgba(30,27,75,0.9)] ring-1 ring-white/10" aria-live="polite">
             {shownLines.map((line, i) => (
-              <div key={i} className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1 ${i === 0 ? 'text-xl sm:text-2xl' : 'text-lg text-slate-200'} ${i > 0 ? 'gs-rise border-t border-white/10' : ''}`}>
+              <div key={i} className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${i === 0 ? 'justify-center py-3 text-4xl sm:text-5xl' : 'justify-between py-1.5 text-xl text-slate-200'} ${i > 0 ? 'gs-rise border-t border-white/10' : ''}`}>
                 <span className="min-w-0 font-bold break-words" aria-label={`${treeText(line.left)} = ${treeText(line.right)}`}>
                   <Expr node={line.left} /> <span className="text-orange-300">=</span> <Expr node={line.right} />
                 </span>
@@ -173,24 +174,24 @@ function Round({ progress, onExit }) {
               </div>
             ))}
             {game.phase !== 'steps' && (
-              <div className="gs-rise flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-white/10 py-1 text-lg">
+              <div className="gs-rise flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-white/10 py-1.5 text-xl">
                 <span className="font-bold">{eq.finalText.replace(/^x = /, '')} = <span className="text-orange-300">?</span></span>
                 <span className="shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 text-xs text-orange-200">{stepLabel(eq.steps[eq.steps.length - 1])}</span>
               </div>
             )}
           </div>
 
-          <p className={`mt-2 min-h-5 text-center text-sm font-black ${game.feedback ? tone[game.feedback.tone] : 'text-ink-700'}`} role="status">
+          <p className={`mt-4 min-h-5 text-center text-base font-black ${game.feedback ? tone[game.feedback.tone] : 'text-ink-700'}`} role="status">
             {game.feedback?.text || `Step ${game.step + 1} of ${eq.steps.length}: what do you do to both sides?`}
           </p>
 
           {game.phase === 'steps' && (
-            <div className="mt-2 grid grid-cols-2 gap-2.5">
+            <div className="mt-3 grid grid-cols-2 gap-3">
               {eq.options[game.step].map((opt, i) => {
                 const label = stepLabel(opt);
                 return (
                   <button key={label} type="button" onClick={() => pickStep(opt)} disabled={!playing} aria-label={`${i + 1}: ${label} on both sides`}
-                    className={`fp-press min-h-14 rounded-2xl font-mono text-xl font-black ring-2 ring-inset ${wrongPick === label ? 'gs-wrong bg-rose-100 text-rose-800 ring-rose-400' : 'bg-orange-50 text-orange-900 ring-orange-200'}`}>
+                    className={`fp-press min-h-16 rounded-2xl font-mono text-2xl font-black ring-2 ring-inset ${wrongPick === label ? 'gs-wrong bg-rose-100 text-rose-800 ring-rose-400' : 'bg-orange-50 text-orange-900 ring-orange-200'}`}>
                     {label}
                   </button>
                 );

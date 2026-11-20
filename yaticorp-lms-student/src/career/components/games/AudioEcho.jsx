@@ -194,10 +194,11 @@ function Round({ progress, onExit }) {
       footer={<p className="text-sm">{voice ? 'Sound on, please — every mission is heard, not seen.' : 'No voice on this device: word missions are swapped for counting missions.'}</p>}
     >
       {started && m && (
-        <div className="mx-auto w-full max-w-2xl select-none">
-          <div className="overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05),0_20px_44px_-26px_rgba(15,23,42,0.35)] ring-1 ring-slate-200">
+        <div className="mx-auto flex w-full max-w-2xl flex-col select-none max-sm:flex-1">
+          <div className="flex flex-col overflow-hidden rounded-3xl bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05),0_20px_44px_-26px_rgba(15,23,42,0.35)] ring-1 ring-slate-200 max-sm:flex-1">
             {/* Header: mission, sound category, volume */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+            {/* One tidy row (2026-11-18, "clean, organised"): the mission on the left, the volume on the right. */}
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
               <div className="flex items-center gap-3">
                 <span className={`grid h-11 w-11 place-items-center rounded-2xl text-2xl ${look.soft}`} aria-hidden>{look.icon}</span>
                 <div>
@@ -205,15 +206,12 @@ function Round({ progress, onExit }) {
                   <p className="text-lg leading-tight font-black text-slate-900">{look.title}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-200">
-                  <span aria-hidden>{CATEGORIES[config.category].icon}</span>{CATEGORIES[config.category].name}
-                </span>
-                <div className="flex items-center gap-1.5 rounded-full bg-slate-50 py-1 pr-2.5 pl-1 ring-1 ring-slate-200">
+              <div className="flex shrink-0 items-center">
+                <div className="flex items-center gap-1.5 rounded-full bg-slate-50 p-1 ring-1 ring-slate-200 sm:pr-2.5">
                   <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className="grid h-7 w-7 place-items-center rounded-full text-slate-600 hover:bg-white">
                     {muted ? <VolumeX className="h-4 w-4" aria-hidden /> : <Volume2 className="h-4 w-4" aria-hidden />}
                   </button>
-                  <input type="range" min="0" max="100" value={muted ? 0 : volume} onChange={(e) => changeVolume(Number(e.target.value))} className="w-20 accent-slate-700" aria-label="Volume" />
+                  <input type="range" min="0" max="100" value={muted ? 0 : volume} onChange={(e) => changeVolume(Number(e.target.value))} className="hidden w-20 accent-indigo-600 sm:block" aria-label="Volume" />
                 </div>
               </div>
             </div>
@@ -221,42 +219,48 @@ function Round({ progress, onExit }) {
             {/* Progress: one segment per mission */}
             <div className="flex gap-1 px-4 pt-3 sm:px-5" aria-hidden>
               {missions.map((_, i) => (
-                <span key={i} className={`h-1.5 flex-1 rounded-full ${i < results.length ? (results[i] ? 'bg-emerald-400' : 'bg-rose-300') : i === idx ? 'bg-slate-800' : 'bg-slate-200'}`} />
+                <span key={i} className={`h-1.5 flex-1 rounded-full ${i < results.length ? (results[i] ? 'bg-emerald-400' : 'bg-rose-300') : i === idx ? 'bg-indigo-500' : 'bg-slate-200'}`} />
               ))}
             </div>
 
-            <div className="px-4 pt-5 pb-5 sm:px-6">
+            <div className="flex flex-1 flex-col justify-center bg-gradient-to-b from-white via-white to-slate-50 px-4 pt-3 pb-5 sm:px-6">
               {phase === 'intro' && (
-                <div className="gs-rise grid items-center gap-5 sm:grid-cols-[1fr_auto]">
-                  <div>
-                    <p className="text-xl leading-snug font-black text-slate-900 sm:text-2xl">
-                      {m.kind === 'count' && <>How many times will you hear the <span className={look.text}>{target.name}</span>?</>}
-                      {m.kind === 'spot' && <>Tap <span className={look.text}>Heard it</span> every time the <span className={look.text}>{target.name}</span> plays.</>}
-                      {m.kind === 'words' && <>Remember all <span className={look.text}>{m.heard.length} {m.theme}</span> the voice reads.</>}
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-slate-500">
-                      {m.kind === 'words' ? 'Then pick every word you heard.' : `${m.seq.length} sounds · listen only, nothing lights up.`}
-                    </p>
-                    {interrupted && <p className="mt-2 text-xs font-bold text-amber-600">Paused — it will start again from the beginning.</p>}
-                    {/* One row on phones too (2026-11-16, the user): the two buttons share the width. */}
-                    <div className="mt-5 flex gap-2">
-                      <button type="button" onClick={play} disabled={paused}
-                        className={`fp-press inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black whitespace-nowrap text-white shadow-sm transition disabled:opacity-40 sm:min-h-12 sm:flex-none sm:px-6 sm:text-sm ${look.btn}`}>
-                        ▶ Start listening
-                      </button>
-                      {target && (
-                        <button type="button" onClick={() => preview(target.key)} disabled={paused}
-                          className="fp-press inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white px-3 text-xs font-black whitespace-nowrap text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50 disabled:opacity-40 sm:min-h-12 sm:flex-none sm:px-5 sm:text-sm">
-                          <Volume2 className="h-4 w-4 shrink-0" aria-hidden /> Hear the {target.name}
-                        </button>
-                      )}
+                <div className="gs-rise flex flex-1 flex-col items-center text-center">
+                  {/* A listening badge (2026-11-18, "no white space"): the sound to listen for, or the mission's icon, in
+                      soft rings that pulse — it fills the card on a phone and says "listen" at a glance. */}
+                  <div className="flex flex-1 items-center justify-center py-4">
+                    <div className="relative grid size-44 place-items-center sm:size-40" aria-hidden>
+                      <span className="absolute inset-0 animate-ping rounded-full opacity-20 [animation-duration:2.4s]" style={{ background: look.accent }} />
+                      <span className="absolute inset-3 rounded-full opacity-15" style={{ background: look.accent }} />
+                      <span className="absolute inset-7 rounded-full opacity-20" style={{ background: look.accent }} />
+                      <span className="relative grid size-24 place-items-center rounded-full bg-white text-5xl shadow-[0_12px_28px_-10px_rgba(15,23,42,0.35)] ring-4 ring-white">{target ? target.emoji : look.icon}</span>
+                      <span className="absolute -right-1 bottom-6 grid size-11 place-items-center rounded-full text-white shadow-md ring-4 ring-white" style={{ background: look.accent }}><Volume2 className="h-5 w-5" /></span>
                     </div>
                   </div>
-                  {target && (
-                    <div className={`mx-auto grid h-28 w-28 place-items-center rounded-full ${look.soft} ring-8 ring-white`} style={{ boxShadow: `0 0 0 1px ${look.accent}33` }}>
-                      <span className="text-5xl" aria-hidden>{target.emoji}</span>
-                    </div>
-                  )}
+                  <p className="text-[0.65rem] font-black tracking-[0.16em] text-slate-400 uppercase">Your task</p>
+                  <p className="mt-1 max-w-md text-xl leading-snug font-black text-slate-900 sm:text-2xl">
+                    {m.kind === 'count' && <>How many times will you hear the <span className={look.text}>{target.name}</span>?</>}
+                    {m.kind === 'spot' && <>Tap <span className={look.text}>Heard it</span> each time the <span className={look.text}>{target.name}</span> plays.</>}
+                    {m.kind === 'words' && <>Remember all <span className={look.text}>{m.heard.length} {m.theme}</span> the voice reads.</>}
+                  </p>
+                  <div className="mt-3 flex flex-wrap justify-center gap-1.5 text-xs font-bold text-slate-600">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1">{m.kind === 'words' ? `${m.heard.length} words` : `${m.seq.length} sounds`}</span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1">👂 Listen only</span>
+                    {m.kind === 'words' && <span className="rounded-full bg-slate-100 px-2.5 py-1">Then pick them</span>}
+                  </div>
+                  {interrupted && <p className="mt-2 text-xs font-bold text-amber-600">Paused — it will start again from the beginning.</p>}
+                  <div className="mt-6 grid w-full max-w-sm gap-2">
+                    <button type="button" onClick={play} disabled={paused}
+                      className={`fp-press inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl px-4 text-base font-black text-white shadow-sm transition disabled:opacity-40 ${look.btn}`}>
+                      ▶ Start listening
+                    </button>
+                    {target && (
+                      <button type="button" onClick={() => preview(target.key)} disabled={paused}
+                        className="fp-press inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50 disabled:opacity-40">
+                        <Volume2 className="h-4 w-4 shrink-0" aria-hidden /> Hear the {target.name} first
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -318,18 +322,6 @@ function Round({ progress, onExit }) {
                   <p className="mt-1 text-sm font-semibold text-slate-600">{verdict.text}</p>
                 </div>
               )}
-            </div>
-
-            {/* The sounds in this level */}
-            <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5">
-              <p className="mb-2 text-[0.65rem] font-black tracking-[0.16em] text-slate-400 uppercase">Sounds in this level</p>
-              <div className="flex flex-wrap gap-1.5">
-                {config.sounds.map((k) => (
-                  <span key={k} className={`inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-bold ring-1 ${target && target.key === k ? `${look.text} ${look.ring}` : 'text-slate-600 ring-slate-200'}`}>
-                    <span aria-hidden>{BY_KEY[k].emoji}</span>{BY_KEY[k].name}
-                  </span>
-                ))}
-              </div>
             </div>
 
             {audioOk === false && (

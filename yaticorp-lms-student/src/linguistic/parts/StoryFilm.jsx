@@ -23,7 +23,7 @@ const webgl = () => { try { const c = document.createElement('canvas'); return !
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { aiClip, usePrefetch } from '../meta';
 import { filmVoice, voiceSpec } from '../speechText';
-import { Captions, ChevronLeft, ChevronRight, Expand, Mic, MicOff, Music, Pause, Play, RotateCcw, Repeat, ScrollText, Shrink } from 'lucide-react';
+import { Captions, ChevronRight, Expand, Pause, Play, RotateCcw, RotateCw, ScrollText, Shrink } from 'lucide-react';
 
 /* ── Motion ───────────────────────────────────────────────────────────── */
 const CSS = `
@@ -110,9 +110,9 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
     const [li, setLi] = useState(0);
     const [paused, setPaused] = useState(false);
     const [waiting, setWaiting] = useState(false);        // autoplay off: the line said, waiting for Next
-    const [autoplay, setAutoplay] = useState(true);
-    const [voice, setVoice] = useState(true);
-    const [music, setMusic] = useState(sound);
+    const [autoplay] = useState(true);
+    const [voice] = useState(true);
+    const [music] = useState(sound);
     const [subs, setSubs] = useState(true);
     const [script, setScript] = useState(false);
     const [word, setWord] = useState(-1);                 // the character index being said, for the subtitle
@@ -120,7 +120,7 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
     // The cartoon film (FilmStage, 2D) since 2026-11-09 (asked: "I want a cartoon animated film"); the 3D scene (film3d/)
     // is kept, switched off.
     const [use3D] = useState(() => USE_3D && webgl());
-    const [mouth, setMouth] = useState(0);
+    const [, setMouth] = useState(0);
     const [recorded, setRecorded] = useState(null);      // this language's recordings: { '1-0': seconds, … } or null
     const lang = (film.locale || 'en-IN').split('-')[0];
     useEffect(() => {
@@ -205,12 +205,13 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
     // The lines one after the other, scene into scene: each said (or shown long enough to read), then the next.
     useEffect(() => {
         if (phase !== 'play' || paused || waiting) return undefined;
-        const done = () => { setTalking(null); setMouth(0); score.current?.duck(false); if (autoplay) later(700, nextLine); else setWaiting(true); };
+        const done = () => { setTalking(null); setMouth(0); score.current?.duck(false); if (autoplay) later(1000, nextLine); else setWaiting(true); }; // a breath between lines (2026-11-18)
         score.current?.duck(true);
         // Lips: moving while the speaker's words are said.
         const speaker = line.who === 'narrator' ? null : line.who;
         setTalking(speaker);
-        const flap = speaker ? setInterval(() => setMouth((m) => (m === 2 ? 1 : m === 1 ? 0 : 2)), 130) : null;
+        // The people move their own lips (Comic.jsx, CSS): no state ticking 8 times a second (2026-11-18, "it lags").
+        const flap = null;
         const stop = () => clearInterval(flap);
         const readMs = 1400 + line.text.length * 62;
         const key = `${si + 1}-${li}`;
@@ -242,60 +243,110 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
         const key = theirs ? `${si + 1}-${scene.lines.indexOf(theirs)}` : null;
         if (!theirs || !(voice && sound)) return;
         clear(); setPaused(true); setTalking(who);
-        const flap = setInterval(() => setMouth((m) => (m === 2 ? 1 : m === 1 ? 0 : 2)), 130);
+        const flap = null;
         sayLine(key, theirs.text, who, null, () => { clearInterval(flap); setTalking(null); setMouth(0); setPaused(false); });
     };
-    const back = () => (li > 0 ? go(si, li - 1) : si > 0 ? go(si - 1, scenes[si - 1].lines.length - 1) : go(0, 0));
+    // ±10 seconds (2026-11-18, the user's controls): the film is line by line, so it moves whole lines — as many as
+    // make about ten seconds, by each line's recording length (else its reading time).
+    const flat = useMemo(() => scenes.flatMap((sc, a) => sc.lines.map((l, b) => ({ a, b, secs: recorded?.[`${a + 1}-${b}`] || (1400 + l.text.length * 62) / 1000 }))), [scenes, recorded]);
+    const skip = (dir) => {
+        if (phase === 'moral' && dir < 0) { go(scenes.length - 1, scenes.at(-1).lines.length - 1); return; }
+        if (phase !== 'play') return;
+        let i = flat.findIndex((x) => x.a === si && x.b === li);
+        let t = 0;
+        while (t < 10 && i + dir >= 0 && i + dir < flat.length) { i += dir; t += flat[i].secs; }
+        if (dir > 0 && t < 10 && i === flat.length - 1) { clear(); setPhase('moral'); return; }
+        go(flat[i].a, flat[i].b);
+    };
+    // One function for the stage's whole life, so the stage (memo) is not redrawn on every subtitle word.
+    const tapRef = useRef(null);
+    tapRef.current = tapped;
+    const onTapStable = useCallback((who) => tapRef.current?.(who), []);
     const forward = () => { clear(); nextLine(); };
+    /*
+     * Full screen like a YouTube video (2026-11-18): the whole screen black, the film as large as fits at 16:9,
+     * a phone turned to landscape where the browser allows it, and the controls fading away while it plays — a tap
+     * brings them back. Where the browser has no element full screen (an iPhone), the film covers the page instead.
+     */
+    const [fake, setFake] = useState(false);
+    // A phone's card is 4:3 (the scene cropped at its sides); full screen is 16:9 again.
+    const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+    useEffect(() => { const r = () => setNarrow(window.innerWidth < 640); window.addEventListener('resize', r); return () => window.removeEventListener('resize', r); }, []);
+    const lockLandscape = () => { try { window.screen?.orientation?.lock?.('landscape').catch(() => {}); } catch { /* not offered */ } };
     const toggleFull = () => {
         const el = box.current;
-        if (!document.fullscreenElement && el?.requestFullscreen) el.requestFullscreen().then(() => setFull(true)).catch(() => {});
-        else if (document.exitFullscreen) document.exitFullscreen().then(() => setFull(false)).catch(() => {});
+        if (full) {
+            if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+            try { window.screen?.orientation?.unlock?.(); } catch { /* not offered */ }
+            setFake(false); setFull(false);
+            return;
+        }
+        if (el?.requestFullscreen) el.requestFullscreen().then(() => { setFull(true); lockLandscape(); }).catch(() => { setFake(true); setFull(true); });
+        else { setFake(true); setFull(true); }
     };
-    useEffect(() => { const f = () => setFull(!!document.fullscreenElement); document.addEventListener('fullscreenchange', f); return () => document.removeEventListener('fullscreenchange', f); }, []);
+    useEffect(() => {
+        const f = () => { if (!document.fullscreenElement) { setFull((v) => (fake ? v : false)); } };
+        document.addEventListener('fullscreenchange', f);
+        return () => document.removeEventListener('fullscreenchange', f);
+    }, [fake]);
+    // The controls fade after three seconds of playing in full screen; any tap or move shows them again.
+    const [shown, setShown] = useState(true);
+    const hideT = useRef(null);
+    const wake = () => {
+        setShown(true);
+        clearTimeout(hideT.current);
+        if (full && !paused && phase === 'play') hideT.current = setTimeout(() => setShown(false), 3000);
+    };
+    useEffect(() => { wake(); return () => clearTimeout(hideT.current); }, [full, paused, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const total = useMemo(() => scenes.reduce((n, s) => n + s.lines.length, 0), [scenes]);
     const at = scenes.slice(0, si).reduce((n, s) => n + s.lines.length, 0) + li + (phase === 'moral' ? 1 : 0);
     const text = line?.text || '';
     const said = word >= 0 ? text.slice(0, text.indexOf(' ', word) < 0 ? text.length : text.indexOf(' ', word)) : '';
-    const btn = 'flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-xl px-2.5 text-sm font-extrabold text-white/90 hover:bg-white/15 disabled:opacity-40';
+    const btn = 'flex h-9 min-w-9 shrink-0 items-center justify-center gap-0.5 rounded-xl px-1.5 text-sm font-extrabold text-white/90 hover:bg-white/15 disabled:opacity-40 sm:h-10 sm:min-w-10 sm:px-2.5';
 
     return (
         <div className="space-y-3" data-story-film lang={(film.locale || 'en-IN').split('-')[0]}>
             <style>{CSS}</style>
-            <div ref={box} className={`relative overflow-hidden bg-black shadow-[0_18px_40px_-16px_rgba(0,0,0,.6)] ${full ? '' : 'rounded-2xl'}`} style={{ aspectRatio: full ? undefined : '16 / 9', height: full ? '100%' : undefined }}>
+            {/* Taller on a phone (2026-11-18, "too small" — then "bigger" again): square, the scene cropped at its sides
+                rather than shrunk; 16:9 on a wider screen. In full screen: black, the film 16:9 in the middle. */}
+            <div ref={box} onPointerMove={wake} onPointerDown={wake}
+                className={full ? `${fake ? 'fixed top-0 left-0 z-[200] h-[100dvh] w-screen' : 'relative h-full w-full'} flex items-center justify-center bg-black ${shown ? '' : 'cursor-none'}`
+                    : 'relative aspect-square overflow-hidden rounded-2xl bg-black shadow-[0_18px_40px_-16px_rgba(0,0,0,.6)] sm:aspect-video'}>
+            <div className={full ? 'relative overflow-hidden' : 'absolute inset-0'} style={full ? { width: 'min(100vw, calc(100dvh * 16 / 9))', aspectRatio: '16 / 9' } : undefined}>
                 {/* The scene, acted out; a soft fade as one scene becomes the next */}
                 {phase !== 'intro' && scene && (
                     <div className="absolute inset-0">
                         {use3D
                             ? <Suspense fallback={<div className="absolute inset-0 bg-black" />}><FilmStage3D scene={scene} line={phase === 'moral' ? scene.lines.at(-1) : line} lineIndex={phase === 'moral' ? scene.lines.length - 1 : li} talking={talking} spoken={word} text={line?.text || ''} paused={paused || phase === 'moral'} onTap={tapped} /></Suspense>
-                            : <div key={scene.id} className="sf-fade absolute inset-0"><FilmStage scene={scene} line={phase === 'moral' ? scene.lines.at(-1) : line} talking={talking} mouth={mouth} onTap={tapped} /></div>}
+                            : <div key={scene.id} className="sf-fade absolute inset-0"><FilmStage narrow={narrow && !full} scene={scene} line={phase === 'moral' ? scene.lines.at(-1) : line} talking={talking} mouth={0} onTap={onTapStable} /></div>}
                     </div>
                 )}
                 {/* Letterbox bars */}
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-[7%] bg-black" /><div className="pointer-events-none absolute inset-x-0 bottom-0 h-[7%] bg-black" />
 
                 {phase === 'intro' && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[radial-gradient(ellipse_at_center,#2b3a55_0%,#0b0f1a_75%)] px-6 text-center" data-film-intro>
-                        <p className="text-xs font-extrabold uppercase tracking-[0.35em] text-amber-300/90">A story film</p>
-                        <h2 className="max-w-3xl font-serif text-3xl font-bold leading-tight text-white sm:text-5xl">{film.title}</h2>
-                        <p className="max-w-xl text-sm text-white/75 sm:text-base">Watch and listen — the subtitles follow every word. Tap a character to hear them. Then answer five questions on the story.</p>
-                        <button type="button" onClick={start} className="mt-2 inline-flex h-14 items-center gap-2 rounded-full bg-amber-400 px-7 text-lg font-black text-[#1b1b1b] shadow-lg hover:bg-amber-300" data-film-play><Play size={22} fill="currentColor" /> Play the story</button>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[radial-gradient(ellipse_at_center,#2b3a55_0%,#0b0f1a_75%)] px-4 text-center sm:gap-4 sm:px-6" data-film-intro>
+                        <p className="text-[10px] font-extrabold uppercase tracking-[0.3em] text-amber-300/90 sm:text-xs">A story film</p>
+                        <h2 className="max-w-3xl font-serif text-xl font-bold leading-tight text-white sm:text-5xl">{film.title}</h2>
+                        {/* Phones: no room for this line in the picture; it is under the film instead. */}
+                        <p className="hidden max-w-xl text-sm text-white/75 sm:block sm:text-base">Watch and listen — the subtitles follow every word. Tap a character to hear them. Then answer five questions on the story.</p>
+                        <button type="button" onClick={start} className="mt-1 inline-flex h-11 items-center gap-2 rounded-full bg-amber-400 px-5 text-base font-black text-[#1b1b1b] shadow-lg hover:bg-amber-300 sm:mt-2 sm:h-14 sm:px-7 sm:text-lg" data-film-play><Play size={20} fill="currentColor" /> Play the story</button>
                     </div>
                 )}
 
                 {phase === 'moral' && (
                     <div className="sf-fade absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[radial-gradient(ellipse_at_center,#3b2b10_0%,#0b0a07_75%)] px-6 text-center" data-film-moral>
                         <p className="text-xs font-extrabold uppercase tracking-[0.35em] text-amber-300">{film.moralLabel || 'The moral'}</p>
-                        <p className="max-w-3xl font-serif text-xl font-bold italic leading-snug text-amber-50 sm:text-3xl">“{film.moral}”</p>
-                        <button type="button" onClick={() => { clear(); onFinish?.(); }} className="mt-2 inline-flex h-12 items-center gap-2 rounded-full bg-amber-400 px-6 font-black text-[#1b1b1b] hover:bg-amber-300" data-film-questions>Answer the questions <ChevronRight size={18} /></button>
+                        <p className="max-w-3xl font-serif text-base font-bold italic leading-snug text-amber-50 sm:text-3xl">“{film.moral}”</p>
+                        <button type="button" onClick={() => { clear(); onFinish?.(); }} className="mt-1 inline-flex h-10 items-center gap-2 rounded-full bg-amber-400 px-5 text-sm font-black text-[#1b1b1b] hover:bg-amber-300 sm:mt-2 sm:h-12 sm:px-6 sm:text-base" data-film-questions>Answer the questions <ChevronRight size={18} /></button>
                     </div>
                 )}
 
                 {/* Subtitles: who speaks, and the words — those said so far brighter */}
                 {phase === 'play' && subs && line && (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-[9%] flex justify-center px-[4%]" data-film-subtitle>
-                        <p className={`max-w-[92%] rounded-lg bg-black/65 px-3 py-1.5 text-center leading-snug text-white shadow ${line.who === 'narrator' ? 'italic' : 'font-semibold'}`} style={{ fontSize: 'clamp(13px, 2.3vw, 24px)' }}>
+                    <div className="pointer-events-none absolute inset-x-0 flex justify-center px-[4%] transition-[bottom] duration-300" style={{ bottom: shown ? (full ? '4.6rem' : '3.25rem') : '1.25rem' }} data-film-subtitle>{/* just above the play bar (2026-11-18) */}
+                        <p className={`max-w-[94%] text-center leading-snug text-white [text-shadow:0_0_3px_rgba(0,0,0,.95),0_1px_2px_rgba(0,0,0,.9)] ${line.who === 'narrator' ? 'italic' : 'font-semibold'}`} style={{ fontSize: 'clamp(13px, 2.3vw, 24px)' }}>
                             {line.who !== 'narrator' && <span className="mr-1.5 font-black text-amber-300">{line.name}:</span>}
                             <span>{said}</span><span className={said ? 'text-white/60' : ''}>{text.slice(said.length)}</span>
                         </p>
@@ -305,23 +356,21 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
                     <button type="button" onClick={forward} className="absolute bottom-[20%] right-[4%] inline-flex items-center gap-1.5 rounded-full bg-white/90 px-4 py-2 text-sm font-black text-[#1b1b1b] shadow" data-film-next-line>Next <ChevronRight size={16} /></button>
                 )}
 
-                {/* Controls */}
+                {/* Controls (2026-11-18, the user): play / pause, back and forward 10 seconds, subtitles, full screen — only
+                    these; the progress bar between them. */}
                 {phase !== 'intro' && (
-                    <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-0.5 bg-gradient-to-t from-black/85 to-transparent px-2 pb-1.5 pt-6" data-film-controls>
+                    <div className={`absolute inset-x-0 bottom-0 flex items-center gap-0.5 bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 pt-5 transition-opacity duration-300 sm:px-2 sm:pb-1.5 ${full ? 'px-4 pb-3 pt-10 sm:px-6 sm:pb-4' : ''} ${shown ? 'opacity-100' : 'pointer-events-none opacity-0'}`} data-film-controls>
                         <button type="button" className={btn} onClick={() => setPaused((p) => !p)} aria-label={paused ? 'Play' : 'Pause'} data-film-pause>{paused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
-                        <button type="button" className={btn} onClick={back} aria-label="Previous line" disabled={phase !== 'play'}><ChevronLeft size={18} /></button>
-                        <button type="button" className={btn} onClick={forward} aria-label="Next line" disabled={phase !== 'play'}><ChevronRight size={18} /></button>
-                        <button type="button" className={btn} onClick={() => go(si, 0)} aria-label="Replay this scene" title="Replay this scene"><Repeat size={17} /></button>
-                        <button type="button" className={btn} onClick={start} aria-label="Start again" title="Start again"><RotateCcw size={17} /></button>
-                        <div className="mx-2 h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-white/20"><div className="h-full bg-amber-400 transition-[width] duration-500" style={{ width: `${(at / (total + 1)) * 100}%` }} /></div>
-                        <button type="button" className={`${btn} ${autoplay ? 'text-amber-300' : ''}`} onClick={() => setAutoplay((a) => !a)} aria-pressed={autoplay} title="Autoplay">Auto</button>
-                        {canSpeak && <button type="button" className={btn} onClick={() => setVoice((v) => !v)} aria-pressed={voice} aria-label={voice ? 'Turn the voice off' : 'Turn the voice on'}>{voice ? <Mic size={17} /> : <MicOff size={17} />}</button>}
-                        <button type="button" className={`${btn} ${music ? '' : 'opacity-50'}`} onClick={() => setMusic((m) => !m)} aria-pressed={music} aria-label={music ? 'Turn the music off' : 'Turn the music on'}><Music size={17} /></button>
-                        <button type="button" className={`${btn} ${subs ? '' : 'opacity-50'}`} onClick={() => setSubs((s) => !s)} aria-pressed={subs} aria-label={subs ? 'Hide subtitles' : 'Show subtitles'}><Captions size={18} /></button>
-                        <button type="button" className={btn} onClick={toggleFull} aria-label={full ? 'Exit full screen' : 'Full screen'}>{full ? <Shrink size={17} /> : <Expand size={17} />}</button>
+                        <button type="button" className={btn} onClick={() => skip(-1)} aria-label="Back 10 seconds" data-film-back10><RotateCcw size={17} /><span className="text-[11px]">10</span></button>
+                        <button type="button" className={btn} onClick={() => skip(1)} aria-label="Forward 10 seconds" disabled={phase !== 'play'} data-film-fwd10><span className="text-[11px]">10</span><RotateCw size={17} /></button>
+                        <div className="mx-1.5 h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-white/20 sm:mx-2"><div className="h-full bg-amber-400 transition-[width] duration-500" style={{ width: `${(at / (total + 1)) * 100}%` }} /></div>
+                        <button type="button" className={`${btn} ${subs ? '' : 'opacity-50'}`} onClick={() => setSubs((x) => !x)} aria-pressed={subs} aria-label={subs ? 'Hide subtitles' : 'Show subtitles'} data-film-subs><Captions size={18} /></button>
+                        <button type="button" className={btn} onClick={toggleFull} aria-label={full ? 'Exit full screen' : 'Full screen'} data-film-full>{full ? <Shrink size={17} /> : <Expand size={17} />}</button>
                     </div>
                 )}
             </div>
+            </div>
+            {phase === 'intro' && <p className="text-sm text-[#555] sm:hidden">Watch and listen — the subtitles follow every word. Tap a character to hear them. Then answer five questions on the story.</p>}
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <button type="button" onClick={() => setScript((x) => !x)} aria-expanded={script} className="lingo-btn inline-flex h-10 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#E5E5E5', color: '#1899D6' }} data-film-script-toggle><ScrollText size={16} /> {script ? 'Hide the script' : 'Read the script'}</button>
             </div>

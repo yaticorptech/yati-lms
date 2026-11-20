@@ -11,7 +11,9 @@
 const { wordHints } = require('..');
 // And the new sections' sentences (more.js, 2026-11-14), read lazily (more.js reads the content this file serves).
 const OWN = {};
-for (const code of ['kn', 'hi']) Object.defineProperty(OWN, code, { enumerable: true, configurable: true, get() { const v = { ...require(`./${code}`), ...require('../../../more').glossesOf(code) }; Object.defineProperty(OWN, code, { value: v, enumerable: true }); return v; } });
+// And every language with a section file of its own (2026-11-17).
+const SECTION_LANGS = (() => { try { return require('fs').readdirSync(require('path').join(__dirname, '../../sections/langs')).filter((f) => f.endsWith('.js')).map((f) => f.replace(/\.js$/, '')); } catch { return []; } })();
+for (const code of [...new Set(['kn', 'hi', ...SECTION_LANGS])]) Object.defineProperty(OWN, code, { enumerable: true, configurable: true, get() { const v = { ...(['kn', 'hi'].includes(code) ? require(`./${code}`) : {}), ...require('../../../more').glossesOf(code) }; Object.defineProperty(OWN, code, { value: v, enumerable: true }); return v; } });
 const MORE = require('./more');
 
 const MARK = /^[\p{P}\p{S}]+$/u;
@@ -96,7 +98,17 @@ const onCharacters = (text, pairs, read = meaningsOf) => {
 const hintsFor = (code, text, en = null) => {
     if (!code || code === 'en' || !text) return null;
     const own = OWN[code]?.[text];
-    if (own) { const words = onWords(text, own.split('|')); return words ? { on: 'text', spaced: true, words } : null; }
+    if (own) {
+        const words = onWords(text, own.split('|'));
+        if (words) return { on: 'text', spaced: true, words };
+        // Chinese or Japanese (2026-11-17): the sentence's words by its sound in English letters.
+        const say = ['zh', 'ja'].includes(code) ? require('../../../more').saysOf(code)[text] : null;
+        const parts = own.split('|'), toks = say ? String(say).trim().split(/\s+/) : [];
+        if (!say || toks.length !== parts.length) return null;
+        const pairs = toks.map((x, k) => [x, parts[k]]);
+        const han = code === 'zh' ? onCharacters(text, pairs) : null;
+        return han ? { on: 'text', spaced: false, words: han } : { on: 'say', spaced: true, words: pairs.map(([x, g]) => [x, meaningsOf(g)]) };
+    }
     const pairs = wordHints(code, text);
     if (!pairs) return en ? { on: 'text', spaced: true, words: [[String(text).trim(), meaningsOf(en)]] } : null;
     const words = onWords(text, pairs.map(([, g]) => g));
@@ -139,10 +151,22 @@ const dictionaryOf = (code) => {
     // The English sentences' own words, written for them (./english.js), first; then the word taught first ("अम्मा, माँ": अम्मा), weighed above a word met in a sentence.
     for (const [en, ws] of Object.entries(require('./english').wordsIn(code))) ws.forEach((w, i) => add(en, w, 6 - i));
     for (const [en, text] of taught) String(text || '').split(/\s*[,，、،;]\s*/).filter(Boolean).forEach((t, i) => add(en, t, i ? 2 : 3));
+    // The word cards' words no lesson taught (2026-11-19, the user, of "Tap what you hear" cards: "where is the meaning of
+    // this card word"): ./cards/<code>.js, an English word → its words in the language ('' none).
+    let cards = {};
+    try { cards = require(`./cards/${code}`); } catch { /* none written for this language */ }
+    for (const [en, text] of Object.entries(cards)) String(text || '').split(/\s*[,，、،;]\s*/).filter(Boolean).forEach((t, i) => add(en, t, i ? 2 : 3));
+    // And the words of Sections 6–10 (2026-11-17), in every language they are written in.
+    for (const [en, text] of require('../../../more').sectionWordsOf(code)) String(text || '').split(/\s*[,，、،;]\s*/).filter(Boolean).forEach((t, i) => add(en, t, i ? 2 : 3));
     const texts = new Set([...Object.keys(OWN[code] || {}), ...Object.values(pack?.items || {}).flatMap((list) => Object.values(list).map((it) => it.source))]);
     for (const text of texts) for (const [piece, meanings] of rawHints(code, text) || []) if (meanings) for (const m of meanings) add(m, piece);
     // Japanese sentences' words are known by their sound: written in kana here (kyou → きょう, today).
     if (code === 'ja') for (const text of texts) for (const [say, gloss] of wordHints(code, text) || []) add(String(gloss).split('/')[0], require('../kana').wordToKana(say));
+    // Chinese and Japanese sentences of Sections 6–10 (2026-11-17): each tile, as written, with its word's English.
+    for (const s of require('../../../more').sectionTilesOf(code)) {
+        const gs = String(s.gloss || '').split('|');
+        if (gs.length === s.tiles.length) s.tiles.forEach((t, i) => gs[i].split('/').forEach((m) => add(m, t)));
+    }
     return (dictionaries[code] = dict);
 };
 /** An English word's other forms to look for: runs → run, studies → study, played → play, making → make. */
@@ -162,6 +186,10 @@ const englishHintsFor = (code, text, { answer = '', word = null } = {}) => {
     const find = (k) => {
         if (dict.has(k)) return dict.get(k);
         if (k.includes(' ')) return null;
+        // A short form (2026-11-17): "I'll", "we're", "I've" by their first word; "don't", "can't", "won't" by "not".
+        const s = k.replace(/’/g, "'"), short = s.match(/^([a-z]+)'(ll|d|m|ve|re)$/), neg = s.match(/^([a-z]+)n't$/);
+        if (short && dict.has(short[1])) return dict.get(short[1]);
+        if (neg) return dict.get('not') || dict.get(({ ca: 'can', wo: 'will', sha: 'shall' })[neg[1]] || neg[1]) || null;
         // Never 'does' → 'do' ("How much does this cost?": not "I do"), 'has' → 'ha'.
         if (NO_FORMS.has(k)) return null;
         for (const [re, to] of FORMS) { const b = k.replace(re, to); if (b !== k && b.length >= 2 && dict.has(b)) return dict.get(b); }

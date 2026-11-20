@@ -158,7 +158,7 @@ function Round({ progress, onExit }) {
     >
       {started && order && (
         <div className="mx-auto mb-3 flex max-w-full flex-wrap items-center justify-center gap-1.5" aria-label="Order to find the pairs in">
-          <span className="mr-1 text-[0.65rem] font-black tracking-[0.14em] text-ink-400 uppercase">Find in order</span>
+          <span className="mr-1 text-[0.65rem] font-black tracking-[0.14em] text-ink-900 uppercase">Find in order</span>
           {order.map((face, i) => (
             <span
               key={face}
@@ -191,7 +191,7 @@ function Round({ progress, onExit }) {
               onClick={() => turn(index)}
               aria-label={faceUp ? `Card showing ${card.face}` : `Face-down card ${index + 1}`}
               disabled={solved || previewing}
-              className={`fp-press flex aspect-square min-h-11 items-center justify-center rounded-2xl transition-all duration-200 ${
+              className={`mm-shine fp-press relative flex aspect-square min-h-11 items-center justify-center overflow-hidden rounded-2xl transition-all duration-200 ${
                 young ? 'text-4xl sm:text-5xl' : config.kind === 'emoji' ? 'text-3xl sm:text-4xl' : 'text-3xl font-black text-ink-900 sm:text-4xl'
               } ${
                 solved
@@ -203,7 +203,9 @@ function Round({ progress, onExit }) {
                     : 'fp-journey-gradient shadow-sm hover:brightness-110'
               }`}
             >
-              <span className={faceUp ? '' : 'opacity-0'}>{card.face}</span>
+              <span className={`relative z-10 ${faceUp ? '' : 'opacity-0'}`}>{card.face}</span>
+              {/* A soft light sweeping across every card (2026-11-19, the user), each card a little later than the last. */}
+              <span aria-hidden className="mm-sheen" style={{ animationDelay: `${(index % 8) * 0.18}s` }} />
             </button>
           );
         })}

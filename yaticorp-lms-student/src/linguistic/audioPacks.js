@@ -13,8 +13,21 @@ const MARK = 'lingo-pack4:'; // v2 (2026-11-11): a pack is marked only when ever
 export const packOf = (lessonId) => { try { return localStorage.getItem(MARK + lessonId); } catch { return null; } };
 export const markPack = (key, lessonIds) => { try { lessonIds.forEach((id) => localStorage.setItem(MARK + id, key)); } catch { /* private mode */ } };
 
-/** Whether this lesson's unit still needs its audio downloaded. */
-export const needsPack = (lessonId) => aiVoiceOn() && !packOf(lessonId);
+/**
+ * A demo (presentation) card never waits on the download screen (2026-11-20, owner: a presentation must not wait):
+ * its English and Kannada voices are already made and kept on the server, so each clip is fetched as it plays
+ * (meta.js) while the pack still comes down in the background (audioDownloader.js).
+ */
+const demoStudent = () => {
+    try {
+        if (localStorage.getItem('yati.demoCard')) return true;
+        return Boolean(JSON.parse(localStorage.getItem('studentData') || 'null')?.demoCard);
+    } catch { return false; }
+};
+/** Whether this lesson's unit still needs its audio downloaded before it opens. */
+export const needsPack = (lessonId) => missingPack(lessonId) && !demoStudent();
+/** Whether the unit's audio is not on the device yet (the background download goes by this, demo cards too). */
+export const missingPack = (lessonId) => aiVoiceOn() && !packOf(lessonId);
 /** The letters page's pack id (2026-11-11: the letters page opened without its audio downloaded). */
 // With the revision of the recorded letters (letterVoice.js, 2026-11-19): letters recorded again are downloaded again.
 export const lettersPackId = (code) => `letters-${code}${letterRev(code) ? `-r${letterRev(code)}` : ''}`;

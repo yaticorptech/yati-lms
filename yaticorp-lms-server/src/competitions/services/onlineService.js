@@ -205,7 +205,8 @@ const addTester = async (table) => {
     if (!free.length) return;
     const u = free[Math.floor(Math.random() * free.length)];
     const side = table.seats.length;
-    const seat = { userId: u._id, name: u.name || 'Test player', side, joinedAt: new Date(), lastSeenAt: new Date(), ready: true };
+    // A different Indian first name every time (2026-11-17, the user), never one already at this table.
+    const seat = { userId: u._id, name: require('../data/indianNames').pickName(table.seats.map((x) => x.name)), side, joinedAt: new Date(), lastSeenAt: new Date(), ready: true };
     const saved = await games.commit(table, { seats: [...table.seats.map((x) => (x.toObject ? x.toObject() : x)), seat], options: { ...table.options, testers: [...testers, side] } });
     if (saved && saved.seats.length >= saved.options.players) await start(saved);
 };

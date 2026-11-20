@@ -45,7 +45,8 @@ describe('the Advanced entry test', () => {
         assert.deepEqual([lesson.body.quiz.filter((q) => q.id.startsWith('h0~')).length, lesson.body.quiz.filter((q) => q.id.startsWith('h1~')).length], [10, 10], 'ten on Beginner, ten on Advanced');
         assert.ok(lesson.body.quiz.every((q) => q.answer === undefined), 'no answers sent');
         // Half on the section just before Advanced: Intermediate since 2026-11-14.
-        assert.match(lesson.body.learn.intro, /entry test.*10 on Intermediate, 10 on Advanced.*half of each right.*one try/i);
+        // In the student's Kannada (2026-11-18, explain.js); the English kept for the sections' names.
+        assert.match(lesson.body.learn.intro, /^Advanced [ಀ-೿].*20.*10 Beginner \(Section 3\) [ಀ-೿]+, 10 Advanced/);
         const adv = svc.quizOf(svc.serve(entry, await svc.progressOf(eve.user._id))).filter((q) => q.id.startsWith('h1~'));
         assert.ok(adv.length === 10, 'Advanced questions from the Advanced section');
         assert.equal(beginnerSecond((await api('GET', '/path')).body).open, false, 'the rest of Beginner keeps its order');
@@ -87,8 +88,11 @@ describe('the Advanced entry test', () => {
     // account with every section open (opensAll) the server said "open already" and onboarding went on without it.
     test('an account with every section open (a testing card) takes the test too: passed, it is at Advanced; again, failed, back at Beginner', async () => {
         {
-            // As the routes note a testing card on each request (Bhagyashree's 240100045056): this student counts as one.
-            svc.noteOpenAll({ _id: tess.user._id, cardNumber: '240100045056' });
+            // As the routes note a card in the env file on each request (DEVICE_LIMIT_EXEMPT_CARDS, 2026-11-17): this student is one.
+            const saved = process.env.DEVICE_LIMIT_EXEMPT_CARDS;
+            process.env.DEVICE_LIMIT_EXEMPT_CARDS = '999900002222';
+            svc.noteOpenAll({ _id: tess.user._id, cardNumber: '999900002222' });
+            if (saved === undefined) delete process.env.DEVICE_LIMIT_EXEMPT_CARDS; else process.env.DEVICE_LIMIT_EXEMPT_CARDS = saved;
             const api = app.call(tess.token);
             assert.equal((await api('POST', '/level', { level: 'beginner' })).status, 200);
             const path0 = (await api('GET', '/path')).body;

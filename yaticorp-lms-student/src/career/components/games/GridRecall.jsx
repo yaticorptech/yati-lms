@@ -25,6 +25,7 @@ const objectiveFor = (config) => {
   if (config.twoStage) {
     return `Two patterns of ${config.lit} tiles light up, one after the other. Tap the SECOND pattern first, then the FIRST. Get ${config.target} of ${config.rounds} rounds right.`;
   }
+  if (config.place) return `${config.lit} pictures pop up. When they hide, pick each one from the ${config.choices} below and put it back where it was! Get ${config.target} of ${config.rounds} right.`;
   if (config.young) return `${config.lit} pictures pop up. When they hide, tap where they were! Get ${config.target} of ${config.rounds} right.`;
   return `${config.lit} tiles light up for a moment. Tap exactly those tiles once they go dark. Get ${config.target} of ${config.rounds} rounds right.`;
 };
@@ -45,6 +46,10 @@ function Round({ progress, onExit, title }) {
   const [picked, setPicked] = useState([]);
   const [verdict, setVerdict] = useState(null); // 'right' | 'wrong' | 'half' while shown
   const [hits, setHits] = useState(0);
+  // Place mode (2026-11-18): the picture in hand, the ones put back right ({ cell: picture }), and a wrong drop.
+  const [holding, setHolding] = useState(null);
+  const [placed, setPlaced] = useState({});
+  const [wrongCell, setWrongCell] = useState(null);
 
   const over = started && round >= config.rounds;
   const current = sets[Math.min(round, config.rounds - 1)];
@@ -72,12 +77,39 @@ function Round({ progress, onExit, title }) {
     setRound((r) => r + 1);
     setPicked([]);
     setVerdict(null);
+    setHolding(null);
+    setPlaced({});
+    setWrongCell(null);
     setPart(0);
     setStage('show1');
   };
 
+  // Put the picture in hand on cell i: right if that picture was there, else the round is lost.
+  const place = (i) => {
+    if (!holding || placed[i]) return;
+    if (current.pictures[i] !== holding) {
+      setWrongCell(i);
+      setHolding(null);
+      setVerdict('wrong');
+      sfx.wrong();
+      pending.current = setTimeout(nextRound, WRONG_PAUSE_MS + 500);
+      return;
+    }
+    const next = { ...placed, [i]: holding };
+    setPlaced(next);
+    setHolding(null);
+    if (Object.keys(next).length === current.first.length) {
+      setVerdict('right');
+      sfx.right();
+      setHits((h) => h + 1);
+      pending.current = setTimeout(nextRound, 900);
+    }
+  };
+
   const tap = (i) => {
-    if (stage !== 'recall' || verdict || picked.includes(i)) return;
+    if (stage !== 'recall' || verdict) return;
+    if (config.place) { place(i); return; }
+    if (picked.includes(i)) return;
     const next = [...picked, i];
     setPicked(next);
     if (!target.includes(i)) {
@@ -108,7 +140,7 @@ function Round({ progress, onExit, title }) {
     ? stage === 'show2' ? 'Watch the SECOND pattern…' : stage === 'gap' ? 'Get ready…' : config.twoStage ? 'Watch the FIRST pattern…' : config.young ? 'Look!' : 'Watch…'
     : config.twoStage
       ? part === 0 ? 'Tap the SECOND pattern (amber)' : 'Now tap the FIRST pattern (violet)'
-      : config.young ? 'Tap where they were' : 'Tap the tiles that were lit';
+      : config.place ? (holding ? `Now tap where ${holding} was` : 'Pick a picture below') : config.young ? 'Tap where they were' : 'Tap the tiles that were lit';
 
   const tileClass = (i) => {
     const isPicked = picked.includes(i);
@@ -120,6 +152,12 @@ function Round({ progress, onExit, title }) {
       return current.second.includes(i) ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-500/40' : 'bg-surface-100';
     }
     if (stage === 'gap') return 'bg-surface-100';
+    if (config.place) {
+      if (wrongCell === i) return 'bg-rose-100 ring-2 ring-rose-400';
+      if (placed[i]) return 'bg-emerald-50 ring-2 ring-emerald-400';
+      if (verdict === 'wrong' && current.first.includes(i)) return 'bg-amber-50 ring-2 ring-amber-300';
+      return holding ? 'bg-surface-100 hover:bg-violet-100 ring-2 ring-violet-200' : 'bg-surface-100';
+    }
     if (verdict === 'wrong' && isPicked && !target.includes(i)) return 'bg-rose-400';
     if (isPicked) return 'bg-emerald-400';
     if (verdict === 'wrong' && target.includes(i)) return config.twoStage && part === 0 ? 'bg-amber-200' : 'bg-violet-200';
@@ -130,6 +168,7 @@ function Round({ progress, onExit, title }) {
   const pictureAt = (i) => {
     if (!config.pictures || !current.pictures[i]) return null;
     if (stage === 'show1' || picked.includes(i) || verdict === 'wrong') return current.pictures[i];
+    if (config.place && placed[i]) return placed[i];
     return null;
   };
 
@@ -175,8 +214,8 @@ function Round({ progress, onExit, title }) {
     >
       {started && !over && (
         <div
-          className="mx-auto grid gap-2"
-          style={{ gridTemplateColumns: `repeat(${config.size}, minmax(0, 1fr))`, maxWidth: config.size * (config.young ? 96 : 72) }}
+          className="mx-auto grid w-full gap-2 sm:gap-2.5"
+          style={{ gridTemplateColumns: `repeat(${config.size}, minmax(0, 1fr))`, maxWidth: config.young ? config.size * 96 : `min(100%, ${config.size * 88}px)` }}
         >
           {[...Array(cells).keys()].map((i) => {
             const pic = pictureAt(i);
@@ -194,9 +233,36 @@ function Round({ progress, onExit, title }) {
           })}
         </div>
       )}
+      {/* Place mode: the 4 choices under the grid — pick one, then tap its square. */}
+      {started && !over && config.place && stage === 'recall' && (
+        <div className="mx-auto mt-4 max-w-sm">
+          <p className="mb-2 text-center text-sm font-black text-ink-900">{holding ? `Where was ${holding}? Tap its square.` : 'Pick a picture, then tap where it was'}</p>
+          <div className="grid grid-cols-4 gap-2" role="group" aria-label="Pictures to place">
+            {current.choices.map((pic) => {
+              const used = Object.values(placed).includes(pic);
+              const inHand = holding === pic;
+              return (
+                <button
+                  key={pic}
+                  type="button"
+                  disabled={used || !!verdict}
+                  onClick={() => setHolding(inHand ? null : pic)}
+                  aria-pressed={inHand}
+                  aria-label={`Picture ${pic}${used ? ', placed' : ''}`}
+                  className={`flex aspect-square min-h-14 items-center justify-center rounded-2xl text-4xl transition-all select-none ${
+                    used ? 'bg-surface-100 opacity-30' : inHand ? 'scale-105 bg-violet-100 shadow-md ring-3 ring-violet-500' : 'bg-white shadow-sm ring-2 ring-line-200 hover:ring-violet-300'
+                  }`}
+                >
+                  {pic}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {started && !over && verdict === 'wrong' && (
         <p className="mt-4 text-center text-sm font-bold text-rose-600" role="alert">
-          {config.young ? 'Oops! Here is where they were.' : 'Oops, wrong tile — the tiles you needed are shown faintly.'}
+          {config.place ? 'Oops! That picture was not there. Here is where they were.' : config.young ? 'Oops! Here is where they were.' : 'Oops, wrong tile — the tiles you needed are shown faintly.'}
         </p>
       )}
       {started && !over && verdict === 'right' && config.young && (

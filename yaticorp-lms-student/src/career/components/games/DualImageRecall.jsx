@@ -9,7 +9,14 @@ import { makeDualLevel, dualConfig, checkChanges, checkBoth } from '../../data/b
 
 const TICK = 100;
 const BLANK_MS = 900;
-const TINTS = { sky: 'bg-sky-200', rose: 'bg-rose-200', amber: 'bg-amber-200', emerald: 'bg-emerald-200', violet: 'bg-violet-200' };
+// Glossy colour tiles (2026-11-18 redesign): a soft gradient, a light edge on top, a coloured shadow under.
+const TINTS = {
+  sky: 'bg-gradient-to-br from-sky-200 to-sky-400 shadow-[0_5px_0_#0284c7]',
+  rose: 'bg-gradient-to-br from-rose-200 to-rose-400 shadow-[0_5px_0_#e11d48]',
+  amber: 'bg-gradient-to-br from-amber-200 to-amber-400 shadow-[0_5px_0_#d97706]',
+  emerald: 'bg-gradient-to-br from-emerald-200 to-emerald-400 shadow-[0_5px_0_#059669]',
+  violet: 'bg-gradient-to-br from-violet-200 to-violet-400 shadow-[0_5px_0_#7c3aed]'
+};
 const freshSeed = () => Math.floor(Math.random() * 4294967296);
 
 /** 🖼️ Memory: compare two scenes from memory — what changed, or what appeared in both. */
@@ -110,9 +117,9 @@ function Round({ progress, onExit }) {
   const studyBar = (
     <div className="mt-3">
       <div className="h-2.5 overflow-hidden rounded-full bg-ink-900/10" role="progressbar" aria-label="Study time left" aria-valuemin={0} aria-valuemax={config.study} aria-valuenow={Math.ceil(studyLeft / 1000)}>
-        <div className="h-full rounded-full bg-sky-500 transition-[width] duration-100 ease-linear" style={{ width: `${(studyLeft / (config.study * 1000)) * 100}%` }} />
+        <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 transition-[width] duration-100 ease-linear" style={{ width: `${(studyLeft / (config.study * 1000)) * 100}%` }} />
       </div>
-      <button type="button" onClick={() => dispatch({ type: 'ready' })} className="fp-press mt-3 w-full rounded-xl bg-indigo-600 py-3 text-sm font-black text-white">
+      <button type="button" onClick={() => dispatch({ type: 'ready' })} className="fp-press mt-3 w-full rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 py-3 text-sm font-black text-white shadow-[0_4px_0_#4338ca]">
         Got it — hide ({Math.ceil(studyLeft / 1000)}s)
       </button>
     </div>
@@ -130,14 +137,16 @@ function Round({ progress, onExit }) {
             : s.res.perfect ? 'Perfect — every change found!' : `${s.res.hits} found · ${s.res.missed} missed · ${s.res.wrong} wrong tap${s.res.wrong === 1 ? '' : 's'}`}
         </p>
         {showGrid ? (
-          <div className="mx-auto grid w-full max-w-[22rem] gap-1.5" style={{ gridTemplateColumns: `repeat(${round.cols}, minmax(0, 1fr))` }}>
+          <div className="mx-auto grid w-full max-w-[22rem] gap-2.5" style={{ gridTemplateColumns: `repeat(${round.cols}, minmax(0, 1fr))` }}>
             {tiles.map((t, i) => {
               const picked = s.picked.includes(i);
               const changed = round.changed.includes(i);
               const review = s.phase === 'review';
-              const ring = review
-                ? changed ? (picked ? 'ring-4 ring-emerald-500' : 'ring-4 ring-amber-400') : picked ? 'ring-4 ring-rose-500' : 'ring-1 ring-black/5'
-                : picked ? 'ring-4 ring-indigo-600' : 'ring-1 ring-black/5';
+              // The item is highlighted, not the card (2026-11-18, the user): a glowing disc behind the picture.
+              const ring = 'ring-2 ring-white/70';
+              const glow = review
+                ? changed ? (picked ? 'bg-emerald-400 ring-emerald-200' : 'bg-amber-300 ring-amber-100') : picked ? 'bg-rose-400 ring-rose-200' : null
+                : picked ? 'bg-indigo-500 ring-indigo-200' : null;
               return (
                 <button
                   key={i}
@@ -146,9 +155,10 @@ function Round({ progress, onExit }) {
                   onClick={() => dispatch({ type: 'toggle', id: i })}
                   aria-pressed={s.phase === 'answer' ? picked : undefined}
                   aria-label={`${t.name} on ${t.tint}${review && changed ? `, changed (was ${round.a[i].name} on ${round.a[i].tint})` : ''}`}
-                  className={`relative flex aspect-square items-center justify-center rounded-xl text-3xl ring-inset transition-all sm:text-4xl ${TINTS[t.tint]} ${ring}`}
+                  className={`relative flex aspect-square items-center justify-center rounded-2xl text-4xl ring-inset transition-all before:absolute before:inset-x-2 before:top-1.5 before:h-1/3 before:rounded-xl before:bg-white/35 before:content-[''] sm:text-5xl ${TINTS[t.tint]} ${ring} ${s.phase === 'answer' ? 'hover:-translate-y-0.5' : ''}`}
                 >
-                  <span aria-hidden="true">{t.emoji}</span>
+                  {glow && <span aria-hidden="true" className={`absolute top-1/2 left-1/2 size-[68%] -translate-x-1/2 -translate-y-1/2 rounded-full ring-4 shadow-[0_0_18px_4px_rgba(255,255,255,0.6)] ${glow}`} />}
+                  <span aria-hidden="true" className={`relative ${glow ? 'scale-110' : ''} transition-transform`}>{t.emoji}</span>
                   {/* What changed, in green (2026-11-16, the user): the old picture or colour, on the tile. */}
                   {review && changed && (
                     <span className="absolute inset-x-1 bottom-1 flex items-center justify-center gap-1 rounded-lg bg-emerald-500 px-1 py-0.5 text-[0.65rem] font-black text-white shadow sm:text-xs" aria-hidden="true">
@@ -164,7 +174,7 @@ function Round({ progress, onExit }) {
             })}
           </div>
         ) : (
-          <div className="mx-auto flex aspect-square w-full max-w-[22rem] items-center justify-center rounded-2xl bg-slate-800 text-4xl text-white/40" aria-hidden="true">?</div>
+          <div className="mx-auto flex aspect-square w-full max-w-[22rem] items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-100 to-violet-100 text-6xl font-black text-indigo-300 ring-2 ring-white" aria-hidden="true">?</div>
         )}
       </>
     );
@@ -180,7 +190,7 @@ function Round({ progress, onExit }) {
         {scene ? (
           <div className={`mx-auto flex max-w-[22rem] flex-wrap justify-center gap-2 rounded-2xl p-3 ${s.phase === 'studyA' ? 'bg-sky-50 ring-2 ring-sky-200' : 'bg-violet-50 ring-2 ring-violet-200'}`}>
             {scene.map((x) => (
-              <span key={x.emoji} className="flex h-14 w-14 items-center justify-center rounded-xl bg-white text-3xl shadow-sm" role="img" aria-label={x.name}>{x.emoji}</span>
+              <span key={x.emoji} className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-4xl shadow-[0_4px_0_rgba(79,70,229,0.18)] ring-1 ring-indigo-100" role="img" aria-label={x.name}>{x.emoji}</span>
             ))}
           </div>
         ) : s.phase === 'answer' || s.phase === 'review' ? (
@@ -209,7 +219,7 @@ function Round({ progress, onExit }) {
             })}
           </div>
         ) : (
-          <div className="mx-auto flex h-32 max-w-[22rem] items-center justify-center rounded-2xl bg-slate-800 text-4xl text-white/40" aria-hidden="true">?</div>
+          <div className="mx-auto flex h-32 max-w-[22rem] items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-100 to-violet-100 text-6xl font-black text-indigo-300 ring-2 ring-white" aria-hidden="true">?</div>
         )}
       </>
     );
@@ -245,10 +255,11 @@ function Round({ progress, onExit }) {
       footer={<p className="text-sm">Tap a tile to mark it, tap again to unmark. A round counts when every change is found with no wrong taps. Enter checks.</p>}
     >
       {started && !over && (
-        <div className="mx-auto w-full max-w-md">
-          <p className="mb-1 text-center text-xs font-bold tracking-wide text-ink-500 uppercase">
-            Round {s.round + 1} of {rounds.length} · {round.kind === 'both' ? 'in both scenes' : 'what changed'}
-          </p>
+        <div className="mx-auto flex w-full max-w-md flex-col justify-between gap-3 rounded-[1.75rem] bg-gradient-to-b from-indigo-50 via-white to-sky-50 p-4 max-sm:flex-1 shadow-[0_16px_34px_-22px_rgba(79,70,229,0.5)] ring-1 ring-indigo-100">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-700 shadow-sm ring-1 ring-indigo-100">Round {s.round + 1} of {rounds.length}</span>
+            <span className={`rounded-full px-3 py-1 text-xs font-black text-white shadow-sm ${round.kind === 'both' ? 'bg-violet-500' : 'bg-sky-500'}`}>{round.kind === 'both' ? '🔁 In both scenes' : '🔍 What changed?'}</span>
+          </div>
           {body}
           {TIMED[s.phase] === 'study' && studyBar}
           {s.phase === 'answer' && (
