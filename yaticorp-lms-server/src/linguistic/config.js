@@ -14,7 +14,7 @@
 const Setting = require('../models/Setting');
 
 const DEFAULTS = Object.freeze({
-    passingScore: { beginner: 60, elementary: 65, intermediate: 70, advanced: 75, professional: 75 },
+    passingScore: { beginner: 60, elementary: 65, intermediate: 70, advanced: 75, professional: 75, everyday: 75, services: 75, workplace: 75, opinions: 75, society: 75 },
     certificateMinAverage: 70,
     dailyChallengeSize: 5
 });

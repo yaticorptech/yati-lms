@@ -38,6 +38,10 @@ const seed = async () => {
         const r = await LinguisticLesson.updateOne({ seedKey: stub.seedKey }, { $setOnInsert: stub }, { upsert: true });
         if (r.upsertedCount) added++;
     }
+    // The assessments' and entry tests' titles as the sections are named now (2026-11-18: Beginner and Advanced only).
+    for (const [level, label] of Object.entries(require('./levels').LEVEL_LABEL)) {
+        for (const [review, title] of [['assessment', `${label} assessment`], ['entry', `${label} entry test`]]) await LinguisticLesson.updateMany({ review, level, seedKey: { $exists: true }, title: { $ne: title } }, { $set: { title } });
+    }
     // The Letters lessons' titles kept as alphabet.js names them (2026-10-31).
     for (const st of require('./alphabet').stubs()) await LinguisticLesson.updateOne({ seedKey: st.seedKey, title: { $ne: st.title } }, { $set: { title: st.title } });
     // And the picture stories' (2026-11-07: story 2 became Meera's Kite; the courses still telling the old one keep its title).
@@ -45,6 +49,10 @@ const seed = async () => {
     for (const st of require('./comics').stubs()) {
         await LinguisticLesson.updateOne({ seedKey: st.seedKey, title: { $ne: st.title } }, { $set: { title: st.title } });
     }
+    // A story film's summary as a film's (2026-11-20, the user: "that is a video"): where it still says "A story in pictures"
+    // (an administrator's edit stands).
+    const COMICS = require('./comics');
+    await LinguisticLesson.updateMany({ review: 'comic', order: { $in: COMICS.STORIES.filter((x) => x.film).map((x) => x.order) }, summary: COMICS.SUMMARY }, { $set: { summary: COMICS.FILM_SUMMARY } });
     // Three Silver Coins removed (2026-11-12, user: "remove that silver coins story"): the courses that still told it as
     // story 2 have no story 2 now — their stored lessons taken off the path (kept as drafts, so progress records stay whole).
     const told = new Set(Object.keys(COMIC_LANGS[2] || {}).map((c) => `${c}:comic-advanced-2`));
@@ -60,6 +68,27 @@ const seed = async () => {
         if (errors.length) continue;
         await LinguisticLesson.updateOne({ seedKey: lesson.seedKey, updatedBy: 'Seed content', title: WAS[lesson.seedKey] },
             { $set: { title: value.title, summary: value.summary, items: value.items, quiz: value.quiz } });
+    }
+    // The Beginner speaking tasks made easier (2026-11-18, the user: "don't make speaking difficult in Beginner — keep it, a
+    // little easy"): where a lesson is as seeded, still asking for 4 or 5 sentences, its task as now written (an edit stands).
+    const HARDER = {
+        "speaking-beginner-1": "Introduce yourself in 4 or 5 sentences: your name, where you are from, what you study, and one hobby.",
+        "speaking-beginner-2": "Imagine you are at a shop. Ask the price of two things, buy them, and say thank you.",
+        "speaking-beginner-3": "Ask about a bus in 4 or 5 sentences: say \"Excuse me\", ask which bus goes to a place, when it leaves and how much the ticket is, and say thank you.",
+        "speaking-beginner-4": "Make a plan with a friend in 4 or 5 sentences: ask if your friend is free, say where you want to go, suggest a time and a place to meet, and say goodbye."
+    };
+    for (const lesson of lessons.filter((l) => HARDER[l.seedKey])) {
+        const { value, errors } = validateLesson({ ...lesson, status: 'published' });
+        if (errors.length || !value.speaking) continue;
+        await LinguisticLesson.updateOne({ seedKey: lesson.seedKey, updatedBy: 'Seed content', 'speaking.prompt': HARDER[lesson.seedKey] }, { $set: { speaking: value.speaking } });
+    }
+    // Asha's email on her interview (2026-11-19, the user: "one topic in a unit — ask on it"): where the lesson is as seeded
+    // and still asks for a leave request to a teacher, its writing as now written (an administrator's edit stands).
+    for (const lesson of lessons.filter((l) => l.seedKey === 'reading-intermediate-2')) {
+        const { value, errors } = validateLesson({ ...lesson, status: 'published' });
+        if (errors.length || !value.writing?.length) continue;
+        const w2 = value.writing.find((t) => t.id === 'w2');
+        await LinguisticLesson.updateOne({ seedKey: lesson.seedKey, updatedBy: 'Seed content', 'writing.prompt': /one day's leave because you are unwell|^Imagine you are Asha/, writing: { $not: { $elemMatch: { id: 'w2', model: w2.model } } } }, { $set: { writing: value.writing } });
     }
     // One short sentence to read in each Section 1 unit (2026-11-04): added to the four lessons as seeded (an edit stands).
     for (const lesson of lessons.filter((l) => ['translation-beginner-kn-en', 'translation-beginner-en-kn', 'translation-beginner-3', 'translation-beginner-4'].includes(l.seedKey))) {
@@ -77,6 +106,8 @@ const seed = async () => {
         if (errors.length || !value.learn?.dialogue?.lines?.length) continue;
         await LinguisticLesson.updateOne({ seedKey: lesson.seedKey, updatedBy: 'Seed content', 'learn.dialogue.lines.10': { $exists: false } }, { $set: { 'learn.dialogue': value.learn.dialogue } });
     }
+    // Each seeded lesson's id, for its unit's plan (unitPlan.js: a review's questions are drawn by its id, 2026-11-18).
+    require('./unitPlan').setIds(await LinguisticLesson.find({ seedKey: { $exists: true } }).select('seedKey').lean());
     if (added) console.log(`[linguistic] seeded ${added} lesson${added === 1 ? '' : 's'}`);
     return added;
 };

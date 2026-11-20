@@ -33,7 +33,7 @@ describe('starting out', () => {
         const perDay = Math.max(0.5, t.goal / t.xpPerLesson);
         assert.equal(t.lessonsPerDay, Math.round(perDay * 10) / 10);
         assert.equal(t.days, Math.ceil(total / perDay));
-        assert.deepEqual(t.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional'], 'five sections (2026-11-14)');
+        assert.deepEqual(t.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional', 'everyday', 'services', 'workplace', 'opinions', 'society'], 'ten sections (2026-11-17)');
         assert.equal(t.levels.at(-1).days, t.days, 'the last level finishes on the last day');
         assert.ok(t.levels[0].days < t.levels[1].days, 'one level after another');
         assert.equal(t.finishOn, new Date(Date.now() + t.days * 86400e3).toISOString().slice(0, 10));

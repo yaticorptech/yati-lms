@@ -100,7 +100,7 @@ const questionInEnglish = (words, i, kind, seed, pool = words) => {
         const [main, ...forms] = String(w.word).split(/\s*[,;/、，،]\s*/).filter(Boolean);
         const sounds = String(w.say || '').split(/\s*[,;/、，،]\s*/).filter(Boolean);
         return { id, type: 'spelling', kind, prompt: `Type the ${w.target} word for "${w.kannada}".`, answer: main, accepted: [...new Set([...forms, ...sounds, ...sounds.flatMap((x) => [x.replace(/-/g, ''), x.normalize('NFD').replace(/\p{M}/gu, ''), x.normalize('NFD').replace(/\p{M}/gu, '').replace(/-/g, '')])])],
-            explanation: `${w.kannada} is "${main}"${sounds.length ? ` (${sounds.join(', ')})` : ''}.`, word: w.word, meaning: w.kannada, writeIn: String(w.locale || 'en').split('-')[0], pic: pictureOf(w.en) };
+            explanation: `${w.kannada} is "${main}"${sounds.length ? ` (${sounds.join(', ')})` : ''}.`, word: w.word, meaning: w.kannada, writeIn: String(w.locale || 'en').split('-')[0], pic: pictureOf(w.en) || w.pic || null };
     }
     if (w.course && kind !== 'meaning') return null;
     if (kind === 'blank') {
@@ -116,9 +116,10 @@ const questionInEnglish = (words, i, kind, seed, pool = words) => {
         return { id, type: 'mcq', kind, prompt: `Choose the word that fits: ${sentence}`, options: options(w.word, unlike.map((x) => x.word)), answer: w.word,
             explanation: `${w.example} (${w.word} = ${w.kannada})`, word: w.word };
     }
+    // Its picture beside it: the list's, else the word's own (2026-11-17, the user: "show the nose picture here").
     if (kind === 'spell') {
         return { id, type: 'spelling', kind, prompt: w.lang === 'English' ? `Type the word that means "${w.kannada}".` : `Type the English word for "${w.kannada}".`, hint: `${w.word[0]}${'_'.repeat(Math.max(0, w.word.length - 1))} (${w.word.length} letters)`,
-            answer: w.word, explanation: `${w.kannada} is "${w.word}". ${w.example}`, word: w.word, meaning: w.kannada, writeIn: 'en', pic: pictureOf(w.word) };
+            answer: w.word, explanation: `${w.kannada} is "${w.word}". ${w.example}`, word: w.word, meaning: w.kannada, writeIn: 'en', pic: pictureOf(w.word) || w.pic || null };
     }
     if (kind === 'synonym' && w.synonyms?.length) {
         return { id, type: 'mcq', kind, prompt: `Which word means the same as "${w.word}"?`, options: options(w.synonyms[0], [...others.map((x) => x.word), ...others.flatMap((x) => x.antonyms || [])]), answer: w.synonyms[0],

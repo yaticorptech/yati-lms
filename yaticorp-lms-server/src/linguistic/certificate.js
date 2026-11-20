@@ -1,54 +1,21 @@
 /**
- * Linguistic Ability — the level certificate, drawn as a PDF with pdfkit (as
- * the course and competition certificates are). Issued only when a level is
- * complete under the configured criteria (service.checkLevel); this only
- * draws one that has been issued.
+ * Linguistic Ability — the certificate as a PDF. Issued only when a part is complete under the configured
+ * criteria (service.checkLevel: Beginner = Sections 1–3, Advanced = Sections 4–10); this only draws one that
+ * has been issued.
+ *
+ * The same template as a course certificate (2026-11-18, the user: "put the template same as the course
+ * certificate"): controllers/certificateController drawCoursePdf — the number, the name, what was completed and the
+ * date on public/assets/cert_template.jpg.
  */
-const PDFDocument = require('pdfkit');
-
 const { LEVEL_LABEL: LEVEL } = require('./levels');
-const INDIGO = '#3730a3', VIOLET = '#6d28d9', INK = '#1e293b', MUTED = '#64748b', GOLD = '#b45309';
 
-/** Fit text to a width by shrinking it, down to `min` points. */
-const fit = (doc, text, font, size, width, min = 14) => {
-    let s = size;
-    doc.font(font);
-    while (s > min && doc.fontSize(s).widthOfString(text) > width) s -= 1;
-    return s;
+/** What the certificate says was completed: "English Language Learning – Beginner Level". */
+// (A long name — Malayalam, Portuguese — without "Learning", so it stays on one line of the template.)
+const titleOf = (level, courseName = 'English') => `${courseName} Language${String(courseName).length > 8 ? '' : ' Learning'} – ${LEVEL[level] || level} Level`;
+
+const draw = (res, { name, level, number, issuedAt, courseName = 'English' }) => {
+    const { drawCoursePdf } = require('../controllers/certificateController');
+    drawCoursePdf(res, { number, name: String(name || 'Student'), title: titleOf(level, courseName), issuedAt });
 };
 
-const draw = (res, { name, level, number, issuedAt, average, courseName = 'English' }) => {
-    const doc = new PDFDocument({ layout: 'landscape', size: 'A4', margin: 0 });
-    const safe = String(name || 'Student').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'Student';
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${courseName}_${LEVEL[level] || level}_Certificate_${safe}.pdf"`);
-    doc.pipe(res);
-    const W = doc.page.width, H = doc.page.height;
-
-    // Frame
-    doc.rect(0, 0, W, H).fill('#f8fafc');
-    doc.lineWidth(10).strokeColor(INDIGO).rect(24, 24, W - 48, H - 48).stroke();
-    doc.lineWidth(1.5).strokeColor(VIOLET).rect(40, 40, W - 80, H - 80).stroke();
-
-    const center = (text, y, font, size, color, opts = {}) => doc.font(font).fontSize(size).fillColor(color).text(text, 60, y, { width: W - 120, align: 'center', ...opts });
-    center('YATICORPX3', 78, 'Helvetica-Bold', 14, MUTED, { characterSpacing: 4 });
-    center('Certificate of Achievement', 108, 'Helvetica-Bold', 38, INDIGO);
-    center(`Language Learning · ${courseName}`, 160, 'Helvetica', 16, VIOLET, { characterSpacing: 1 });
-    center('This is to certify that', 214, 'Times-Italic', 18, INK);
-    const nameSize = fit(doc, String(name || 'Student'), 'Helvetica-Bold', 34, W - 200, 18);
-    center(String(name || 'Student'), 246, 'Helvetica-Bold', nameSize, INK);
-    doc.moveTo(W / 2 - 180, 296).lineTo(W / 2 + 180, 296).lineWidth(1).strokeColor('#cbd5e1').stroke();
-    center(`has completed every lesson of the ${LEVEL[level] || level} level`, 316, 'Helvetica', 17, INK);
-    center(`in Vocabulary, Grammar, Reading and Writing, Speaking and Listening, and Translation${average !== undefined && average !== null ? `, with an average quiz score of ${average}%` : ''}.`, 342, 'Helvetica', 13, MUTED);
-
-    // Level seal
-    doc.circle(W / 2, 430, 40).lineWidth(3).strokeColor(GOLD).stroke();
-    center(LEVEL[level] || level, 422, 'Helvetica-Bold', 13, GOLD);
-
-    const date = new Date(issuedAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-    doc.font('Helvetica').fontSize(11).fillColor(MUTED).text(`Issued on ${date}`, 90, H - 110, { width: 300, align: 'left' });
-    doc.font('Helvetica').fontSize(11).fillColor(MUTED).text(`Certificate No. ${number}`, W - 390, H - 110, { width: 300, align: 'right' });
-    doc.end();
-};
-
-module.exports = { draw };
+module.exports = { draw, titleOf };

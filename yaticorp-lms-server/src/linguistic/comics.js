@@ -21,6 +21,10 @@
  */
 
 const SUMMARY = 'A story in pictures. Read it, then answer five questions on it.';
+// A story told as a film (2026-11-20, the user, of "Story film: The Stranger Who Changed Everything" introduced as "read it panel
+// by panel… the bubbles… Read aloud": "that is a video — give the lines for the video"): its own summary and introduction.
+const FILM_SUMMARY = 'A story told as a short film. Watch it, then answer five questions on it.';
+const FILM_INTRO = 'Watch the story film: the scenes play one after another, the people speak, and the subtitles follow every word. You can pause, go back a line or play a scene again. Its moral comes at the end. Then answer five questions on it.';
 const INTRO = 'Read the story panel by panel: the boxes tell the story, the bubbles are what the people say, and its moral is at the end. Tap “Read aloud” to hear it. Then answer five questions on it.';
 
 const STORIES = [
@@ -243,7 +247,7 @@ const storyOf = (stub) => STORIES.find((s) => s.order === Number(stub.order)) ||
 const stubs = () => STORIES.flatMap((s) => [
     { seedKey: seedKeyOf(s), course: null, title: `${s.film ? 'Story film' : 'Picture story'}: ${s.title}` },
     ...Object.entries(LANGS[s.order] || {}).map(([code, L]) => ({ seedKey: seedKeyOf(s, code), course: code, title: `${L.label}: ${L.title}` }))
-].map((x) => ({ ...x, review: 'comic', module: 'reading', level: 'advanced', order: s.order, summary: SUMMARY, status: 'published', updatedBy: 'Course content', direction: null, learn: {} })));
+].map((x) => ({ ...x, review: 'comic', module: 'reading', level: 'advanced', order: s.order, summary: s.film ? FILM_SUMMARY : SUMMARY, status: 'published', updatedBy: 'Course content', direction: null, learn: {} })));
 
 /** The story's words in a course's language: every caption, bubble and narration in its place, and the price board. */
 const inLanguage = (s, L) => s.panels.map((p, i) => {
@@ -299,7 +303,7 @@ const build = (stub, helper) => {
     return {
         ...stub, language: helper, languageName: require('./languages').infoOf(helper).name,
         ...(info ? { target: info.code, targetName: info.name, targetLocale: info.locale } : {}),
-        learn: { intro: INTRO },
+        learn: { intro: s.film ? FILM_INTRO : INTRO },
         comic: s.film ? filmOf(s, L, L ? info.locale : 'en-IN')
             : L
             ? { title: L.title, titleEn: s.title, theme: s.theme, moral: L.moral, moralLabel: L.moralLabel, locale: info.locale, people: named(s.people, stub.course), panels: inLanguage(s, L) }
@@ -317,4 +321,4 @@ const build = (stub, helper) => {
     };
 };
 
-module.exports = { STORIES, SUMMARY, NAMES, stubs, build, storyOf };
+module.exports = { STORIES, SUMMARY, FILM_SUMMARY, FILM_INTRO, INTRO, NAMES, stubs, build, storyOf };
