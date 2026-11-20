@@ -35,6 +35,11 @@ export default function PracticeHub() {
                 <Card to="/linguistic/review" color="red" pose={dash.mistakes ? 'curious-question' : 'heart-hands'} title="Fix your mistakes" done={!dash.mistakes}
                     text={dash.mistakes ? `${dash.mistakes} answer${dash.mistakes === 1 ? '' : 's'} to practise until you get them right.` : 'Nothing to fix right now. Well done!'}
                     cta={dash.mistakes ? 'Practise' : 'Open'} attr={{ 'data-mistakes': dash.mistakes }} />
+                {/* IELTS mock tests (2026-11-17): all four papers, marked, and where to book the real exam. */}
+                {/* Every course (2026-11-17): IELTS is an English exam, but a student learning Malayalam may still sit it. */}
+                <Card to="/linguistic/ielts" color="purple" pose="presenting" title="IELTS mock test"
+                    text="Listening, Reading, Writing and Speaking, timed and marked with a band score. Book the real exam when you're ready."
+                    cta="Open IELTS" attr={{ 'data-ielts-card': true }} />
                 {(!dash.course || dash.course.code === 'en') && <Card to="/linguistic/placement" color="blue" pose="thinking" title="Placement test"
                     // The test shows the level; units and sections still open in turn (2026-10-28).
                     text={dash.placement?.chosen || !dash.placement ? 'Check your English level in 15 questions. Your lessons still open one unit at a time.' : `Your last test: ${levelOf(dash.placement.found || dash.placement.level).label} (${dash.placement.score}/${dash.placement.total}). Take it again any time.`}

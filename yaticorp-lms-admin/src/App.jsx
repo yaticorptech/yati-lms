@@ -11,6 +11,7 @@ import { getViewedOrganization } from './utils/viewOrganization';
 import AdminLayout from './layouts/AdminLayout';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
+import DemoAccess from './pages/DemoAccess';
 import Dashboard from './pages/Dashboard';
 
 /**
@@ -138,6 +139,10 @@ const CampusInternals = React.lazy(() => import('./campus/pages/Internals'));
 const CampusFees = React.lazy(() => import('./campus/pages/Fees'));
 const CampusExamBoard = React.lazy(() => import('./campus/pages/ExamBoard'));
 const CampusFeedback = React.lazy(() => import('./campus/pages/Feedback'));
+// A department office's own pages (campus/menu.js CAMPUS_STAFF_MENUS): its sign-in works here, not in a separate app.
+const CampusOverview = React.lazy(() => import('./campus/pages/Overview'));
+const CampusSubjects = React.lazy(() => import('./campus/pages/Subjects'));
+const CampusTimetable = React.lazy(() => import('./campus/pages/Timetable'));
 // The certificates (2026-10-31); since 2026-11-07 both dashboards build them on the same page (CertificateConfiguration).
 const IssuedCertificates = React.lazy(() => import('./certificates/IssuedCertificates'));
 // Organisations: Certificate Configuration (intra- / inter-college, formal certificates), 2026-10-31.
@@ -157,6 +162,8 @@ function App() {
       <Route path="/login" element={<Login />} />
       {/* Public: opened from the emailed link by someone who cannot sign in. */}
       <Route path="/reset-password" element={<ResetPassword />} />
+      {/* Public: a demo card's hand-over into the demo organisation's panel. */}
+      <Route path="/demo-access" element={<DemoAccess />} />
       {/* Public on purpose: nobody registering an organization has an account yet. */}
       <Route path="/register-organization" element={<RegisterOrganization />} />
 
@@ -182,6 +189,9 @@ function App() {
           <Route path="admissions/*" element={<CampusAdmissions />} />
           <Route path="attendance/*" element={<CampusAttendance />} />
           <Route path="departments/*" element={<CampusDepartments />} />
+          <Route path="overview" element={<CampusOverview />} />
+          <Route path="subjects/*" element={<CampusSubjects />} />
+          <Route path="timetable/*" element={<CampusTimetable />} />
           <Route path="internal-marks" element={<CampusLockedPreview title="Internal marks"><CampusInternals /></CampusLockedPreview>} />
           <Route path="fees" element={<CampusLockedPreview title="Fees"><CampusFees /></CampusLockedPreview>} />
           <Route path="exam-board" element={<CampusLockedPreview title="Examination"><CampusExamBoard /></CampusLockedPreview>} />

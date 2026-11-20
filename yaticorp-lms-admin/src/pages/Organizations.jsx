@@ -123,9 +123,9 @@ const FEATURES = {
         icon: School, title: 'Campus', tone: 'bg-teal-50 text-teal-800 ring-teal-200', iconTone: 'bg-teal-50 text-teal-700',
         field: 'campusAllowed', endpoint: 'campus', onLabel: 'On',
         aria: (org) => `Campus for ${org.name}`,
-        what: 'Campus is the student management system, in its own Institution app: departments with their own sign-ins, admissions, subjects, attendance, internal marks, fees and receipts, exam applications and admit cards, an examination board that publishes marks cards, and feedback.',
+        what: 'Campus is the student management system, inside the organization dashboard: departments with their own sign-ins, admissions, subjects, attendance, internal marks, fees and receipts, exam applications and admit cards, an examination board that publishes marks cards, and feedback.',
         gets: [
-            'Its administrator sets up departments, their sign-ins and the examination board in the Institution app.',
+            'Its administrator sets up departments, their sign-ins and the examination board under Campus; each of those sign-ins opens Campus with its own menu.',
             'Departments admit students, set subjects and fees; teachers take attendance and enter internal marks.',
             'Students with an AI card get an Institution dashboard, and their published marks cards on their profile.'
         ],

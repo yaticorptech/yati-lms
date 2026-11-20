@@ -13,6 +13,10 @@
  * Not while a superadmin is viewing the dashboard as the student: the picture
  * is the student's to choose, and the gate stood between the administrator
  * and the page they came to look at.
+ *
+ * Nor for a demo (presentation) card (2026-11-19, the owner: "don't show that upload uniform
+ * image and all like that; these are used for presentations, it will disturb them"): it is in
+ * the demo organisation only to show it, so no photo is asked of it.
  */
 import { lazy, Suspense, useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
@@ -21,6 +25,7 @@ import api from '../utils/api';
 const PhotoPicker = lazy(() => import('./PhotoPicker'));
 import { ADMIN_VIEW_KEY } from '../utils/sessionExpiry';
 import { isAvatarPicture } from '../utils/avatarPicture';
+import { isDemoCard } from '../utils/demoSwitch';
 
 const adminIsViewing = () => {
     try { return !!localStorage.getItem(ADMIN_VIEW_KEY); } catch { return false; }
@@ -33,7 +38,8 @@ export default function ProfilePictureGate() {
     const inOrg = !!user?.organizationId;
     const has = !!user?.profilePicture && !(inOrg && isAvatarPicture(user.profilePicture));
     const [needed, setNeeded] = useState(false);
-    const [viewing] = useState(adminIsViewing);
+    // An administrator's visit and a demo card are never stopped.
+    const [viewing] = useState(() => adminIsViewing() || isDemoCard(user));
     const avatarNow = isAvatarPicture(user?.profilePicture);
 
     useEffect(() => {

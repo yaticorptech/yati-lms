@@ -54,7 +54,7 @@ export default function LingoShell() {
     const load = useCallback(() => linguisticApi.dashboard().then((d) => {
         setDash(d); setError(null);
         // A device set to Hindi, Japanese, French or Korean is offered that language, once.
-        const offered = deviceLanguage((d.languages || []).map((l) => l.code));
+        const offered = deviceLanguage((d.languages || []).filter((l) => !l.locked).map((l) => l.code));
         // (Not before the start screens, which ask it themselves.)
         if (d.started && !d.languageChosen && offered && offered !== 'kn' && !languageAsked()) setPicking('speak');
     }).catch((e) => { setError(e); setDash((cur) => cur || null); }), []);
@@ -104,7 +104,7 @@ export default function LingoShell() {
             </div>
             {picking && (
                 <LanguagePicker languages={dash.languages || []} courses={dash.courses || []} current={dash.language?.code || 'kn'} course={dash.course} mode={picking} locked={!!dash.started && !dash.courseDone && !dash.freeCourse} finished={!!dash.started && !!dash.courseDone}
-                    suggested={deviceLanguage((dash.languages || []).map((l) => l.code))} onClose={closePicker} onDone={() => { closePicker(); load(); }} />
+                    suggested={deviceLanguage((dash.languages || []).filter((l) => !l.locked).map((l) => l.code))} onClose={closePicker} onDone={() => { closePicker(); load(); }} />
             )}
         </div>
     );

@@ -141,7 +141,9 @@ export default function LanguagePicker({ languages, courses = [], current, cours
     // With the course kept, its language cannot be the one they speak.
     const speakItem = (l) => {
         const off = locked && l.code !== 'en' && l.code === course.code;
-        return { value: l.code, title: l.native, sub: l.native === l.name ? null : l.name, mark: langOf(l.code).mark, disabled: off, note: off ? 'you are learning it' : null, option: `${l.native} — ${l.name}${off ? ' (you are learning it)' : ''}` };
+        // A demo card (2026-11-19): only the languages whose voices are ready; the rest shown, being worked on.
+        const soon = !!l.locked;
+        return { value: l.code, title: l.native, sub: l.native === l.name ? null : l.name, mark: langOf(l.code).mark, disabled: off || soon, locked: soon, note: off ? 'you are learning it' : soon ? 'working on it' : null, option: `${l.native} — ${l.name}${off ? ' (you are learning it)' : soon ? ' · working on it' : ''}` };
     };
     const speakGroups = [
         ...(suggested ? [{ label: 'Your device’s language', items: languages.filter((l) => l.code === suggested).map(speakItem) }] : []),
@@ -152,8 +154,9 @@ export default function LanguagePicker({ languages, courses = [], current, cours
         value: c.code, title: c.name, sub: c.native && c.native !== c.name ? c.native : null, mark: c.code === 'en' ? 'En' : langOf(c.code).mark,
         // A locked language (2026-11-13: only English, Kannada and Hindi, but for the developer cards): shown, not chosen.
         disabled: (!c.full && c.code === speak) || !!c.locked, locked: !!c.locked,
-        note: !c.full && c.code === speak ? 'you speak it' : c.locked ? 'locked' : c.done ? 'finished' : !c.full && c.begun ? 'started' : null,
-        option: `${c.name}${!c.full && c.code === speak ? ' (you speak it)' : c.locked ? ' · locked' : c.done ? ' · finished' : !c.full && c.begun ? ' · started' : ''}`
+        // `soon` (2026-11-19, a demo card): locked because it is being worked on.
+        note: !c.full && c.code === speak ? 'you speak it' : c.locked ? (c.soon ? 'working on it' : 'locked') : c.done ? 'finished' : !c.full && c.begun ? 'started' : null,
+        option: `${c.name}${!c.full && c.code === speak ? ' (you speak it)' : c.locked ? (c.soon ? ' · working on it' : ' · locked') : c.done ? ' · finished' : !c.full && c.begun ? ' · started' : ''}`
     });
     const learnGroups = [
         { label: 'All five skills', items: list.filter((c) => c.full).map(learnItem) },

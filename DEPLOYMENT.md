@@ -42,7 +42,6 @@ The must-get-right ones:
   A name that doesn't exist is created silently and empty, and then *every*
   login fails with "invalid credentials" and no error appears in the logs.
 - **`JWT_SECRET`** — changing it logs every user out.
-- **`INSTITUTION_URL`** — the deployed Institution (Campus) app, `yaticorp-lms-institution`, allowed by CORS. Set the admin app's `VITE_INSTITUTION_URL` to the same address.
 - **`FRONTEND_URL` / `ADMIN_URL` / `ALLOWED_ORIGINS`** — the deployed web app
   URLs, no trailing slash. Wrong values mean the browser is refused on every
   API call while curl still works, which is a confusing way to lose an hour.

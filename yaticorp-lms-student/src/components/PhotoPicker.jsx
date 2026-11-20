@@ -91,7 +91,8 @@ const SupportMessage = ({ user }) => {
 export default function PhotoPicker({ required = false, onClose, account = null, uniform: uniformProp }) {
     const { user, setUser, logout } = useContext(AuthContext);
     // A student in an institution uploads their real photo in uniform — no avatars (2026-11-16).
-    const uniform = uniformProp ?? (!account && !!user?.organizationId);
+    // Not asked of a demo (presentation) card (2026-11-19): it may keep an avatar.
+    const uniform = uniformProp ?? (!account && !!user?.organizationId && !user?.demoCard);
     const accent = ACCENTS[account ? 'emerald' : 'indigo'];
     const currentPicture = account ? account.picture : user?.profilePicture;
     const [helpOpen, setHelpOpen] = useState(false);
