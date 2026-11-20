@@ -20,7 +20,7 @@ const RING = ['ring-sky-200', 'ring-amber-200', 'ring-emerald-200', 'ring-violet
 
 const nameOf = (u) => u?.name || [u?.firstName, u?.lastName].filter(Boolean).join(' ') || 'Young thinker';
 
-export default function YoungThinkersPage({ categories, renderGames, completed, classNumber, stars, achievements, onProgress, onGroup }) {
+export default function YoungThinkersPage({ categories, renderGames, playLeft = null, completed, classNumber, stars, achievements, onProgress, onGroup }) {
   const user = useContext(LmsAuthContext)?.user;
   const [cat, setCat] = useState(categories[0].key);
   const pct = Math.round((Math.min(28, completed) / 28) * 100);
@@ -51,8 +51,15 @@ export default function YoungThinkersPage({ categories, renderGames, completed, 
             <span className="block font-bold text-slate-600" style={{ fontSize: 'clamp(6px, 0.75vw, 12px)' }}>Stars</span>
           </span>
         </span>
+        {/* Today's play time left, written plainly on the sign's yellow bar (2026-11-17, the user). */}
+        {playLeft && (
+          <span className="absolute hidden items-center justify-center text-center font-black text-[#1b2456] tabular-nums md:flex" style={{ left: '48.5%', top: '64.5%', width: '19%', height: '14%', fontSize: 'clamp(8px, 1.15vw, 20px)' }} role="timer">
+            {playLeft}
+          </span>
+        )}
         {/* No achievements box or button here (2026-11-14, the user): that corner is sky. */}
       </div>
+      {playLeft && <p className="px-3 pt-2 text-center text-sm font-black text-[#1b2456] tabular-nums md:hidden" role="timer">⏱ {playLeft}</p>}
       <div className="flex items-stretch gap-2 px-2 pt-2 md:hidden" data-young-details>
         <span className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-white px-2.5 py-2 shadow-md">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-100 text-xl" aria-hidden>🧒</span>

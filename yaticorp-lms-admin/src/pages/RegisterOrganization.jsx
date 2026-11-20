@@ -20,9 +20,10 @@ import PasswordField from '../components/PasswordField';
 import Select from '../components/Select';
 import OrgCodeField from '../components/OrgCodeField';
 import { orgCodeProblem } from '../utils/orgCode';
+import { studentAppUrl } from '../utils/studentUrl';
 
 // The Terms and Privacy Policy pages are the student site's (/terms, /privacy).
-const STUDENT_URL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
+const STUDENT_URL = studentAppUrl('http://localhost:5174');
 const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40';
 const INPUT_BAD = 'w-full rounded-xl border border-red-400 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400/40';
 const LABEL = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500';

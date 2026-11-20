@@ -1,5 +1,5 @@
 /**
- * The teacher side of YATICORP: its own accounts and its own research records.
+ * The teacher side of YATICORPX3: its own accounts and its own research records.
  *
  * Teachers are a separate collection, not students with a flag: every student
  * list, leaderboard, report and Career Path query reads `users`, and a teacher
@@ -56,6 +56,9 @@ const teacherSchema = new Schema({
     // and 360 — who signs in with their mobile number and password (never by
     // email). Unique among the teachers that have one (index below).
     cardNumber: { type: String, set: (v) => (v == null || v === '' ? undefined : String(v).trim()) },
+    // A demo card's teacher (services/demoDashboards.js): the demo card's number. The card itself is
+    // the student's, so cardNumber stays empty; this opens the research tools in its place.
+    demoCard: { type: String, default: undefined, index: true, sparse: true },
     password: { type: String, required: true },
     // 'pending' while the admin's approval is switched on and not yet given
     // (Setting.teacherApprovalRequired); 'inactive' is blocked or turned down.
@@ -101,7 +104,7 @@ teacherSchema.index({ cardNumber: 1 }, { unique: true, name: 'card_unique', part
 teacherSchema.index({ email: 1 }, { unique: true, name: 'email_unique', partialFilterExpression: { email: { $type: 'string' } } });
 
 /** Whether this teacher has an AI card, and with it the research tools. */
-teacherSchema.methods.hasResearch = function () { return Boolean(this.cardNumber); };
+teacherSchema.methods.hasResearch = function () { return Boolean(this.cardNumber || this.demoCard); };
 
 teacherSchema.pre('save', async function () {
     if (!this.isModified('password') || BCRYPT_HASH.test(this.password || '')) return;

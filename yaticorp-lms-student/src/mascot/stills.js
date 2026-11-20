@@ -4,7 +4,7 @@
  * blinks — every gesture the mascot makes is one of these pictures.
  */
 
-// The ones the LMS reacts with come first, so they are cached before the rest.
+// The ones YATICORPX3 reacts with come first, so they are cached before the rest.
 export const STILLS = [
     'wave-hi', 'cheer-jump', 'sad', 'confetti-cheer', 'star-celebrate', 'meditating', 'wink-point',
     'clapping', 'curious-question', 'flex-content', 'flex-determined', 'heart-hands', 'jump-cheer',

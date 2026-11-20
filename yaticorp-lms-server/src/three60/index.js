@@ -342,12 +342,14 @@ const student = express.Router();
 // Whether their organization has opened 360, and the teachers tracking them, with what they teach.
 student.get('/', async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select('organizationId').lean();
-        const org = user?.organizationId ? await Organization.findById(user.organizationId).select('name logo three60').lean() : null;
+        // A demo card: the demo institution (services/demoInstitution.js, 2026-11-18).
+        const orgId = await require('../services/demoInstitution').orgIdFor(req.user._id);
+        const org = orgId ? await Organization.findById(orgId).select('name logo three60').lean() : null;
         if (!org?.three60?.enabled || !require('./activities').unlocked(org)) return res.json({ enabled: false, title: rankingName(org) });
         const teachers = await Teacher.find({ organizationId: org._id, mentor360: true, students360: req.user._id }).select('name email phone').sort({ name: 1 }).lean();
         // Only the students a 360 teacher has added take part (2026-10-31): for the others 360 stays shut.
-        if (!teachers.length) return res.json({ enabled: false, notAdded: true, title: rankingName(org) });
+        // The demo institution has no ranking teacher: a demo card takes part anyway.
+        if (!teachers.length && !require('../services/demoInstitution').isDemoOrg(org._id)) return res.json({ enabled: false, notAdded: true, title: rankingName(org) });
         const subjectsOf = {};
         for (const p of org.three60.programs || []) {
             for (const s of p.sections || []) {

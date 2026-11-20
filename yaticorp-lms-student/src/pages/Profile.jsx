@@ -264,7 +264,7 @@ const Profile = ({ view = 'dashboard' }) => {
             );
             const blob = new Blob([res.data], { type: 'application/pdf' });
             const fileName = `Certificate_${(cert.courseId?.title || 'Course').replace(/\s+/g, '_')}.pdf`;
-            await downloadWithDrive(blob, fileName, { title: 'Certificate', description: `Your certificate for ${cert.courseId?.title || 'a course'}, issued by YATICORP.`, reason: 'So the certificates you earn here are kept in your own Google Drive.' });
+            await downloadWithDrive(blob, fileName, { title: 'Certificate', description: `Your certificate for ${cert.courseId?.title || 'a course'}, issued by YATICORPX3.`, reason: 'So the certificates you earn here are kept in your own Google Drive.' });
         } catch (e) {
             if (askIfDriveRequired(e, 'So the certificates you earn here are kept in your own Google Drive.')) return;
             if (!isWalletCancel(e)) setCertError(isShortOfFunds(e) ? serverMessage(e) : 'Failed to download certificate. Please try again.');

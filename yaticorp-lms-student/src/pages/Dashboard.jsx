@@ -28,7 +28,7 @@ import useBackClose from '../native/useBackClose';
 
 
 // The instructor is text on a course; an older shape kept it as { name }.
-const nameOf = (instructor) => (typeof instructor === 'string' ? instructor : instructor?.name) || 'YATICORP';
+const nameOf = (instructor) => (typeof instructor === 'string' ? instructor : instructor?.name) || 'YATICORPX3';
 const getInitials = (title = '') => String(title).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
 
 /** The completed empty state: a rosette with ribbon tails on a lavender arch,

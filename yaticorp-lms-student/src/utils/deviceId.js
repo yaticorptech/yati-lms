@@ -60,11 +60,11 @@ export const deviceName = () => {
     if (/Android/.test(ua)) {
         const model = modelOf(ua);
         const what = model ? phoneName(model) : /Mobile/.test(ua) ? 'Android phone' : 'Android tablet';
-        return app ? `${what} · YATICORP app` : `${what} · ${browser}`;
+        return app ? `${what} · YATICORPX3 app` : `${what} · ${browser}`;
     }
     const os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? (navigator.maxTouchPoints > 1 ? 'iPad' : 'Mac') : /CrOS/.test(ua) ? 'Chromebook' : /Linux/.test(ua) ? 'Linux' : 'device';
-    if (os === 'iPhone' || os === 'iPad') return app ? `${os} · YATICORP app` : `${os} · ${browser}`;
-    return app ? `YATICORP app on ${os}` : `${browser} on ${os}`;
+    if (os === 'iPhone' || os === 'iPad') return app ? `${os} · YATICORPX3 app` : `${os} · ${browser}`;
+    return app ? `YATICORPX3 app on ${os}` : `${browser} on ${os}`;
 };
 
 /** Headers for a request: this device's id and name. */

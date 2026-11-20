@@ -58,7 +58,7 @@ const EMBED_BATCH = 50;
  * What a list is genuinely for: continuing to work when a key is revoked or
  * rotated, and letting a paid key take over when a free one is spent.
  *
- * Inside the LMS there is a second consumer of Gemini: Career Path's mentor,
+ * Inside YATICORPX3 there is a second consumer of Gemini: Career Path's mentor,
  * roadmaps and daily tasks, which run on GEMINI_API_KEY. Google meters per
  * PROJECT per day, so a big embedding backfill here could spend the very
  * allowance a mentor conversation needs mid-class. JOBS_GEMINI_API_KEY (and

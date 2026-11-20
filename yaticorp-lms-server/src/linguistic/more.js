@@ -207,7 +207,21 @@ const stubs = () => courses.courseCodes().filter((c) => OPEN.includes(c) || pack
 
 /** Whether a student whose own language is `helper` gets this lesson: "Phrases" in English needs sentences in theirs. */
 // (A section written in their language too, since 2026-11-17.)
-const usable = (doc, helper) => !(moreKind(doc) === 'phrases' && !doc.course && !['kn', 'hi'].includes(helper) && !(sectionLesson(doc) && LANGS_AT[doc.level]?.has(helper)));
+// And only one with something in it (2026-11-19, the user: "why it is coming like this, I didn't even try the lesson"): a
+// course's "More words" whose words were never written in its language (Spanish, Tamil…) had no cards and no quiz — its
+// intro, then 0%. Such a lesson is left off the path.
+const filled = new Map();
+const hasContent = (doc, helper) => {
+    const key = `${doc.seedKey || doc._id}|${helper}`;
+    if (!filled.has(key)) {
+        let out = null;
+        try { out = build(doc, helper); } catch { /* not buildable: empty */ }
+        filled.set(key, !!out && ['words', 'quiz', 'items', 'writing'].some((f) => (out[f] || []).length));
+    }
+    return filled.get(key);
+};
+const usable = (doc, helper) => !(moreKind(doc) === 'phrases' && !doc.course && !['kn', 'hi'].includes(helper) && !(sectionLesson(doc) && LANGS_AT[doc.level]?.has(helper)))
+    && (doc?.review !== 'more' || hasContent(doc, helper));
 
 /** Questions on a story or conversation: asked in the student's language, the choices in the one learnt, mixed. */
 const questionsOf = (list, X, Y, seed) => (list || []).map((q, i) => {
@@ -235,7 +249,9 @@ const build = (stub, helper) => {
     }
     if (kind === 'phrases') {
         // Read in the language learnt (answered in the student's), or written in it — the first two to practise.
-        const items = (k.list || []).map((p, i) => {
+        // A course's sentences only where they are written in its language (2026-11-19, the user's Spanish "Write this in
+        // Spanish: This is my son." with English tiles): an English one is not a Spanish course's, on either side.
+        const items = (k.list || []).filter((p) => code === 'en' || p[X.code]).map((p, i) => {
             const from = p.read ? X.code : Y.code, to = p.read ? Y.code : X.code;
             const has = (c) => !!p[c];
             return {
@@ -251,6 +267,10 @@ const build = (stub, helper) => {
             : { intro: `New sentences on this topic: read some in ${X.name}, write others in it.`, points: ['Tap the word tiles in order, or type.', 'A close answer counts: you will see the model and the small differences.'] };
         return out;
     }
+    // A story or conversation not written in a course's language is not that course's (2026-11-19): left empty, off the path.
+    const written = (x) => code === 'en' || (typeof x === 'object' && !!x?.[X.code]);
+    if (kind === 'story' && !written(k.text)) return out;
+    if (kind === 'listen' && code !== 'en' && !(k.lines || []).some((line) => !Array.isArray(line) && written(line))) return out;
     if (kind === 'story') {
         out.learn = { intro: `Read the story in ${X.name}, then answer the questions.`, passage: { title: textIn(k.title, X.code), text: textIn(k.text, X.code) } };
         out.quiz = questionsOf(k.questions, X, Y, stub.seedKey);

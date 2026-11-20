@@ -3,7 +3,8 @@
  * student whose card has no AI Passport linked yet. It comes:
  *  - at once, with the ID filled in, when the passport's QR link opened the app;
  *  - otherwise once a day until they link one ("Later" hides it for a day).
- * Not while the profile-picture gate is up, nor while an admin views as the student.
+ * Not while the profile-picture gate is up, nor while an admin views as the student, nor for a
+ * demo (presentation) card (2026-11-19: nothing pops up over a presentation).
  */
 import React, { useContext, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
@@ -11,6 +12,7 @@ import { AuthContext } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { ADMIN_VIEW_KEY } from '../../utils/sessionExpiry';
 import PassportClaim from './PassportClaim';
+import { isDemoCard } from '../../utils/demoSwitch';
 import { getPendingPassport, clearPendingPassport, dismissPassportPopup, popupDismissedRecently } from './passportPending';
 
 const adminIsViewing = () => { try { return !!localStorage.getItem(ADMIN_VIEW_KEY); } catch { return false; } };
@@ -20,7 +22,7 @@ export default function PassportClaimPopup() {
     const [status, setStatus] = useState(null);
     const [code, setCode] = useState('');
     const [show, setShow] = useState(false);
-    const ready = Boolean(user && user.profilePicture && !adminIsViewing());
+    const ready = Boolean(user && user.profilePicture && !adminIsViewing() && !isDemoCard(user));
 
     useEffect(() => {
         if (!ready) return undefined;

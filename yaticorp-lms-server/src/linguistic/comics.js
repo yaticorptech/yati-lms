@@ -91,7 +91,7 @@ const STORIES = [
                     { who: 'narrator', text: 'It was seven o’clock on a bright Monday morning in Bengaluru.', at: { arjun: { x: 38, pose: 'stand' } }, cam: 'wide' },
                     { who: 'narrator', text: 'Arjun buttoned his best formal shirt and checked his watch for the third time.', at: { arjun: { x: 38, pose: 'talk' } }, cam: 'close' },
                     { who: 'arjun', text: 'Certificates, résumé, photographs… everything is here.', at: { arjun: { x: 40, pose: 'give', holds: 'papers' } }, cam: 'close' },
-                    { who: 'narrator', text: 'For months he had waited for this interview at Horizon Technologies. Today, he promised himself, he would not be late.', at: { arjun: { x: 112, pose: 'stand', holds: 'papers', walk: true } }, cam: 'pan' }
+                    { who: 'narrator', text: 'For months he had waited for this interview at Horizon Technologies. Today, he promised himself, he would not be late.', at: { arjun: { x: 78, pose: 'stand', holds: 'papers', walk: true } }, cam: 'pan' }
                 ] },
             { id: 2, title: 'The stranger', place: 'busstop', light: 'rain',
                 lines: [
@@ -116,7 +116,7 @@ const STORIES = [
                     { who: 'ravi', text: 'Son, I am at the bus stop. A kind young man is sending me home.', at: { ravi: { x: 40, pose: 'talk', holds: 'phone' }, arjun: { x: 62, pose: 'stand', face: 'left' } }, cam: 'left', props: ['auto'] },
                     { who: 'ravi', text: 'Thank you. People like you are rare these days. What is your name?', at: { ravi: { x: 40, pose: 'give' }, arjun: { x: 62, pose: 'stand', face: 'left' } }, cam: 'left', props: ['auto'] },
                     { who: 'arjun', text: 'Arjun, sir. Please take care of yourself.', at: { ravi: { x: 40, pose: 'cheer' }, arjun: { x: 62, pose: 'talk', face: 'left' } }, cam: 'right', props: ['auto'] },
-                    { who: 'narrator', text: 'As the auto-rickshaw drove away, Arjun checked the time. He was already late. He ran.', at: { arjun: { x: 118, pose: 'stand', holds: 'papers', walk: true, run: true } }, cam: 'pan' }
+                    { who: 'narrator', text: 'As the auto-rickshaw drove away, Arjun checked the time. He was already late. He ran.', at: { arjun: { x: 84, pose: 'stand', holds: 'papers', walk: true, run: true } }, cam: 'pan' }
                 ] },
             { id: 5, title: 'The unexpected twist', place: 'office', light: 'day',
                 lines: [

@@ -104,7 +104,7 @@ const pdf = async (cert, res) => {
     doc.rect(0, 0, W, H).fill('#f8f7ff');
     doc.lineWidth(6).rect(24, 24, W - 48, H - 48).stroke(accent);
     doc.lineWidth(1.5).rect(36, 36, W - 72, H - 72).stroke(gold);
-    doc.fillColor(accent).font('Helvetica-Bold').fontSize(14).text('YATICORP · GROUP BRAIN', 0, 70, { width: W, align: 'center', characterSpacing: 3 });
+    doc.fillColor(accent).font('Helvetica-Bold').fontSize(14).text('YATICORPX3 · GROUP BRAIN', 0, 70, { width: W, align: 'center', characterSpacing: 3 });
     doc.fillColor(ink).font('Helvetica-Bold').fontSize(34).text('Certificate of Achievement', 0, 100, { width: W, align: 'center' });
     doc.fillColor('#475569').font('Helvetica').fontSize(14).text('This is to certify that', 0, 160, { width: W, align: 'center' });
     doc.fillColor(ink).font('Helvetica-Bold').fontSize(30).text(cert.name, 60, 186, { width: W - 120, align: 'center' });

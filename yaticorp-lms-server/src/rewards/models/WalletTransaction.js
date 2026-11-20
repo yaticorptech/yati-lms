@@ -12,7 +12,7 @@ const SOURCES = [
   'leaderboard_reward',  // reward points from leaderboard finishes, redeemed
   'referral_reward',
   'job_earning',
-  'purchase',            // spent inside the LMS
+  'purchase',            // spent inside YATICORPX3
   'feature_charge',      // a feature priced under Wallet rules (download, interview…)
   'feature_refund',      // that charge returned because the action failed
   'game_entry',          // a Group Brain online table's entry fee

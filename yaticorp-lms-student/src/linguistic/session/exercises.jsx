@@ -6,11 +6,12 @@
  */
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MoodContext, poseFor } from './mood';
-import { Check, ChevronLeft, ChevronRight, Keyboard, LayoutGrid, Lightbulb, BookOpen, Headphones, ChevronDown, Square, Volume2, Eye, Turtle, Mic, Loader2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Shuffle, Keyboard, LayoutGrid, Lightbulb, BookOpen, Headphones, ChevronDown, Square, Volume2, Eye, Turtle, Mic, Loader2 } from 'lucide-react';
 import { COLORS, directionLabel, langOf, langFor, scriptOf, isRtl, play, chime, soundOn, canSpeak, tileVoice, usePrefetch, readAloud, readingSpeech } from '../meta';
 import { Mascot, Speaker } from '../ui';
 import { tilesOf, usesTiles, OPEN_WRITING, LEAST_SENTENCES, sentenceCount, saidRight } from './logic';
 import { tr, line, writeWord } from '../say';
+import { isShortHindi, nextHindi } from './hindiShort';
 import Dialogue from '../parts/Dialogue';
 import TalkRecorder from '../parts/TalkRecorder';
 import { ticksOf, needOf, canTranscribe, writeTicksOf } from '../parts/speakTicks';
@@ -436,6 +437,14 @@ export function SayItStep({ step, locked, onDone }) {
     const rec = useRef(null);
     useEffect(() => () => { try { rec.current?.abort(); } catch { /* not listening */ } }, []);
     const lang = q.sayLang || 'en-IN';
+    // Hindi (2026-11-17, the user): a short sentence only, and Shuffle for another one.
+    const hindi = /^hi/.test(lang);
+    const [say, setSay] = useState(() => (hindi && !isShortHindi(q.say) ? nextHindi(q.say) : q.say));
+    const shuffle = () => {
+        if (locked || state === 'listening' || state === 'right') return;
+        setSay((cur) => nextHindi(cur));
+        setHeard(''); setState('idle');
+    };
     const listen = () => {
         const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!Recognition || locked || state === 'listening' || state === 'right') return;
@@ -445,7 +454,7 @@ export function SayItStep({ step, locked, onDone }) {
         r.onresult = (e) => {
             const said = [...(e.results?.[0] || [])].map((a) => a.transcript);
             setHeard(said[0] || '');
-            if (said.some((t) => saidRight(t, q.say, lang))) { setState('right'); setTimeout(() => onDone?.([]), 500); }
+            if (said.some((t) => saidRight(t, say, lang))) { setState('right'); setTimeout(() => onDone?.([]), 500); }
             else { setState('wrong'); chime('wrong'); }
         };
         r.onerror = (e) => setState(['not-allowed', 'service-not-allowed', 'audio-capture'].includes(e.error) ? 'blocked' : 'nothing');
@@ -457,8 +466,21 @@ export function SayItStep({ step, locked, onDone }) {
     return (
         <div className="lingo-in space-y-6" data-sayit={q.id}>
             <Title>{T('Say this sentence')}</Title>
-            <Bubble pose="point-right" lang={lang.split('-')[0]} speaker={<Speaker text={q.say} lang={lang} size="sm" />}>
-                <span data-sayit-text>{q.say}</span>
+            <Bubble pose="point-right" lang={lang.split('-')[0]} speaker={<Speaker key={say} text={say} lang={lang} size="sm" />}>
+                <span className="inline-flex items-center gap-2">
+                    <span data-sayit-text>{say}</span>
+                    {/* Hindi (2026-11-17): Shuffle as an icon in the sentence's row; its name shows on hover. */}
+                    {hindi && (
+                        <button type="button" onClick={shuffle} disabled={locked || state === 'listening' || state === 'right'} data-sayit-shuffle
+                            aria-label="Shuffle — another sentence" title="बदलें · Shuffle"
+                            className="group relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-[#e8f4fd] disabled:opacity-40" style={{ color: COLORS.blue.ink }}>
+                            <Shuffle size={20} />
+                            <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 rounded-lg bg-[#3c3c3c] px-2 py-1 text-xs font-bold whitespace-nowrap text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                                बदलें · Shuffle
+                            </span>
+                        </button>
+                    )}
+                </span>
             </Bubble>
             <button type="button" onClick={listen} disabled={locked || state === 'right'} aria-label={T('Click to speak')}
                 className="lingo-tile flex min-h-16 w-full items-center justify-center gap-2.5 px-4 text-[17px] font-extrabold disabled:opacity-100"
@@ -1573,7 +1595,13 @@ export function PairsStep({ step, done, onDone }) {
     const [misses, setMisses] = useState([]);
     const flash = useRef(null);
     useEffect(() => () => clearTimeout(flash.current), []);
-    usePrefetch(words.filter((w) => !w.audio).map((w) => [w.speak || w.word, w.locale || step.targetLocale || 'en-IN']), [step]);
+    // The right side's words made ready too (2026-11-18, the user: "right side voice is not coming": a Punjabi picture
+    // word, "🐄 ਗਾਂ", was only asked for when tapped, and the AI voice takes a while to make it).
+    const meaningSaid = (w) => String(w.kannada || '').replace(/[^\p{L}\p{M}\p{N}\s'’-]/gu, ' ').trim();
+    usePrefetch([
+        ...words.filter((w) => !w.audio).map((w) => [w.speak || w.word, w.locale || step.targetLocale || 'en-IN']),
+        ...words.map(meaningSaid).filter(Boolean).map((said) => [said, tileVoice(said, step.language || 'kn')])
+    ], [step]);
 
     const tap = (side, i) => {
         if (done || matched.includes(i)) return;
@@ -1581,7 +1609,7 @@ export function PairsStep({ step, done, onDone }) {
         // Both sides are read (2026-11-16, "pronounce the left side word also"), each in the language of its own letters.
         if (side === 'en' && (words[i].audio || soundOn())) { const said = words[i].speak || words[i].word; play(words[i].audio, said, words[i].locale || tileVoice(said, step.target && step.target !== 'en' ? step.target : 'en'), { any: true }); }
         // Its meaning heard too, in the student's language (2026-11-06, "the voice for all tile words"; a letter's picture left out).
-        if (side === 'kn' && soundOn()) { const said = String(words[i].kannada || '').replace(/[^\p{L}\p{M}\p{N}\s'’-]/gu, ' ').trim(); if (said) play(null, said, tileVoice(said, step.language || 'kn'), { any: true }); }
+        if (side === 'kn' && soundOn()) { const said = meaningSaid(words[i]); if (said) play(null, said, tileVoice(said, step.language || 'kn'), { any: true }); }
         if (!pick || pick.side === side) { setPick({ side, i }); return; }
         const en = side === 'en' ? i : pick.i;
         const kn = side === 'kn' ? i : pick.i;

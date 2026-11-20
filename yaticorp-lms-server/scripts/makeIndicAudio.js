@@ -17,6 +17,7 @@
  *   node scripts/makeIndicAudio.js --dry              only count what is left to make
  *   node scripts/makeIndicAudio.js --recheck          also delete and make again clips longer than their text
  *   node scripts/makeIndicAudio.js --stories          only the stories and story films (comics), each person's voice
+ *   node scripts/makeIndicAudio.js --letters --courses ta   only the letters page of those courses (2026-11-17)
  */
 require('dotenv').config();
 // No time limit here (2026-11-12): the service finishes a clip even after a caller gives up, and it would be lost.
@@ -31,6 +32,7 @@ const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1
 const DRY = args.includes('--dry');
 const RECHECK = args.includes('--recheck');
 const STORIES = args.includes('--stories');
+const LETTERS = args.includes('--letters');
 const ONLY = (opt('--courses') || '').split(',').map((c) => c.trim()).filter(Boolean);
 
 /** The student app's own lesson builder and speech list, as CommonJS. */
@@ -86,6 +88,8 @@ const mins = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Mat
         if (!seen.has(k)) { seen.add(k); clips.push(c); }
     };
     for (const course of courses) {
+        // --letters: the letters page alone, the first thing a new learner taps (2026-11-17).
+        if (LETTERS) { try { chartSpeech(alphabet.chartOf(course)).forEach(add); } catch { /* no letters page */ } console.log(`${course}: letters page`); continue; }
         const lessons = new Map();
         for (const helper of helpers) {
             const progress = { course, language: helper };
@@ -115,11 +119,12 @@ const mins = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Mat
     // made-up speech after the word; it is deleted, to be made again by the fixed voice service.
     if (RECHECK) {
         const fs = require('fs');
-        const capOf = (t) => { const n = [...t].length; return n <= 3 ? 1.4 : Math.min(30, 1.2 + 0.12 * n); };
+        const capOf = (t) => { const n = [...t].length; return n <= 2 ? 0.8 : n <= 3 ? 1.4 : Math.min(30, 1.2 + 0.12 * n); }; // as the voice service's max_tokens
         let bad = 0;
         for (const c of clips) {
-            if (!store.has(c)) continue;
-            const f = store.fileOf(c); const b = fs.readFileSync(f);
+            // Only a clip kept as it is served now (store.js: tidied); one still to be tidied from its first recording is passed over.
+            const f = store.fileOf(c); if (!fs.existsSync(f)) continue;
+            const b = fs.readFileSync(f);
             const secs = (b.length - 44) / (b.readUInt16LE(34) / 8) / b.readUInt32LE(24);
             if (secs > capOf(c.text) + 0.1) { if (!DRY) fs.unlinkSync(f); bad++; }
         }

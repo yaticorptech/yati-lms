@@ -280,9 +280,12 @@ function SectionHead({ section, si, path, small = false }) {
     );
 }
 
-const TOP_TONE = { face: '#6D7BFF', edge: '#4F46E5' };
+// One colour, no blend (2026-11-18, the user: "mix of two colours not needed"); `edge` is the shadow under it.
+const TOP_TONE = { face: '#5B5FEF', edge: '#4338CA' };
 const LOCKED_TONE = { face: '#B9BEC7', edge: '#8F96A3' };
-const SECTION_TONES = ['green', 'purple', 'blue'];
+// The Advanced card on the path (2026-11-18, the user: "why same colour"): the Beginner card's indigo, never one of the
+// unit banners' colours (green, blue, purple…), so it does not read as the unit under it.
+const PATH_TONE = TOP_TONE;
 
 /** Phones: the section you are in as a bright hero card (2026-11-16, "redesign it, attractive"). */
 function SectionHero({ section, si, path, full = false }) {
@@ -294,24 +297,26 @@ function SectionHero({ section, si, path, full = false }) {
     const completed = part.reduce((n, l) => n + l.completed, 0), total = part.reduce((n, l) => n + l.total, 0);
     const complete = part.length > 0 && part.every((l) => l.complete);
     const pct = total ? Math.round((completed / total) * 100) : 0;
-    const here = section.level === path.level;
-    // Each section its own colour; gold once its part is finished, grey while locked.
+    // Here anywhere in the part (2026-11-18): the card is the whole Beginner or Advanced.
+    const here = section.level === path.level || part.some((l) => l.level === path.level);
+    // Gold once its part is finished, grey while locked.
     // The top card on phones is indigo (2026-11-16, "different colour"), so it stands apart from the green unit banner below it.
-    const tone = complete ? COLORS.gold : !section.open ? LOCKED_TONE : !full ? TOP_TONE : COLORS[SECTION_TONES[si % SECTION_TONES.length]];
+    const tone = complete ? COLORS.gold : !section.open ? LOCKED_TONE : !full ? TOP_TONE : PATH_TONE;
     const before = path.levels[si - 1];
     const Name = full ? 'h2' : 'p';
     return (
-        <div className={`relative overflow-hidden rounded-3xl px-5 py-4 text-white shadow-lg xl:px-7 xl:py-5`} {...(full ? { 'data-section-head': true } : {})} style={{ background: `linear-gradient(135deg, ${tone.face} 0%, ${tone.edge} 100%)`, boxShadow: `0 4px 0 ${tone.edge}, 0 12px 24px -10px ${tone.edge}` }}>
-            <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/15" />
-            <span aria-hidden="true" className="pointer-events-none absolute -bottom-12 right-16 h-24 w-24 rounded-full bg-white/10" />
-            <span aria-hidden="true" className="pointer-events-none absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-2xl bg-white/20 text-2xl ring-2 ring-white/30">
+        <div className={`lingo-hero relative overflow-hidden rounded-3xl px-5 py-4 text-white shadow-lg xl:px-7 xl:py-5`} {...(full ? { 'data-section-head': true } : {})} style={{ background: tone.face, boxShadow: `0 4px 0 ${tone.edge}, 0 12px 24px -10px ${tone.edge}` }}>
+            <span aria-hidden="true" className="lingo-hero-shine" />
+            <span aria-hidden="true" className="lingo-hero-drift pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/15" />
+            <span aria-hidden="true" className="lingo-hero-drift-2 pointer-events-none absolute -bottom-12 right-16 h-24 w-24 rounded-full bg-white/10" />
+            <span aria-hidden="true" className="lingo-hero-bob pointer-events-none absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-2xl bg-white/20 text-2xl ring-2 ring-white/30">
                 {complete ? <Trophy size={24} strokeWidth={2.5} /> : !section.open ? <Lock size={22} strokeWidth={2.5} /> : <Crown size={24} strokeWidth={2.5} />}
             </span>
-            <p className="relative text-[10.5px] font-extrabold uppercase tracking-[0.14em] text-white/85">Section {si + 1} · {levelOf(section.level).cefr}</p>
-            {/* The level first, highlighted, in front of the section's name (2026-11-18, as on the Sections page). */}
-            <Name {...(full ? { id: `sec-${section.level}`, 'data-section-name': true } : {})} className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pr-14 text-2xl font-black leading-tight">
+            {/* No "Section 1 · A1" line (2026-11-18, the user: "why is it written"): the card is the whole Beginner or Advanced.
+                The level first, highlighted, in front of the section's name (2026-11-18, as on the Sections page). */}
+            <Name {...(full ? { id: `sec-${section.level}`, 'data-section-name': true } : {})} className="relative flex flex-wrap items-center gap-x-2 gap-y-1 pr-14 text-2xl font-black leading-tight">
                 {levelOf(section.level).named && <span className="rounded-xl bg-white px-2.5 py-0.5 text-lg uppercase tracking-wide shadow-sm" style={{ color: section.open ? tone.edge : '#8F96A3' }} data-level-word>{levelOf(section.level).label}</span>}
-                <span className="drop-shadow-sm">{levelOf(section.level).section}</span>
+                <span className="drop-shadow-sm">{levelOf(section.level).section}{path.course?.name && <span className="font-extrabold text-white/85"> · {path.course.name}</span>}</span>
             </Name>
             {here && (
                 <span className="relative mt-1.5 inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider" style={{ color: tone.edge }}>
@@ -321,7 +326,7 @@ function SectionHero({ section, si, path, full = false }) {
             {section.open ? (
                 <div className="relative mt-3">
                     <div className="h-3 w-full overflow-hidden rounded-full bg-black/15" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${word}: ${completed} of ${total} lessons`} data-part-progress={`${completed}/${total}`}>
-                        <div className="h-full rounded-full bg-white transition-all" style={{ width: `${Math.max(pct, completed ? 4 : 0)}%` }} />
+                        <div className="lingo-hero-fill h-full rounded-full bg-white transition-all" style={{ width: `${Math.max(pct, completed ? 4 : 0)}%` }} />
                     </div>
                     <p className="mt-1.5 flex items-center justify-between text-xs font-extrabold text-white/90">
                         <span>{completed} of {total} {word} lessons{numbers.length > 1 ? ` · Sections ${numbers[0]}–${numbers[numbers.length - 1]}` : ''}</span>

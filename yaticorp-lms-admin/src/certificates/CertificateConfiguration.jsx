@@ -5,7 +5,7 @@
  * competition of that kind is over and its results are published, each winner (and participant, if ticked) gets
  * theirs with their own name and place, in their own dashboard (certificates/auto.js). The preview shows a stand-in.
  * Since 2026-11-07 the platform admin's Certificate Builder is this same page (side="platform"): its own saved
- * certificates, templates and defaults, the organising name starting as Yaticorp's.
+ * certificates, templates and defaults, the organising name starting as YATICORPX3's.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -351,12 +351,12 @@ export default function CertificateConfiguration({ side = 'organization' }) {
                             <label><span className={LABEL}>College address</span><input value={design.details.address || ''} onChange={(e) => { setDetails({ address: e.target.value }); setSaved(null); }} maxLength={120} placeholder="Mangaluru, Karnataka" className={INPUT} data-cert-address /></label>
                             <label><span className={LABEL}>Affiliation (optional)</span><input value={design.details.affiliation || ''} onChange={(e) => { setDetails({ affiliation: e.target.value }); setSaved(null); }} maxLength={120} placeholder="Affiliated to Mangalore University" className={INPUT} data-cert-affiliation /></label>
                             <label><span className={LABEL}>{design.details.type === 'inter' ? 'Organising department' : 'Department name'}</span><input value={design.details.department} onChange={(e) => { setDetails({ department: e.target.value }); setSaved(null); }} maxLength={160} placeholder="Department of Computer Science" className={INPUT} data-cert-department /></label>
-                            {/* The platform admin only (2026-11-07): Yaticorp's logo at the top of the certificate, in the college logo's place. */}
+                            {/* The platform admin only (2026-11-07): YATICORPX3's logo at the top of the certificate, in the college logo's place. */}
                             {platform && (
                                 <label className={`flex cursor-pointer items-center gap-3 self-end rounded-xl border px-3 py-2.5 text-sm font-bold transition ${design.branding.yaticorp ? 'border-indigo-400 bg-indigo-50 text-indigo-900' : 'border-slate-300 bg-white text-slate-700 hover:border-indigo-300'}`} data-cert-yaticorp-logo>
                                     <input type="checkbox" checked={Boolean(design.branding.yaticorp)} onChange={(e) => setBrand(e.target.checked ? { yaticorp: true, logo: '' } : { yaticorp: false })} className="h-4 w-4 accent-indigo-600" />
                                     <img src="/assets/certificates/yaticorp-logo.png" alt="" className="h-6 w-auto max-w-[6rem] object-contain" />
-                                    Use Yaticorp logo
+                                    Use YATICORPX3 logo
                                 </label>
                             )}
                         </div>

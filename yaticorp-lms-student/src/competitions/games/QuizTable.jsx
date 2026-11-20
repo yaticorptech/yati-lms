@@ -44,7 +44,7 @@ const Picture = ({ text, small }) => (
  * ink, dots, a clock, a grid of marks, coloured tiles, a number, a set of symbols, or a sequence shown one item
  * at a time (`elapsed`: ms since it started).
  */
-const INK = { red: '#ef4444', blue: '#0ea5e9', green: '#10b981', yellow: '#f59e0b', purple: '#8b5cf6', orange: '#f97316' };
+const INK = { red: '#ef4444', blue: '#0ea5e9', green: '#10b981', yellow: '#facc15', purple: '#8b5cf6', orange: '#f97316' };
 const Clock = ({ h, m }) => {
     const ha = ((h % 12) * 30 + m * 0.5) * (Math.PI / 180); const ma = m * 6 * (Math.PI / 180);
     return (
@@ -353,7 +353,8 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                                     : null}
                             </p>
                         )}
-                        {reveal && view.answer && (
+                        {/* Group games (view.quickReveal, 2026-11-17): the coloured options say it all, no answer box. */}
+                        {reveal && view.answer && !view.quickReveal && (
                             <div className={`rounded-2xl px-4 py-3 text-sm ring-1 ${dark ? 'bg-white/[.06] text-slate-200 ring-white/10' : 'bg-slate-50 text-slate-700 ring-slate-100'}`} data-explain>
                                 {myAnswer && Number.isFinite(myAnswer.points) && (
                                     <p className={`mb-1 font-black ${myAnswer.correct ? (dark ? 'text-emerald-300' : 'text-emerald-700') : dark ? 'text-rose-300' : 'text-rose-700'}`}>

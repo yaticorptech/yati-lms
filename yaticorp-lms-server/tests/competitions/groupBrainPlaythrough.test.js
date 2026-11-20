@@ -109,7 +109,7 @@ const playRounds = async (id) => {
 };
 
 describe('every Group Brain game, played to the end', () => {
-    for (const game of ['memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'deduction', 'spatialiq', 'sequence']) {
+    for (const game of ['memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sequence'] /* spatialiq, sudoku: out of group play (the user, 2026-11-05) */ /* deduction: out of group play 2026-11-17 */) {
         test(`${game}: A wins, B second, C last; XP by place; the same standings for everyone`, async () => {
             const id = await startRoom(game, [A, B, C]);
             const { checkedTwice } = await playRounds(id);
@@ -131,7 +131,8 @@ describe('every Group Brain game, played to the end', () => {
         });
     }
 
-    test('sudoku: A completes the board, B makes a mistake and stops, C leaves; places by points and XP', async () => {
+    // Sudoku left group play on 2026-11-05 (the user): no section offers it, so no room can be made.
+    test.skip('sudoku: A completes the board, B makes a mistake and stops, C leaves; places by points and XP', async () => {
         const id = await startRoom('sudoku', [A, B, C]);
         const g = await load(id);
         const empty = g.state.puzzle.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);

@@ -17,11 +17,11 @@ export default function Privacy() {
     <LegalShell
       title="Privacy Policy"
       updated={filled(COMPANY.effectiveDate)}
-      intro={`This policy explains what ${COMPANY.legalName} collects when you use YATICORP Learning, why, who else sees it, and what you can ask us to do about it. It covers the student app, the Career Path and Jobs sections, and the optional connection to your Google account.`}
+      intro={`This policy explains what ${COMPANY.legalName} collects when you use YATICORPX3 Learning, why, who else sees it, and what you can ask us to do about it. It covers the student app, the Career Path and Jobs sections, and the optional connection to your Google account.`}
     >
       <Section id="who" title="Who we are">
         <p>
-          YATICORP Learning is operated by {[COMPANY.legalName, filled(COMPANY.address)].filter(Boolean).join(', ')}. For anything in this
+          YATICORPX3 Learning is operated by {[COMPANY.legalName, filled(COMPANY.address)].filter(Boolean).join(', ')}. For anything in this
           policy, write to <a className="font-semibold text-indigo-600 hover:underline" href={`mailto:${COMPANY.privacyEmail}`}>{COMPANY.privacyEmail}</a>.
           {filled(COMPANY.grievanceOfficer)
             ? <> Our grievance officer is {COMPANY.grievanceOfficer}.</>
@@ -67,12 +67,12 @@ export default function Privacy() {
         <Bullets
           items={[
             <><code className="rounded bg-slate-100 px-1 py-0.5 text-xs">openid</code> and <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">email</code> — so the settings page can show you which account is linked. We store your Google email address for that, and nothing else about your Google profile.</>,
-            <><code className="rounded bg-slate-100 px-1 py-0.5 text-xs">drive.file</code> — lets us create files in your Google Drive and see only the files this app itself created. We use it to put copies of your certificates, resumes, badges and learning bio into a single folder called “YATICORP Learning”. We cannot see, list or open anything else in your Drive.</>,
-            <><code className="rounded bg-slate-100 px-1 py-0.5 text-xs">calendar.app.created</code> — lets us create our own calendar in your Google Calendar and manage events on it. We use it to copy the exam dates, deadlines and holidays you enter here onto a calendar called “YATICORP Learning”. We cannot read or change your personal, work, family or school calendars.</>
+            <><code className="rounded bg-slate-100 px-1 py-0.5 text-xs">drive.file</code> — lets us create files in your Google Drive and see only the files this app itself created. We use it to put copies of your certificates, resumes, badges and learning bio into a single folder called “YATICORPX3 Learning”. We cannot see, list or open anything else in your Drive.</>,
+            <><code className="rounded bg-slate-100 px-1 py-0.5 text-xs">calendar.app.created</code> — lets us create our own calendar in your Google Calendar and manage events on it. We use it to copy the exam dates, deadlines and holidays you enter here onto a calendar called “YATICORPX3 Learning”. We cannot read or change your personal, work, family or school calendars.</>
           ]}
         />
         <p>
-          The copying is one-way, from YATICORP to Google. We never read your Drive files or your calendars
+          The copying is one-way, from YATICORPX3 to Google. We never read your Drive files or your calendars
           back into this site. The access token that lets us do this is encrypted before it is stored and is
           never sent to your browser.
         </p>
@@ -83,7 +83,7 @@ export default function Privacy() {
           because they are yours.
         </p>
         <p className="rounded-xl border border-slate-200 bg-white p-4">
-          <strong className="text-slate-800">Limited Use.</strong> YATICORP's use and transfer of information
+          <strong className="text-slate-800">Limited Use.</strong> YATICORPX3's use and transfer of information
           received from Google APIs to any other app adheres to the{' '}
           <a
             className="font-semibold text-indigo-600 hover:underline"
@@ -192,7 +192,7 @@ export default function Privacy() {
       <Section id="changes" title="Changes">
         <p>
           If we change this policy we will update the date at the top, and tell you in the app when the change
-          is significant. Continuing to use YATICORP after a change means you accept the updated policy.
+          is significant. Continuing to use YATICORPX3 after a change means you accept the updated policy.
         </p>
       </Section>
     </LegalShell>

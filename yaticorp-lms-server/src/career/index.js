@@ -3,13 +3,13 @@
  *              student panel, mounted under /api/career.
  *
  * Ported from the standalone FuturePath app. Two things were deliberately left
- * behind: its sign-in (the LMS student token is the only identity here — see
+ * behind: its sign-in (YATICORPX3 student token is the only identity here — see
  * ./middleware/authMiddleware.js) and its admin panel (this is a student-only
  * section). Everything else keeps the paths the original used, one level down,
  * so /api/roadmap became /api/career/roadmap.
  *
  * Every model in this module registers as Career* over a career_* collection so
- * that generic names — Task, Badge, Notification — cannot collide with an LMS
+ * that generic names — Task, Badge, Notification — cannot collide with an YATICORPX3
  * model added later.
  */
 const express = require('express');
@@ -79,7 +79,7 @@ router.use(require('./services/aiContext').withAiContext);
 // below, so that closing the section to students does not also blind the
 // operator who closed it. Student-only stays true — nothing here writes, and no
 // endpoint returns a named student's roadmap or mentor conversation. It lives
-// inside this module so the admin side of the LMS does not have to reach into
+// inside this module so the admin side of YATICORPX3 does not have to reach into
 // career_* itself.
 router.use('/admin', require('./routes/adminRoutes'));
 
@@ -107,7 +107,7 @@ router.use(require('./middleware/featureGate').requireCareerPathEnabled);
 router.use('/goals', require('./routes/goalRoutes'));
 router.use('/roadmap', require('./routes/roadmapRoutes'));
 router.use('/tasks', require('./routes/taskRoutes'));
-// Read-only summary for the LMS dashboard's welcome panel. Mounted at the top
+// Read-only summary for YATICORPX3 dashboard's welcome panel. Mounted at the top
 // level rather than under /tasks so it cannot collide with /tasks/:id.
 router.use('/today', require('./routes/todayRoutes'));
 router.use('/activity', require('./routes/activityRoutes'));
@@ -123,8 +123,8 @@ router.use('/profile', require('./routes/profileRoutes'));
 router.use('/events', require('./routes/calendarEventRoutes'));
 // The student's weekly college or school timetable, also typed in by hand.
 router.use('/timetable', require('./routes/timetableRoutes'));
-// Searched alongside the LMS's own course/lesson search by the sidebar, which
-// merges the two. Kept separate so the LMS never has to read career_* data.
+// Searched alongside YATICORPX3's own course/lesson search by the sidebar, which
+// merges the two. Kept separate so YATICORPX3 never has to read career_* data.
 router.use('/search', require('./routes/searchRoutes'));
 // Shareable badges for completed roadmap phases. The public half of this —
 // the page a shared link opens and the image social crawlers fetch — is

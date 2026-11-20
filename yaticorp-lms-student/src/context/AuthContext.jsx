@@ -5,6 +5,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useEffect } from 'react';
 import { forgetTeacher } from '../teacher/teacherSession';
+import { forgetParent } from '../parent/parentSession';
 import api from '../utils/api';
 import { getAuthServices } from '../shared/api/authService';
 import { forgetStudent } from '../utils/sessionExpiry';
@@ -124,6 +125,7 @@ export const AuthProvider = ({ children }) => {
         forgetStudent({ keep: ['yati.signupOrg'] });
         // One person per browser: a student signing in ends a teacher's session here.
         forgetTeacher();
+        forgetParent();
         localStorage.setItem('studentToken', data.token);
         localStorage.setItem('studentData', JSON.stringify(data));
         // Always the Dashboard after signing in (see Login.jsx).

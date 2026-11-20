@@ -1,5 +1,5 @@
 /**
- * @description The student's ATS resume, assembled from what the LMS knows
+ * @description The student's ATS resume, assembled from what YATICORPX3 knows
  *              and rendered as a single-column PDF.
  *
  * "ATS" means the file is built for the parsers recruiters run resumes
@@ -9,7 +9,7 @@
  *
  * Skills come from four places and are merged: the resume the student
  * uploaded (parsed), Career Path skills they have progressed, and — the
- * point of building it here — the courses they have taken on the LMS,
+ * point of building it here — the courses they have taken on YATICORPX3,
  * including the ones only half done. A course at 40% still taught the
  * lessons that are ticked, so those lessons' topics count, while the
  * course's headline skills only count once it is at least half complete.
@@ -111,7 +111,7 @@ const buildResumeData = async (userId) => {
     (resume?.skills || []).forEach((s) => add(s, 'resume'));
     // Every skill the student is actually working on, not only the ones past
     // an arbitrary bar. A roadmap skill at 25% is a skill they are learning,
-    // and a job search that ignores it ignores what the LMS is teaching them.
+    // and a job search that ignores it ignores what YATICORPX3 is teaching them.
     // Only a skill nobody has started yet is left out.
     //
     // The names are written the way a syllabus writes them — "HTML5 / CSS3 /
@@ -154,7 +154,7 @@ const buildResumeData = async (userId) => {
     // Downloading it again from the course puts it back in both.
     const certifications = [
         ...courses.filter((c) => c.certificate && !c.certificate.hiddenAt).map((c) => ({
-            title: c.title, issuer: 'YATICORP', date: c.certificate.issuedAt, number: c.certificate.certificateNumber || ''
+            title: c.title, issuer: 'YATICORPX3', date: c.certificate.issuedAt, number: c.certificate.certificateNumber || ''
         })),
         ...(achievements || []).map((a) => ({ title: a.title, issuer: a.issuer || '', date: a.issuedOn || a.createdAt, number: '' }))
     ];
@@ -165,7 +165,7 @@ const buildResumeData = async (userId) => {
     const summaryBits = [
         resume?.headline || [level, target].filter(Boolean).join(' · ') || target || 'Student',
         courses.length
-            ? `${courses.length} course${courses.length === 1 ? '' : 's'} on YATICORP${completedCount ? ` (${completedCount} completed)` : ' in progress'}`
+            ? `${courses.length} course${courses.length === 1 ? '' : 's'} on YATICORPX3${completedCount ? ` (${completedCount} completed)` : ' in progress'}`
             : null,
         skills.length ? `Skills include ${skills.slice(0, 6).map((s) => s.name).join(', ')}` : null
     ].filter(Boolean);
@@ -398,7 +398,7 @@ const renderAtsPdf = (data, res) => {
             if (c.certificate?.certificateNumber && !c.certificate.hiddenAt) bullets.push(`Certificate ${c.certificate.certificateNumber}, issued ${fmtDay(c.certificate.issuedAt)}.`);
             entry({
                 lines: [
-                    { text: 'YATICORP', color: MUTED },
+                    { text: 'YATICORPX3', color: MUTED },
                     { text: c.title, font: SERIF_B },
                     {
                         text: c.completed
@@ -425,7 +425,7 @@ const renderAtsPdf = (data, res) => {
     }
 
     doc.moveDown(1.1);
-    write(`Generated from YATICORP on ${fmtDay(data.generatedAt)}.`, { size: 8, color: '#777777' });
+    write(`Generated from YATICORPX3 on ${fmtDay(data.generatedAt)}.`, { size: 8, color: '#777777' });
     doc.end();
 };
 

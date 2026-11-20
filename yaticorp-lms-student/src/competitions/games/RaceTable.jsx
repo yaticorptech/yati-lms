@@ -11,7 +11,7 @@ import { GROUP_GAMES } from '../api';
  * clock, how far you are, and your puzzle — each kind its own way. A move names its puzzle (`stage`), so a
  * double tap cannot count twice.
  */
-const PEG = { red: '#ef4444', blue: '#0ea5e9', green: '#10b981', yellow: '#f59e0b', purple: '#8b5cf6', orange: '#f97316' };
+const PEG = { red: '#ef4444', blue: '#0ea5e9', green: '#10b981', yellow: '#facc15', purple: '#8b5cf6', orange: '#f97316' };
 const btn = 'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-black transition-colors disabled:opacity-50';
 
 function LightsOut({ c, send, dark }) {
@@ -156,6 +156,15 @@ export default function RaceTable({ view, onAction, busy }) {
         setLastTry(extra);
         onAction({ type: ACTION[view.kind], stage: c.index, ...extra }).catch(() => {});
     };
+    // Math Sprint (2026-11-17): 10 s a sum. The bar empties; at zero the server moves this player on.
+    const stageLeft = c?.stageEndsAt ? Math.max(0, c.stageEndsAt - (view.phaseEndsAt - left)) : null;
+    const skipped = useRef(null);
+    useEffect(() => {
+        if (stageLeft === 0 && c && !me?.done && skipped.current !== c.index) {
+            skipped.current = c.index;
+            onAction({ type: 'skip', stage: c.index }).catch(() => {});
+        }
+    }, [stageLeft, c, me?.done, onAction]);
     const triedText = flash && typeof lastTry?.value === 'string' ? lastTry.value.trim() : '';
     const key = `${c?.index}:${me?.mistakes}`;
     const body = !c ? null
@@ -184,7 +193,12 @@ export default function RaceTable({ view, onAction, busy }) {
                         </div>
                         <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/25"><div className="h-full bg-white transition-[width] duration-300" style={{ width: `${(Math.min(me?.stage || 0, view.total) / view.total) * 100}%` }} /></div>
                     </div>
-                    <div className={`h-1 ${dark ? 'bg-white/10' : 'bg-slate-100'}`}><div className={`h-full ${share < 0.2 ? 'bg-rose-500' : 'bg-indigo-400'}`} style={{ width: `${share * 100}%` }} /></div>
+                    {stageLeft !== null && !me?.done
+                        ? <div className={`flex items-center gap-3 px-5 pt-3 ${dark ? 'text-white' : 'text-slate-800'}`} data-stage-clock>
+                            <div className={`h-2.5 flex-1 overflow-hidden rounded-full ${dark ? 'bg-white/10' : 'bg-slate-100'}`}><div className={`h-full rounded-full transition-[width] duration-100 ${stageLeft < 3000 ? 'bg-rose-500' : stageLeft < 6000 ? 'bg-amber-400' : 'bg-emerald-400'}`} style={{ width: `${(stageLeft / c.stageMs) * 100}%` }} /></div>
+                            <span className={`w-10 text-right text-sm font-black tabular-nums ${stageLeft < 3000 ? 'text-rose-400' : ''}`}>{Math.ceil(stageLeft / 1000)}s</span>
+                        </div>
+                        : <div className={`h-1 ${dark ? 'bg-white/10' : 'bg-slate-100'}`}><div className={`h-full ${share < 0.2 ? 'bg-rose-500' : 'bg-indigo-400'}`} style={{ width: `${share * 100}%` }} /></div>}
                     <div className="p-5 sm:p-7">
                         {me?.done
                             ? <p className={`flex flex-col items-center gap-2 py-6 text-center text-lg font-black ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}><Check size={36} className={`rounded-full p-1.5 ${dark ? 'bg-emerald-500/20' : 'bg-emerald-100'}`} /> Finished! Waiting for the others…</p>

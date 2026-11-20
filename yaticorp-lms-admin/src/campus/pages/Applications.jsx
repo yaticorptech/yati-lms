@@ -14,6 +14,7 @@ import { AdmissionForm } from './StudentRecord';
 import { MoreDetails, QUESTION_TYPES } from '../CustomAnswers';
 import { Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, Monitor, Smartphone } from 'lucide-react';
 import { Card, Button, Chip, Empty, Skeleton, LoadFailed, Banner, Dialog, Field, Input, Select, Textarea, SearchBox, Tabs, useData, useToast, useSubmit, plural } from '../ui';
+import { studentAppUrl } from '../../utils/studentUrl';
 
 // The admission form's detail fields, in the same groups as the admission form (StudentRecord.jsx).
 const GROUPS = [
@@ -253,7 +254,7 @@ const EditApplication = ({ a, labels, fields, departments, onClose, onSaved }) =
     );
 };
 
-const STUDENT_APP = (import.meta.env.VITE_STUDENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
+const STUDENT_APP = studentAppUrl('http://localhost:5173').replace(/\/+$/, '');
 const when = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
 /** The college's admission link: copy, share, open, and open/close it. */

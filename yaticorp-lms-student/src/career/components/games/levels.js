@@ -12,8 +12,8 @@ export { starsFor, starsCap, starsForFixed } from './stars';
  * Levels inside one difficulty band, and the ladder as a whole.
  *
  * Every game's own settings are written for a ladder of three bands of thirty steps (configFor(difficulty, step)).
- * Since 2026-10-31 a game is 500 levels, climbed in episodes of fifteen: five easy, five medium, five hard
- * (since 2026-11-05), each episode starting a little higher than the last. A level's "pressure" (0…1) picks the step on the old
+ * Since 2026-10-31 a game is 500 levels, climbed in episodes of six: three easy, two medium, one hard
+ * (since 2026-11-17), each episode starting a little higher than the last. A level's "pressure" (0…1) picks the step on the old
  * ninety-step ladder that it plays as, so every game gets the curve without being touched.
  */
 export const LEVELS_PER_BAND = 30;
@@ -21,31 +21,32 @@ export const BANDS = 3;
 export const TOTAL_LEVELS = 500;
 const STEPS = LEVELS_PER_BAND * BANDS;       // the ninety settings each game has
 
-const EPISODE = 15;
-const PHASE = 5;
-const TIERS = ['easy', 'medium', 'hard'];
+// Since 2026-11-17 (the user): every six levels are 3 easy, 2 medium, 1 hard, in every individual game.
+const PATTERN = ['easy', 'easy', 'easy', 'medium', 'medium', 'hard'];
+const EPISODE = PATTERN.length;
+const TIER_LIFT = { easy: 0, medium: 0.12, hard: 0.24 };
 const clampLevel = (level) => Math.min(TOTAL_LEVELS, Math.max(1, Math.floor(Number(level) || 1)));
 
 /**
  * How hard a level is, 0 (the first) to 1 (the hardest a game goes).
  *
- * A roller coaster (asked 2026-11-05: "first 5 easy, then medium, then hard,
- * again easy, medium, hard"): every fifteen levels are five easy, five
- * medium, five hard, each a little harder than the one before it. The
- * next easy run drops back down, but starts above the last one, so the
- * whole ladder still climbs.
+ * A roller coaster: every six levels are three easy, two medium and one hard (2026-11-17; was 5/5/5). Inside an
+ * easy or medium run each level is a touch harder than the one before; the next easy run drops back down but starts
+ * above the last one, so the whole 500-level ladder still climbs.
  */
 export const pressure = (level) => {
   const l = clampLevel(level);
   const episode = Math.floor((l - 1) / EPISODE);
   const episodes = Math.ceil(TOTAL_LEVELS / EPISODE) - 1;
-  const at = (l - 1) % EPISODE;                  // 0…14 inside the episode
-  const base = 0.75 * Math.pow(episode / episodes, 0.8);
-  return Math.min(1, base + at * 0.018);         // +0.25 from its first easy to its last hard
+  const at = (l - 1) % EPISODE;                  // 0…5 inside the episode
+  const tier = PATTERN[at];
+  const inTier = at - PATTERN.indexOf(tier);     // 0, 1, 2 inside its run
+  const base = 0.76 * Math.pow(episode / episodes, 0.8);
+  return Math.min(1, base + TIER_LIFT[tier] + inTier * 0.025);
 };
 
 /** 'easy' | 'medium' | 'hard': what the level is, for its badge. */
-export const levelTier = (level) => TIERS[Math.floor(((clampLevel(level) - 1) % EPISODE) / PHASE)];
+export const levelTier = (level) => PATTERN[(clampLevel(level) - 1) % EPISODE];
 
 const stepOf = (level) => Math.round(pressure(level) * (STEPS - 1));    // 0…89
 

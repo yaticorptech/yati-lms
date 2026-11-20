@@ -44,7 +44,7 @@ const FULL = {
     email: 'ananya.iyer@example.com',
     phone: '+91 80 4444 1212',
     headline: 'Aspiring Frontend Developer',
-    summary: 'Aspiring Frontend Developer. 4 courses on YATICORP (2 completed).',
+    summary: 'Aspiring Frontend Developer. 4 courses on YATICORPX3 (2 completed).',
     skills: ['React', 'JavaScript', 'HTML', 'CSS', 'Git'].map((name) => ({ name, sources: ['course'] })),
     education: [{ title: 'BSc in Computer Science', detail: 'Undergraduate, Bangalore University' }],
     experience: [{ title: 'Junior Web Developer Intern', detail: '1 years' }],
@@ -59,7 +59,7 @@ const FULL = {
             topics: ['Variables and scope'], lessonsDone: 13, skills: ['JavaScript']
         }
     ],
-    certifications: [{ title: 'Modern React from the Ground Up', issuer: 'YATICORP', date: new Date('2026-04-11'), number: 'YATI-2026-0091' }]
+    certifications: [{ title: 'Modern React from the Ground Up', issuer: 'YATICORPX3', date: new Date('2026-04-11'), number: 'YATI-2026-0091' }]
 };
 
 /** Where a phrase starts in the extracted text, for checking reading order. */
@@ -152,7 +152,7 @@ describe('the generated resume', () => {
 
     test('it says where it came from and when', async () => {
         const { text } = await render(FULL);
-        at(text, 'Generated from YATICORP on 10 Sept 2026.');
+        at(text, 'Generated from YATICORPX3 on 10 Sept 2026.');
     });
 });
 

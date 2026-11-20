@@ -27,7 +27,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
-    Building2, Plus, Search, Loader2, CheckCircle2, AlertCircle, Clock, XCircle,
+    Building2, Plus, Search, Loader2, CheckCircle2, Send, AlertCircle, Clock, XCircle,
     Copy, Check, ExternalLink, X, ChevronRight, LogOut
 } from 'lucide-react';
 import organizationApi from './api';
@@ -93,6 +93,33 @@ const PLAIN_TONE = {
 };
 
 // `joinOnly` (2026-11-14, the dashboard's welcome): no placeholder while loading, nothing if it cannot load.
+/** The department card filled in: a department, a semester, and a section where it has any. */
+const deptDone = (found, pick) => {
+    const d = found.departments?.find((x) => x._id === pick.departmentId);
+    return Boolean(d && pick.semester && (!((d.sections || []).length > 0) || pick.section));
+};
+/**
+ * Ready to send (2026-11-19, the user: "if any one card is filled, give the send request option"): the class and section
+ * card, or the department card — one of them done is enough.
+ */
+const readyToSend = (found, pick, classId, card) => {
+    const hasClasses = found.classes?.length > 0;
+    const hasDepts = found.departments?.length > 0;
+    if (!hasClasses && !hasDepts) return true;
+    return card === 'class' ? hasClasses && Boolean(classId) : hasDepts && deptDone(found, pick);
+};
+/** The card that suits the student: what their profile matched, else what kind of student their profile says they are. */
+const cardFor = (res) => {
+    const hasClasses = res?.classes?.length > 0;
+    const hasDepts = res?.departments?.length > 0;
+    if (!hasClasses) return 'dept';
+    if (!hasDepts) return 'class';
+    if (res.suggestedClass) return 'class';
+    if (res.suggested) return 'dept';
+    // Nothing in the profile says: a school-level student gets the class card; anyone else the department card (2026-11-19 QA).
+    return res.profileLevel === 'school' ? 'class' : 'dept';
+};
+
 const OrganizationButton = ({ variant = 'pill', joinOnly = false }) => {
     const plain = variant === 'plain';
     const [state, setState] = useState(null);      // { member, organization, request }
@@ -105,6 +132,11 @@ const OrganizationButton = ({ variant = 'pill', joinOnly = false }) => {
     const [found, setFound] = useState(null);
     // Campus on (2026-11-14): the department, semester and section asked for with the request.
     const [pick, setPick] = useState({ departmentId: '', semester: '', section: '' });
+    // Its classes (2026-11-19, Campus → Departments → Add class): "9th · A". The class they are in.
+    const [classId, setClassId] = useState('');
+    const [classPick, setClassPick] = useState('');
+    // One card at a time (2026-11-19, the user: "just show the suitable card, both cards are not needed"): 'class' or 'dept'.
+    const [card, setCard] = useState('class');
     const [joining, setJoining] = useState(false);
     const [busy, setBusy] = useState(false);       // withdrawing a request
     const [confirmLeave, setConfirmLeave] = useState(false);
@@ -157,8 +189,14 @@ const OrganizationButton = ({ variant = 'pill', joinOnly = false }) => {
 
         setSearching(true); setNotice(null); setFound(null);
         try {
-            setFound(await organizationApi.lookup(entered));
-            setPick({ departmentId: '', semester: '', section: '' });
+            const res = await organizationApi.lookup(entered);
+            setFound(res);
+            // Filled from the profile where it says (2026-11-19, the server's joinSuggest.js): the student verifies it.
+            const s = res?.suggested;
+            setPick(s ? { departmentId: s.departmentId || '', semester: s.semester || '', section: s.section || '' } : { departmentId: '', semester: '', section: '' });
+            // The class and section from the profile, where it says (2026-11-19, the server's joinSuggest.js suggestClass).
+            setClassPick(res?.suggestedClass?.name || ''); setClassId(res?.suggestedClass?.classId || '');
+            setCard(cardFor(res));
         } catch (err) {
             setNotice({
                 type: 'error',
@@ -172,7 +210,10 @@ const OrganizationButton = ({ variant = 'pill', joinOnly = false }) => {
     const join = async () => {
         setJoining(true); setNotice(null);
         try {
-            const res = await organizationApi.requestJoin(found.organization.orgCode, found.departments?.length ? { departmentId: pick.departmentId, semester: Number(pick.semester), section: pick.section } : {});
+            const res = await organizationApi.requestJoin(found.organization.orgCode, {
+                ...(card === 'dept' && found.departments?.length && deptDone(found, pick) ? { departmentId: pick.departmentId, semester: Number(pick.semester), section: pick.section } : {}),
+                ...(card === 'class' && classId ? { classId } : {})
+            });
             setNotice({ type: 'ok', text: res.message });
             setFound(null);
             setCode('');
@@ -498,38 +539,85 @@ const OrganizationButton = ({ variant = 'pill', joinOnly = false }) => {
                                                     </p>
                                                 ) : (
                                                     <>
-                                                        {found.departments?.length > 0 && (() => {
-                                                            const dept = found.departments.find((d) => d._id === pick.departmentId);
-                                                            const sel = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
+                                                        {found.classes?.length > 0 && card === 'class' && (() => {
+                                                            // The class, then its section from a drop down (2026-11-19, the user's ask).
+                                                            const names = [...new Set(found.classes.map((c) => c.name))];
+                                                            const chosen = found.classes.find((c) => String(c._id) === String(classId));
+                                                            const className = chosen?.name || classPick;
+                                                            const sections = found.classes.filter((c) => c.name === className);
+                                                            // The border colour is one class, never two that fight (2026-11-19 QA: the green outline did not show).
+                                                            const sel = 'w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
+                                                            const sug = found.suggestedClass;
+                                                            const nameFromProfile = sug && sug.name === className ? sug.from : '';
+                                                            const sectionFromProfile = sug && sug.classId && sug.classId === String(classId) ? sug.sectionFrom : '';
+                                                            const mark = (on) => (on ? ' border-emerald-400 bg-emerald-50/40' : ' border-slate-300 bg-white');
+                                                            const hint = (from) => (from ? <span className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={12} /> From {from}</span> : null);
                                                             return (
-                                                                <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
-                                                                    <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-slate-600">Department / course</span>
-                                                                        <Select value={pick.departmentId} onChange={(e) => setPick({ departmentId: e.target.value, semester: '', section: '' })} className={sel} aria-label="Department">
-                                                                            <option value="" disabled>Choose your department</option>
-                                                                            {found.departments.map((d) => <option key={d._id} value={d._id}>{d.name}{d.code ? ` (${d.code})` : ''}</option>)}
-                                                                        </Select></label>
-                                                                    <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Semester</span>
-                                                                        <Select value={pick.semester} onChange={(e) => setPick({ ...pick, semester: e.target.value })} disabled={!dept} className={sel} aria-label="Semester">
-                                                                            <option value="" disabled>Choose</option>
-                                                                            {Array.from({ length: dept?.semesters || 0 }, (_, i) => i + 1).map((n) => <option key={n} value={String(n)}>Semester {n}</option>)}
-                                                                        </Select></label>
-                                                                    {dept?.sections?.length > 1 && (
-                                                                        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Section</span>
-                                                                            <Select value={pick.section} onChange={(e) => setPick({ ...pick, section: e.target.value })} className={sel} aria-label="Section">
+                                                                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3.5" data-join-class>
+                                                                    <p className="text-sm font-bold text-slate-800">Your class and section</p>
+                                                                    <div className="mt-2 grid grid-cols-2 gap-2.5">
+                                                                        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Class</span>
+                                                                            <Select value={className || ''} onChange={(e) => { const list = found.classes.filter((c) => c.name === e.target.value); setClassPick(e.target.value); setClassId(list.length === 1 ? String(list[0]._id) : ''); }} className={sel + mark(nameFromProfile)} aria-label="Class">
                                                                                 <option value="" disabled>Choose</option>
-                                                                                {dept.sections.map((x) => <option key={x} value={x}>Section {x}</option>)}
-                                                                            </Select></label>
-                                                                    )}
+                                                                                {names.map((n) => <option key={n} value={n}>{n}</option>)}
+                                                                            </Select>{hint(nameFromProfile)}</label>
+                                                                        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Section</span>
+                                                                            <Select value={classId} onChange={(e) => setClassId(e.target.value)} disabled={!className} className={sel + mark(sectionFromProfile)} aria-label="Section">
+                                                                                <option value="" disabled>Choose</option>
+                                                                                {sections.map((c) => <option key={c._id} value={String(c._id)}>{c.section ? `Section ${c.section}` : 'No section'}</option>)}
+                                                                            </Select>{hint(sectionFromProfile)}</label>
+                                                                    </div>
+                                                                    <span className="mt-1 block text-[11px] text-slate-500">{sug ? 'Filled in from your profile: check it, and change it if it is not right.' : `Choose from ${found.organization.name}’s classes.`}</span>
                                                                 </div>
                                                             );
                                                         })()}
-                                                        <button onClick={join} disabled={joining || (found.departments?.length > 0 && (!pick.departmentId || !pick.semester || ((found.departments.find((d) => d._id === pick.departmentId)?.sections?.length || 0) > 1 && !pick.section)))}
-                                                            className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
-                                                            {joining && <Loader2 size={16} className="animate-spin" />}
+                                                        {found.departments?.length > 0 && card === 'dept' && (() => {
+                                                            // Verify your details (2026-11-19, the user: "verify and fetch data from the profile — class, section;
+                                                            // if he didn't fill the section, a drop down of the sections and classes of that organization"):
+                                                            // what the profile says is filled in and marked; the rest are the organization's own lists.
+                                                            const dept = found.departments.find((d) => d._id === pick.departmentId);
+                                                            const sug = found.suggested || null;
+                                                            const fromProfile = (field) => sug && sug[field] && String(sug[field]) === String(pick[field]) ? sug.from?.[field] : '';
+                                                            // The border colour is one class, never two that fight (2026-11-19 QA: the green outline did not show).
+                                                            const sel = 'w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
+                                                            const filled = (field) => (fromProfile(field) ? ' border-emerald-400 bg-emerald-50/40' : ' border-slate-300 bg-white');
+                                                            const note = (field) => (fromProfile(field)
+                                                                ? <span className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-700"><CheckCircle2 size={12} /> From {fromProfile(field)}</span>
+                                                                : !pick[field] ? <span className="mt-1 block text-[11px] text-slate-500">Choose from {found.organization.name}’s list</span> : null);
+                                                            const pickDept = (id) => { const d = found.departments.find((x) => x._id === id); setPick({ departmentId: id, semester: '', section: d?.sections?.length === 1 ? d.sections[0] : '' }); };
+                                                            return (
+                                                                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3.5" data-verify-details>
+                                                                    <p className="text-sm font-bold text-slate-800">Verify your details</p>
+                                                                    <p className="mt-0.5 text-xs text-slate-500">{sug ? 'Filled in from your profile. Check each one, and change it if it is not right.' : 'Your profile does not say your class yet. Choose it from the lists below.'}</p>
+                                                                    <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+                                                                        <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-slate-600">Department / class</span>
+                                                                            <Select value={pick.departmentId} onChange={(e) => pickDept(e.target.value)} className={sel + filled('departmentId')} aria-label="Department">
+                                                                                <option value="" disabled>Choose your department</option>
+                                                                                {found.departments.map((d) => <option key={d._id} value={d._id}>{d.name}{d.code ? ` (${d.code})` : ''}</option>)}
+                                                                            </Select>{note('departmentId')}</label>
+                                                                        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Semester</span>
+                                                                            <Select value={pick.semester} onChange={(e) => setPick({ ...pick, semester: e.target.value })} disabled={!dept} className={sel + filled('semester')} aria-label="Semester">
+                                                                                <option value="" disabled>Choose</option>
+                                                                                {Array.from({ length: dept?.semesters || 0 }, (_, i) => i + 1).map((n) => <option key={n} value={String(n)}>Semester {n}</option>)}
+                                                                            </Select>{dept && note('semester')}</label>
+                                                                        {/* Section always shown, beside the semester (2026-11-19, the user's ask); its list once a department is chosen. */}
+                                                                        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Section</span>
+                                                                            <Select value={pick.section} onChange={(e) => setPick({ ...pick, section: e.target.value })} disabled={!dept || !(dept.sections || []).length} className={sel + filled('section')} aria-label="Section">
+                                                                                <option value="" disabled>{dept && !(dept.sections || []).length ? 'No sections' : 'Choose'}</option>
+                                                                                {(dept?.sections || []).map((x) => <option key={x} value={x}>Section {x}</option>)}
+                                                                            </Select>{dept && note('section')}</label>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                        {/* No "choose the other card instead" link (2026-11-19, the user: "not needed"): the card that suits them. */}
+                                                        <button onClick={join} disabled={joining || !readyToSend(found, pick, classId, card)}
+                                                            className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50" data-verify-send>
+                                                            {joining ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                                                             Send Join Request
                                                         </button>
                                                         <p className="mt-2 text-xs text-slate-500">
-                                                            {found.departments?.length ? 'Their office checks your department and semester and approves you.' : 'They will be asked to approve you.'} Nothing changes on your account until they do.
+                                                            {found.classes?.length > 0 && card === 'class' ? 'Their office checks your class and section and approves you.' : found.departments?.length ? 'Their office checks your department and semester and approves you.' : 'They will be asked to approve you.'} Nothing changes on your account until they do.
                                                         </p>
                                                     </>
                                                 )}

@@ -1,5 +1,5 @@
 /**
- * The Opportunities section's calls, on the LMS's own axios client — the
+ * The Opportunities section's calls, on YATICORPX3's own axios client — the
  * same thin layer as jobs/api.js, against /api/jobs/opportunities.
  */
 import client from '../utils/api';

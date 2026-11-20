@@ -67,7 +67,7 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ── Who is asking ───────────────────────────────────────────────────────────
 router.use(safe(async (req, res, next) => {
-    if (!req.organization.campusAllowed) return res.status(403).json({ code: 'CAMPUS_LOCKED', message: 'Campus is not switched on for your organization. Ask YATICORP to turn it on.' });
+    if (!req.organization.campusAllowed) return res.status(403).json({ code: 'CAMPUS_LOCKED', message: 'Campus is not switched on for your organization. Ask YATICORPX3 to turn it on.' });
     const { org, campus } = await C.loadCampus(req.organization._id);
     req.campus = campus;
     req.campusOrg = org;
@@ -108,8 +108,29 @@ const canTeach = (req, subject) => req.campusRole === 'admin' || req.campusRole 
     || (req.campusRole === 'teacher' && (subject.teacherIds || []).some((t) => same(t, req.admin._id)));
 /** The departments this teacher heads: chosen as Head of department (by account, or by name for older set-ups). */
 // By account only: a name can be changed or shared, so it never makes anyone a head.
-const hodDepartments = (req) => req.campus.departments.filter((d) => d.headId && same(d.headId, req.admin._id));
-const deptView = (d) => ({ _id: d._id, name: d.name, code: d.code, semesters: d.semesters, sections: d.sections || [], head: d.head, headId: d.headId || null });
+/*
+ * A demo card's teacher (services/demoDashboards.js; 2026-11-19, the owner: "in the teacher's dashboard show the
+ * HOD tasks") works as a head too, so a presentation shows the Department (HOD) menu: of the department named in
+ * DEMO_DEPARTMENT (its name or code) — or, unset, the one with the most subjects. The department's own head stays
+ * its head: nothing is written to it, and its Head of department on the organization's pages does not change.
+ */
+const demoDepartment = (req) => {
+    const all = req.campus.departments;
+    if (!all.length) return null;
+    const want = String(process.env.DEMO_DEPARTMENT || '').trim().toLowerCase();
+    const named = want ? all.find((d) => String(d.name || '').toLowerCase() === want || String(d.code || '').toLowerCase() === want) : null;
+    if (named) return named;
+    const subjects = (d) => req.campus.subjects.filter((x) => same(x.departmentId, d._id)).length;
+    return all.reduce((best, d) => (subjects(d) > subjects(best) ? d : best), all[0]);
+};
+const hodDepartments = (req) => {
+    const mine = req.campus.departments.filter((d) => d.headId && same(d.headId, req.admin._id));
+    const demo = req.campusRole === 'teacher' && req.admin?.demo ? demoDepartment(req) : null;
+    return demo && !mine.some((d) => same(d._id, demo._id)) ? [...mine, demo] : mine;
+};
+// A degree department or a PUC stream (2026-11-19); an older one named "… PUC …" counts as PUC.
+const programOf = (d) => (d.program === 'puc' || d.program === 'degree' ? d.program : /\bpuc\b/i.test(d.name || '') ? 'puc' : 'degree');
+const deptView = (d) => ({ _id: d._id, name: d.name, code: d.code, semesters: d.semesters, sections: d.sections || [], program: programOf(d), stream: d.stream || '', pucYear: d.pucYear || null, pucSem: d.pucSem || null, sectionTeachers: (d.sectionTeachers || []).map((x) => ({ section: x.section, teacherId: x.teacherId || null, teacher: x.teacher || '' })), head: d.head, headId: d.headId || null });
 const sectionOk = (dept, section) => !section || (dept.sections || []).includes(section);
 /** A department with more than one section: every student is in one of them, and every class is one. */
 const needsSection = (dept) => (dept.sections || []).length > 1;
@@ -197,13 +218,30 @@ router.get('/overview', office, safe(async (req, res) => {
 }));
 
 // ── Departments (admin) ─────────────────────────────────────────────────────
+const ORD = ['', '1st', '2nd'];
 const deptBody = (b, d = {}) => {
+    // A PUC class: its stream, year and semester make its name ("Commerce · 1st year · 1st sem"), so each is there once.
+    if ((b.program || programOf(d)) === 'puc' && (b.stream !== undefined || d.stream)) {
+        const stream = b.stream !== undefined ? str(b.stream, 40) : d.stream;
+        if (!stream) return { error: ['Choose the stream: Arts, Commerce, Science…', 'stream'] };
+        const pucYear = b.pucYear !== undefined ? int(b.pucYear, 1, 2) : d.pucYear;
+        if (!pucYear) return { error: ['Choose the year: 1st or 2nd.', 'pucYear'] };
+        const pucSem = b.pucSem !== undefined ? int(b.pucSem, 1, 2) : d.pucSem;
+        if (!pucSem) return { error: ['Choose the semester: 1st or 2nd.', 'pucSem'] };
+        const sections = b.sections !== undefined ? cleanSections(b.sections) : d.sections || ['A'];
+        return { value: {
+            name: `${stream} · ${ORD[pucYear]} year · ${ORD[pucSem]} sem`, code: b.code !== undefined ? str(b.code, 12).toUpperCase() : d.code || '',
+            semesters: 1, sections: sections.length ? sections : ['A'], head: b.head !== undefined ? str(b.head, 100) : d.head || '',
+            program: 'puc', stream, pucYear, pucSem
+        } };
+    }
     const name = b.name !== undefined ? str(b.name, 100) : d.name;
     if (!name) return { error: ['Enter the department’s name.', 'name'] };
     const semesters = b.semesters !== undefined ? int(b.semesters, 1, 12) : d.semesters ?? 6;
     if (!semesters) return { error: ['Semesters must be between 1 and 12.', 'semesters'] };
     const sections = b.sections !== undefined ? cleanSections(b.sections) : d.sections || ['A'];
-    return { value: { name, code: b.code !== undefined ? str(b.code, 12).toUpperCase() : d.code || '', semesters, sections: sections.length ? sections : ['A'], head: b.head !== undefined ? str(b.head, 100) : d.head || '' } };
+    const program = b.program === 'puc' || b.program === 'degree' ? b.program : programOf(d);
+    return { value: { name, code: b.code !== undefined ? str(b.code, 12).toUpperCase() : d.code || '', semesters, sections: sections.length ? sections : ['A'], head: b.head !== undefined ? str(b.head, 100) : d.head || '', program } };
 };
 /**
  * The head's teacher account shows them as HOD (designation "HOD", their department), and a
@@ -304,13 +342,15 @@ router.get('/departments', adminOnly, safe(async (req, res) => {
     }
     await syncPrograms(req.organization._id);
     const [counts, logins] = await Promise.all([
-        User.aggregate([{ $match: { organizationId: req.organization._id, 'campus.departmentId': { $ne: null }, 'campus.status': 'studying' } }, { $group: { _id: '$campus.departmentId', n: { $sum: 1 } } }]),
+        User.aggregate([{ $match: { organizationId: req.organization._id, 'campus.departmentId': { $ne: null }, 'campus.status': 'studying' } }, { $group: { _id: { d: '$campus.departmentId', s: '$campus.section' }, n: { $sum: 1 } } }]),
         Admin.find({ organizationId: req.organization._id, campusDepartmentId: { $ne: null } }).select('name email campusDepartmentId createdAt').sort({ name: 1 }).lean()
     ]);
     res.json({
         departments: req.campus.departments.map((d) => ({
             ...deptView(d),
-            students: counts.find((c) => same(c._id, d._id))?.n || 0,
+            students: counts.filter((c) => same(c._id.d, d._id)).reduce((t, c) => t + c.n, 0),
+            // Per section (2026-11-19): a PUC class shows each section's own.
+            sectionStudents: Object.fromEntries((d.sections || []).map((x) => [x, counts.filter((c) => same(c._id.d, d._id) && (c._id.s || '') === x).reduce((t, c) => t + c.n, 0)])),
             subjects: req.campus.subjects.filter((s) => same(s.departmentId, d._id)).length,
             logins: logins.filter((l) => same(l.campusDepartmentId, d._id)).map((l) => ({ _id: l._id, name: l.name, email: l.email, createdAt: l.createdAt }))
         }))
@@ -320,12 +360,29 @@ router.post('/departments', adminOnly, safe(async (req, res) => {
     const { value: v0, error } = deptBody(req.body || {});
     if (error) return bad(res, ...error);
     const value = await withHead(req, req.body || {}, v0);
-    if (req.campus.departments.some((d) => d.name.toLowerCase() === value.name.toLowerCase())) return bad(res, 'A department with this name already exists.', 'name');
+    const same_ = req.campus.departments.find((d) => d.name.toLowerCase() === value.name.toLowerCase());
+    // A PUC class is added one section at a time, each with its own class teacher (2026-11-19, the user: "don't make it
+    // sections together, make it like classes, different sections"): the same class again adds its next section.
+    if (value.program === 'puc') {
+        const section = value.sections[0];
+        const teacher = value.headId ? { section, teacherId: value.headId, teacher: value.head } : null;
+        if (same_) {
+            if ((same_.sections || []).includes(section)) return bad(res, `${same_.name} already has Section ${section}.`, 'sections');
+            await C.setItem(req.organization._id, 'departments', same_._id, {
+                sections: [...(same_.sections || []), section],
+                sectionTeachers: [...(same_.sectionTeachers || []).filter((x) => x.section !== section), ...(teacher ? [teacher] : [])]
+            });
+            return res.status(201).json({ message: `Section ${section} added to ${same_.name}.` });
+        }
+        value.sections = [section]; value.sectionTeachers = teacher ? [teacher] : []; value.head = ''; value.headId = null;
+    }
+    if (same_) return bad(res, 'A department with this name already exists.', 'name');
     if (req.campus.departments.length >= 100) return bad(res, 'An organization can have up to 100 departments.');
     const d = await C.pushItem(req.organization._id, 'departments', value);
-    if (value.headId) await syncHodRole(req, d._id, null, value.headId, d.name);
+    // A PUC class's teacher is its class teacher, not a head of department (2026-11-19).
+    if (value.headId && value.program !== 'puc') await syncHodRole(req, d._id, null, value.headId, d.name);
     await syncPrograms(req.organization._id);
-    res.status(201).json({ message: `${d.name} was added. Give it a sign-in next, so its office can admit students.`, department: d });
+    res.status(201).json({ message: value.program === 'puc' ? `${d.name} was added.` : `${d.name} was added. Give it a sign-in next, so its office can admit students.`, department: d });
 }));
 router.put('/departments/:id', adminOnly, safe(async (req, res) => {
     const d = C.find(req.campus, 'departments', req.params.id);
@@ -333,10 +390,42 @@ router.put('/departments/:id', adminOnly, safe(async (req, res) => {
     const { value: v0, error } = deptBody(req.body || {}, d);
     if (error) return bad(res, ...error);
     const value = await withHead(req, req.body || {}, v0);
+    if (value.program === 'puc' && req.campus.departments.some((x) => !same(x._id, d._id) && x.name.toLowerCase() === value.name.toLowerCase())) return bad(res, `${value.name} is already there.`, 'stream');
+    // A degree department's sections changed (2026-11-19 QA): a section renamed in its place takes its students (and its
+    // timetables) with it; a section taken away while students are in it is refused.
+    let renamed = [];
+    if (value.program !== 'puc') {
+        const before = d.sections || [];
+        const after = value.sections || [];
+        renamed = before.length === after.length ? before.map((x, i) => [x, after[i]]).filter(([a, b]) => a !== b && !before.includes(b)) : [];
+        const gone_ = before.filter((x) => !after.includes(x) && !renamed.some(([a]) => a === x));
+        for (const x of gone_) {
+            const n = await User.countDocuments({ organizationId: req.organization._id, 'campus.departmentId': d._id, 'campus.section': x });
+            if (n) return bad(res, `Section ${x} still has ${n} student${n === 1 ? '' : 's'}. Move them first, or rename the section instead.`, 'sections');
+        }
+    }
+    // A PUC section's own class teacher (2026-11-19): the section edited keeps its place; its teacher is set.
+    if (value.program === 'puc') {
+        const section = str(req.body?.section, 10).toUpperCase() || (d.sections || [])[0] || 'A';
+        const teacher = value.headId ? { section, teacherId: value.headId, teacher: value.head } : null;
+        value.sections = d.sections?.length ? d.sections : [section];
+        value.sectionTeachers = [...(d.sectionTeachers || []).filter((x) => x.section !== section), ...(teacher ? [teacher] : [])];
+        value.head = ''; value.headId = null;
+        await C.setItem(req.organization._id, 'departments', d._id, value);
+        await syncPrograms(req.organization._id);
+        return res.json({ message: `${value.name} · Section ${section} saved.${teacher ? ` ${teacher.teacher} is its class teacher.` : ''}` });
+    }
     await C.setItem(req.organization._id, 'departments', d._id, value);
-    if (value.headId !== undefined) await syncHodRole(req, d._id, d.headId, value.headId, value.name);
+    for (const [from, to] of renamed) {
+        await User.updateMany({ organizationId: req.organization._id, 'campus.departmentId': d._id, 'campus.section': from }, { $set: { 'campus.section': to } });
+        // Its timetables, only where there are any (an update on a missing list fails).
+        if ((req.campus.timetables || []).some((t) => same(t.departmentId, d._id) && t.section === from)) {
+            await require('../organizations/models/Organization').updateOne({ _id: req.organization._id }, { $set: { 'campus.timetables.$[t].section': to } }, { arrayFilters: [{ 't.departmentId': d._id, 't.section': from }] });
+        }
+    }
+    if (value.headId !== undefined && value.program !== 'puc') await syncHodRole(req, d._id, d.headId, value.headId, value.name);
     await syncPrograms(req.organization._id);
-    res.json({ message: `${value.name} saved.${value.headId && !same(d.headId, value.headId) ? ` ${value.head} is now its HOD.` : ''}` });
+    res.json({ message: `${value.name} saved.${value.headId && !same(d.headId, value.headId) ? ` ${value.head} is now its ${value.program === 'puc' ? 'class teacher' : 'HOD'}.` : ''}` });
 }));
 // The HOD's own dashboard, opened by the organization (2026-11-14): a one-time code, two minutes,
 // traded in the student app for a two-hour session as that teacher which names who opened it.
@@ -356,6 +445,110 @@ router.post('/departments/:id/hod-dashboard', adminOnly, safe(async (req, res) =
         expiresAt: new Date(Date.now() + ACCESS_CODE_TTL_MS)
     });
     res.json({ code, name: t.name });
+}));
+// ── Classes (admin) — 2026-11-19 ────────────────────────────────────────────
+// A class and its section (9th · A), how many students and subjects, and its class teacher (one of the organization's
+// teachers). GET /classes · POST /classes · PUT /classes/:id · DELETE /classes/:id.
+// Its number of students is counted, not typed (2026-11-19, the user: "the number of students will be increased
+// automatically when a student joins the organization, based on the class he is in"): members with User.orgClassId.
+const classBody = async (req, b) => {
+    const name = str(b.name, 40);
+    if (!name) return { error: ['Enter the class, e.g. 9th or Class 9.', 'name'] };
+    const section = str(b.section, 10).toUpperCase();
+    const students = 0;
+    const subjects = b.subjects === '' || b.subjects == null ? 0 : int(b.subjects, 0, 50);
+    if (subjects === null) return { error: ['Number of subjects: 0 to 50.', 'subjects'] };
+    let teacherId = null; let teacher = '';
+    if (b.teacherId) {
+        const t = (await teachersOf(req.organization._id)).find((x) => same(x._id, b.teacherId));
+        if (!t) return { error: ['Choose one of your teachers as the class teacher.', 'teacherId'] };
+        teacherId = t._id; teacher = t.name;
+    }
+    return { value: { name, section, students, subjects, teacherId, teacher } };
+};
+const classTaken = (req, v, exceptId) => (req.campus.classes || []).some((c) => !same(c._id, exceptId) && c.name.toLowerCase() === v.name.toLowerCase() && (c.section || '').toLowerCase() === v.section.toLowerCase());
+const classLabel = (v) => `${v.name}${v.section ? ` · Section ${v.section}` : ''}`;
+// ── What the institution has (admin) — 2026-11-19 ─────────────────────────
+// Degree departments, PUC classes and school classes, each switched on as the institution needs; until it chooses,
+// from its type: a school has classes; a college or university, degree departments and PUC; others, degree departments.
+const KINDS = ['degree', 'puc', 'classes'];
+const kindsOf = (org, campus) => {
+    if (Array.isArray(campus.kinds) && campus.kinds.length) return campus.kinds.filter((k) => KINDS.includes(k));
+    const t = org?.organizationType;
+    const base = t === 'school' ? ['classes'] : t === 'college' || t === 'university' ? ['degree', 'puc'] : ['degree'];
+    // Whatever it already has stays on.
+    if (campus.departments.some((d) => programOf(d) === 'degree') && !base.includes('degree')) base.push('degree');
+    if (campus.departments.some((d) => programOf(d) === 'puc') && !base.includes('puc')) base.push('puc');
+    if ((campus.classes || []).length && !base.includes('classes')) base.push('classes');
+    return KINDS.filter((k) => base.includes(k));
+};
+router.get('/kinds', adminOnly, safe(async (req, res) => {
+    const org = await require('../organizations/models/Organization').findById(req.organization._id).select('organizationType').lean();
+    res.json({ kinds: kindsOf(org, req.campus), chosen: Array.isArray(req.campus.kinds) && req.campus.kinds.length > 0 });
+}));
+router.put('/kinds', adminOnly, safe(async (req, res) => {
+    const kinds = KINDS.filter((k) => (Array.isArray(req.body?.kinds) ? req.body.kinds : []).includes(k));
+    if (!kinds.length) return bad(res, 'Keep at least one: degree departments, PUC classes or classes.', 'kinds');
+    await require('../organizations/models/Organization').updateOne({ _id: req.organization._id }, { $set: { 'campus.kinds': kinds } });
+    res.json({ kinds, message: 'Saved.' });
+}));
+router.get('/classes', adminOnly, safe(async (req, res) => {
+    const list = [...(req.campus.classes || [])].sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }) || (a.section || '').localeCompare(b.section || ''));
+    const counts = await User.aggregate([{ $match: { organizationId: req.organization._id, orgClassId: { $in: list.map((c) => c._id) } } }, { $group: { _id: '$orgClassId', n: { $sum: 1 } } }]);
+    res.json({ classes: list.map((c) => ({ _id: c._id, name: c.name, section: c.section || '', students: counts.find((x) => same(x._id, c._id))?.n || 0, subjects: c.subjects || 0, teacherId: c.teacherId || null, teacher: c.teacher || '' })) });
+}));
+// The students in a class (2026-11-19, the user: "the students' names can be viewed"): its members who joined in it.
+router.get('/classes/:id/students', adminOnly, safe(async (req, res) => {
+    const c = C.find(req.campus, 'classes', req.params.id);
+    if (!c) return gone(res, 'The class');
+    const rows = await User.find({ organizationId: req.organization._id, orgClassId: c._id }, { name: 1, email: 1, phone: 1, cardNumber: 1, profilePicture: 1 }).sort({ name: 1 }).limit(2000).lean();
+    res.json({ students: rows.map((u) => ({ _id: u._id, name: u.name, cardNumber: u.cardNumber || '', picture: u.profilePicture || '', email: u.email || '', phone: u.phone || '' })) });
+}));
+// Several sections at once (2026-11-19, the user: "section can be added together like A, B, C"): one class each.
+router.post('/classes', adminOnly, safe(async (req, res) => {
+    const b = req.body || {};
+    const sections = [...new Set(String(b.section || '').split(',').map((x) => x.trim().toUpperCase().slice(0, 10)))].filter(Boolean);
+    const values = [];
+    for (const section of sections.length ? sections : ['']) {
+        const { value, error } = await classBody(req, { ...b, section });
+        if (error) return bad(res, ...error);
+        if (classTaken(req, value)) return bad(res, `${classLabel(value)} is already there.`, 'section');
+        values.push(value);
+    }
+    if ((req.campus.classes || []).length + values.length > 300) return bad(res, 'An organization can have up to 300 classes.');
+    for (const v of values) await C.pushItem(req.organization._id, 'classes', v);
+    res.status(201).json({ message: values.length > 1 ? `${values[0].name} added, with sections ${values.map((v) => v.section).join(', ')}.` : `${classLabel(values[0])} added.` });
+}));
+router.put('/classes/:id', adminOnly, safe(async (req, res) => {
+    const c = C.find(req.campus, 'classes', req.params.id);
+    if (!c) return gone(res, 'The class');
+    if (String(req.body?.section || '').includes(',')) return bad(res, 'A class here is one section. Add the other sections with Add class.', 'section');
+    const { value, error } = await classBody(req, req.body || {});
+    if (error) return bad(res, ...error);
+    if (classTaken(req, value, c._id)) return bad(res, `${classLabel(value)} is already there.`, 'section');
+    await C.setItem(req.organization._id, 'classes', c._id, value);
+    res.json({ message: `${classLabel(value)} saved.` });
+}));
+router.delete('/classes/:id', adminOnly, safe(async (req, res) => {
+    const c = C.find(req.campus, 'classes', req.params.id);
+    if (!c) return gone(res, 'The class');
+    await C.pullItem(req.organization._id, 'classes', c._id);
+    // Its students are in no class now.
+    await User.updateMany({ organizationId: req.organization._id, orgClassId: c._id }, { $set: { orgClassId: null } });
+    res.json({ message: `${classLabel(c)} removed.` });
+}));
+
+// One PUC section (2026-11-19): taken off its class when no student is in it; the last section removes the class.
+router.delete('/departments/:id/sections/:section', adminOnly, safe(async (req, res) => {
+    const d = C.find(req.campus, 'departments', req.params.id);
+    if (!d) return gone(res, 'The class');
+    const section = str(req.params.section, 10).toUpperCase();
+    if (!(d.sections || []).includes(section)) return gone(res, 'That section');
+    if ((d.sections || []).length <= 1) return bad(res, 'This is its only section: remove the whole class instead.');
+    const students = await User.countDocuments({ organizationId: req.organization._id, 'campus.departmentId': d._id, 'campus.section': section });
+    if (students) return bad(res, `Section ${section} still has ${students} student${students === 1 ? '' : 's'}. Move them first.`);
+    await C.setItem(req.organization._id, 'departments', d._id, { sections: d.sections.filter((x) => x !== section), sectionTeachers: (d.sectionTeachers || []).filter((x) => x.section !== section) });
+    res.json({ message: `Section ${section} removed from ${d.name}.` });
 }));
 router.delete('/departments/:id', adminOnly, safe(async (req, res) => {
     const d = C.find(req.campus, 'departments', req.params.id);
@@ -1534,7 +1727,8 @@ teacher.use(safe(async (req, res, next) => {
     req.campus = campus;
     req.campusOrg = full;
     req.campusRole = 'teacher';
-    req.admin = { _id: t._id, name: t.name };
+    // `demo`: a demo card's teacher, who works as a head of department too (hodDepartments).
+    req.admin = { _id: t._id, name: t.name, demo: Boolean(t.demoCard) };
     req.organization = { _id: t.organizationId };
     next();
 }));

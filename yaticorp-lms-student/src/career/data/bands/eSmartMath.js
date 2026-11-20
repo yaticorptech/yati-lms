@@ -328,6 +328,16 @@ export const dashConfig = (ageBand, difficulty = 1, levelNo = 1) => {
   const band = smartBand(ageBand);
   const d = diffOf(difficulty);
   const t = t01(levelNo);
+  // Master Minds' Data Chart Quiz (2026-11-19): real-world charts (sales, population, prices), bigger numbers, a faster clock.
+  if (ageBand === 'advanced') {
+    return {
+      band, adult: true, sets: 3, perSet: 3,
+      charts: d === 1 ? ['bar', 'double', 'line', 'pie'] : ['double', 'line', 'pie', 'double', 'bar'],
+      cats: 6,
+      maxValue: 200 + 150 * d,
+      seconds: ramp(240, 180, levelNo) - 15 * (d - 1)
+    };
+  }
   if (band === 'intermediate') {
     return {
       band, sets: 3, perSet: d === 1 ? 2 : 3,
@@ -358,6 +368,19 @@ const PIE_THEMES = [
   { title: 'How students travel to school:', who: 'students', labels: ['Bus', 'Walk', 'Cycle', 'Car', 'Metro', 'Auto'] },
   { title: 'Favourite subject of', who: 'students', labels: ['Maths', 'Science', 'English', 'Art', 'History', 'Music'] }
 ];
+const ADULT_THEMES = [
+  { title: 'Monthly sales of a phone shop', unit: 'phones', labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], kind: 'month' },
+  { title: 'Population of six towns', unit: 'thousand people', labels: ['Nashik', 'Mysuru', 'Udaipur', 'Shillong', 'Kochi', 'Puri'], kind: 'item' },
+  { title: 'Electricity used by a factory', unit: 'units', labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], kind: 'day' },
+  { title: 'Cars sold by a dealer', unit: 'cars', labels: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'], kind: 'item' },
+  { title: 'Website visitors per day', unit: 'visitors', labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], kind: 'day' }
+];
+const ADULT_PIE = [
+  { title: 'How a family spends its income on', who: 'rupees (hundreds)', labels: ['Rent', 'Food', 'Travel', 'Savings', 'Bills', 'Fun'] },
+  { title: 'Market share of phone brands among', who: 'buyers', labels: ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E', 'Others'] },
+  { title: 'How office workers commute:', who: 'workers', labels: ['Metro', 'Bus', 'Car', 'Bike', 'Walk', 'Cab'] }
+];
+const ADULT_PAIRS = [['Store A', 'Store B', 'Revenue', '₹ thousand'], ['2023', '2024', 'Tickets sold', 'tickets'], ['City A', 'City B', 'Rainfall', 'mm']];
 const PAIRS = [['Shop A', 'Shop B', 'Sales (units)', 'units'], ['Class 9A', 'Class 9B', 'Library books borrowed', 'books'], ['Team Red', 'Team Blue', 'Points scored', 'points']];
 
 const uniqueMax = (vals) => vals.filter((v) => v === Math.max(...vals)).length === 1;
@@ -401,7 +424,7 @@ const singleQuestions = (rng, set) => {
 export const makeDataSet = (rng, cfg, chart) => {
   const n = Math.min(6, cfg.cats);
   if (chart === 'pie') {
-    const theme = pick(rng, PIE_THEMES);
+    const theme = pick(rng, cfg.adult ? ADULT_PIE : PIE_THEMES);
     const k = Math.min(5, Math.max(3, n - 1));
     let pct;
     for (let g = 0; g < 500; g++) {
@@ -422,7 +445,7 @@ export const makeDataSet = (rng, cfg, chart) => {
     return { chart, title: `${theme.title} ${total} ${theme.who}`, labels, values: pct, total, unit: '%', questions: qs.slice(0, cfg.perSet) };
   }
   if (chart === 'double' || chart === 'line') {
-    const [nameA, nameB, title, unit] = pick(rng, PAIRS);
+    const [nameA, nameB, title, unit] = pick(rng, cfg.adult ? ADULT_PAIRS : PAIRS);
     const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].slice(0, n);
     const step = 5;
     let A;
@@ -454,7 +477,7 @@ export const makeDataSet = (rng, cfg, chart) => {
     const pool = chart === 'line' ? [qs[4], qs[5], qs[6], qs[1]] : [qs[0], qs[1], qs[2], qs[3]];
     return { chart, title, labels, series: [{ name: nameA, values: A }, { name: nameB, values: B }], unit, questions: shuffle(rng, pool).slice(0, cfg.perSet) };
   }
-  const theme = pick(rng, THEMES);
+  const theme = pick(rng, cfg.adult ? ADULT_THEMES : THEMES);
   const labels = theme.labels.slice(0, n);
   const step = cfg.band === 'analytical' ? 5 : pick(rng, [1, 2, 5]);
   const values = seriesValues(rng, n, step === 1 ? 3 : 5, cfg.maxValue, step);

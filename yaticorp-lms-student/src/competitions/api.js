@@ -1,4 +1,4 @@
-/** Games & Competitions — the calls, on the LMS's axios client. */
+/** Games & Competitions — the calls, on YATICORPX3's axios client. */
 import client from '../utils/api';
 
 const unwrap = (err) => {

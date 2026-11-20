@@ -6,6 +6,7 @@ import ProfileImage from '../components/ProfileImage';
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import DeviceLimitDialog from '../components/DeviceLimitDialog';
+import DemoDashboardChooser from '../components/DemoDashboardChooser';
 import { Navigate, Link, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import SupportDialog from '../components/SupportDialog';
@@ -14,6 +15,7 @@ import { isNative } from '../native/platform';
 import useBackClose from '../native/useBackClose';
 import { SESSION_ENDED_KEY } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession, TEACHER_SESSION_ENDED } from '../teacher/teacherSession';
+import parentApi, { enterParent, hasParentSession } from '../parent/parentSession';
 import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info, ShieldCheck, RefreshCw } from 'lucide-react';
 
 // --- Forgot Password Modal ---
@@ -260,6 +262,8 @@ const Login = () => {
     const { user, login, replaceDevice, enterApp } = useContext(AuthContext);
     // A 3rd device: the popup to swap it in (components/DeviceLimitDialog).
     const [deviceConflict, setDeviceConflict] = useState(null);
+    // A demo card's scan: its session and switch pass, held while the presenter picks a dashboard (components/DemoDashboardChooser).
+    const [demoSession, setDemoSession] = useState(null);
     // Where the student was heading when they were asked to sign in (a link
     // to a lesson, a page left when the session ended). Only a path in this
     // app is taken; anything else means the dashboard.
@@ -326,6 +330,8 @@ const Login = () => {
             const code = err.response?.data?.code;
             const maybePhone = /^91[6-9]\d{9}$/.test(number) && err.response?.status === 404 && !code;
             const msg = err.response?.data?.message;
+            // A parent's card (2026-11-19): found, and its holder's name shown, as a student's is.
+            if (code === 'PARENT_CARD') { setScannedName(err.response.data.name || ''); setScannedCard(true); setCardCheck(''); return; }
             if (msg && code !== 'TEACHER_CARD' && !maybePhone && err.response?.status < 500) { setCardCheckError(msg); setCardCheck('error'); }
             else setCardCheck('');
         }
@@ -357,10 +363,14 @@ const Login = () => {
             let res;
             try { res = await api.post('/auth/card-scan', { code: decodedText }); }
             catch (err) {
-                if (err.response?.data?.code !== 'TEACHER_CARD') throw err;
-                res = await teacherApi.post('/auth/card-scan', { code: decodedText });
+                // A parent's card: its number, to sign in with (2026-11-19).
+                if (err.response?.data?.code === 'PARENT_CARD') res = { data: { cardNumber: err.response.data.cardNumber, name: err.response.data.name } };
+                else if (err.response?.data?.code !== 'TEACHER_CARD') throw err;
+                else res = await teacherApi.post('/auth/card-scan', { code: decodedText });
             }
-            // A demo (presentation) card signs in by its scan alone: straight to the dashboard.
+            // A demo (presentation) card signs in by its scan alone, and opens any dashboard: the presenter picks.
+            if (res.data?.token && res.data?.demo) { setDemoSession(res.data); return; }
+            // A developer card signs in by its scan alone: straight to the dashboard.
             if (res.data?.token && res.data?.role !== 'teacher') { enterApp(res.data, next); return; }
             // A developer teacher card signs in by its scan alone too.
             if (res.data?.token) { enterTeacher(res.data); return; }
@@ -419,8 +429,13 @@ const Login = () => {
     if (user) return <Navigate to={next} replace />;
     // A teacher is signed in on this device: their dashboard.
     if (hasTeacherSession()) return <Navigate to="/teacher" replace />;
+    if (hasParentSession()) return <Navigate to="/parent" replace />;
 
     const failed = (message) => { setError(message); setLoading(false); passwordRef.current?.focus(); };
+    const parentSignIn = async (body) => {
+        try { enterParent((await parentApi.post('/auth/login', body)).data); }
+        catch (err) { failed(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed')); }
+    };
     const teacherSignIn = async (body) => {
         try { enterTeacher((await teacherApi.post('/auth/login', body)).data); }
         catch (err) { failed(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed')); }
@@ -445,6 +460,8 @@ const Login = () => {
         if (res.success) return;
         // A teacher's card or number: the teacher sign-in finishes it, and they land on their dashboard.
         if (res.code === 'TEACHER_CARD' || res.code === 'TEACHER_ACCOUNT') { await teacherSignIn({ login: typed, password }); return; }
+        // A parent's card or number (2026-11-19): the parent sign-in finishes it, and they land on their dashboard.
+        if (res.code === 'PARENT_CARD' || res.code === 'PARENT_ACCOUNT') { await parentSignIn({ login: typed, password }); return; }
         if (res.code === 'DEVICE_LIMIT' && res.device) { setDeviceConflict(res.device); setLoading(false); return; }
         failed(res.error);
     };
@@ -457,6 +474,7 @@ const Login = () => {
             <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-56 -z-10 h-[30rem] w-[30rem] rounded-full bg-violet-600/15 blur-[140px]" />
             {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
             {showContact && <SupportDialog onClose={() => setShowContact(false)} page="login" tone="dark" />}
+            {demoSession && <DemoDashboardChooser token={demoSession.demoSwitch} session={demoSession} name={demoSession.name} onClose={() => setDemoSession(null)} />}
             {deviceConflict && (
                 <DeviceLimitDialog conflict={deviceConflict} onClose={() => setDeviceConflict(null)}
                     onReplace={(removeId) => replaceDevice(deviceConflict.ticket, removeId, next)} />
@@ -498,7 +516,7 @@ const Login = () => {
                 <section className="relative px-6 py-9 sm:px-10 sm:py-11 lg:px-12 lg:py-12">
                     <div className="mx-auto flex h-full max-w-sm flex-col justify-center">
                         <div className="lg-rise" style={{ animationDelay: '0.1s' }}>
-                            <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-8 h-7 w-auto object-contain lg:hidden" />
+                            <img src="/assets/YATICORP.png" alt="YATICORPX3" className="mb-8 h-7 w-auto object-contain lg:hidden" />
                             <h2 className="text-[26px] font-semibold tracking-tight text-white">Welcome back</h2>
                             <p className="mt-1.5 text-sm text-slate-400">Sign in with your card number or mobile number.</p>
                         </div>

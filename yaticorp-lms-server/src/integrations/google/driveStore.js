@@ -1,7 +1,7 @@
 /**
  * Files a student uploads are kept in THEIR Google Drive, not here (2026-11-02):
  * certificates (My Certificates), 360 proofs, their resume, and Extra-curricular
- * proofs and award certificates. Each goes into the app's "YATICORP Learning"
+ * proofs and award certificates. Each goes into the app's "YATICORPX3 Learning"
  * folder, is shared "anyone with the link can view" — the link teachers and
  * organizations open to check it — and only that link is kept in our database.
  *

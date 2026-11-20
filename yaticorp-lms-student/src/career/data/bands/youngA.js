@@ -89,12 +89,16 @@ export const safariConfig = (ageBand, difficulty = 1, levelNo = 1) => {
   const d = dOf(difficulty);
   const L = lOf(levelNo);
   if (band === 'foundation') {
-    const pairs = clampN(3 + Math.floor((L - 1) / 15) + (d >= 3 ? 1 : 0), 3, 5);
-    return { band, pairs, kinds: ['sound'], moveBudget: Math.ceil(pairs * 2.5) + 2, cols: pairs * 2 <= 6 ? 3 : pairs * 2 === 10 ? 5 : 4 };
+    // Always 4 to a row, so every board is full rows (2026-11-18, the user): level 1 is 8 cards
+    // (2 rows of 4), growing to 12 (3 rows) from level 16 or on the hardest setting.
+    const pairs = L >= 16 || d >= 3 ? 6 : 4;
+    return { band, pairs, kinds: ['sound'], moveBudget: Math.ceil(pairs * 2.5) + 2, cols: 4 };
   }
-  const pairs = clampN(5 + Math.floor((L - 1) / 15) + (d - 1), 5, 8);
+  // 8 cards at level 1, then 12, then 16 — always full rows of 4 (2026-11-18, the user).
+  const step = Math.floor((L - 1) / 10) + (L > 1 ? d - 1 : 0);
+  const pairs = step <= 0 ? 4 : step === 1 ? 6 : 8;
   const kinds = d === 1 && L < 10 ? ['sound', 'baby'] : ['sound', 'home', 'baby'];
-  return { band, pairs, kinds, moveBudget: Math.ceil(pairs * 2.5) + (d === 1 ? 1 : 0), cols: pairs * 2 === 10 ? 5 : 4 };
+  return { band, pairs, kinds, moveBudget: Math.ceil(pairs * 2.5) + (d === 1 ? 1 : 0), cols: 4 };
 };
 
 /**
@@ -360,7 +364,8 @@ const OPP = { n: 's', s: 'n', e: 'w', w: 'e' };
  *  mazes          — mazes per level
  *  size           — rows = cols
  *  loops          — extra walls knocked down (more than one way through)
- *  puddles        — 💦 cells that splash you back to the start
+ *  puddles        — 🦁 lions (2026-11-18, were puddles): step on one and you are sent back to the start
+ *  goalReach      — how far along the maze the 🥕 sits (0.5 = half way, 1 = the farthest cell)
  *  bee, beeMs     — a bee buzzing to and fro on a side path, one step per beeMs
  *  stars          — optional ⭐ to collect
  *  bumpAllow, slack — bonus point limits: wall bumps / splashes, and moves over the best route
@@ -370,20 +375,27 @@ export const mazeConfig = (ageBand, difficulty = 1, levelNo = 1) => {
   const d = dOf(difficulty);
   const L = lOf(levelNo);
   if (band === 'foundation') {
+    // Bigger mazes with lions in the way (2026-11-18, the user): easy levels have many ways round and a near carrot;
+    // later ones fewer ways round, more lions and the carrot at the far end.
     return {
-      band, mazes: 3, size: clampN(4 + (L >= 10 ? 1 : 0) + (d >= 3 ? 1 : 0), 4, 6),
-      loops: d >= 2 ? 1 : 0,
-      puddles: d >= 2 && L >= 8 ? 1 : 0,
-      bee: false, beeMs: 0,
+      // Squares as big as the user's picture (2026-11-18): 6×6, then 7×7 — never smaller squares than that.
+      band, mazes: 3, size: L >= 10 || d >= 3 ? 7 : 6,
+      loops: L < 8 ? 6 : L < 16 ? 4 : 2,
+      // Exactly three obstacles (2026-11-18, the user): two lions, spread apart, and one stone that blocks the way.
+      puddles: 2, rocks: 1,
+      goalReach: L < 5 ? 0.5 : L < 15 ? 0.75 : 1,
+      // And one bee buzzing to and fro on a side path (2026-11-18, the user: "2 lions, 1 stone, a bee").
+      bee: true, beeMs: 1150,
       stars: 1 + (L >= 15 ? 1 : 0),
       bumpAllow: 3, slack: 4
     };
   }
   return {
-    band, mazes: 3, size: clampN(6 + Math.floor((L - 1) / 15) + (d - 1), 6, 8),
-    loops: 2 + d,
-    puddles: clampN(1 + (d >= 2 ? 1 : 0) + (L >= 20 ? 1 : 0), 1, 3),
-    bee: d >= 2 || L >= 10, beeMs: ramp(1000, 750, L) - (d - 1) * 80,
+    band, mazes: 3, size: 7,
+    loops: clampN(6 - Math.floor(L / 6) - (d - 1), 1, 6),
+    puddles: 2, rocks: 1,
+    goalReach: L < 4 ? 0.6 : L < 12 ? 0.8 : 1,
+    bee: true, beeMs: ramp(1000, 800, L),
     stars: 2 + (d >= 3 ? 1 : 0),
     bumpAllow: 2, slack: 2
   };
@@ -396,6 +408,8 @@ export const mazeStep = (maze, r, c, dir) => {
   const nr = r + D.dr;
   const nc = c + D.dc;
   if (nr < 0 || nc < 0 || nr >= maze.size || nc >= maze.size) return null;
+  // A stone 🪨 blocks the way like a wall.
+  if (maze.rocks?.some(([rr, rc]) => rr === nr && rc === nc)) return null;
   return [nr, nc];
 };
 
@@ -475,7 +489,7 @@ export const makeMaze = (rng, config) => {
   const size = config.size;
   for (let attempt = 0; attempt < 200; attempt++) {
     const walls = Array.from({ length: size }, () => Array.from({ length: size }, () => ({ n: true, e: true, s: true, w: true })));
-    const maze = { size, walls, puddles: [], bee: [], stars: [] };
+    const maze = { size, walls, puddles: [], rocks: [], bee: [], stars: [] };
     // Recursive backtracker: a perfect maze, every cell reachable.
     const seen = new Set([key(0, 0)]);
     const stack = [[0, 0]];
@@ -507,11 +521,14 @@ export const makeMaze = (rng, config) => {
     }
     maze.start = [0, 0];
     const fromStart = mazeDistances(maze, maze.start);
-    let far = 0;
+    // The goal: the farthest cell on hard levels; on easy ones about `goalReach` of the way, so it is quick to find.
+    const far = Math.max(...fromStart.values());
+    const want = Math.max(size - 1, Math.round(far * (config.goalReach ?? 1)));
+    let best = Infinity;
     for (const [k, v] of fromStart) {
       const [r, c] = k.split(',').map(Number);
-      // The goal sits in the far half of the board.
-      if (v > far && r + c >= size - 1) { far = v; maze.goal = [r, c]; }
+      const off = Math.abs(v - want);
+      if (r + c >= size - 2 && off < best) { best = off; maze.goal = [r, c]; }
     }
     if (!maze.goal) continue;
     const startK = key(...maze.start);
@@ -523,15 +540,30 @@ export const makeMaze = (rng, config) => {
 
     // Puddles: anywhere but next to the start or on the goal, as long as the goal stays reachable.
     let tries = 0;
-    while (maze.puddles.length < config.puddles && tries++ < 80) {
+    while (maze.puddles.length < config.puddles && tries++ < 200) {
       const r = intBetween(rng, 0, size - 1);
       const c = intBetween(rng, 0, size - 1);
       const k = key(r, c);
       if (near(k) || k === startK || maze.puddles.some(([pr, pc]) => pr === r && pc === c)) continue;
+      // Lions apart from each other (2026-11-18): never bunched in one place.
+      if (maze.puddles.some(([pr, pc]) => Math.abs(pr - r) + Math.abs(pc - c) < Math.max(3, Math.floor(size / 2)))) continue;
       const trial = { ...maze, puddles: [...maze.puddles, [r, c]] };
       if (mazePath(trial, maze.start, maze.goal, mazeHazards(trial))) maze.puddles.push([r, c]);
     }
     if (maze.puddles.length < config.puddles) continue;
+
+    // The stone: on the way if there is another way round, else anywhere it does not cut the carrot off.
+    if (config.rocks) {
+      const way = mazePath(maze, maze.start, maze.goal, mazeHazards(maze)) || [];
+      const taken = (r, c) => near(key(r, c)) || key(r, c) === startK || maze.puddles.some(([pr, pc]) => pr === r && pc === c);
+      const onWay = shuffle(rng, way.slice(2, -1)).filter(([r, c]) => !taken(r, c));
+      const anywhere = shuffle(rng, [...Array(size * size).keys()].map((i) => [Math.floor(i / size), i % size])).filter(([r, c]) => !taken(r, c));
+      for (const [r, c] of [...onWay, ...anywhere]) {
+        const trial = { ...maze, rocks: [[r, c]] };
+        if (mazePath(trial, maze.start, maze.goal, mazeHazards(trial))) { maze.rocks = [[r, c]]; break; }
+      }
+      if (maze.rocks.length < config.rocks) continue;
+    }
 
     const route = mazePath(maze, maze.start, maze.goal, mazeHazards(maze));
     const onRoute = new Set(route.map(([r, c]) => key(r, c)));
@@ -539,7 +571,7 @@ export const makeMaze = (rng, config) => {
     // The bee: 2–3 joined cells off the safe route.
     if (config.bee) {
       const hazards = mazeHazards(maze);
-      const free = (r, c) => !onRoute.has(key(r, c)) && !hazards.has(key(r, c)) && !near(key(r, c)) && key(r, c) !== startK;
+      const free = (r, c) => !onRoute.has(key(r, c)) && !hazards.has(key(r, c)) && !near(key(r, c)) && key(r, c) !== startK && !maze.rocks.some(([rr, rc]) => rr === r && rc === c);
       const cells = [];
       for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (free(r, c)) cells.push([r, c]);
       let patrol = null;

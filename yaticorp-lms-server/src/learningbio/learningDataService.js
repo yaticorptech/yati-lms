@@ -1,5 +1,5 @@
 /**
- * Everything the LMS knows about what a student has learned, in one shape
+ * Everything YATICORPX3 knows about what a student has learned, in one shape
  * the bio generator, the strength score and the page all read.
  *
  * Nothing is invented here. Every number and name comes from a record the
@@ -144,13 +144,13 @@ const collect = async (userId) => {
         };
     }).sort((a, b) => b.percent - a.percent || a.name.localeCompare(b.name));
 
-    /* Certificates — issued by the LMS, plus ones the student uploaded; not
+    /* Certificates — issued by YATICORPX3, plus ones the student uploaded; not
        the ones they deleted from My Certificates. */
     const shownCerts = certs.filter((c) => !c.hiddenAt);
     const certificates = [
         ...shownCerts.map((c) => {
             const course = courses.find((x) => x.id === String(c.courseId));
-            return { id: String(c._id), title: course ? `${course.title} — Certificate of Completion` : 'Certificate of Completion', course: course?.title || '', issuer: 'YATICORP', date: c.issuedAt, number: c.certificateNumber || '', url: c.pdfUrl, source: 'lms' };
+            return { id: String(c._id), title: course ? `${course.title} — Certificate of Completion` : 'Certificate of Completion', course: course?.title || '', issuer: 'YATICORPX3', date: c.issuedAt, number: c.certificateNumber || '', url: c.pdfUrl, source: 'lms' };
         }),
         ...uploads.filter((u) => u.kind === 'certificate').map((u) => ({ id: String(u._id), title: u.title, course: '', issuer: u.issuer || '', date: u.issuedOn || u.createdAt, number: '', url: u.fileUrl, source: 'uploaded' }))
     ];
@@ -179,7 +179,7 @@ const collect = async (userId) => {
         ...projects.map((p) => ({ date: p.completedAt, kind: 'project', title: `Built ${p.name}` })),
         ...achievements.filter((a) => a.source !== 'uploaded').slice(0, 8).map((a) => ({ date: a.earnedAt, kind: 'achievement', title: `${a.emoji} ${a.title}` })),
         ...(goal?.createdAt ? [{ date: goal.createdAt, kind: 'goal', title: `Set the goal: ${goal.careerGoal || 'Career Path started'}` }] : []),
-        { date: user.createdAt, kind: 'joined', title: 'Joined YATICORP LMS' }
+        { date: user.createdAt, kind: 'joined', title: 'Joined YATICORPX3' }
     ].filter((e) => e.date).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 40);
 
     /* Interests — detected from what the student actually chose to do. */

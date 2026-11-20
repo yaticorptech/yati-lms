@@ -36,7 +36,7 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
   return (
     <section className="grid overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card md:grid-cols-[1.15fr_1fr]">
       {/* ---------------- The habit ----------------
-          Its own component so the LMS Dashboard can show it too. */}
+          Its own component so YATICORPX3 Dashboard can show it too. */}
       <StreakPanel
         streak={streak}
         activity={activity}

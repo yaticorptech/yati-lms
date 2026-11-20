@@ -185,7 +185,7 @@ function Live({ view, onAction, busy }) {
                             Locked in. Waiting for the others…
                         </p>
                     )}
-                    {reveal && view.answer && (
+                    {reveal && view.answer && !view.quickReveal && (
                         <p className="mt-4 text-center text-sm text-white/85 sm:mt-6 sm:text-base" data-explain>
                             {myAnswer && Number.isFinite(myAnswer.points) && <span className={`mr-2 font-black ${myAnswer.correct ? 'text-green-400' : 'text-rose-400'}`}>{myAnswer.correct ? `Correct! +${myAnswer.points}` : `Not this time (${myAnswer.points})`}</span>}
                             <span className="font-black text-white">Answer: {q.options[view.answer.index]}.</span> {view.answer.explain}

@@ -178,35 +178,7 @@ const CHEF_DEMO = [
   { recipe: [['🥚', 2], ['🧀', 1]], pantry: ['🧈', '🥚', '🍋', '🧀', '🥦'] }
 ];
 
-const chefMemory = (f, ex) => {
-  const { recipe, pantry } = CHEF_DEMO[ex];
-  const taps = recipe.flatMap(([e, n]) => Array(n).fill(e));
-  const added = taps.slice(0, Math.max(0, Math.min(taps.length, f - 2)));
-  const cooked = f >= taps.length + 4;
-  const tapping = f >= 2 && f < taps.length + 2 ? taps[f - 2] : null;
-  return {
-    body: (
-      <div className="flex h-full flex-col gap-1.5 px-2 pt-8 pb-2">
-        <div className="flex min-h-[26%] items-center justify-center gap-1.5 rounded-xl bg-amber-50 ring-1 ring-amber-200">
-          {f < 2 ? recipe.map(([e, n], i) => <span key={i} className="rounded-lg bg-white px-1.5 text-sm font-black text-slate-800 shadow-sm">{n}{e}</span>)
-            : cooked ? <span className="text-sm font-black text-emerald-700">Perfect dish! 🍲✨</span>
-              : <span className="text-xs font-black text-amber-800">🙈 Cook from memory</span>}
-        </div>
-        <div className="flex min-h-[24%] items-center justify-center gap-1 rounded-b-3xl rounded-t-lg bg-slate-700 p-1">
-          <div className={`flex h-full w-full items-center justify-center gap-0.5 rounded-b-2xl rounded-t-md ${cooked ? 'bg-amber-300' : 'bg-orange-200'}`}>{added.map((e, i) => <span key={i} className="text-base leading-none">{e}</span>)}</div>
-        </div>
-        <div className="grid flex-1 grid-cols-5 gap-1">
-          {pantry.map((e) => <span key={e} className={`grid place-items-center rounded-lg bg-white text-xl ring-1 ${tapping === e ? 'ring-2 ring-orange-500' : 'ring-orange-200'}`}>{e}</span>)}
-        </div>
-      </div>
-    ),
-    hand: tapping ? [12 + pantry.indexOf(tapping) * 19, 82, true] : [92, 94, false],
-    step: f < 2 ? 0 : f < taps.length + 3 ? 1 : 2,
-    phase: f < 2 ? 'Remember the recipe' : tapping ? `Add ${tapping}` : cooked ? 'Perfect!' : 'Cook!'
-  };
-};
-
-/* ---- Focus Filter: arrow rows (middle arrow only, orange = opposite), then search boards -------------------- */
+/* Star Map (2026-11-18): stars show, the sky turns a quarter, the hand taps where they are now. 4 × 4 sky. */
 const FLANKER = [
   [{ flank: 'R', centre: 'L', answer: 'L' }, { flank: 'L', centre: 'R', answer: 'R' }],
   [{ flank: 'L', centre: 'L', answer: 'R', flip: true }, { flank: 'L', centre: 'R', answer: 'R' }]
@@ -525,28 +497,6 @@ const pipeFlowDemo = (f) => {
   };
 };
 
-/* ---- Emoji Equations: each line gives one more picture; answer the last line ------------------------------------ */
-const emojiEquationsDemo = (f) => {
-  const lines = [['🍎 + 🍎 + 🍎', 30, '🍎 = 10'], ['🍎 + 🍌 + 🍌', 18, '🍌 = 4'], ['🍌 + 🍇 + 🍇', 10, '🍇 = 3']];
-  const shown = Math.min(3, f);
-  const answered = f >= 5;
-  return {
-    body: (
-      <div className="flex h-full flex-col justify-center gap-1 bg-gradient-to-br from-pink-50 to-amber-50 px-3 pt-8 pb-2">
-        {lines.map(([l, t, v], i) => (
-          <div key={i} className={`flex items-center justify-between rounded-lg bg-white px-2 py-0.5 text-sm font-black text-slate-800 ring-1 ring-slate-100 ${i < shown ? '' : 'opacity-40'}`}>
-            <span>{l} = {t}</span>{i < shown && <span className="text-xs text-pink-600">{v}</span>}
-          </div>
-        ))}
-        <div className="flex items-center justify-center rounded-lg bg-gradient-to-r from-pink-500 to-amber-500 py-1 text-sm font-black text-white">🍎 + 🍌 × 🍇 = {answered ? '22' : '?'}</div>
-      </div>
-    ),
-    hand: f === 4 ? [50, 88, true] : [92, 94, false],
-    step: f < 3 ? 0 : answered ? 2 : 1,
-    phase: f < 3 ? 'Work out each picture' : answered ? '10 + 4 × 3 = 22' : '× before +'
-  };
-};
-
 /* ---- Code Breaker: four-colour guesses, ✓ right spot / ○ right colour, crack the code ------------------------- */
 const PEG = { r: 'bg-rose-500', b: 'bg-sky-500', g: 'bg-emerald-500', y: 'bg-amber-400', p: 'bg-violet-500', o: 'bg-orange-500' };
 const PALETTE = ['r', 'b', 'g', 'y', 'p', 'o'];
@@ -673,16 +623,15 @@ export const DEMOS = {
   'number-recall': { frames: 8, draw: numberRecall },
   'sequence-vault': { frames: 10, draw: sequenceVault },
   'grid-navigator': { frames: 8, draw: audioEcho },
-  'pattern-recall': { frames: 9, draw: chefMemory },
   'focus-filter': { frames: 8, draw: focusFilter },
   'dual-image-recall': { frames: 8, draw: dualImageRecall },
   'next-in-sequence': { frames: 7, draw: nextInSequence },
   'mini-sudoku': { frames: 8, draw: sudokuDemo(6) },
   'sudoku-challenge': { frames: 8, draw: sudokuDemo(9) },
   'tower-strategy': { frames: 8, draw: towerStrategy },
-  'emoji-equations': { frames: 7, draw: emojiEquationsDemo },
   'clue-chain': { frames: 7, draw: crownGarden },
   'chess-challenge': { frames: 5, draw: chessDemo },
+  'chess-master': { frames: 5, draw: chessDemo },
   'constraint-grid': { frames: 6, draw: pipeFlowDemo },
   'code-breaker': { frames: 8, draw: codeBreaker },
   'lights-out': { frames: 7, draw: lightsOut },

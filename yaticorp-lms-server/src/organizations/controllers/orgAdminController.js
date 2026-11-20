@@ -501,10 +501,10 @@ const sendStudentWelcome = async (user, password, organization) => {
         await require('../../utils/emailService').sendEmail({
             to: user.email,
             toName: user.name,
-            subject: `${organization.name} added you to YATICORP`,
+            subject: `${organization.name} added you to YATICORPX3`,
             htmlContent: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                    <h2 style="color: #4F46E5;">Welcome to YATICORP LMS</h2>
+                    <h2 style="color: #4F46E5;">Welcome to YATICORPX3</h2>
                     <p>Hi <strong>${escapeHtml(user.name)}</strong>,</p>
                     <p>${escapeHtml(organization.name)} has made a student account for you, and you are a member of it.</p>
                     <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
@@ -523,7 +523,7 @@ const sendStudentWelcome = async (user, password, organization) => {
 
 /**
  * @desc    Add a student with their card: the account is made and is my
- *          member at once. The card must be verified by YATICORP first (as
+ *          member at once. The card must be verified by YATICORPX3 first (as
  *          when a student signs up); it is checked again here and claimed in
  *          one step. A problem comes back as a 400 naming the field.
  * @route   POST /api/organizations/me/students
@@ -616,6 +616,9 @@ const removeStudent = async (req, res) => {
         await require('../../campus/core').archiveCampus(student._id, req.organization._id, 'Removed from the institution');
         student.organizationId = null;
         student.organizationJoinedAt = null;
+        // Their class here, kept: joining again fills it in (2026-11-19).
+        await require('../services/joinSuggest').rememberClass(student._id, req.organization._id).catch(() => {});
+        student.orgClassId = null;
         await student.save();
         // Their NCC/NSS/Scouts/club places here end, kept as history.
         await closeMemberships({ userId: student._id, organizationId: req.organization._id, reason: 'Removed from the organization' });
@@ -742,6 +745,16 @@ const admitFromRequest = async (req, request, student) => {
         : `${student.name} joined; they already had a class, so it was left as it was.`;
 };
 
+/** The class the student asked for (2026-11-19): they are in it now, and it counts them. The words to add, or ''. */
+const classFromRequest = async (req, request, student) => {
+    if (!request.classId) return '';
+    const org = await Organization.findById(req.organization._id).select('campus.classes').lean();
+    const c = (org?.campus?.classes || []).find((x) => String(x._id) === String(request.classId));
+    if (!c) return '';
+    await User.updateOne({ _id: student._id, organizationId: req.organization._id }, { $set: { orgClassId: c._id } });
+    return ` They are in ${c.name}${c.section ? ` · Section ${c.section}` : ''}.`;
+};
+
 const decideRequest = async (req, res) => {
     try {
         const { decision, reason } = req.body;
@@ -800,7 +813,8 @@ const decideRequest = async (req, res) => {
                 // Already ours (assigned by a superadmin meanwhile): the
                 // approval simply agrees with what is true — and admits them to the class asked for.
                 const admitted = await admitFromRequest(req, request, student);
-                return res.json({ message: admitted || `${student.name} is now a member of your organization.` });
+                const inClass = await classFromRequest(req, request, student);
+                return res.json({ message: (admitted || `${student.name} is now a member of your organization.`) + inClass });
             }
             // They joined somewhere else while this sat in the queue. The
             // request is settled rather than left pending forever, and the
@@ -820,7 +834,8 @@ const decideRequest = async (req, res) => {
         await require('../../rewards/services/xpHooks').recordIfRuled({ userId: student._id, type: 'organization_join', refId: 'organization' });
 
         const admitted = await admitFromRequest(req, request, student);
-        res.json({ message: admitted || `${student.name} is now a member of your organization.` });
+        const inClass = await classFromRequest(req, request, student);
+        res.json({ message: (admitted || `${student.name} is now a member of your organization.`) + inClass });
     } catch (error) {
         if (error.name === 'CastError') {
             return res.status(404).json({ message: 'That request is no longer waiting for a decision' });

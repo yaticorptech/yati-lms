@@ -1210,7 +1210,7 @@ const LessonEditor = () => {
                                 <input
                                     type="text"
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700"
-                                    placeholder="e.g. YATICORP or user email"
+                                    placeholder="e.g. YATICORPX3 or user email"
                                     value={securitySettings.watermarkText}
                                     onChange={e => setSecuritySettings(p => ({ ...p, watermarkText: e.target.value }))}
                                 />

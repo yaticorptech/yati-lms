@@ -203,7 +203,7 @@ const Courses = () => {
                 <div className="min-w-0">
                     <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 leading-tight">Courses</h1>
                     <p className="text-sm lg:text-base text-slate-500 mt-1">
-                        {S.organization ? "Your organization's own courses — only your students can see and take them." : 'Manage and organize your LMS curriculum'}
+                        {S.organization ? "Your organization's own courses — only your students can see and take them." : 'Manage and organize your YATICORPX3 curriculum'}
                     </p>
                 </div>
                 <button

@@ -1,6 +1,6 @@
 /**
  * The reward moments: a quiet toast for XP, a full-screen card with confetti
- * for milestones, badges, levels and payouts. Styled in the LMS's own
+ * for milestones, badges, levels and payouts. Styled in YATICORPX3's own
  * slate/indigo language (not the Career Path palette) so it fits wherever it
  * appears — the course player, the profile, the dashboard.
  */

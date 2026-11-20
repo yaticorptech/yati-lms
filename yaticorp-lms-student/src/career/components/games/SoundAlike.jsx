@@ -43,20 +43,36 @@ export default function SoundAlike({ onExit }) {
       tone="bg-gradient-to-br from-purple-500 to-fuchsia-700"
       questions={questions}
       onExit={onExit}
+      // A coloured stage and clear word cards (2026-11-18, "attractive, professional"), as Spelling Fix.
+      // A clean professional card (2026-11-18): the picture in a soft tile, the sentence, lettered answer buttons.
+      stage="sa-page relative overflow-hidden rounded-2xl px-4 pt-6 pb-5 sm:px-6"
+      renderOption={(option, state, i) => <Choice word={String(option)} state={state} i={i} />}
       renderPrompt={(q) => (
-        <p className="text-xl leading-snug font-black text-ink-900 sm:text-2xl">
-          {q.text.split('___').map((part, i, all) => (
-            <span key={i}>
-              {part}
-              {i < all.length - 1 && (
-                <span className="mx-1 inline-block min-w-16 rounded-lg border-b-4 border-journey-400 bg-journey-50 px-2 text-journey-500">
-                  ?
-                </span>
-              )}
-            </span>
-          ))}
-        </p>
+        <>
+          <p className="relative text-[11px] font-bold tracking-[0.18em] text-slate-400 uppercase">Choose the word that fits</p>
+          <p className="relative mt-2 text-xl leading-snug font-black text-slate-900 sm:text-2xl">
+            {q.text.split('___').map((part, i, all) => (
+              <span key={i}>
+                {part}
+                {i < all.length - 1 && <span className="mx-1 inline-block min-w-16 rounded-md bg-indigo-50 px-2 text-center align-baseline text-indigo-600 ring-1 ring-indigo-200">?</span>}
+              </span>
+            ))}
+          </p>
+        </>
       )}
     />
+  );
+}
+
+/** An answer: a letter badge (A, B, C…) and the word; green with a tick when right, red with a cross when wrong. */
+const BADGE = ['bg-indigo-500', 'bg-violet-500', 'bg-sky-500', 'bg-slate-500'];
+function Choice({ word, state, i }) {
+  const box = state === 'right' ? 'border-emerald-500 bg-emerald-50' : state === 'wrong' ? 'border-rose-500 bg-rose-50' : state === 'dim' ? 'border-slate-200 bg-white opacity-55' : 'border-slate-200 bg-white hover:border-indigo-400 hover:bg-indigo-50/40';
+  const badge = state === 'right' ? 'bg-emerald-500' : state === 'wrong' ? 'bg-rose-500' : BADGE[i % BADGE.length];
+  return (
+    <span className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 text-left shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors ${box}`}>
+      <span className={`grid size-8 shrink-0 place-items-center rounded-lg text-sm font-black text-white ${badge}`}>{state === 'right' ? '✓' : state === 'wrong' ? '✗' : String.fromCharCode(65 + i)}</span>
+      <span className="min-w-0 flex-1 text-lg font-bold text-slate-800">{word}</span>
+    </span>
   );
 }

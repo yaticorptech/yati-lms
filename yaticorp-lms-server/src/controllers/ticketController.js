@@ -33,7 +33,7 @@ const createTicket = async (req, res) => {
         let toOrg = null;
         if (req.body.to === 'organization') {
             const owner = await findUserByCardNumber(cardNumber).catch(() => null);
-            if (!owner?.organizationId) return res.status(400).json({ message: 'You are not in an organization yet: send it to YATICORP support.' });
+            if (!owner?.organizationId) return res.status(400).json({ message: 'You are not in an organization yet: send it to YATICORPX3 support.' });
             toOrg = owner.organizationId;
         }
         const ticket = await Ticket.create({ name, email, cardNumber, subject, message, page, path, from: 'student', ...(toOrg ? { to: 'organization', toOrganizationId: toOrg } : {}) });
@@ -43,7 +43,7 @@ const createTicket = async (req, res) => {
         if (adminEmail) {
             await sendEmail({
                 to: adminEmail,
-                toName: 'YATICORP Admin',
+                toName: 'YATICORPX3 Admin',
                 subject: `[Support Ticket #${ticket._id}] ${subject}`,
                 htmlContent: `...same as your code...`
             }).catch(e => console.error('Failed to email admin:', e.message));
@@ -70,7 +70,7 @@ const createTicket = async (req, res) => {
 const getTickets = async (req, res) => {
     try {
         const { status, from } = req.query;
-        // Tickets a student sent to their own organization are the organization's, not YATICORP's (2026-11-14).
+        // Tickets a student sent to their own organization are the organization's, not YATICORPX3's (2026-11-14).
         const query = { to: { $ne: 'organization' } };
         if (status) query.status = status;
         if (['student', 'teacher', 'organization'].includes(from)) query.from = from === 'student' ? { $in: ['student', null] } : from;
@@ -145,7 +145,7 @@ const reopenTicket = (filterOf) => async (req, res) => {
         const adminEmail = process.env.ADMIN_EMAIL;
         if (adminEmail) {
             sendEmail({
-                to: adminEmail, toName: 'YATICORP Admin',
+                to: adminEmail, toName: 'YATICORPX3 Admin',
                 subject: `[Support Ticket #${ticketRef(ticket._id)} reopened] ${ticket.subject}`,
                 htmlContent: `<div style="font-family:sans-serif;padding:24px"><p><strong>${escapeHtml(ticket.name || '')}</strong> says the request is not resolved:</p><p>${escapeHtml(text)}</p></div>`
             }).catch((e) => console.error('Failed to email admin:', e.message));
@@ -213,7 +213,7 @@ const sendAdminMessage = async (req, res) => {
                     <h2>Message from Support Team</h2>
                     <p>Hi ${escapeHtml(ticket.name || '')},</p>
                     <p>${escapeHtml(message)}</p>
-                    <p style="font-size:12px;color:gray;">YATICORP LMS</p>
+                    <p style="font-size:12px;color:gray;">YATICORPX3</p>
                 </div>
             `
         });

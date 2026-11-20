@@ -18,6 +18,7 @@ import TeacherSupport from './TeacherSupport';
 import { colorOf } from './kit';
 import { TeacherAvatar } from './ui';
 import teacherApi, { isEmbedded, readTeacherAdminView } from './teacherSession';
+import DemoBar from '../components/DemoBar';
 
 const NAV = [
     { items: [{ to: '/teacher', label: 'Dashboard', icon: LayoutDashboard, end: true, color: 'emerald' }] },
@@ -234,7 +235,7 @@ const NavList = ({ onPick, nav, hasClubs }) => (
 
 const Brand = ({ hod }) => (
     <Link to="/teacher" className="flex min-w-0 items-center gap-2">
-        <img src="/assets/YATICORP-dark.png" alt="Yaticorp" className="h-7 max-w-[8.5rem] object-contain" />
+        <img src="/assets/YATICORP-dark.png" alt="YATICORPX3" className="h-7 max-w-[8.5rem] object-contain" />
         <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">{hod ? 'HOD' : 'Teacher'}</span>
     </Link>
 );
@@ -336,6 +337,8 @@ export default function TeacherLayout() {
             )}
 
             <main className="px-4 pb-28 pt-20 sidebar:ml-64 sidebar:px-8 sidebar:pb-10 sidebar:pt-8">
+                {/* A demo (presentation) card: says so, and changes to its student or organisation dashboard. */}
+                <DemoBar as="teacher" name={teacher?.name} className="mx-auto mb-4 w-full max-w-[100rem] rounded-xl" />
                 {/* A super admin working in this teacher's dashboard: said plainly, with the way out. */}
                 {adminView && (
                     <div role="status" className="mx-auto mb-4 flex w-full max-w-[100rem] items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">

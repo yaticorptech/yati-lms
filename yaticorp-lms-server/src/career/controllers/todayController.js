@@ -1,5 +1,5 @@
 /**
- * @description What the student sees when they come back to the LMS.
+ * @description What the student sees when they come back to YATICORPX3.
  *
  * The dashboard's welcome panel asks one question — "what should I do now?" —
  * and Career Path already knows the answer, because the daily plan is written

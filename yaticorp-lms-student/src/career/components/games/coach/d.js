@@ -39,14 +39,6 @@ export const COACH = {
       'Work out the final value and type x. Pause the clock any time.'
     ],
     tip: 'Peel the equation like an onion: outside first. In 3(x + 2) = 18, divide by 3 before taking away 2.'
-  },
-  'fraction-battle': {
-    steps: [
-      'Each round is a challenge against Fracto-Bot: compare, order or add fractions.',
-      'Answer right before the round clock ends to win the round.',
-      'Win more than half the rounds to win the battle.'
-    ],
-    tip: 'Put fractions over a common denominator: 3/4 vs 5/6 is 9/12 vs 10/12.'
   }
 };
 
@@ -55,6 +47,5 @@ export const BLURB = {
   'analogy-master': 'A is to B as C is to …? Name the link too.',
   'context-detective': 'Find the clue words, crack the mystery word.',
   'word-association-grid': 'Sort the words into hidden groups of four.',
-  'equation-rush': 'Undo each step, line by line, to find x.',
-  'fraction-battle': 'Out-fraction the bot in a best-of battle.'
+  'equation-rush': 'Undo each step, line by line, to find x.'
 };

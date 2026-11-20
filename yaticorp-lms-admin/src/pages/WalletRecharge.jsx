@@ -60,7 +60,7 @@ export default function WalletRecharge() {
         <div className="mx-auto max-w-6xl space-y-6">
             <div>
                 <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-800"><HandCoins className="text-indigo-600" /> Wallet recharge</h1>
-                <p className="mt-1 text-sm text-slate-500">Add wallet points to a student's wallet. They can spend it on courses and features inside the LMS, and it shows on their statement with your note.</p>
+                <p className="mt-1 text-sm text-slate-500">Add wallet points to a student's wallet. They can spend it on courses and features inside YATICORPX3, and it shows on their statement with your note.</p>
             </div>
 
             <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">

@@ -1,6 +1,6 @@
 /**
  * @author Preethesh Kulal
- * @description Mongoose schema for LMS courses.
+ * @description Mongoose schema for YATICORPX3 courses.
  *
  * A course with no `organizationId` is a platform course, written by the
  * platform's own administrators. One with an `organizationId` belongs to that
@@ -30,7 +30,7 @@ const courseSchema = new mongoose.Schema({
     },
     instructor: {
         type: String,
-        default: 'YATICORP'
+        default: 'YATICORPX3'
     },
     price: {
         type: Number,

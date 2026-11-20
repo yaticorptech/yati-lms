@@ -202,7 +202,7 @@ const fromCompetition = (c) => ({
  * competitions). Chosen, the form asks for its own settings in place and
  * saves through `onSaveArena(body, publish)`.
  */
-export const CompetitionForm = ({ competition = null, locked = false, hosted = false, hostName = null, organizer = 'YATICORP', uploadBanner, onCancel, onSave, arena = false, onSaveArena = null }) => {
+export const CompetitionForm = ({ competition = null, locked = false, hosted = false, hostName = null, organizer = 'YATICORPX3', uploadBanner, onCancel, onSave, arena = false, onSaveArena = null }) => {
     const [f, setF] = useState(() => (competition ? fromCompetition(competition) : blank(organizer)));
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');

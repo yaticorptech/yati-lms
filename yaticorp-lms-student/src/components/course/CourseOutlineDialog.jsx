@@ -95,7 +95,7 @@ export default function CourseOutlineDialog({ courseId, initial = {}, onClose, o
                                 {price(course.price)}
                             </span>
                         </div>
-                        <p className="mt-1 text-sm font-semibold text-slate-500">by {course.instructor || 'YATICORP'}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">by {course.instructor || 'YATICORPX3'}</p>
 
                         {/* What is in it, at a glance. */}
                         {totals && (

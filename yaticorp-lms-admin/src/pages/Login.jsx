@@ -9,9 +9,10 @@ import { Eye, EyeOff } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 import { isNative } from '../native/platform';
 import api from '../utils/api';
+import { studentAppUrl } from '../utils/studentUrl';
 
 // The Terms and Privacy Policy pages are the student site's (/terms, /privacy).
-const STUDENT_URL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
+const STUDENT_URL = studentAppUrl('http://localhost:5174');
 const Login = () => {
     const { admin, login, verify2FA } = useAuth();
 
@@ -94,7 +95,7 @@ const Login = () => {
 
             <div className="mx-auto w-full max-w-md z-10 text-center">
                 <h2 className="mt-2 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                    YATICORP <span className="text-indigo-400">LMS-ADMIN</span>
+                    YATICORPX3 <span className="text-indigo-400">LMS-ADMIN</span>
                 </h2>
                 <p className="mt-2 text-sm text-slate-400">
                     {needs2FA ? 'Enter your two-factor code' : forgotOpen ? 'Reset your organization password' : 'Sign in to continue'}

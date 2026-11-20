@@ -59,7 +59,7 @@ const fail = (res, what, error) => {
 };
 /** Whether the platform's superadmin has unlocked 360 for the organization (2026-11-04). A 403, never a 401: that signs the panel out. */
 const unlocked = (org) => Boolean(org?.three60?.allowed);
-const locked = (res) => res.status(403).json({ code: 'THREE60_LOCKED', message: 'Student Ranking is locked for your organization. Ask the YATICORP team to unlock it.' });
+const locked = (res) => res.status(403).json({ code: 'THREE60_LOCKED', message: 'Student Ranking is locked for your organization. Ask the YATICORPX3 team to unlock it.' });
 const same = (a, b) => String(a) === String(b);
 const round = (n) => Math.round(n * 100) / 100;
 const MAX_CAP = 100000;
@@ -345,9 +345,10 @@ const install = ({ orgAdmin, mentor, student }) => {
                 if (uploadErr) return bad(res, uploadErr.code === 'LIMIT_FILE_SIZE' ? 'That file is over 100 MB — choose a lighter one.' : uploadErr.message);
                 if (!req.file) return bad(res, 'Attach the proof: a picture or a PDF.');
                 const user = await User.findById(req.user._id).select('organizationId +activityProofs').lean();
-                const org = user?.organizationId ? await Organization.findById(user.organizationId).select('three60').lean() : null;
+                const orgId = await require('../services/demoInstitution').orgIdFor(req.user._id);
+                const org = orgId ? await Organization.findById(orgId).select('three60').lean() : null;
                 if (!org?.three60?.enabled || !unlocked(org)) return res.status(403).json({ message: 'Student Ranking is not open for you yet.' });
-                if (!(await isTracked(org._id, req.user._id))) return res.status(403).json({ code: 'NOT_ADDED', message: 'Your ranking teacher has not added you yet.' });
+                if (!require('../services/demoInstitution').isDemoOrg(org._id) && !(await isTracked(org._id, req.user._id))) return res.status(403).json({ code: 'NOT_ADDED', message: 'Your ranking teacher has not added you yet.' });
                 const { group, activity } = idOk(req.body?.activityId) ? findActivity(org, req.body.activityId) : {};
                 if (!activity) return bad(res, 'Choose the activity this proof is for.');
                 if ((user.activityProofs || []).length >= MAX_PROOFS) return bad(res, `You can keep up to ${MAX_PROOFS} proofs.`);

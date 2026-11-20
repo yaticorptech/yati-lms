@@ -120,7 +120,8 @@ const placesOf = (state) => {
  *   maxSeats        optional: most players (4 if not given; Group Brain games 6)
  *   questions       { min, max, fallback }   how many a game has
  *   seconds         { min, max, fallback }   time on each question
- *   revealMs        how long the answer shows
+ *   revealMs        how long the answer shows (`reveal: false`: none, the next question follows at once)
+ *   zoneSeconds     optional { zone: seconds }: a fixed time per question in that zone
  *   pick(count, rng, level, met, zone) -> raw questions { topic, prompt, code?, lang?, options, answer, explain?, fixedOrder? }
  *                   `level` is the game's difficulty: 'easy' | 'medium' | 'hard'; `zone` the room's age zone
  *                   ('young' | 'smart' | 'master', ./zones.js), or null for a room made before zones
@@ -187,7 +188,8 @@ const makeEngine = (config) => {
     /** After a reveal: the next question, or the end. */
     const next = (state, now) => (state.index + 1 < state.questions.length ? open(state, state.index + 1, now) : finish(state, now));
 
-    /** Close the open question: in a 'hidden' game straight on to the next, otherwise the reveal. */
+    /** Close the open question: straight on to the next (2026-11-17, the user: "don't show the answer every time, just
+     *  move to the next; show the results at the end"). Group games set `reveal: false`; the others keep the reveal. */
     const close = (state, now) => (hidden ? next(state, now) : reveal(state, now));
 
     /** Whether nobody else can still answer the open question. */
@@ -243,7 +245,10 @@ const makeEngine = (config) => {
             // Young Thinkers (Classes 1–5): a shorter game, unless the room asks for a number.
             const fallback = zone === 'young' ? Math.max(config.questions.min, Math.min(8, config.questions.fallback)) : config.questions.fallback;
             const count = clampNumber(o.questionCount, fallback, config.questions.min, config.questions.max);
-            const seconds = clampNumber(o.questionSeconds, Math.round(config.seconds.fallback * LEVEL_TIME[level]), config.seconds.min, config.seconds.max);
+            // `zoneSeconds` (2026-11-17): a fixed time per question in a zone, e.g. Colour Match in Young Thinkers: 8 s.
+            const zoneFixed = config.zoneSeconds?.[zone];
+            const seconds = o.questionSeconds == null && zoneFixed ? zoneFixed
+                : clampNumber(o.questionSeconds, Math.round(config.seconds.fallback * LEVEL_TIME[level]), config.seconds.min, config.seconds.max);
             // Questions nobody at the table has met first (services/seenQuestions.js, 2026-10-31): drawn again for
             // any already met, and those only used when there is nothing new left.
             const met = typeof ctx.met === 'function' ? ctx.met : null;
@@ -271,7 +276,8 @@ const makeEngine = (config) => {
                 seats: seats.map((s) => ({ name: s.name || 'Player', side: s.side })),
                 questions,
                 questionMs: seconds * 1000,
-                revealMs: config.revealMs,
+                // Group play (2026-11-17, the user): a short reveal — the right option green, a wrong pick red — and on.
+                revealMs: config.quickReveal ? 1600 : config.revealMs,
                 index: -1,
                 phase: 'ready',
                 phaseStartedAt: ctx.now,
@@ -329,6 +335,7 @@ const makeEngine = (config) => {
                 phaseStartedAt: state.phaseStartedAt,
                 phaseEndsAt: state.phaseEndsAt,
                 questionMs: state.questionMs,
+                quickReveal: !!config.quickReveal,
                 number: state.index + 1,
                 total: state.questions.length,
                 question: q && state.phase !== 'over' && state.phase !== 'show' ? { topic: q.topic, prompt: q.prompt, code: q.code, lang: q.lang, options: [...q.options], visual: q.visual || null } : null,

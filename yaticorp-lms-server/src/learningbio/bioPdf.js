@@ -63,8 +63,8 @@ const renderBioPdf = async (full, res) => {
     // The download is the student's own document: no platform name on it,
     // even where the writer worked one into a sentence.
     const clean = String(full.bio.bio || '').replace(/\*\*/g, '')
-        .replace(/\s*(?:on|with|through|via|at)\s+(?:the\s+)?YATICORP\s+LMS(?:\s+(?:platform|courses))?/gi, '')
-        .replace(/\s*YATICORP\s+LMS\s*/gi, ' ')
+        .replace(/\s*(?:on|with|through|via|at)\s+(?:the\s+)?YATICORP(?:\s+LMS|X3)(?:\s+(?:platform|courses))?/gi, '')
+        .replace(/\s*YATICORP(?:\s+LMS|X3)\s*/gi, ' ')
         .replace(/\s+([.,])/g, '$1');
     const paragraphs = clean.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     doc.fillColor('#334155').font('Helvetica').fontSize(12.5);

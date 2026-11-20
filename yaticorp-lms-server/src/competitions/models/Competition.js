@@ -47,7 +47,7 @@ const questionSchema = new mongoose.Schema({
 
 const competitionSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true, maxlength: 140 },
-    organizedBy: { type: String, default: 'YATICORP', trim: true, maxlength: 140 },
+    organizedBy: { type: String, default: 'YATICORPX3', trim: true, maxlength: 140 },
     // The organization hosting it, when one does (an organization admin
     // created it from their panel). Null: the platform runs it. The platform
     // admin can manage every competition either way.

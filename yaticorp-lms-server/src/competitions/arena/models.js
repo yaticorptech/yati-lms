@@ -76,7 +76,7 @@ const paperSchema = new mongoose.Schema({
 const competitionSchema = new mongoose.Schema({
     title: { type: String, required: true, trim: true, maxlength: 140 },
     description: { type: String, default: '', trim: true, maxlength: 2000 },
-    organizedBy: { type: String, default: 'YATICORP', trim: true, maxlength: 140 },
+    organizedBy: { type: String, default: 'YATICORPX3', trim: true, maxlength: 140 },
     bannerUrl: { type: String, default: '', trim: true, maxlength: 600 },
     instructions: { type: String, default: '', trim: true, maxlength: 3000 },
     // A college hosting its own contest (null: the platform's), for its own students.

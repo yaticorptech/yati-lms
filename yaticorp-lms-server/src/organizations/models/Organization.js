@@ -1,5 +1,5 @@
 /**
- * @description An institution that brings its own students to the LMS — a
+ * @description An institution that brings its own students to YATICORPX3 — a
  *              school, a college, a training centre, a company.
  *
  * Registration is public and self-service, so a new document starts `pending`
@@ -136,7 +136,7 @@ const organizationSchema = new mongoose.Schema({
     /**
      * Every status change, oldest first.
      *
-     * This LMS has no general audit-log service, and inventing one for a single
+     * This YATICORPX3 has no general audit-log service, and inventing one for a single
      * feature would leave two logging systems to keep in step. Approval,
      * rejection and suspension are the decisions anyone would ever ask about,
      * and they belong to this document, so they are recorded on it.
@@ -282,13 +282,49 @@ const organizationSchema = new mongoose.Schema({
     // Extra-curricular for every student (2026-11-16): on (the default — not set counts as on), all its students get
     // the Extra Curricular tab, to ask to join its NCC, NSS, Scouts and clubs. Off: only those already in one see it.
     extraCurricularOpen: { type: Boolean, default: true },
+    // The demo cards' institution (services/demoInstitution.js, 2026-11-18): made by the app, not a real college.
+    demoInstitution: { type: Boolean, default: false },
+    // Announcements to the parents of its students (2026-11-19, src/parent/announcements.js): the parent dashboard
+    // shows them to every parent who added one of its students. Kept here, not in a collection of their own.
+    parentAnnouncements: {
+        type: [new mongoose.Schema({
+            title: { type: String, required: true, trim: true, maxlength: 140 },
+            body: { type: String, default: '', trim: true, maxlength: 4000 },
+            pinned: { type: Boolean, default: false },
+            by: { type: String, default: '', trim: true, maxlength: 80 }
+        }, { timestamps: true })],
+        default: []
+    },
     campus: {
         type: new mongoose.Schema({
+            // Classes (2026-11-19, the user: "add another button like Add class, where the organization can add a class and
+            // section — 9th, section A — the number of students, the number of subjects and the class teacher"): a school's
+            // classes, each one section, set up beside the departments (Campus → Departments → Add class).
+            // What the institution has (2026-11-19, the user: "a PUC college has no degree classes, a school has no degree
+            // students"): 'degree' departments, 'puc' classes, school 'classes'. Unset: from its type (orgAdmin kindsOf).
+            kinds: { type: [String], default: undefined },
+            classes: [new mongoose.Schema({
+                name: { type: String, required: true, trim: true, maxlength: 40 },
+                section: { type: String, trim: true, maxlength: 10, default: '' },
+                students: { type: Number, min: 0, max: 1000, default: 0 },
+                subjects: { type: Number, min: 0, max: 50, default: 0 },
+                teacherId: { type: mongoose.Schema.Types.ObjectId, default: null },
+                teacher: { type: String, trim: true, maxlength: 100, default: '' }
+            }, { timestamps: true })],
             departments: [new mongoose.Schema({
                 name: { type: String, required: true, trim: true, maxlength: 100 },
                 code: { type: String, trim: true, maxlength: 12, default: '' },
                 semesters: { type: Number, min: 1, max: 12, default: 6 },
                 sections: { type: [String], default: ['A'] },
+                // A degree department, or a PUC stream (Commerce, Arts, Science…) — 2026-11-19, shown in their own cards.
+                program: { type: String, enum: ['degree', 'puc'], default: 'degree' },
+                // A PUC class (2026-11-19, the user: "1st year or 2nd year, 1st sem or 2nd sem, arts, commerce…, class
+                // teacher, sections"): its stream, year and semester; its class teacher is the head (head/headId).
+                stream: { type: String, trim: true, maxlength: 40, default: '' },
+                pucYear: { type: Number, min: 1, max: 2, default: null },
+                pucSem: { type: Number, min: 1, max: 2, default: null },
+                // Each PUC section's class teacher (2026-11-19, the user: "like classes, different sections").
+                sectionTeachers: { type: [{ _id: false, section: String, teacherId: mongoose.Schema.Types.ObjectId, teacher: String }], default: [] },
                 head: { type: String, trim: true, maxlength: 100, default: '' },
                 // The head's teacher account: they set the timetable and post announcements from the teacher dashboard.
                 headId: { type: mongoose.Schema.Types.ObjectId, default: null }

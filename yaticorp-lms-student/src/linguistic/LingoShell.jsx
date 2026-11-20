@@ -6,7 +6,7 @@
  * and handed to the tabs.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, deviceLanguage, languageAsked, markLanguageAsked } from './meta';
@@ -19,22 +19,6 @@ import useGoBack from '../hooks/useGoBack';
 import './lingo.css';
 
 
-/**
- * Whether a click landed on the empty page around the content, inside the layout's <main>: not on a button,
- * link, field, picture or text, nor in anything drawn as a card (a fill or an edge of its own).
- */
-const onEmptyPage = (target) => {
-    const main = target?.closest?.('main');
-    if (!main || target.closest('a, button, input, select, textarea, label, summary, img, svg, [role="button"], [role="dialog"]')) return false;
-    if ([...target.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) return false;
-    for (let el = target; el && el !== main; el = el.parentElement) {
-        const s = getComputedStyle(el);
-        const fill = s.backgroundColor !== 'rgba(0, 0, 0, 0)' && s.backgroundColor !== 'transparent';
-        const edge = ['Top', 'Right', 'Bottom', 'Left'].some((k) => parseFloat(s[`border${k}Width`]) > 0);
-        if (fill || edge || s.backgroundImage !== 'none' || s.cursor === 'pointer') return false;
-    }
-    return true;
-};
 
 export default function LingoShell() {
     const [dash, setDash] = useState(undefined);
@@ -50,29 +34,17 @@ export default function LingoShell() {
     const onPath = pathname.replace(/\/$/, '') === '/linguistic';
     // Back: the page before (the browser's history); opened straight here, the dashboard.
     const goBack = useGoBack();
-    const navigate = useNavigate();
     const load = useCallback(() => linguisticApi.dashboard().then((d) => {
         setDash(d); setError(null);
         // A device set to Hindi, Japanese, French or Korean is offered that language, once.
-        const offered = deviceLanguage((d.languages || []).map((l) => l.code));
+        const offered = deviceLanguage((d.languages || []).filter((l) => !l.locked).map((l) => l.code));
         // (Not before the start screens, which ask it themselves.)
         if (d.started && !d.languageChosen && offered && offered !== 'kn' && !languageAsked()) setPicking('speak');
     }).catch((e) => { setError(e); setDash((cur) => cur || null); }), []);
     useEffect(() => { load(); }, [load]);
     const closePicker = useCallback(() => { markLanguageAsked(); setPicking(null); }, []);
 
-    // The pages inside (2026-10-26): a click on the empty page around them goes back to the dashboard. A click
-    // that only closes something open (a lesson's START card, the guidebook) stays, as before.
-    const inside = !wide && !!dash?.started && !!dash?.plan;
-    useEffect(() => {
-        if (!inside) return undefined;
-        let open = false;
-        const down = () => { open = !!document.querySelector('[data-lesson-card], [role="dialog"], [aria-modal="true"]'); };
-        const click = (e) => { if (!open && e.button === 0 && !window.getSelection()?.toString() && onEmptyPage(e.target)) navigate('/linguistic/dashboard'); };
-        document.addEventListener('pointerdown', down, true);
-        document.addEventListener('click', click);
-        return () => { document.removeEventListener('pointerdown', down, true); document.removeEventListener('click', click); };
-    }, [inside, navigate]);
+    // No more "tap the empty page to go back" (2026-11-19, the user: "when click on empty place it taking me to back"): only Back leaves.
 
     if (dash === undefined) return <Loading label="Opening your lessons…" />;
     if (!dash) return <Problem error={error} onRetry={load} />;
@@ -104,7 +76,7 @@ export default function LingoShell() {
             </div>
             {picking && (
                 <LanguagePicker languages={dash.languages || []} courses={dash.courses || []} current={dash.language?.code || 'kn'} course={dash.course} mode={picking} locked={!!dash.started && !dash.courseDone && !dash.freeCourse} finished={!!dash.started && !!dash.courseDone}
-                    suggested={deviceLanguage((dash.languages || []).map((l) => l.code))} onClose={closePicker} onDone={() => { closePicker(); load(); }} />
+                    suggested={deviceLanguage((dash.languages || []).filter((l) => !l.locked).map((l) => l.code))} onClose={closePicker} onDone={() => { closePicker(); load(); }} />
             )}
         </div>
     );

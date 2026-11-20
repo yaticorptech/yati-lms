@@ -191,6 +191,8 @@ const scanCard = async (req, res) => {
             if (await require('../teacher/auth').findTeacherByCard(card.CardNumber)) {
                 return res.status(404).json({ code: 'TEACHER_CARD', message: 'This card is registered to a teacher account. Choose Teacher to sign in.' });
             }
+            // A parent's card (2026-11-19): its number, to sign in with on the parent side.
+            if (card.parent?.password) return res.status(404).json({ code: 'PARENT_CARD', cardNumber: String(card.CardNumber).replace(/\D/g, ''), name: card.parent.name || '', message: 'This card is registered to a parent account.' });
             return res.status(404).json({
                 code: 'NOT_REGISTERED',
                 message: 'This card has no account yet. Sign up first, then come back and scan to sign in.'
@@ -206,9 +208,17 @@ const scanCard = async (req, res) => {
         // Only the card's QR code itself counts as a scan: the printed number (anyone can read it
         // off the card) always asks for the password, however it is sent.
         const viaQr = Boolean(card.qrCodeNumber) && scanCandidates(raw).some((c) => String(c) === String(card.qrCodeNumber));
-        if (!typed && viaQr && (require('../services/fullAccess').hasFullAccess(user) || require('../services/deviceGuard').isExemptCard(user.cardNumber) || require('../services/deviceGuard').isExemptCard(card.CardNumber))) {
+        // A demo card is also told which dashboards it opens — student, teacher, organisation —
+        // and the sign-in page lets the presenter pick one (services/demoDashboards.js).
+        const demoCard = require('../services/fullAccess').hasFullAccess(user);
+        if (!typed && viaQr && (demoCard || require('../services/deviceGuard').isExemptCard(user.cardNumber) || require('../services/deviceGuard').isExemptCard(card.CardNumber))) {
             const full = await User.findById(user._id);
-            return require('./userAuthController').finishLogin(req, res, full);
+            if (!demoCard) return require('./userAuthController').finishLogin(req, res, full);
+            // Every demo account belongs to the demo organisation; the switch pass lets any of its
+            // dashboards change to another without scanning again.
+            const dashboards = require('../services/demoDashboards');
+            await dashboards.linkStudent(full);
+            return require('./userAuthController').finishLogin(req, res, full, { demo: true, dashboards: dashboards.DASHBOARDS, demoSwitch: dashboards.switchPass(full.cardNumber) });
         }
 
         // The number as the account knows it, as text, which is what login reads.

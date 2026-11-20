@@ -135,7 +135,7 @@ router.get("/trending", async (_req, res, next) => {
  * GET /api/meta/history — the signed-in student's own recent searches.
  *
  * Read from the session rather than from a query parameter. The standalone app
- * took a client-generated sessionId, which inside the LMS would have meant one
+ * took a client-generated sessionId, which inside YATICORPX3 would have meant one
  * student could read another's history by supplying their id.
  */
 router.get("/history", async (req, res, next) => {

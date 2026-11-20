@@ -66,7 +66,7 @@ export default function ShareBadgeDialog({ badge, onClose }) {
 
   if (!badge) return null;
 
-  const text = `I just completed "${badge.phaseTitle}" on my YATICORP Career Path${
+  const text = `I just completed "${badge.phaseTitle}" on my YATICORPX3 Career Path${
     badge.careerGoal ? ` towards becoming a ${badge.careerGoal}` : ''
   }.`;
 

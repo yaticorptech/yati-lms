@@ -1,7 +1,7 @@
 /**
  * Printable documents — the admit card, the fee receipt and the marks card —
  * opened in their own window and sent to the printer (or "Save as PDF").
- * The same layouts as the institution app (yaticorp-lms-institution/src/print.js).
+ * The same layouts as Campus in the admin app (yaticorp-lms-admin/src/campus/print.js).
  */
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;

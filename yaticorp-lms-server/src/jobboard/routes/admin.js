@@ -225,7 +225,7 @@ router.delete('/opportunities/:id', async (req, res, next) => {
  * A guardian's answer is theirs alone to give: there is no route here that
  * records one, and an operator asked to "just approve it for the parent" has
  * nothing to press. What an operator does hold is the step afterwards — once
- * a parent has agreed, the LMS signs the application off itself, below.
+ * a parent has agreed, YATICORPX3 signs the application off itself, below.
  */
 /**
  * What each filter asks for.
@@ -273,7 +273,7 @@ router.get('/opportunities/applications', async (req, res, next) => {
  * POST /admin/opportunities/applications/:id/approve  { note }
  * POST /admin/opportunities/applications/:id/decline  { note }
  *
- * The LMS's own sign-off, and the only decision an operator makes here. It is
+ * YATICORPX3's own sign-off, and the only decision an operator makes here. It is
  * refused unless the application is sitting at 'awaiting-admin', which it only
  * reaches because a parent said yes — so there is no order of calls that lets
  * an operator answer in a parent's place, or overturn a parent who said no.

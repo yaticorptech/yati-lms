@@ -6,7 +6,7 @@
  * for), otherwise from /career/profile/levels, which answers either way —
  * students keep earning XP and levels while Rewards is locked.
  *
- * Usable outside Career Path (the sidebar card, the LMS profile): it needs
+ * Usable outside Career Path (the sidebar card, YATICORPX3 profile): it needs
  * only the RewardsProvider, which wraps the whole student app.
  */
 import { useEffect, useState } from 'react';
@@ -15,7 +15,7 @@ import lmsApi from '../../utils/api';
 import { knownLevelThresholds, levelProgress, rememberLevelThresholds } from '../utils/progress';
 
 /*
- * One request per session, shared by every caller. Through the LMS client,
+ * One request per session, shared by every caller. Through YATICORPX3 client,
  * not the Career Path one: the sidebar asks for this on every page, and a 403
  * from a locked Career Path must not send a student on the home page to the
  * home page again (see the CAREER_PATH_LOCKED handler in ../services/api.js).

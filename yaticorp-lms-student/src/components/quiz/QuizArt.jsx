@@ -71,7 +71,7 @@ export const Waves = ({ className = '' }) => (
     </svg>
 );
 
-/** A handwritten aside, in the Pacifico the LMS already loads. */
+/** A handwritten aside, in the Pacifico YATICORPX3 already loads. */
 export const ScriptNote = ({ lines, className = '', tilt = -6 }) => (
     <p aria-hidden="true" className={`lb-script pointer-events-none select-none ${className}`} style={{ transform: `rotate(${tilt}deg)` }}>
         {lines.map((line) => <span key={line} className="block">{line}</span>)}

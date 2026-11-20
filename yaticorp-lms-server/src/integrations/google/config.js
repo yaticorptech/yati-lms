@@ -42,7 +42,7 @@ const PERMISSIONS = [
     title: 'Put your exam dates in your Google Calendar',
     why:
       'Exams, assignment deadlines and holidays you add here appear on a calendar called ' +
-      '"YATICORP Learning" in your Google account, so they reach your phone without you ' +
+      '"YATICORPX3 Learning" in your Google account, so they reach your phone without you ' +
       'typing them twice.',
     limit:
       'We can only see the one calendar this site makes. Your personal, family and school ' +
@@ -58,9 +58,9 @@ const PERMISSIONS = [
   }
 ];
 
-const FOLDER_NAME = 'YATICORP Learning';
+const FOLDER_NAME = 'YATICORPX3 Learning';
 /** The one calendar this app makes in a student's account, and only ever writes to. */
-const CALENDAR_NAME = 'YATICORP Learning';
+const CALENDAR_NAME = 'YATICORPX3 Learning';
 
 const clientId = () => process.env.GOOGLE_CLIENT_ID || '';
 const clientSecret = () => process.env.GOOGLE_CLIENT_SECRET || '';

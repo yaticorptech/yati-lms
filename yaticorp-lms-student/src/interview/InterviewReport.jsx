@@ -231,7 +231,7 @@ export default function InterviewReport() {
                         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600"><Target size={26} /></span>
                         <div>
                             <h2 className="text-2xl font-black text-slate-900">Your next steps</h2>
-                            <p className="mt-1 max-w-lg text-sm text-slate-500">Keep going! These steps are linked to your LMS courses and will help you improve.</p>
+                            <p className="mt-1 max-w-lg text-sm text-slate-500">Keep going! These steps are linked to your YATICORPX3 courses and will help you improve.</p>
                         </div>
                     </div>
                     <div className="flex items-end gap-3">

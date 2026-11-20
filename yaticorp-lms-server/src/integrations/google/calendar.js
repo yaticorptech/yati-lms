@@ -70,7 +70,7 @@ const ensureCalendar = async (link, token) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       summary: CALENDAR_NAME,
-      description: 'Exams, deadlines and holidays you added in YATICORP Learning.'
+      description: 'Exams, deadlines and holidays you added in YATICORPX3 Learning.'
     })
   });
   await GoogleLink.updateOne({ userId: link.userId }, { calendarId: made.id });
@@ -188,7 +188,7 @@ const removeEvent = async (userId, googleEventId) => {
  *
  * Called when they disconnect, before the grant is revoked — after revocation
  * there is no token left to do it with. It is a mirror, not their data: the
- * events still sit in this LMS, and a calendar left behind would quietly stop
+ * events still sit in this YATICORPX3, and a calendar left behind would quietly stop
  * updating while still looking authoritative on their phone. Removing it is
  * also what stops a reconnect from stacking up a second one, since the scope
  * gives us no way to find the old one again.

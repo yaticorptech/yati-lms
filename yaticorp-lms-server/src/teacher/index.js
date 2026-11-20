@@ -207,7 +207,7 @@ const recentWork = async (teacherId) => {
  * is opened by an AI card. A teacher added without one — a club or Scouts
  * leader — reaches only their profile, organization, clubs and units.
  */
-const needsCard = (req, res, next) => (req.teacher.cardNumber
+const needsCard = (req, res, next) => (req.teacher.cardNumber || req.teacher.demoCard
     ? next()
     : res.status(403).json({ code: 'NO_RESEARCH', message: 'The research tools come with an AI card. Your account runs your clubs and Scouts units.' }));
 
@@ -956,13 +956,13 @@ const corpusFor = async (teacherId, exclude) => {
         for (const c of t.chapters || []) {
             if (exclude.chapterId && String(c._id) === String(exclude.chapterId)) continue;
             if (wordCount(c.content) < SHINGLE) continue;
-            sources.push({ own: mine(t.teacherId), label: mine(t.teacherId) ? `Your thesis “${t.title}”: ${c.title}` : 'Another document on YATICORP', text: c.content });
+            sources.push({ own: mine(t.teacherId), label: mine(t.teacherId) ? `Your thesis “${t.title}”: ${c.title}` : 'Another document on YATICORPX3', text: c.content });
         }
     }
     for (const p of pieces) {
         if (exclude.pieceId && String(p._id) === String(exclude.pieceId)) continue;
         if (wordCount(p.content) < SHINGLE) continue;
-        sources.push({ own: mine(p.teacherId), label: mine(p.teacherId) ? `Your writing “${p.title}”` : 'Another document on YATICORP', text: p.content });
+        sources.push({ own: mine(p.teacherId), label: mine(p.teacherId) ? `Your writing “${p.title}”` : 'Another document on YATICORPX3', text: p.content });
     }
     return sources.slice(0, MAX_SOURCES);
 };

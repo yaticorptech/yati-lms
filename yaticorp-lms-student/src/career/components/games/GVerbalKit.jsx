@@ -7,7 +7,7 @@
  * the chip currently held. So the game works with a mouse, a finger, or the keyboard (Tab, Enter/Space).
  */
 
-import { DRAG_TYPE } from './gDrag';
+import { DRAG_TYPE, touchDrag } from './gDrag';
 
 
 export const btnPrimary =
@@ -18,7 +18,9 @@ export const btnGhost =
 /** A white card on the premium board. */
 export function Panel({ children, className = '', label }) {
   return (
-    <section aria-label={label} className={`rounded-2xl bg-white p-3 shadow-[0_1px_2px_rgba(27,36,86,0.06),0_8px_24px_-12px_rgba(27,36,86,0.18)] ring-1 ring-[#e4e1f5] ring-inset sm:p-4 ${className}`}>
+    // Premium (2026-11-19, the user: Master Minds vocabulary): a white card with a gradient top edge and a soft violet glow.
+    <section aria-label={label} className={`relative overflow-hidden rounded-[1.25rem] bg-white p-3.5 pt-4 shadow-[0_14px_32px_-18px_rgba(109,40,217,0.55)] ring-1 ring-violet-100 ring-inset sm:p-4 sm:pt-5 ${className}`}>
+      <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500" />
       {children}
     </section>
   );
@@ -26,7 +28,7 @@ export function Panel({ children, className = '', label }) {
 
 /** Small caps heading inside a panel. */
 export function Eyebrow({ children }) {
-  return <p className="mb-2 text-xs font-bold tracking-[0.14em] sm:text-[0.65rem] text-slate-500 uppercase">{children}</p>;
+  return <p className="mb-2.5 inline-block rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-1 text-[0.65rem] font-black tracking-[0.14em] text-white uppercase shadow-sm">{children}</p>;
 }
 
 /**
@@ -49,11 +51,12 @@ export function Chip({ label, dragId, held = false, state = null, disabled = fal
       type="button"
       draggable={!disabled}
       onDragStart={(e) => { e.dataTransfer.setData(DRAG_TYPE, String(dragId)); e.dataTransfer.effectAllowed = 'move'; }}
-      onClick={() => !disabled && onPick && onPick(dragId)}
+      onPointerDown={(e) => { if (!disabled) touchDrag(e, dragId); }}
+      onClick={(e) => { if (e.currentTarget.dataset.gdragged) return; if (!disabled && onPick) onPick(dragId); }}
       disabled={disabled}
       aria-pressed={held}
       aria-label={ariaLabel || label}
-      className={`fp-press min-h-11 rounded-xl px-3.5 py-2 text-sm font-semibold ring-2 transition ring-inset focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:text-base ${tone} ${disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
+      className={`fp-press min-h-11 rounded-xl px-3.5 py-2 text-sm font-semibold ring-2 transition ring-inset touch-none select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:text-base ${tone} ${disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
     >
       {label}
     </button>

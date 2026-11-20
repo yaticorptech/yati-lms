@@ -420,7 +420,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.deepEqual(errors, []);
         assert.equal(result.__error, undefined, result.__error);
         // The tabs became the four doors (2026-10-29, 94d3d01; their own tests: "the dashboard doors on a …"), none lit on the dashboard.
-        assert.deepEqual([result.doors, result.lit], [['learn', 'writing', 'practice', 'badges'], 0], 'the four doors, none lit');
+        assert.deepEqual([result.doors, result.lit], [['learn', 'writing', 'practice', 'badges', 'ielts'], 0], 'the five doors (IELTS since 2026-11-17), none lit');
         assert.equal(result.href, '/linguistic?lesson=r4', 'Continue opens the path at that lesson');
         assert.deepEqual(result.stats, ['340', true], 'the language, level, streak and XP bar, on the dashboard');
         assert.equal(result.side, 2, 'the roadmap and daily quests, on the dashboard');
@@ -504,7 +504,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.deepEqual([result.tabs, result.card], [[], 'g1'], 'the path, without the tabs (2026-10-27), at that lesson');
     });
 
-    test('inside pages: a click on the empty page opens the dashboard; not on a banner, nor a click that only closes the START card (2026-10-26)', async () => {
+    test('inside pages: a click on the empty page stays on the page (2026-11-19, was: opened the dashboard); a click outside the START card closes it', async () => {
         const { result, errors } = await screen({ entry: app('/linguistic?lesson=g1'), api: apiModule(SHELL_API), styles: true, script: `
             await sleep(1200);
             const tap = async (el) => { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); el.click(); await sleep(500); };
@@ -521,7 +521,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.equal(result.card, true);
         assert.deepEqual(result.closing, { card: false, dashboard: false }, 'the first click only closes the START card');
         assert.equal(result.banner, false, 'a click on a unit banner stays');
-        assert.equal(result.after, true, 'a click on the empty page opens the dashboard');
+        assert.equal(result.after, false, 'a click on the empty page stays (2026-11-19)');
     });
 
     test('straight to Advanced (2026-10-31): under the locked section, the Advanced entry test; it opens; tried and not passed, it says they learn from Beginner', async () => {

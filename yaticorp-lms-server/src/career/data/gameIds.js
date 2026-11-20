@@ -34,11 +34,16 @@ const GAME_IDS = Object.freeze([
   'fruit-shop', 'count-and-catch', 'missing-number-race', 'shape-count-dash', 'sequence-vault', 'grid-navigator',
   'pattern-recall', 'focus-filter', 'dual-image-recall', 'sudoku-challenge', 'tower-strategy', 'clue-chain',
   'constraint-grid', 'emoji-equations', 'chess-challenge', 'word-ladder', 'analogy-master', 'context-detective', 'word-association-grid', 'equation-rush',
-  'fraction-battle', 'number-pattern-lab', 'ratio-relay', 'data-dash', 'mental-math-circuit', 'matrix-recall',
+  'final-vault', 'brain-heist', 'pixel-logic', 'water-sort', 'jigsaw', 'speak-up', 'wordcraft', 'arrow-escape', 'running-total-pro', 'data-chart-quiz', 'speed-distance', 'fraction-battle', 'number-pattern-lab', 'ratio-relay', 'data-dash', 'mental-math-circuit', 'matrix-recall',
   'dual-stream-memory', 'rule-switch', 'spatial-rotation-vault', 'interference-recall', 'cipher-lab',
   'boolean-breaker', 'network-logic', 'strategic-constraint-lab', 'semantic-precision', 'argument-analyzer',
   'verbal-architect', 'nuance-navigator', 'word-relation-matrix', 'quantitative-arena', 'numerical-optimization',
-  'statistical-inference', 'decision-theory-arena', 'departure-board'
+  'statistical-inference', 'decision-theory-arena', 'departure-board',
+  // Master Minds' relaxed set (2026-11-17): replace the games above that were removed from it.
+  'star-trail', 'tile-slide', 'colour-flood', 'light-beam', 'path-painter', 'ice-glide', 'word-search', 'word-lock',
+  'emoji-phrase', 'sum-pop', 'change-maker', 'best-buy', 'number-trail', 'quick-estimate',
+  // Master Minds · Logic's own Chess (2026-11-17), in place of Colour Flood.
+  'chess-master'
 ]);
 
 const GAME_ID_SET = new Set(GAME_IDS);

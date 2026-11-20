@@ -1,5 +1,6 @@
 /**
- * The Institution app's components — one design language for every page:
+ * Campus's components (first written for a separate Institution app, merged here 2026-11-19) —
+ * one design language for every page:
  * porcelain paper, petrol-teal ink, brass for what is official. Tokens in
  * index.css. Kept to what the pages use.
  */
@@ -80,9 +81,10 @@ export const Field = ({ label, hint, children, className = '' }) => (
 );
 export const Input = ({ className = '', ...rest }) => <input {...rest} className={`${FIELD} h-11 ${className}`} />;
 export const Textarea = ({ className = '', ...rest }) => <textarea {...rest} className={`${FIELD} min-h-24 py-2.5 ${className}`} />;
-export const Select = ({ className = '', children, ...rest }) => (
+// `small`: a table row's select, 36px (2026-11-19 QA: a 44px select stood out of its row).
+export const Select = ({ className = '', small = false, children, ...rest }) => (
     <span className={`relative block ${className}`}>
-        <select {...rest} className={`${FIELD} h-11 appearance-none pr-9`}>{children}</select>
+        <select {...rest} className={`${FIELD} ${small ? 'h-9 text-[13px]' : 'h-11'} appearance-none pr-9`}>{children}</select>
         <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-3" aria-hidden />
     </span>
 );

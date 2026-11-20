@@ -85,6 +85,16 @@ const decide = (asked, lock, year) => {
 };
 
 /**
+ * The Career Path goal, with the class from the games' own question (models/GameProfile.js, 2026-11-17) where the
+ * goal has none: a school class, or college (beyond school).
+ */
+const withProfile = (goal, profile) => {
+    if (!profile || classNumber(goal?.currentClass) || BEYOND_SCHOOL.includes(goal?.educationLevel)) return goal;
+    if (profile.level === 'college') return { ...(goal || {}), educationLevel: 'Undergraduate' };
+    return profile.classNumber ? { ...(goal || {}), currentClass: String(profile.classNumber) } : goal;
+};
+
+/**
  * The student's games zone, as the games enforce it: { zone, band, classNumber, educationLevel, source, held,
  * pending }. `held` true when the zone shown is the one on the account rather than the current class's; `pending`
  * the higher zone the class asks for, until it is allowed. Writes the held record as needed.
@@ -92,10 +102,13 @@ const decide = (asked, lock, year) => {
 const effectiveZone = async (userId, now = new Date(), attempt = 0) => {
     const Goal = require('../models/Goal');
     const Lock = require('../models/GameZoneLock');
-    const [goal, lock] = await Promise.all([
+    const GameProfile = require('../models/GameProfile');
+    const [found, lock, profile] = await Promise.all([
         Goal.findOne({ userId }).select('educationLevel currentClass').lean(),
-        Lock.findOne({ userId }).lean()
+        Lock.findOne({ userId }).lean(),
+        GameProfile.findOne({ userId }).lean()
     ]);
+    const goal = withProfile(found, profile);
     const asked = zoneFor(goal);
     const year = academicYear(now);
     const { result, change } = decide(asked, lock, year);
@@ -131,7 +144,9 @@ const effectiveZones = async (userIds, now = new Date()) => {
         Goal.find({ userId: { $in: userIds } }).select('userId educationLevel currentClass').lean(),
         Lock.find({ userId: { $in: userIds } }).lean()
     ]);
-    const goalBy = new Map(goals.map((g) => [String(g.userId), g]));
+    const profiles = await require('../models/GameProfile').find({ userId: { $in: userIds } }).lean();
+    const profileBy = new Map(profiles.map((p) => [String(p.userId), p]));
+    const goalBy = new Map(userIds.map((id) => [String(id), withProfile(goals.find((g) => String(g.userId) === String(id)), profileBy.get(String(id)))]));
     const lockBy = new Map(locks.map((l) => [String(l.userId), l]));
     const year = academicYear(now);
     return new Map(userIds.map((id) => [String(id), decide(zoneFor(goalBy.get(String(id))), lockBy.get(String(id)) || null, year).result.zone]));

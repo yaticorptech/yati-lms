@@ -44,9 +44,10 @@ const fail = (res, error, what) => {
 
 /** The student's organization, if they belong to an active one. */
 const myOrganization = async (userId) => {
-    const user = await User.findById(userId).select('organizationId').lean();
-    if (!user?.organizationId) return null;
-    return Organization.findOne({ _id: user.organizationId, status: 'active' }).select('name logo state extraCurricularOpen').lean();
+    // A demo card: the demo institution (services/demoInstitution.js, 2026-11-18).
+    const orgId = await require('../services/demoInstitution').orgIdFor(userId);
+    if (!orgId) return null;
+    return Organization.findOne({ _id: orgId, status: 'active' }).select('name logo state extraCurricularOpen').lean();
 };
 
 /** My ended memberships, anywhere, newest first: where, which unit, when, and how far I got. */
@@ -211,6 +212,8 @@ router.post('/join', async (req, res) => {
             return res.status(409).json({ message: open.status === 'pending' ? 'Your request is waiting for your organization.' : `You are already in ${name}.` });
         }
         const existing = rows[0] || null;
+        // The demo institution has nobody to confirm a request: a demo card is in at once (services/demoInstitution.js).
+        const demo = require('../services/demoInstitution').isDemoOrg(organization._id);
         const fields = {
             organizationId: organization._id,
             unit: unit ? unit.name : String(b.unit || '').trim().slice(0, 80),
@@ -219,7 +222,7 @@ router.post('/join', async (req, res) => {
             enrolmentNo: String(b.enrolmentNo || '').trim().slice(0, 40),
             year: Math.min(3, Math.max(1, Number(b.year) || 1)),
             certStage: b.scheme === 'NCC' && ['A', 'B', 'C'].includes(b.certStage) ? b.certStage : '',
-            status: 'pending',
+            status: demo ? 'active' : 'pending',
             addedBy: 'student',
             endedAt: null,
             endReason: '',
@@ -228,7 +231,7 @@ router.post('/join', async (req, res) => {
         const member = existing
             ? await Object.assign(existing, fields).save()
             : await NccNssMember.create({ ...fields, userId: req.user._id, scheme: b.scheme, clubId: club?._id || null, transferredFrom: (await lastClosed(req.user._id, b.scheme, club?._id))?._id || null });
-        res.status(201).json({ message: `Request sent — ${organization.name} will confirm your ${name} membership.`, memberId: member._id });
+        res.status(201).json({ message: demo ? `You are now in ${name}.` : `Request sent — ${organization.name} will confirm your ${name} membership.`, memberId: member._id });
     } catch (error) { fail(res, error, 'send your request'); }
 });
 
@@ -253,7 +256,7 @@ router.post('/activities', upload.single('proof'), async (req, res) => {
             // The student's own Drive when connected (shared by link for their teacher), else our storage.
             ({ url: proofUrl, driveId: proofDriveId } = await storeProof(req.user._id, req.file.buffer, {
                 name: `${String(b.title).trim().slice(0, 80)} — ${date.toISOString().slice(0, 10)}`,
-                description: `Proof of an activity logged in YATICORP Learning (${schemeName(member)}).`
+                description: `Proof of an activity logged in YATICORPX3 Learning (${schemeName(member)}).`
             }));
         }
 
@@ -288,7 +291,7 @@ router.post('/awards', upload.single('certificate'), async (req, res) => {
         }
         const { url } = await storeProof(req.user._id, req.file.buffer, {
             name: `${fields.name} certificate — ${fields.date.toISOString().slice(0, 10)}`,
-            description: `Scouts & Guides ${fields.type} certificate, sent to your unit leader in YATICORP Learning.`
+            description: `Scouts & Guides ${fields.type} certificate, sent to your unit leader in YATICORPX3 Learning.`
         });
         await newAward(member, { ...fields, certificateUrl: url }, { status: 'pending', requestedByUserId: req.user._id });
         res.status(201).json({ message: 'Sent — your unit leader will check the certificate, then your record is updated.' });

@@ -1,12 +1,24 @@
 /** How-to-play steps, tips and card lines for group E (Rising Brains maths, Master Minds memory). */
 export const COACH = {
+  'running-total-pro': {
+    steps: ['Numbers arrive one at a time: +, −, ×, ÷ in turn, or two totals (Blue and Orange) at once.', 'Keep each total in your head — you cannot write anything down.', 'At the end, pick the total you were asked for.'],
+    tip: 'Say the new total quietly after every number; for two totals, keep one in each hand.'
+  },
+  'data-chart-quiz': {
+    steps: ['Read the chart first: its title, the labels and the scale.', 'Answer each question — totals, differences, averages, percentages.', 'Three charts per level, against the clock.'],
+    tip: 'Check the scale before reading a bar: one gridline may stand for 10, 25 or 50.'
+  },
+  'speed-distance': {
+    steps: ['Read the journey: speed, time, distance — or two vehicles at once.', 'Drag the 📍 along the track (km) or the clock line (time) to your answer, then press Check.', 'Watch the vehicles drive it out. Get 4 of 6 right to clear the level.'],
+    tip: 'Distance = speed × time. When two vehicles close in, add their speeds; when one chases, subtract them.'
+  },
   'number-pattern-lab': {
     steps: [
-      'Read the rule line above the board: pyramid, magic square, step grid, growth grid or totals grid.',
-      'Tap a ? cell and type its number with the pad or your keyboard; Enter jumps to the next gap.',
-      'Press Check board. Right first time scores 2, after one fix 1.'
+      'Read the maze rule at the top — like “every step goes to a bigger number”.',
+      'Start on 🚩. Slide your finger (or tap) to a square next to you: up, down, left or right.',
+      'Keep the rule on every step and reach 🏁. Tap an earlier square to go back.'
     ],
-    tip: 'Start where a row, column or brick has only one gap — that number is forced, and it unlocks the next one.'
+    tip: 'Look from the 🏁 backwards too — the squares next to the exit tell you where you must come from.'
   },
   'ratio-relay': {
     steps: [
@@ -32,14 +44,6 @@ export const COACH = {
     ],
     tip: 'Work backwards from the target: which last operation could give it, and from what number?'
   },
-  'matrix-recall': {
-    steps: [
-      'Study the matrix of digits while the bar runs down — or press “I have it” early.',
-      'The grid goes blank. Answer each question: a cell’s digit, where a digit was, or a row or column total.',
-      'For highlighted cells, tap each one and type its digit, then Check.'
-    ],
-    tip: 'Read the matrix row by row as short numbers (e.g. 4-7-2-9) and keep a running sum of each row as you go.'
-  },
   'departure-board': {
     steps: [
       'An airport departure board is shown for a few seconds: destinations, times, flight numbers and gates.',
@@ -51,10 +55,12 @@ export const COACH = {
 };
 
 export const BLURB = {
-  'number-pattern-lab': 'Crack hidden rules in pyramids, magic squares and grids.',
+  'running-total-pro': 'Keep the running total — with bigger numbers and two totals at once.',
+  'data-chart-quiz': 'Read real-world charts — sales, population, money — and answer fast.',
+  'speed-distance': 'Drag along the timeline: how far, when, and where they meet.',
+  'number-pattern-lab': 'Find the path that keeps the rule!',
   'ratio-relay': 'Ratio problems in a relay — each answer runs the next leg.',
   'data-dash': 'Read charts and tables, then total, compare and average.',
   'mental-math-circuit': 'Switch the circuit so the number arrives on target.',
-  'matrix-recall': 'Memorise a digit matrix and rebuild it — values and places.',
   'departure-board': 'Memorise the flights — then keep up with the changes.'
 };

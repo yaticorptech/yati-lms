@@ -16,7 +16,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical, UserCog, Megaphone, Orbit, LifeBuoy, MessageCircleQuestion, School, ExternalLink,
+    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical, UserCog, Megaphone, Orbit, LifeBuoy, MessageCircleQuestion, School,
     ChevronDown, UserPlus, CalendarCheck, ClipboardList, Wallet, Landmark, MessageSquareText, Building2, Radio, Inbox, Lock
 } from 'lucide-react';
 import api from '../utils/api';
@@ -32,8 +32,9 @@ import { Dialog, DialogTitle } from '../components/orgUi';
 import OrgProfileLock from '../components/OrgProfileLock';
 import OrgSupportDialog from '../components/OrgSupportDialog';
 import { useOrgProfile } from '../utils/orgProfile';
-import { campusUrl } from '../utils/campus';
-import { CAMPUS_HOME, CAMPUS_ITEMS, MOVED_INTO_CAMPUS, REPLACED_BY_CAMPUS, labelOf } from '../campus/menu';
+import { CAMPUS_HOME, CAMPUS_ITEMS, MOVED_INTO_CAMPUS, REPLACED_BY_CAMPUS, labelOf, campusStaffRole } from '../campus/menu';
+import CampusStaffLayout from '../campus/StaffLayout';
+import DemoSwitchBar from '../components/DemoSwitchBar';
 import { useCampusCounts, countOf } from '../campus/counts';
 
 // `short` is the bottom bar's label on a phone. The bar scrolls (2026-11-02), so
@@ -55,6 +56,8 @@ const NAV = [
     // No Audit log here since 2026-10-30: changes are still recorded, for the platform's admins.
     // Students' help requests sent to the organization (2026-11-14).
     { to: '/organization/student-requests', label: 'Student requests', short: 'Requests', icon: LifeBuoy },
+    // Announcements to the parents of its students (2026-11-19, src/pages/org/OrgParentAnnouncements.jsx).
+    { to: '/organization/parent-announcements', label: 'Parent announcements', short: 'Parents', icon: Megaphone },
     { to: '/organization/users', label: 'Users', short: 'Users', icon: UserCog },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
@@ -103,7 +106,7 @@ const CampusMenu = ({ isActive, pathname, counts }) => {
     );
 };
 
-const STAFF_HIDDEN = ['/organization/teachers', '/organization/360-activities', '/organization/users', '/organization/settings'];
+const STAFF_HIDDEN = ['/organization/teachers', '/organization/360-activities', '/organization/users', '/organization/settings', '/organization/parent-announcements'];
 const RESEARCH = { to: '/organization/research', label: 'Research', short: 'Research', icon: FlaskConical };
 // No requests badge for them either: they have no Requests tab to act on it.
 // A Bharat Scouts & Guides office has one user and its own menu: its notices
@@ -244,7 +247,7 @@ const OrgAdminLayout = () => {
 
     const [organization, setOrganization] = useState(null);
     const [staff, setStaff] = useState(null);
-    // Campus (the Institution app): on when the platform switched it on for this organization.
+    // Campus (src/campus): on when the platform switched it on for this organization.
     const [campus, setCampus] = useState(null);
     // Student Ranking (360) goes by the name the organization gave it.
     const nav = (organization?.bsgOffice ? officeNav(organization.bsgOffice) : navFor(staff))
@@ -294,10 +297,10 @@ const OrgAdminLayout = () => {
             .finally(() => setLoading(false));
     }, []);
 
-    // A department's, the examination board's or the admission office's sign-in
-    // works only in Campus: straight there, signed in (utils/campus.js).
-    const campusOnly = Boolean(staff?.department || staff?.board || staff?.office);
-    useEffect(() => { if (campusOnly) window.location.replace(campusUrl()); }, [campusOnly]);
+    // A department's, the examination board's or the admission office's sign-in works only in
+    // Campus: its own shell and menu here (campus/StaffLayout.jsx), not the organization's
+    // dashboard. (They were sent to a separate Institution app until 2026-11-19.)
+    const campusRole = campusStaffRole(staff);
 
     // Renamed on its page: the menu follows at once.
     useEffect(() => {
@@ -328,7 +331,7 @@ const OrgAdminLayout = () => {
     const countSeq = useRef(0);
     const active = organization?.status === 'active';
     useEffect(() => {
-        if (!active) return undefined;
+        if (!active || campusRole) return undefined;
         const loadCount = async () => {
             const seq = ++countSeq.current;
             let pending;
@@ -354,7 +357,7 @@ const OrgAdminLayout = () => {
         loadCount();
         window.addEventListener('organization-requests-changed', loadCount);
         return () => window.removeEventListener('organization-requests-changed', loadCount);
-    }, [location.pathname, active]);
+    }, [location.pathname, active, campusRole]);
 
     /**
      * The same badge for teachers asking to join, beside "Teachers": asked on
@@ -363,7 +366,7 @@ const OrgAdminLayout = () => {
      */
     const teacherSeq = useRef(0);
     useEffect(() => {
-        if (!active) return undefined;
+        if (!active || campusRole) return undefined;
         const loadTeacherCount = async () => {
             const seq = ++teacherSeq.current;
             try {
@@ -378,7 +381,7 @@ const OrgAdminLayout = () => {
             window.removeEventListener('organization-teacher-requests-changed', loadTeacherCount);
             window.removeEventListener('organization-requests-changed', loadTeacherCount);
         };
-    }, [location.pathname, active]);
+    }, [location.pathname, active, campusRole]);
 
     /**
      * Pulling the page down on a phone loads it afresh, without reloading the
@@ -410,56 +413,9 @@ const OrgAdminLayout = () => {
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    if (loading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-slate-50">
-                <div className="text-center">
-                    <Loader2 size={32} className="mx-auto animate-spin text-indigo-600" />
-                    <p className="mt-3 text-sm font-medium text-slate-500">Opening your organization…</p>
-                </div>
-            </div>
-        );
-    }
-    // A department's or the examination board's sign-in works only in Campus (the Institution app).
-    if (staff?.department || staff?.board || staff?.office) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-                <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                    <School size={32} className="mx-auto text-teal-700" />
-                    <h1 className="mt-3 text-xl font-bold text-slate-800">This sign-in is for Campus</h1>
-                    <p className="mt-2 text-sm text-slate-500">Opening Campus for {staff.board ? 'the examination board' : staff.office ? 'the admission office' : 'your department'}…</p>
-                    <div className="mt-6 flex justify-center gap-2">
-                        <a href={campusUrl()} className="inline-flex items-center gap-2 rounded-xl bg-teal-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-900">Open Campus <ExternalLink size={14} /></a>
-                        <button onClick={logout} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Sign out</button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (failed || !organization) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-                <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-                        <XCircle size={24} className="text-red-600" />
-                    </div>
-                    <h1 className="text-lg font-bold text-slate-900">We could not open {viewing ? viewing.name : 'your organization'}</h1>
-                    <p className="mt-2 text-sm text-slate-600">{failed || 'Please try signing in again.'}</p>
-                    <button onClick={leave} className="mt-5 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">
-                        {viewing ? 'Back to Organizations' : 'Sign out'}
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    if (organization.status !== 'active') {
-        return <StatusScreen organization={organization} onLogout={leave} viewing={Boolean(viewing)} />;
-    }
-
-    return (
-        <div className="flex h-dvh bg-slate-50 text-gray-900 font-sans overflow-hidden">
+    // The session-expired notice and the log-out confirmation, shared with the Campus-only shell.
+    const sessionDialogs = (
+        <>
             {showSessionModal && (
                 <Dialog onClose={confirmLogout} size="max-w-sm" z="z-[200]">
                     <div className="p-6 text-center">
@@ -494,6 +450,55 @@ const OrgAdminLayout = () => {
                     </div>
                 </Dialog>
             )}
+        </>
+    );
+
+    if (loading) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-slate-50">
+                <div className="text-center">
+                    <Loader2 size={32} className="mx-auto animate-spin text-indigo-600" />
+                    <p className="mt-3 text-sm font-medium text-slate-500">Opening your organization…</p>
+                </div>
+            </div>
+        );
+    }
+    if (failed || !organization) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+                <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                        <XCircle size={24} className="text-red-600" />
+                    </div>
+                    <h1 className="text-lg font-bold text-slate-900">We could not open {viewing ? viewing.name : 'your organization'}</h1>
+                    <p className="mt-2 text-sm text-slate-600">{failed || 'Please try signing in again.'}</p>
+                    <button onClick={leave} className="mt-5 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">
+                        {viewing ? 'Back to Organizations' : 'Sign out'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (organization.status !== 'active') {
+        return <StatusScreen organization={organization} onLogout={leave} viewing={Boolean(viewing)} />;
+    }
+
+    if (campusRole) {
+        return (
+            <>
+                {sessionDialogs}
+                <CampusStaffLayout role={campusRole} organization={organization} admin={admin} onLogout={() => setShowLogoutConfirm(true)}
+                    badge={<OrgBadge name={organization.name} logo={organization.logo} />} badgeSmall={<OrgBadge name={organization.name} logo={organization.logo} small />}>
+                    <ErrorBoundary resetKey={location.pathname}><Suspense fallback={<PageLoading />}><Outlet context={{ staff, organization, campusOn: true }} /></Suspense></ErrorBoundary>
+                </CampusStaffLayout>
+            </>
+        );
+    }
+
+    return (
+        <div className="flex h-dvh bg-slate-50 text-gray-900 font-sans overflow-hidden">
+            {sessionDialogs}
 
             {/* ── Desktop: the sidebar ─────────────────────────────────────
                 Phones use the bar along the bottom instead, so there is no
@@ -530,6 +535,8 @@ const OrgAdminLayout = () => {
             {supportOpen && <OrgSupportDialog organization={organization} onClose={() => setSupportOpen(false)} />}
 
             <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
+                {/* Opened with a demo (presentation) card: says so, and changes to its student or teacher dashboard. */}
+                {!viewing && <DemoSwitchBar admin={admin} organization={organization} />}
                 {viewing && (
                     <div role="status" className="flex shrink-0 items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 lg:px-8">
                         <Eye size={16} className="shrink-0 text-amber-600" />

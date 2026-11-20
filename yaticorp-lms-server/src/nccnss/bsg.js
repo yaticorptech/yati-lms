@@ -4,7 +4,7 @@
  *
  * TO VERIFY against BSG's official APRO (Part II) and the state association
  * before relying on it for anything official. These are the names commonly
- * used across BSG units; the LMS only orders and displays them — it enforces
+ * used across BSG units; YATICORPX3 only orders and displays them — it enforces
  * no age band, no test syllabus and no waiting period between ranks. Edit
  * this one file to correct them: rows already recorded keep the name they
  * were given.

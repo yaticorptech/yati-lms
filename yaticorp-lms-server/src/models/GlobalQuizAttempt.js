@@ -154,7 +154,7 @@ globalQuizAttemptSchema.statics.payWin = async function (attempt) {
         if (!attempt?.won) return none;
         const rewards = await require('../rewards/services/configService').getConfig();
         const xp = Math.max(0, Math.round(Number(rewards.xpRules?.global_quiz_win) || 0));
-        if (rewards.enabled === false || xp <= 0) return none;
+        if ((rewards.enabled === false && !(await require('../services/fullAccess').fullAccessForUserId(attempt.userId))) || xp <= 0) return none;
         const { safeRecordActivity } = require('../rewards/services/activityService');
         const done = await safeRecordActivity({ userId: attempt.userId, type: 'global_quiz_win', refId: `global-win:${attempt.quizId}`, meta: { score: attempt.score } });
         return { xp: done && done.enabled && !done.duplicate && !done.error ? xp : 0, events: done?.events || [] };

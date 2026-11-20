@@ -46,7 +46,7 @@ const skipped = (el) => {
 /**
  * The translation of one piece of text (already trimmed), or null.
  * Exact first; then the same words with a trailing mark ("Save:"); then text
- * the app builds from parts — "Chess · by YATICORP", "25 Questions",
+ * the app builds from parts — "Chess · by YATICORPX3", "25 Questions",
  * "Starts 24 Oct", "Status: Open" — each part looked up on its own, numbers,
  * dates and names kept as they are.
  */

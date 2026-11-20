@@ -266,10 +266,10 @@ const sendWelcome = async (teacher, password, madeBy) => {
             await require('../utils/emailService').sendEmail({
                 to: teacher.email,
                 toName: teacher.name,
-                subject: 'Your YATICORP teacher account',
+                subject: 'Your YATICORPX3 teacher account',
                 htmlContent: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                    <h2 style="color: #059669;">Welcome to YATICORP</h2>
+                    <h2 style="color: #059669;">Welcome to YATICORPX3</h2>
                     <p>Hi <strong>${clean(teacher.name)}</strong>,</p>
                     <p>${clean(madeBy)} has added you as a teacher.</p>
                     <p>To start, open the link below, choose <strong>Teacher</strong>, tap <strong>No card? Verify as your organization's teacher</strong>, and enter your mobile number <strong>${clean(teacher.phone)}</strong>. Then set your own password and fill in your details.</p>
@@ -286,10 +286,10 @@ const sendWelcome = async (teacher, password, madeBy) => {
         await require('../utils/emailService').sendEmail({
             to: teacher.email,
             toName: teacher.name,
-            subject: 'Your YATICORP teacher account',
+            subject: 'Your YATICORPX3 teacher account',
             htmlContent: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                    <h2 style="color: #059669;">${carded ? 'Welcome to YATICORP Research' : 'Welcome to YATICORP'}</h2>
+                    <h2 style="color: #059669;">${carded ? 'Welcome to YATICORPX3 Research' : 'Welcome to YATICORPX3'}</h2>
                     <p>Hi <strong>${clean(teacher.name)}</strong>,</p>
                     <p>${clean(madeBy)} has made a teacher account for you${carded ? ': a step-by-step guide for your research, thesis and publications' : ', to run the clubs and Scouts &amp; Guides units you lead'}.</p>
                     <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">

@@ -18,6 +18,7 @@ import { useSayPageOnNav } from './components/loopGuide';
 import Login from './pages/Login';
 import { loginPathFor } from './utils/sessionExpiry';
 import { hasTeacherSession, enterEmbedded } from './teacher/teacherSession';
+import { hasParentSession } from './parent/parentSession';
 // A guardian answering a part-time job permission request. Outside the auth
 // guard on purpose: a parent has no account and arrives from a link.
 const GuardianReview = React.lazy(() => import('./opportunities/application/GuardianReview'));
@@ -79,6 +80,8 @@ const LinguisticSections = React.lazy(() => import('./linguistic/Sections'));
 const LinguisticRoadmap = React.lazy(() => import('./linguistic/Roadmap'));
 const LinguisticLetters = React.lazy(() => import('./linguistic/LettersChart'));
 const LinguisticDashboard = React.lazy(() => import('./linguistic/Dashboard'));
+const LinguisticIelts = React.lazy(() => import('./linguistic/ielts/IeltsHome'));
+const LinguisticIeltsTest = React.lazy(() => import('./linguistic/ielts/IeltsTest'));
 
 /**
  * Signed in, or off to the sign-in page — which is told where the student was
@@ -92,6 +95,8 @@ const ProtectedRoute = ({ children }) => {
   const location = useLocation();
   // A teacher signed in on this device belongs on the teacher dashboard.
   if (!user && hasTeacherSession()) return <Navigate to="/teacher" replace />;
+  // And a parent on the parent dashboard (2026-11-19).
+  if (!user && hasParentSession()) return <Navigate to="/parent" replace />;
   if (!user) return <Navigate to={loginPathFor(`${location.pathname}${location.search}${location.hash}`)} replace />;
   return children;
 };
@@ -110,6 +115,21 @@ const TeacherSso = () => {
   enterEmbedded(token, teacher, query.get('embed') === '1');
   return <Navigate to={next.startsWith('/teacher') ? next : '/teacher'} replace />;
 };
+/* The parent dashboard (src/parent, 2026-11-19): a parent's own sign-in, home and one page per child. */
+const ParentRoute = ({ children }) => (hasParentSession() ? children : <Navigate to="/login" replace />);
+// A sidebar (Overview, Institution ▾, AI Card ▾) and a child switcher (2026-11-19): parent/ParentLayout.jsx.
+const ParentProvider = React.lazy(() => import('./parent/ParentProvider'));
+const ParentLayout = React.lazy(() => import('./parent/ParentLayout'));
+const parentPages = () => import('./parent/pages');
+const ParentPage = (name) => React.lazy(() => parentPages().then((m) => ({ default: m[name] })));
+const PARENT_PAGES = [
+  ['attendance', ParentPage('AttendancePage')], ['timetable', ParentPage('TimetablePage')], ['results', ParentPage('ResultsPage')], ['fees', ParentPage('FeesPage')],
+  ['ranking', ParentPage('RankingPage')], ['extra-curricular', ParentPage('ExtraPage')], ['activity', ParentPage('ActivityPage')], ['courses', ParentPage('CoursesPage')],
+  ['multilingo', ParentPage('MultilingoPage')], ['career', ParentPage('CareerPage')], ['interviews', ParentPage('InterviewsPage')], ['certificates', ParentPage('CertificatesPage')],
+  ['announcements', ParentPage('AnnouncementsPage')], ['quizzes', ParentPage('QuizzesPage')], ['competitions', ParentPage('CompetitionsPage')], ['jobs', ParentPage('JobsPage')], ['badges', ParentPage('BadgesPage')]
+];
+const ParentOverview = ParentPage('Overview');
+const parentLoading = <div className="flex items-center justify-center py-24 text-slate-500">Loading…</div>;
 const TeacherRoute = ({ children }) => (hasTeacherSession() ? children : <Navigate to="/login?as=teacher" replace />);
 const TeacherProvider = React.lazy(() => import('./teacher/TeacherContext').then((m) => ({ default: m.TeacherProvider })));
 const TeacherLayout = React.lazy(() => import('./teacher/TeacherLayout'));
@@ -157,6 +177,8 @@ const Signup = React.lazy(() => import('./pages/Signup'));
 const PassportLanding = React.lazy(() => import('./pages/PassportLanding'));
 const AdminAccess = React.lazy(() => import('./pages/AdminAccess'));
 const TeacherAdminAccess = React.lazy(() => import('./teacher/pages/TeacherAdminAccess'));
+// A demo card changing dashboard from the organisation panel lands here (pages/DemoSwitch.jsx).
+const DemoSwitch = React.lazy(() => import('./pages/DemoSwitch'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 const EnrolledCourses = React.lazy(() => import('./pages/EnrolledCourses'));
 // Downloaded when first opened rather than with the sign-in page: the player
@@ -252,7 +274,7 @@ const LinguisticGate = () => {
 // Every lazily-loaded route waits behind this, so it is the thing a student
 // actually sees while a page is downloading.
 const CareerFallback = () => <YatiLoader label="Loading this page" />;
-// A college's admission link loads under its own logo, not YATICORP's (2026-11-16).
+// A college's admission link loads under its own logo, not YATICORPX3's (2026-11-16).
 const ApplyFallback = () => {
     const code = (window.location.pathname.match(/^\/apply\/([^/]+)/) || [])[1];
     let logo = null;
@@ -405,7 +427,7 @@ function App() {
   useSayPageOnNav(here, new URLSearchParams(search).get('tab'), LOOP_PAGES, LOOP_TABS);
   // Yati is the students' companion: not on the teacher dashboard either.
   // Nor on the public certificate check (2026-11-11, the user: "remove mascot from this page").
-  const showLoop = !LOOP_HIDDEN_ON.includes(here) && !here.startsWith('/teacher') && here !== '/verify' && !here.startsWith('/verify/') && !here.startsWith('/apply/');
+  const showLoop = !LOOP_HIDDEN_ON.includes(here) && !here.startsWith('/teacher') && !here.startsWith('/parent') && here !== '/verify' && !here.startsWith('/verify/') && !here.startsWith('/apply/');
   // A game in play hides Loop without unmounting it (components/loopVisibility).
   // Not in Language Learning (2026-11-07, the user: "remove the side standing mascot from the multilingo section"): its own
   // mascot is in the lessons. Kept loaded, so it is back at once on the next page.
@@ -428,6 +450,7 @@ function App() {
       {/* A superadmin opening a student's dashboard from the admin Users page. */}
       <Route path="/admin-access" element={<React.Suspense fallback={<CareerFallback />}><AdminAccess /></React.Suspense>} />
       {/* …and a teacher's, from the admin Teachers page (2026-11-11). */}
+      <Route path="/demo-switch" element={<React.Suspense fallback={<CareerFallback />}><DemoSwitch /></React.Suspense>} />
       <Route path="/admin-access/teacher" element={<React.Suspense fallback={<CareerFallback />}><TeacherAdminAccess /></React.Suspense>} />
       {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
           has to be able to open these, and so does anyone deciding whether to
@@ -512,7 +535,10 @@ function App() {
             <Route path="roadmap" element={<React.Suspense fallback={<CareerFallback />}><LinguisticRoadmap /></React.Suspense>} />
             <Route path="letters" element={<React.Suspense fallback={<CareerFallback />}><LinguisticLetters /></React.Suspense>} />
             <Route path="dashboard" element={<React.Suspense fallback={<CareerFallback />}><LinguisticDashboard /></React.Suspense>} />
+            <Route path="ielts" element={<React.Suspense fallback={<CareerFallback />}><LinguisticIelts /></React.Suspense>} />
           </Route>
+          {/* An IELTS section covers the whole screen, like a lesson. */}
+          <Route path="linguistic/ielts/:attemptId/:section" element={<React.Suspense fallback={<CareerFallback />}><LinguisticIeltsTest /></React.Suspense>} />
           <Route path="linguistic/placement" element={<React.Suspense fallback={<CareerFallback />}><LinguisticPlacement /></React.Suspense>} />
           <Route path="linguistic/review" element={<React.Suspense fallback={<CareerFallback />}><LinguisticReview /></React.Suspense>} />
           <Route path="linguistic/daily" element={<React.Suspense fallback={<CareerFallback />}><LinguisticDaily /></React.Suspense>} />
@@ -560,6 +586,13 @@ function App() {
         </Route>
         </Route>
       </Route>
+      <Route path="/parent" element={<ParentRoute><React.Suspense fallback={<YatiLoader fullScreen label="Opening your dashboard" />}><ParentProvider><ParentLayout /></ParentProvider></React.Suspense></ParentRoute>}>
+        <Route index element={<React.Suspense fallback={parentLoading}><ParentOverview /></React.Suspense>} />
+        {PARENT_PAGES.map(([path, Page]) => <Route key={path} path={path} element={<React.Suspense fallback={parentLoading}><Page /></React.Suspense>} />)}
+        <Route path="*" element={<Navigate to="/parent" replace />} />
+      </Route>
+      {/* Registering is the sign-up page's third choice (2026-11-19). */}
+      <Route path="/parent/register" element={<Navigate to="/signup?as=parent" replace />} />
       <Route path="/teacher/sso" element={<TeacherSso />} />
       <Route path="/teacher" element={<TeacherRoute><React.Suspense fallback={<YatiLoader fullScreen label="Opening your dashboard" />}><TeacherProvider><TeacherLayout /></TeacherProvider></React.Suspense></TeacherRoute>}>
         <Route index element={researchPage(TeacherDashboard)} />

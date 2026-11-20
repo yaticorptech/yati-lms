@@ -5,7 +5,7 @@
  * section's sign-in. What protects them is the link itself: 32 random bytes,
  * good for one application, expiring after a fortnight. An operator cannot
  * answer in the guardian's place — there is no route for it anywhere. What an
- * operator does get is the step after this one: once a parent agrees, the LMS
+ * operator does get is the step after this one: once a parent agrees, YATICORPX3
  * signs the application off separately.
  *
  * What the link gives up is deliberately thin: the child's name, the job they
@@ -74,7 +74,7 @@ const decide = (verb) => async (req, res, next) => {
         if (row.status !== 'awaiting-guardian') {
             return res.status(409).json({ error: 'This request is not waiting for an answer.', request: guardianView(row), next: adminNext(row) });
         }
-        // A yes does not finish the application, it passes it on: the LMS still
+        // A yes does not finish the application, it passes it on: YATICORPX3 still
         // has to sign it off. A no ends it here — nobody overrides a parent.
         row.status = verb === 'approve' ? 'awaiting-admin' : 'declined';
         row.decidedAt = new Date();

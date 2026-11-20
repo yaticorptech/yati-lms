@@ -49,6 +49,7 @@ import CompetitionAlerts from '../competitions/CompetitionAlerts';
 import ReminderPopup from '../competitions/ReminderPopup';
 import ResultsCelebration from '../competitions/ResultsCelebration';
 import PassportClaimPopup from '../components/rewards/PassportClaimPopup';
+import DemoBar from '../components/DemoBar';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -923,7 +924,7 @@ const StudentLayout = () => {
             <aside data-loop-skip className="hidden sidebar:flex w-64 bg-white text-slate-700 border-r border-slate-200 flex-col z-10">
                 <div className="flex items-center justify-center border-b border-slate-100 bg-white px-6 py-4">
                     {/* Dark-lettered logo: the original is white artwork for a dark ground. */}
-                    <Link to="/" aria-label="Yaticorp LMS, go to Dashboard" className="block w-full rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"><img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" /></Link>
+                    <Link to="/" aria-label="YATICORPX3, go to Dashboard" className="block w-full rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"><img src="/assets/YATICORP-dark.png" alt="YATICORPX3" className="h-10 object-contain w-full" /></Link>
                 </div>
 
                 <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
@@ -951,7 +952,7 @@ const StudentLayout = () => {
                 className="sidebar:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-50 flex items-center justify-between px-4"
             >
                 <div className="flex min-w-0 shrink items-center">
-                    <Link to="/" aria-label="Yaticorp LMS, go to Dashboard" className="flex min-w-0 rounded-lg active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"><img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 max-w-full object-contain" /></Link>
+                    <Link to="/" aria-label="YATICORPX3, go to Dashboard" className="flex min-w-0 rounded-lg active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"><img src="/assets/YATICORP-dark.png" alt="YATICORPX3" className="h-5 max-w-full object-contain" /></Link>
                 </div>
                 <div className="flex min-w-0 items-center gap-1.5">
                     {/* The bell sets its own slate colour, so a colour on this
@@ -992,7 +993,7 @@ const StudentLayout = () => {
                         pinned at the top while the rest moves. */}
                     <div className="drawer-panel relative w-4/5 max-w-sm bg-white text-slate-700 h-full flex flex-col overflow-y-auto shadow-2xl border-r border-slate-200">
                         <div className="sticky top-0 z-10 p-4 flex items-center justify-between border-b border-slate-100 bg-white">
-                            <Link to="/" onClick={() => setMenuOpenOn(null)} aria-label="Yaticorp LMS, go to Dashboard" className="flex rounded-lg active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"><img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 object-contain" /></Link>
+                            <Link to="/" onClick={() => setMenuOpenOn(null)} aria-label="YATICORPX3, go to Dashboard" className="flex rounded-lg active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"><img src="/assets/YATICORP-dark.png" alt="YATICORPX3" className="h-5 object-contain" /></Link>
                             <button ref={drawerCloseRef} type="button" onClick={closeMenu} aria-label="Close menu" data-loop-quiet className="p-2 text-slate-400 hover:text-slate-700">
                                 <X size={24} aria-hidden="true" />
                             </button>
@@ -1039,6 +1040,8 @@ const StudentLayout = () => {
                 anything scrolled to (a #wallet link, a tab strip, a focused
                 field) lands below it rather than behind it. */}
             <main ref={mainRef} className="flex-1 overflow-auto overscroll-y-contain scroll-pt-16 bg-slate-50 sidebar:pt-0 pt-16 relative">
+                {/* A demo (presentation) card: says so, and changes to its teacher or organisation dashboard. */}
+                <DemoBar as="student" name={user?.name} className="sidebar:px-8" />
                 {/* A superadmin working in this student's dashboard: everything
                     they do counts as the student's own, so it is said plainly,
                     with the way out beside it. */}

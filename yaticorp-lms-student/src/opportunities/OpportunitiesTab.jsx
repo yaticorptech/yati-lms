@@ -429,7 +429,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
 
                     {/* These come straight off Google. Unlike the jobs above them
                         nobody has checked the age, the hours or the organisation,
-                        and applying leaves the LMS — so a student under 18 is told
+                        and applying leaves YATICORPX3 — so a student under 18 is told
                         that plainly rather than left to assume otherwise. */}
                     {listing?.web?.related > 0 && (
                         <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
@@ -513,7 +513,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                                         <GhostButton onClick={() => setEditing(true)}>Update interests</GhostButton>
                                     </>}>
                                     Nothing is scheduled around {windowLabel({ from: data.profile.wantFrom, to: data.profile.wantTo })} that you can take up.
-                                    New jobs are added by the LMS team as they come in, and open vacancies near you appear here too — set your town above.
+                                    New jobs are added by the YATICORPX3 team as they come in, and open vacancies near you appear here too — set your town above.
                                 </Empty>
                             ) : (
                                 <Empty title="No local jobs match your current preferences."
@@ -521,7 +521,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                                         <GhostButton onClick={() => setEditing(true)}>Update interests</GhostButton>
                                         <GhostButton onClick={() => setFilters((f) => ({ ...f, anyDate: true, category: '', interest: '' }))}>Explore other categories</GhostButton>
                                     </>}>
-                                    No upcoming jobs are open to you right now. The LMS team adds local jobs as organisations send them — check back soon.
+                                    No upcoming jobs are open to you right now. The YATICORPX3 team adds local jobs as organisations send them — check back soon.
                                 </Empty>
                             )}
                         </section>

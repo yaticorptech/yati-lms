@@ -28,9 +28,15 @@ const VOICE = {
 };
 
 const film = comics.build({ order: 2, course: null, seedKey: 'x' }, 'en').comic;
+// The same treatment as the Hindi film (2026-11-18, the user: "whatever changes in one language, the same in every
+// language"): each line sentence by sentence with a breath between, a breath before and after, and its feeling heard
+// in the pace — happy and excited quicker, a surprise quicker still, sad slower, kind a touch slower.
+const { filmVoice, sentencesOf } = await import('../src/linguistic/speechText.js');
+const MOOD = { happy: 1.07, excited: 1.08, surprise: 1.1, sad: 0.85, kind: 0.94, question: 1, story: 0.96 };
+const moodOf = (ln) => (ln.who === 'narrator' ? 'story' : (String(filmVoice(film, ln)).match(/mood-(\w+)/) || [])[1] || null);
 const jobs = [];
-film.scenes.forEach((sc, i) => sc.lines.forEach((ln, k) => jobs.push([`${i + 1}-${k}`, ln.who, ln.text])));
-jobs.push(['moral', 'narrator', film.moral]);
+film.scenes.forEach((sc, i) => sc.lines.forEach((ln, k) => jobs.push([`${i + 1}-${k}`, ln.who, ln.text, moodOf(ln)])));
+jobs.push(['moral', 'narrator', film.moral, 'story']);
 
 const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8', device: 'cpu' });
 const dir = path.join(OUT, 'en');
@@ -38,11 +44,26 @@ fs.mkdirSync(dir, { recursive: true });
 const file = path.join(OUT, 'manifest.json');
 const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
 manifest.en = manifest.en || {};
-manifest.kokoro = { en: [] };
+manifest.kokoro = { ...(manifest.kokoro || {}), en: [] };
 
-for (const [key, who, text] of jobs) {
-    const v = VOICE[who] || VOICE.narrator;
-    const audio = await tts.generate(text, v);
+const RATE = 24000;
+const silence = (sec) => new Float32Array(Math.round(sec * RATE));
+for (const [key, who, text, mood] of jobs) {
+    const base = VOICE[who] || VOICE.narrator;
+    const v = { voice: base.voice, speed: Math.round(base.speed * (MOOD[mood] || 1) * 100) / 100 };
+    const pieces = [silence(0.12)];
+    let audio = null;
+    const parts = sentencesOf(text);
+    for (let n = 0; n < parts.length; n += 1) {
+        audio = await tts.generate(parts[n], v);
+        pieces.push(audio.audio, silence(n === parts.length - 1 ? 0.3 : 0.38));
+    }
+    const all = new Float32Array(pieces.reduce((t, x) => t + x.length, 0));
+    pieces.reduce((at, x) => { all.set(x, at); return at + x.length; }, 0);
+    let peak = 0;
+    for (const x of all) peak = Math.max(peak, Math.abs(x));
+    if (peak > 0.92) for (let n = 0; n < all.length; n += 1) all[n] *= 0.92 / peak;
+    audio = new audio.constructor(all, RATE);
     const wav = path.join(dir, `${key}.wav`);
     await audio.save(wav);
     const m4a = path.join(dir, `${key}.m4a`);

@@ -14,8 +14,9 @@ const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#0ea5e9', '#a855f7'
 const SERIES = ['#4f46e5', '#f97316'];
 
 /** 📊 Data Dash: read a chart or table and answer questions worked out from its numbers. */
-export default function DataDash({ onExit }) {
-  const progress = useGameProgress('data-dash', { bands: SECTION_BANDS.smart });
+/** Also Master Minds' Data Chart Quiz (2026-11-19): `gameId` 'data-chart-quiz', its own section and real-world charts. */
+export default function DataDash({ onExit, gameId = 'data-dash', section = 'smart' }) {
+  const progress = useGameProgress(gameId, { bands: SECTION_BANDS[section] });
   return <Round key={`${progress.level}-${progress.attempt}`} progress={progress} onExit={onExit} />;
 }
 
@@ -66,7 +67,7 @@ function Round({ progress, onExit }) {
 
   return (
     <GameShell
-      title="Data Dash"
+      title={progress.gameId === 'data-chart-quiz' ? 'Data Chart Quiz' : 'Data Dash'}
       blurb="Read the data, answer fast and right."
       tone="bg-gradient-to-br from-emerald-500 to-sky-700"
       score={`${correct}/${total}`}
