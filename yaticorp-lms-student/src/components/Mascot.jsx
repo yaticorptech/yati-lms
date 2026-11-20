@@ -1,5 +1,5 @@
 /**
- * @description The YATICORP mascot for the login page: the blue ring icon with
+ * @description The YATICORPX3 mascot for the login page: the blue ring icon with
  *              a white face, a waving hand and a fist on the hip, as in the
  *              brand render.
  *

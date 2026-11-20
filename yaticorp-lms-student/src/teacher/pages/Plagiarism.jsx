@@ -1,5 +1,5 @@
 /**
- * Plagiarism Check: how much of a text matches other documents on YATICORP
+ * Plagiarism Check: how much of a text matches other documents on YATICORPX3
  * (other teachers' theses and writing, and the teacher's own), shown passage
  * by passage, plus quotations that have no citation beside them.
  *
@@ -75,7 +75,7 @@ const Report = ({ report }) => {
                     <div className="hidden md:block"><Badge tone={t.chip}>{t.label}</Badge></div>
                     <p className="text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{report.title}</p>
                     <ul className="grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
-                        <li><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-300 align-middle" aria-hidden="true" /> Found in others&apos; work{report.outside?.checked ? ' (YATICORP, your papers, open research, Wikipedia)' : ' (YATICORP and your uploaded papers)'}: <strong>{others}%</strong></li>
+                        <li><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-300 align-middle" aria-hidden="true" /> Found in others&apos; work{report.outside?.checked ? ' (YATICORPX3, your papers, open research, Wikipedia)' : ' (YATICORPX3 and your uploaded papers)'}: <strong>{others}%</strong></li>
                         <li><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-300 align-middle" aria-hidden="true" /> Found in your own documents: <strong>{report.ownScore}%</strong></li>
                         <li>Words checked: <strong>{fmtNum(report.words)}</strong></li>
                         <li>Documents compared: <strong>{fmtNum(report.documentsCompared)}</strong>{report.outside?.checked ? <span className="text-slate-400"> (incl. {fmtNum(report.outside.found || 0)} from open research and Wikipedia{report.outside.fullText ? `, ${report.outside.fullText} read in full` : ''})</span> : null}</li>
@@ -223,7 +223,7 @@ export default function Plagiarism() {
 
             <p className="flex items-start gap-2 text-sm text-slate-500">
                 <Info size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
-                <span>Compares with writing on YATICORP and with {sourceCount ? <strong className="text-slate-700">the {sourceCount} {sourceCount === 1 ? 'paper' : 'papers'} you uploaded</strong> : 'papers you upload below'}, and, for free, with open research papers (whole open-access papers, abstracts of the rest) and Wikipedia. It does not see the whole internet or paywalled journals: until Pro arrives, use your university&apos;s checker (such as Turnitin) before submitting.</span>
+                <span>Compares with writing on YATICORPX3 and with {sourceCount ? <strong className="text-slate-700">the {sourceCount} {sourceCount === 1 ? 'paper' : 'papers'} you uploaded</strong> : 'papers you upload below'}, and, for free, with open research papers (whole open-access papers, abstracts of the rest) and Wikipedia. It does not see the whole internet or paywalled journals: until Pro arrives, use your university&apos;s checker (such as Turnitin) before submitting.</span>
             </p>
 
             <Card>

@@ -1,5 +1,5 @@
 /**
- * The organization endpoints, wrapped over the shared LMS axios instance —
+ * The organization endpoints, wrapped over the shared YATICORPX3 axios instance —
  * the same thin-wrapper shape as src/jobs/api.js and src/learningbio/api.js, so
  * the section's component never builds a URL itself.
  */

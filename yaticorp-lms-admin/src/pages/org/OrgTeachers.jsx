@@ -136,7 +136,7 @@ const TeachersTab = ({ onNotice, onPending }) => {
                         <span className="shrink-0 rounded-xl bg-indigo-100 p-2.5 text-indigo-600"><UserPlus size={20} /></span>
                         <div className="min-w-0">
                             <p className="font-bold text-slate-800">Add teachers</p>
-                            <p className="mt-0.5 text-sm text-slate-500">With their YATICORP card, or without one (just name and mobile number) for Scouts &amp; Guides and Student Ranking. Many at once with a spreadsheet.</p>
+                            <p className="mt-0.5 text-sm text-slate-500">With their YATICORPX3 card, or without one (just name and mobile number) for Scouts &amp; Guides and Student Ranking. Many at once with a spreadsheet.</p>
                         </div>
                     </div>
                     <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
@@ -380,7 +380,7 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
                                     <>
                                         <label className={`${box(giveResearch)} ml-6`}>
                                             <input type="checkbox" checked={giveResearch} onChange={() => { setGiveResearch(!giveResearch); setError(''); }} className="mt-1 h-4 w-4 accent-indigo-600" />
-                                            <span><span className="block text-sm font-bold text-slate-800">Research access (AI card)</span><span className="text-xs text-slate-500">Link a YATICORP card: research, publications, thesis, writing and plagiarism tools, alongside their clubs and units.</span></span>
+                                            <span><span className="block text-sm font-bold text-slate-800">Research access (AI card)</span><span className="text-xs text-slate-500">Link a YATICORPX3 card: research, publications, thesis, writing and plagiarism tools, alongside their clubs and units.</span></span>
                                         </label>
                                         {giveResearch && (
                                             <div className="ml-6 space-y-2 rounded-xl border border-slate-200 p-3">
@@ -412,7 +412,7 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
                                 </label>
                                 <label className={box(form.teacher)}>
                                     <input type="checkbox" checked={form.teacher} onChange={() => set('teacher', !form.teacher)} className="mt-1 h-4 w-4 accent-indigo-600" />
-                                    <span><span className="block text-sm font-bold text-slate-800">Teacher dashboard</span><span className="text-xs text-slate-500">Their research and writing tools, with their YATICORP card{form.organization ? ' — and Research in this panel' : ''}.</span></span>
+                                    <span><span className="block text-sm font-bold text-slate-800">Teacher dashboard</span><span className="text-xs text-slate-500">Their research and writing tools, with their YATICORPX3 card{form.organization ? ' — and Research in this panel' : ''}.</span></span>
                                 </label>
                                 {form.teacher && (
                                     <div className="space-y-3 rounded-xl border border-slate-200 p-3">

@@ -105,8 +105,11 @@ const resetAccount = async (userId) => {
             devices: [], deviceRemovedAt: null, activeSessionId: '', residentialCard: false,
             geminiApiKey: '', geminiApiKeyAddedAt: null, organizationId: null, organizationJoinedAt: null,
             institution: '', className: '', courseId: null, bundleId: null
-        }
+        },
+        // Its admission at the demo institution, given again on the next visit (services/demoInstitution.js).
+        $unset: { campus: 1, activityProofs: 1, activityMarks: 1 }
     }, { strict: false });
+    require('./demoInstitution').forgetScouts(id);
     return { removed };
 };
 

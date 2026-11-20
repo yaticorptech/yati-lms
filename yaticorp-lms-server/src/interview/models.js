@@ -5,7 +5,7 @@
  * its report. InterviewPrep: the student's personalised question bank and
  * which of them they have practised. AptitudeSet: one set of aptitude
  * questions and the student's answers. Everything else the section shows —
- * skills, projects, courses — is read live from the LMS.
+ * skills, projects, courses — is read live from YATICORPX3.
  */
 const mongoose = require('mongoose');
 

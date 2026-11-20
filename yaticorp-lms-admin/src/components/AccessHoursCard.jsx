@@ -1,6 +1,6 @@
 /**
  * Dashboard → Access hours: the days and the daily window when this
- * organization's students may use YATICORP. Outside them a student can still
+ * organization's students may use YATICORPX3. Outside them a student can still
  * sign in, but sees when the platform opens instead of their pages (server:
  * organizations/services/accessSchedule.js). India time. A closing time
  * before the opening time runs overnight.
@@ -47,7 +47,7 @@ export default function AccessHoursCard() {
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Clock size={20} /></span>
                 <div className="min-w-0 flex-1">
                     <h2 className="font-bold text-slate-800">Access hours</h2>
-                    <p className="text-sm text-slate-500">When your students can use YATICORP. Outside these hours they can sign in, but see when the platform opens.</p>
+                    <p className="text-sm text-slate-500">When your students can use YATICORPX3. Outside these hours they can sign in, but see when the platform opens.</p>
                 </div>
             </div>
 

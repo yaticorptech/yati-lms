@@ -3,7 +3,7 @@
  *
  * The gap card names the skills between a student and the role they want, and
  * used to stop there — which hands the student to YouTube at exactly the moment
- * the LMS has something to teach. This matches gap skills against the published
+ * YATICORPX3 has something to teach. This matches gap skills against the published
  * course catalogue so the card can link each one to a course.
  *
  * Matching is deliberately conservative. A wrong "we teach this" link costs

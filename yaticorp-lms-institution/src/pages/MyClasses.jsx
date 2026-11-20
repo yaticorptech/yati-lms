@@ -17,7 +17,7 @@ export default function MyClasses() {
             <div className="mx-auto max-w-lg py-20 text-center">
                 <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-white text-petrol-600"><Presentation size={24} /></span>
                 <h1 className="font-display text-3xl font-semibold">Attendance is in your teacher dashboard</h1>
-                <p className="mt-2 text-sm text-ink-2">Subject teachers take attendance from their own YATICORP teacher dashboard, under <b>Attendance</b>. Your department gives you your subjects.</p>
+                <p className="mt-2 text-sm text-ink-2">Subject teachers take attendance from their own YATICORPX3 teacher dashboard, under <b>Attendance</b>. Your department gives you your subjects.</p>
             </div>
         );
     }

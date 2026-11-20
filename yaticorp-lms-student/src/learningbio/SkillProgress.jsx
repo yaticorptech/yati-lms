@@ -1,4 +1,4 @@
-/** Skills as bars with a status the LMS can actually stand behind. */
+/** Skills as bars with a status YATICORPX3 can actually stand behind. */
 import { useEffect, useState } from 'react';
 import { CheckCircle2, BadgeCheck } from 'lucide-react';
 import { STATUS_TONE } from './api';

@@ -342,7 +342,7 @@ export default function TeacherProfile() {
                         <p className="text-sm text-slate-600">
                             {org?.member ? <>You are a member of <strong className="text-slate-900">{org.organization.name}</strong>.</>
                                 : waiting ? <span className="inline-flex items-center gap-1.5"><Clock size={14} className="text-amber-600" aria-hidden="true" /> Waiting for {org.request.organization?.name || 'your organization'} to approve you.</span>
-                                    : 'Your college or school on YATICORP. Add it with the Organization ID they give you.'}
+                                    : 'Your college or school on YATICORPX3. Add it with the Organization ID they give you.'}
                         </p>
                         <button type="button" onClick={() => setOrgOpen(true)} aria-haspopup="dialog" className={`${btn.secondary} mt-3`}>
                             <Building2 size={15} /> {org?.member || waiting ? 'View organization' : 'Add your organization'}

@@ -14,6 +14,7 @@ import { isNative } from '../native/platform';
 import useBackClose from '../native/useBackClose';
 import { SESSION_ENDED_KEY } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession, TEACHER_SESSION_ENDED } from '../teacher/teacherSession';
+import parentApi, { enterParent, hasParentSession } from '../parent/parentSession';
 import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info, ShieldCheck, RefreshCw } from 'lucide-react';
 
 // --- Forgot Password Modal ---
@@ -326,6 +327,8 @@ const Login = () => {
             const code = err.response?.data?.code;
             const maybePhone = /^91[6-9]\d{9}$/.test(number) && err.response?.status === 404 && !code;
             const msg = err.response?.data?.message;
+            // A parent's card (2026-11-19): found, and its holder's name shown, as a student's is.
+            if (code === 'PARENT_CARD') { setScannedName(err.response.data.name || ''); setScannedCard(true); setCardCheck(''); return; }
             if (msg && code !== 'TEACHER_CARD' && !maybePhone && err.response?.status < 500) { setCardCheckError(msg); setCardCheck('error'); }
             else setCardCheck('');
         }
@@ -357,8 +360,10 @@ const Login = () => {
             let res;
             try { res = await api.post('/auth/card-scan', { code: decodedText }); }
             catch (err) {
-                if (err.response?.data?.code !== 'TEACHER_CARD') throw err;
-                res = await teacherApi.post('/auth/card-scan', { code: decodedText });
+                // A parent's card: its number, to sign in with (2026-11-19).
+                if (err.response?.data?.code === 'PARENT_CARD') res = { data: { cardNumber: err.response.data.cardNumber, name: err.response.data.name } };
+                else if (err.response?.data?.code !== 'TEACHER_CARD') throw err;
+                else res = await teacherApi.post('/auth/card-scan', { code: decodedText });
             }
             // A demo (presentation) card signs in by its scan alone: straight to the dashboard.
             if (res.data?.token && res.data?.role !== 'teacher') { enterApp(res.data, next); return; }
@@ -419,8 +424,13 @@ const Login = () => {
     if (user) return <Navigate to={next} replace />;
     // A teacher is signed in on this device: their dashboard.
     if (hasTeacherSession()) return <Navigate to="/teacher" replace />;
+    if (hasParentSession()) return <Navigate to="/parent" replace />;
 
     const failed = (message) => { setError(message); setLoading(false); passwordRef.current?.focus(); };
+    const parentSignIn = async (body) => {
+        try { enterParent((await parentApi.post('/auth/login', body)).data); }
+        catch (err) { failed(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed')); }
+    };
     const teacherSignIn = async (body) => {
         try { enterTeacher((await teacherApi.post('/auth/login', body)).data); }
         catch (err) { failed(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed')); }
@@ -445,6 +455,8 @@ const Login = () => {
         if (res.success) return;
         // A teacher's card or number: the teacher sign-in finishes it, and they land on their dashboard.
         if (res.code === 'TEACHER_CARD' || res.code === 'TEACHER_ACCOUNT') { await teacherSignIn({ login: typed, password }); return; }
+        // A parent's card or number (2026-11-19): the parent sign-in finishes it, and they land on their dashboard.
+        if (res.code === 'PARENT_CARD' || res.code === 'PARENT_ACCOUNT') { await parentSignIn({ login: typed, password }); return; }
         if (res.code === 'DEVICE_LIMIT' && res.device) { setDeviceConflict(res.device); setLoading(false); return; }
         failed(res.error);
     };
@@ -498,7 +510,7 @@ const Login = () => {
                 <section className="relative px-6 py-9 sm:px-10 sm:py-11 lg:px-12 lg:py-12">
                     <div className="mx-auto flex h-full max-w-sm flex-col justify-center">
                         <div className="lg-rise" style={{ animationDelay: '0.1s' }}>
-                            <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-8 h-7 w-auto object-contain lg:hidden" />
+                            <img src="/assets/YATICORP.png" alt="YATICORPX3" className="mb-8 h-7 w-auto object-contain lg:hidden" />
                             <h2 className="text-[26px] font-semibold tracking-tight text-white">Welcome back</h2>
                             <p className="mt-1.5 text-sm text-slate-400">Sign in with your card number or mobile number.</p>
                         </div>

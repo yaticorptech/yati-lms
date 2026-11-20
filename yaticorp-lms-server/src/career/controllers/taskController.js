@@ -343,7 +343,7 @@ const getTasks = async (req, res) => {
     // Where one of today's tasks is already covered by a lesson in a course the
     // student owns, that lesson wins. The AI lesson is a fallback for topics the
     // catalogue does not reach — sending a student to a stranger's video for
-    // something YATICORP already teaches them properly is the wrong answer.
+    // something YATICORPX3 already teaches them properly is the wrong answer.
     //
     // Matching is a token overlap rather than a model call: it is per-task, so
     // asking Gemini would multiply the daily quota by the size of every plan.
@@ -366,7 +366,7 @@ const getTasks = async (req, res) => {
         hasLesson: lessonByTask.has(String(t._id)),
         lesson: lessonByTask.get(String(t._id)) || null,
         // A real lesson from one of their own courses, when this task is about
-        // something YATICORP teaches. Null the rest of the time.
+        // something YATICORPX3 teaches. Null the rest of the time.
         courseLesson: courseLessonByTask.get(String(t._id)) || null
       })),
       context: plannerContext || null,

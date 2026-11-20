@@ -499,7 +499,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.deepEqual([result.tabs, result.card], [[], 'g1'], 'the path, without the tabs (2026-10-27), at that lesson');
     });
 
-    test('inside pages: a click on the empty page opens the dashboard; not on a banner, nor a click that only closes the START card (2026-10-26)', async () => {
+    test('inside pages: a click on the empty page stays on the page (2026-11-19, was: opened the dashboard); a click outside the START card closes it', async () => {
         const { result, errors } = await screen({ entry: app('/linguistic?lesson=g1'), api: apiModule(SHELL_API), styles: true, script: `
             await sleep(1200);
             const tap = async (el) => { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); el.click(); await sleep(500); };
@@ -516,7 +516,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.equal(result.card, true);
         assert.deepEqual(result.closing, { card: false, dashboard: false }, 'the first click only closes the START card');
         assert.equal(result.banner, false, 'a click on a unit banner stays');
-        assert.equal(result.after, true, 'a click on the empty page opens the dashboard');
+        assert.equal(result.after, false, 'a click on the empty page stays (2026-11-19)');
     });
 
     test('straight to Advanced (2026-10-31): under the locked section, the Advanced entry test; it opens; tried and not passed, it says they learn from Beginner', async () => {

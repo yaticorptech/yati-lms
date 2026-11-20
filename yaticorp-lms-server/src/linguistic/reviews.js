@@ -127,7 +127,9 @@ const moreFor = (stub, helper) => {
     const t = CONTENT.find((l) => l.module === 'translation' && l.level === stub.level && (Number(l.order) || 1) === order);
     const built = t && make(t);
     if (!built || built.notForLanguage || built.languageFallback) return out;
-    const pair = (it) => (built.direction === 'kn-en' ? { target: it.model, helper: it.source } : { target: it.source, helper: it.model });
+    // By the sentence's own way when it has one (2026-11-18: a short one to read, 'en-kn' in a 'kn-en' lesson, came out as
+    // an English choice — "He is my friend." — among the Spanish ones).
+    const pair = (it) => ((it.direction || built.direction) === 'kn-en' ? { target: it.model, helper: it.source } : { target: it.source, helper: it.model });
     const usable = (it) => !it.open && it.source && it.model;
     out.pool = [...(built.items || []), ...(built.quiz || [])].filter(usable).map((it) => pair(it).target);
     const mine = parts.cut(built, as(t, part));
@@ -202,7 +204,7 @@ function assessmentOf(stub, helper, out, level) {
     const pool = [];
     for (const t of at('translation').map(make)) {
         if (!t || t.notForLanguage || t.languageFallback) continue;
-        const pair = (it) => (t.direction === 'kn-en' ? { target: it.model, helper: it.source } : { target: it.source, helper: it.model });
+        const pair = (it) => ((it.direction || t.direction) === 'kn-en' ? { target: it.model, helper: it.source } : { target: it.source, helper: it.model });
         for (const it of [...(t.items || []), ...(t.quiz || [])].filter((x) => !x.open && x.source && x.model)) {
             const p = pair(it);
             pool.push(p.target);

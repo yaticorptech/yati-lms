@@ -29,7 +29,7 @@
  *
  * Locked until the platform's superadmin unlocks 360 for the organization
  * (2026-11-04, Organizations → 360): the page shows blurred behind a note
- * asking the YATICORP team to unlock it (the server answers allowed: false,
+ * asking the YATICORPX3 team to unlock it (the server answers allowed: false,
  * and refuses changes with a 403). The 60-second refresh opens it once unlocked.
  */
 import React, { useEffect, useRef, useState } from 'react';
@@ -544,7 +544,7 @@ const OrgActivities = ({ onNotice }) => {
                             </li>
                         ))}
                     </ol>
-                    <p className="mt-5 rounded-xl bg-indigo-50 px-4 py-3 text-center text-sm font-medium text-indigo-800">This section is not unlocked for your organization yet. Ask the YATICORP team to unlock Student Ranking.</p>
+                    <p className="mt-5 rounded-xl bg-indigo-50 px-4 py-3 text-center text-sm font-medium text-indigo-800">This section is not unlocked for your organization yet. Ask the YATICORPX3 team to unlock Student Ranking.</p>
                 </div>
             </div>
         </div>

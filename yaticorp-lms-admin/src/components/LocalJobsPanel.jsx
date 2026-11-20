@@ -122,7 +122,7 @@ const JobForm = ({ initial, vocab, onClose, onSaved }) => {
                     <Field label="Verified organisation" hint="Under-18s only ever see verified organisations.">
                         <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm">
                             <input type="checkbox" checked={f.verified} onChange={(e) => set({ verified: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
-                            <BadgeCheck size={14} className="text-emerald-600" /> Verified by the LMS team
+                            <BadgeCheck size={14} className="text-emerald-600" /> Verified by the YATICORPX3 team
                         </label>
                     </Field>
                     <Field label="Description" span={2}><textarea value={f.description} onChange={(e) => set({ description: e.target.value })} rows={3} className={INPUT} /></Field>

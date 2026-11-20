@@ -43,6 +43,7 @@ function Letter({ char, say, speak, pinyin = '', locale, color, small = false, w
 export default function LettersChart() {
     const [chart, setChart] = useState(undefined);
     const [error, setError] = useState(null);
+    const [voiceNote, setVoiceNote] = useState('');
     const [heard, setHeard] = useState('');
     const [packed, setPacked] = useState(false); // the letters' audio is on the device
     const navigate = useNavigate();
@@ -59,7 +60,14 @@ export default function LettersChart() {
     // Every letter's sound downloaded first, as a unit's audio is (2026-11-11).
     if (!packed && needsPack(lettersPackId(chart.course.code))) return <AudioPack chart={chart} onReady={() => setPacked(true)} onCancel={() => navigate('/linguistic')} />;
     const english = chart.course.code === 'en';
-    const hear = (char, speak) => { setHeard(char); play(null, english ? char : speak || char, chart.locale); };
+    // A sound not made yet takes the AI voice up to a minute (2026-11-17, "some letters have no voice"): said so, not silent.
+    const hear = (char, speak) => {
+        setHeard(char); setVoiceNote('');
+        play(null, english ? char : speak || char, chart.locale, {
+            onLoading: (on) => setVoiceNote(on ? `Making the sound for ${char}… the first time takes up to a minute. Then it plays at once.` : ''),
+            onError: (msg) => setVoiceNote(msg || 'This sound could not be made. Try again in a moment.')
+        });
+    };
     const voice = canSpeakIn(chart.locale);
     // The vowel signs' own lessons (ಕ ಖ, ಗ ಘ… since 2026-11-13) repeat the kagunita's rows: the table has them all.
     const groups = chart.table ? chart.groups.filter((g) => !String(g.id).startsWith('signs')) : chart.groups;
@@ -68,6 +76,7 @@ export default function LettersChart() {
             <div>
                 <h1 className="text-2xl font-extrabold text-[#3c3c3c] sm:text-3xl">{chart.course.name} letters <span className="font-bold text-[#AFAFAF]" lang={chart.course.code}>· {chart.course.native}</span></h1>
                 <p className="mt-1 flex items-center gap-2 text-[15px] font-semibold text-[#777]"><Volume2 size={18} style={{ color: COLORS.blue.face }} /> Tap a letter to hear it. Its sound is written above it in English letters.</p>
+                {voiceNote && <p className="sticky top-2 z-10 mt-2 flex items-center gap-2 rounded-xl bg-[#DDF4FF] px-3 py-2 text-sm font-bold text-[#1899D6] shadow-sm" role="status" data-voice-note>{voiceNote}</p>}
                 {!voice && <p className="mt-2 rounded-xl bg-[#FFF5D3] px-3 py-2 text-sm font-bold text-[#CD7900]" role="status">This device has no voice for {chart.course.name}: add one in its text-to-speech settings to hear the letters.</p>}
             </div>
             {groups.map((g, i) => (

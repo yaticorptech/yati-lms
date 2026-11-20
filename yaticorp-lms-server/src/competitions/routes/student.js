@@ -204,7 +204,7 @@ router.get('/certificates', wrap(async (req, res) => {
         if (player?.certificateHiddenAt) return null;
         return {
             competitionId: String(c._id), name: c.name, game: c.game, gameLabel: GAME[c.game] || c.game,   // as the PDF names it
-            organizedBy: c.organizedBy || 'YATICORP', completedAt: c.completedAt,
+            organizedBy: c.organizedBy || 'YATICORPX3', completedAt: c.completedAt,
             teamName: team.teamName, collegeName: team.collegeName, place: team.place || null,
             title: team.place ? TITLE[team.place] : 'Certificate of Participation',
             playerName: player?.name || req.user.name,

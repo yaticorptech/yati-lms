@@ -1,11 +1,11 @@
 /**
  * The Certificate Builder (asked 2026-10-31): one set of routes, mounted twice like the competition management —
- *   /api/competitions/admin/certificates   the platform admin (super admin): every competition, Yaticorp branding
+ *   /api/competitions/admin/certificates   the platform admin (super admin): every competition, YATICORPX3 branding
  *   /api/competitions/org/certificates     an organization admin: the competitions it hosted, and its own students
  *                                          in the ones it took part in; its own branding if it wants
  *
  *   GET    /templates                         the template gallery { id, name, swatch, dark }
- *   GET    /defaults                          the branding the form starts with (Yaticorp's, or the organization's name)
+ *   GET    /defaults                          the branding the form starts with (YATICORPX3's, or the organization's name)
  *   GET    /competitions                      the competition types: Chess, Rapid Fire, Code Clash, Brain Sprint, Quiz Arena
  *   GET    /competitions/:kind/:id/participants   who took part, with their place
  *   GET    /designs/for/game/:game            a competition type's certificate design, and how many issued
@@ -232,7 +232,7 @@ const certificateRoutes = (scope = 'platform') => {
         await render.pdf(res, design, [{ certId: 'YC-PREVIEW', recipient: { name, institution: design.details.mode === 'inter' ? 'Participating College' : '' }, award: { kind, title: '' } }], `Certificate_preview.pdf`);
     }));
 
-    // What the form starts with: Yaticorp's branding on the platform's certificates; an organization's own name on its.
+    // What the form starts with: YATICORPX3's branding on the platform's certificates; an organization's own name on its.
     router.get('/defaults', (req, res) => res.json(scope === 'platform'
         ? { scope, yaticorp: true, brandName: 'Inter College Competition', tagline: 'Learn · Compete · Grow', org: 'Yaticorp India Pvt Ltd' }
         : { scope, yaticorp: false, brandName: 'Inter College Competition', tagline: 'Learn · Compete · Grow', org: req.organization.name || '' }));
@@ -272,7 +272,7 @@ const certificateRoutes = (scope = 'platform') => {
             signatories: (Array.isArray(b.signatories) ? b.signatories : []).slice(0, 3).map((s, i) => ({ name: str(s?.name, 80), designation: str(s?.designation, 80), signature: picture(s?.signature, `Signature ${i + 1}`) }))
                 .filter((s) => s.name || s.designation || s.signature),
             branding: {
-                // Yaticorp's own competitions carry its branding; an organization may use its own, or none.
+                // YATICORPX3's own competitions carry its branding; an organization may use its own, or none.
                 yaticorp: scope === 'platform' ? brandingIn.yaticorp !== false : Boolean(brandingIn.yaticorp),
                 name: str(brandingIn.name, 80), tagline: str(brandingIn.tagline, 80), org: str(brandingIn.org, 100),
                 logo: picture(brandingIn.logo, 'The logo'), seal: picture(brandingIn.seal, 'The seal'),

@@ -1,6 +1,6 @@
 /**
- * @author YATICORP
- * @description Shared-secret guard for the website -> LMS sync webhook
+ * @author YATICORPX3
+ * @description Shared-secret guard for the website -> YATICORPX3 sync webhook
  */
 
 /**

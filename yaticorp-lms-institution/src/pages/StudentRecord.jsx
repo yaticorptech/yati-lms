@@ -82,7 +82,7 @@ export const AdmissionForm = ({ dept, student, pick, fresh, card, onClose, onDon
                             <Field label="CVV"><Input value={person.cvv} onChange={setP('cvv')} inputMode="numeric" className="font-mono" required /></Field>
                             <Field label="QR code number"><Input value={person.qrCodeNumber} onChange={setP('qrCodeNumber')} className="font-mono" required /></Field>
                         </div>
-                        <p className="mt-2 text-xs text-ink-3">From the student’s YATICORP AI card. The card gives them their Institution dashboard.</p>
+                        <p className="mt-2 text-xs text-ink-3">From the student’s YATICORPX3 AI card. The card gives them their Institution dashboard.</p>
                     </section>
                 )}
                 <section>

@@ -117,6 +117,10 @@ export const stepSpeech = (step) => {
             if (!q.audio) put(q.say, q.sayLang || 'en-IN');
             if (q.promptSay) put(q.promptSay.text, q.promptSay.locale);
             if (q.kannada && !q.audio) put(step.word?.word);
+            // Choices read aloud as they are tapped (optionsSay), made ahead too (2026-11-18, the user: "voice is not there"
+            // — a Punjabi sentence to choose was only asked for when tapped, and the AI voice takes a minute to make it):
+            // as Choices says them (exercises.jsx), by optionsSpeak or without the picture in front.
+            if (q.optionsSay && q.kind !== 'listen') (q.options || []).forEach((o) => put(q.optionsSpeak?.[o] || String(o).replace(/^(?:\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}]|\uFE0F|\u200D|\s)+/u, '').trim(), q.optionsSay));
             break;
         }
         default: break;

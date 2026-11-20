@@ -1,5 +1,5 @@
 /**
- * The teacher side of YATICORP: its own accounts and its own research records.
+ * The teacher side of YATICORPX3: its own accounts and its own research records.
  *
  * Teachers are a separate collection, not students with a flag: every student
  * list, leaderboard, report and Career Path query reads `users`, and a teacher

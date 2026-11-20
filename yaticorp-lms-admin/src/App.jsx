@@ -113,6 +113,7 @@ const OrgNccNss = React.lazy(() => import('./pages/org/OrgNccNss'));
 const OrgResearch = React.lazy(() => import('./pages/org/OrgResearch'));
 const OrgSettings = React.lazy(() => import('./pages/org/OrgSettings'));
 const OrgStudentRequests = React.lazy(() => import('./pages/org/OrgStudentRequests'));
+const OrgParentAnnouncements = React.lazy(() => import('./pages/org/OrgParentAnnouncements'));
 const OrgUsers = React.lazy(() => import('./pages/org/OrgUsers'));
 const OrgBsgNotices = React.lazy(() => import('./pages/org/OrgBsgNotices'));
 const OrgBsgDashboard = React.lazy(() => import('./pages/org/OrgBsgDashboard'));
@@ -207,6 +208,7 @@ function App() {
         <Route path="bsg-notices" element={<OrgBsgNotices />} />
         <Route path="settings" element={<OrgSettings />} />
         <Route path="student-requests" element={<OrgStudentRequests />} />
+        <Route path="parent-announcements" element={<OrgParentAnnouncements />} />
         {/* Any other address in here: said inside the shell, menu and all. */}
         <Route path="*" element={<OrgNotFound />} />
       </Route>

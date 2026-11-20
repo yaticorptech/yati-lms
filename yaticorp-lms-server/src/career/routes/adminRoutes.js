@@ -1,9 +1,9 @@
 /**
  * Career Path reporting for administrators (read-only, but for confirming a held games-zone change).
  *
- * Guarded by the LMS's own admin middleware, not by `protect` — an admin is not
+ * Guarded by YATICORPX3's own admin middleware, not by `protect` — an admin is not
  * a student and has no student token. Mounted inside the career router so the
- * LMS never has to require anything from career_*.
+ * YATICORPX3 never has to require anything from career_*.
  */
 const express = require('express');
 const router = express.Router();

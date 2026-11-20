@@ -113,7 +113,7 @@ const CoursePlayer = () => {
             const response = await fetch(url);
             const blob = await response.blob();
             // The browser's download on the web; the share sheet in the app.
-            await downloadWithDrive(blob, filename || 'document.pdf', { description: 'A course file from YATICORP.', reason: 'So the course files you download are kept in your own Google Drive.' });
+            await downloadWithDrive(blob, filename || 'document.pdf', { description: 'A course file from YATICORPX3.', reason: 'So the course files you download are kept in your own Google Drive.' });
         } catch (error) {
             console.error('Failed to download PDF directly:', error);
             // Fallback: Just open the URL normally if blob fetching fails (e.g. strict CORS proxy)
@@ -163,7 +163,7 @@ const CoursePlayer = () => {
             const fileName = `Certificate_${courseData.course.title.replace(/\s+/g, '_')}.pdf`;
             // A browser download on the web; in the app, where a web view
             // cannot download, the phone's save/share sheet (native/saveFile).
-            if (await downloadWithDrive(blob, fileName, { title: 'Certificate', description: `Your certificate for ${courseData.course.title}, issued by YATICORP.`, reason: CERT_DRIVE_REASON })) setCertResult({ downloaded: true });
+            if (await downloadWithDrive(blob, fileName, { title: 'Certificate', description: `Your certificate for ${courseData.course.title}, issued by YATICORPX3.`, reason: CERT_DRIVE_REASON })) setCertResult({ downloaded: true });
         } catch (e) {
             if (askIfDriveRequired(e, CERT_DRIVE_REASON)) return;
             // A short wallet balance says what the certificate costs (Wallet rules).

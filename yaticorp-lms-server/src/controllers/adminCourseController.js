@@ -378,7 +378,7 @@ const deleteModule = async (req, res) => {
 
         await Lesson.deleteMany({ moduleId: module._id });
         await Module.deleteOne({ _id: module._id });
-        res.json({ message: 'Module and related lessons removed from LMS and VdoCipher' });
+        res.json({ message: 'Module and related lessons removed from YATICORPX3 and VdoCipher' });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -461,7 +461,7 @@ const deleteLesson = async (req, res) => {
         await removeLessonVideos([lesson], req);
 
         await Lesson.deleteOne({ _id: lesson._id });
-        res.json({ message: 'Lesson removed from LMS and VdoCipher' });
+        res.json({ message: 'Lesson removed from YATICORPX3 and VdoCipher' });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }

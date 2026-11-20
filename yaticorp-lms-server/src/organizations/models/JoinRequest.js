@@ -59,7 +59,9 @@ const joinRequestSchema = new mongoose.Schema({
     campus: {
         type: new mongoose.Schema({ departmentId: mongoose.Schema.Types.ObjectId, semester: Number, section: String }, { _id: false }),
         default: undefined
-    }
+    },
+    // The class asked for (Organization.campus.classes, 2026-11-19): on approval the student is in it.
+    classId: { type: mongoose.Schema.Types.ObjectId, default: null }
 }, { timestamps: true });
 
 /**

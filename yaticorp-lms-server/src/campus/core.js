@@ -14,7 +14,7 @@ const Organization = require('../organizations/models/Organization');
 const User = require('../models/User');
 
 const { ObjectId } = mongoose.Types;
-const LISTS = ['departments', 'subjects', 'fees', 'exams', 'feedback', 'timetables', 'announcements', 'applications'];
+const LISTS = ['classes', 'departments', 'subjects', 'fees', 'exams', 'feedback', 'timetables', 'announcements', 'applications'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The admission form's fields beyond the class: [key, label]. */

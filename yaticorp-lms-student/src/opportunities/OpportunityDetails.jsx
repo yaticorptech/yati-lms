@@ -179,7 +179,7 @@ export default function OpportunityDetails({ id, vocab, onClose, onInterested, o
                             ) : (
                                 <p className="flex items-start gap-2 text-xs text-slate-500">
                                     <Lock size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
-                                    Contact details are not shown for your age group. Mark interest and the organisation reaches your guardian through the LMS.
+                                    Contact details are not shown for your age group. Mark interest and the organisation reaches your guardian through YATICORPX3.
                                 </p>
                             )}
                         </div>

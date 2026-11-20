@@ -29,7 +29,7 @@ api.interceptors.request.use(config => {
         config.headers.Authorization = `Bearer ${token}`;
     }
     Object.assign(config.headers, deviceHeaders());
-    // A save anywhere in the LMS (a finished lesson, a redeemed reward) can
+    // A save anywhere in YATICORPX3 (a finished lesson, a redeemed reward) can
     // change what Career Path shows, so its cached reads are dropped.
     if ((config.method || 'get').toLowerCase() !== 'get') clearCareerCache();
     // Priced features ask before taking money (utils/walletCharge).

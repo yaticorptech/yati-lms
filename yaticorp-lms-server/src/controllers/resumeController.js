@@ -1,10 +1,10 @@
 /**
  * @description The profile page's resume: keep the student's own file, read
- *              its skills, and generate the ATS resume the LMS builds from
+ *              its skills, and generate the ATS resume YATICORPX3 builds from
  *              their courses.
  *
  * The record is the Jobs section's ResumeProfile — one resume per student
- * across the LMS. The Jobs tab parses and discards; this page also keeps the
+ * across YATICORPX3. The Jobs tab parses and discards; this page also keeps the
  * file (on Bunny) so the student can open the one they uploaded.
  */
 const multer = require('multer');
@@ -95,7 +95,7 @@ const uploadResume = (req, res) => {
             // 1. Keep the file: in the student's own Google Drive, shared by link (2026-11-02).
             let fileUrl = '', objectPath = '', driveFileId = '';
             if (await usesDrive(req.user._id)) {
-                const d = await storeInDrive(req.user._id, req.file.buffer, { name: filename, mimeType: mime, description: 'The resume you uploaded to YATICORP.' });
+                const d = await storeInDrive(req.user._id, req.file.buffer, { name: filename, mimeType: mime, description: 'The resume you uploaded to YATICORPX3.' });
                 fileUrl = d.viewUrl; driveFileId = d.driveFileId;
             } else if (bunnyConfigured()) {
                 fileUrl = await uploadToBunny(req.file.buffer, filename, 'lms_resumes');

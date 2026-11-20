@@ -6,7 +6,7 @@ import useCountUp from '../../../hooks/useCountUp';
  * 🔥 The learning streak: the run of days, the last seven of them, and the
  * week's quests against the week before.
  *
- * The habit half of MomentumCard, on its own so the LMS Dashboard's Weekly
+ * The habit half of MomentumCard, on its own so YATICORPX3 Dashboard's Weekly
  * activity tab can show the very same panel. It draws no frame of its own —
  * MomentumCard sets it beside the level, the Dashboard sets it in a card —
  * so `className` carries whatever border the host needs, and `children`

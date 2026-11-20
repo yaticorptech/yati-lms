@@ -49,7 +49,7 @@ const ResetPassword = () => {
 
             <div className="mx-auto w-full max-w-md z-10 text-center">
                 <h2 className="mt-2 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                    YATICORP <span className="text-indigo-400">LMS-ADMIN</span>
+                    YATICORPX3 <span className="text-indigo-400">LMS-ADMIN</span>
                 </h2>
                 <p className="mt-2 text-sm text-slate-400">Choose a new password</p>
             </div>

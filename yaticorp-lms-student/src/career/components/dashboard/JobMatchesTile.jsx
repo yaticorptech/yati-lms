@@ -29,7 +29,7 @@ import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Briefcase, ArrowRight, MapPin } from 'lucide-react';
 
-// Deliberate imports from outside the career section: the LMS context carries
+// Deliberate imports from outside the career section: YATICORPX3 context carries
 // the admin lock on Jobs, and jobs/api carries the profile the prefill uses —
 // reusing it keeps "what Career Path tells the job board" defined once.
 import { AuthContext as LmsAuthContext } from '../../../context/AuthContext';
@@ -125,7 +125,7 @@ export default function JobMatchesTile() {
           </Link>
         }
       />
-      {/* Three across only once there is room for three. At `sm` the LMS
+      {/* Three across only once there is room for three. At `sm` YATICORPX3
           sidebar is still taking 16rem, so three job cards were sharing about
           570px and every company name truncated mid-word — "Staff Data
           Scientist,…" three times over, which tells the student nothing.

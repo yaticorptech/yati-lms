@@ -3,7 +3,7 @@
  *
  *   activity → (dedupe) → XP → streak → milestones → badges → events
  *
- * Every hook in the LMS calls recordActivity; it is safe to call twice for
+ * Every hook in YATICORPX3 calls recordActivity; it is safe to call twice for
  * the same thing (the second call is a no-op) and it never throws, because a
  * reward failing must not fail the lesson that earned it.
  */
@@ -56,7 +56,7 @@ const DESCRIPTIONS = {
   friendly_game_win: 'for winning a multiplayer game',
   course_enroll: 'for enrolling in a course',
   opportunity_profile: 'for setting up your part-time jobs profile',
-  organization_join: 'for joining your college on YATICORP',
+  organization_join: 'for joining your college on YATICORPX3',
   bio_strength_full: 'for a complete Learning Bio',
   google_connect: 'for connecting your Google account'
 };
@@ -83,13 +83,14 @@ const recordActivity = async ({ userId, type, refId, courseId = null, meta = {},
   try {
     activity = await LearningActivity.create({ userId, type, refId: String(refId), courseId: courseId ? String(courseId) : null, day, meta });
   } catch (err) {
-    if (isDuplicate(err)) return { enabled: config.enabled !== false, duplicate: true, events: [] };
+    if (isDuplicate(err)) return { enabled: config.enabled !== false || await require('../../services/fullAccess').fullAccessForUserId(userId), duplicate: true, events: [] };
     throw err;
   }
 
   // Only the payouts — XP, the streak and its milestones, badges — wait on
   // the switch.
-  if (!config.enabled) return { enabled: false, duplicate: false, events: [] };
+  // The demo cards earn while it is off for everyone else (services/fullAccess.js, 2026-11-18).
+  if (!config.enabled && !(await require('../../services/fullAccess').fullAccessForUserId(userId))) return { enabled: false, duplicate: false, events: [] };
 
   const events = [];
   const xpAmount = skipXp ? 0 : Number(config.xpRules[type] || 0);
@@ -113,7 +114,7 @@ const recordActivity = async ({ userId, type, refId, courseId = null, meta = {},
   return { enabled: true, duplicate: false, events, xp: xp?.xp, level: xp?.level, streak: streak.current };
 };
 
-// What every LMS hook actually calls.
+// What every YATICORPX3 hook actually calls.
 const safeRecordActivity = async (params) => {
   try {
     return await recordActivity(params);

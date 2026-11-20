@@ -3,7 +3,7 @@
  *
  * Without this, `npm run jobs:ingest` is a thing someone must remember:
  * listings go stale in 45 days, new ones never arrive, and the decay is
- * invisible until a student's search comes back thin. The LMS already keeps
+ * invisible until a student's search comes back thin. The YATICORPX3 already keeps
  * itself tidy on setIntervals in server.js (ticket cleanup, job alerts); this
  * is the same pattern for the job index.
  *

@@ -1,5 +1,5 @@
 /**
- * YATICORP Institution — Campus, the student management system, as its own app.
+ * YATICORPX3 Institution — Campus, the student management system, as its own app.
  *
  * Four kinds of sign-in, one menu each (the server enforces the same, src/campus/orgAdmin.js):
  *   admin       the organization: every page, every department, Departments and the Exam board

@@ -8,7 +8,7 @@
  * matched; the score is the share of the text's words that are.
  *
  * Its reach is honest: it compares against the documents on this platform
- * (theses and writing on YATICORP), not the whole internet — the page says so.
+ * (theses and writing on YATICORPX3), not the whole internet — the page says so.
  */
 
 const SHINGLE = 7;

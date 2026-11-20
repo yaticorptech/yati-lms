@@ -97,7 +97,7 @@ app.use(express.json());
 
 // Basic Route
 app.get('/', (req, res) => {
-    res.send('YATICORP LMS API is running...');
+    res.send('YATICORPX3 API is running...');
 });
 
 // Serve Static Files
@@ -154,6 +154,8 @@ app.use('/api/live', require('./src/live'));
 // The teacher dashboard: research methodologies, research path, publications,
 // thesis writing, plagiarism and independent writing (src/teacher).
 app.use('/api/teacher', require('./src/teacher'));
+// The parent dashboard (2026-11-19): a parent signs in with their own card and follows their children (src/parent).
+app.use('/api/parent', require('./src/parent'));
 // Public share links for Career Path milestone badges: /b/<code> renders the
 // page a student's followers open, /b/<code>/image.png is what LinkedIn, X and
 // WhatsApp embed. Deliberately outside /api and deliberately unauthenticated —

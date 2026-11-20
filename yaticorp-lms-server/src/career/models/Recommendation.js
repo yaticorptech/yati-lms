@@ -13,7 +13,7 @@ const recommendationSchema = new mongoose.Schema(
       required: true,
       ref: 'CareerRoadmap'
     },
-    // Courses from YATICORP's own catalogue that fit this student's goal, picked
+    // Courses from YATICORPX3's own catalogue that fit this student's goal, picked
     // by the model from a list of real ids and validated against it before it
     // gets here. Kept separate from `courses`, which is outside platforms.
     yaticorpCourses: { type: Array, default: [] },

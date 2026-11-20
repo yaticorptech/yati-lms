@@ -20,7 +20,7 @@ const xpOnSuccess = (type, ref) => (req, res, next) => {
       const refId = ref(req);
       if (refId === null || refId === undefined || refId === '') return;
       const config = await getConfig();
-      if (config.enabled === false || !(Number(config.xpRules?.[type]) > 0)) return;
+      if ((config.enabled === false && !(await require('../../services/fullAccess').fullAccessForUserId(req.user._id))) || !(Number(config.xpRules?.[type]) > 0)) return;
       await safeRecordActivity({ userId: req.user._id, type, refId: String(refId) });
     } catch (e) { console.error(`[rewards] ${type} XP failed:`, e.message); }
   });
@@ -39,7 +39,7 @@ const recordIfRuled = async ({ userId, type, refId, meta = {} }) => {
   try {
     if (!userId || refId === null || refId === undefined || refId === '') return null;
     const config = await getConfig();
-    if (config.enabled === false || !(Number(config.xpRules?.[type]) > 0)) return null;
+    if ((config.enabled === false && !(await require('../../services/fullAccess').fullAccessForUserId(userId))) || !(Number(config.xpRules?.[type]) > 0)) return null;
     return await safeRecordActivity({ userId, type, refId: String(refId), meta });
   } catch (e) { console.error(`[rewards] ${type} XP failed:`, e.message); return null; }
 };

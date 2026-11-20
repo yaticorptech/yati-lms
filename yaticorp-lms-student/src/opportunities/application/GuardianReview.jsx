@@ -4,7 +4,7 @@
  *
  * Deliberately outside the student app's shell. A guardian has no account
  * here, arrives from a message, and should see one page about one job — not a
- * sign-in, and not the rest of the LMS.
+ * sign-in, and not the rest of YATICORPX3.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -171,7 +171,7 @@ export default function GuardianReview() {
                         </button>
                     </div>
                     <p className="mt-3 text-center text-xs leading-relaxed text-slate-500">
-                        Only you can answer this. Nobody at the school or the LMS can approve it for you.
+                        Only you can answer this. Nobody at the school or YATICORPX3 can approve it for you.
                     </p>
                 </div>
             )}
@@ -179,7 +179,7 @@ export default function GuardianReview() {
             {confirming === 'approve' && !answered && (
                 <ConfirmDialog
                     title="Give permission?"
-                    body={`This tells the LMS that you allow ${req.student.name || 'this student'} to go ahead with this job. Your school checks it afterwards.`}
+                    body={`This tells YATICORPX3 that you allow ${req.student.name || 'this student'} to go ahead with this job. Your school checks it afterwards.`}
                     confirmLabel={busy === 'approve' ? 'Approving…' : 'Yes, I approve'}
                     tone="emerald"
                     busy={busy === 'approve'}

@@ -3,13 +3,13 @@
  *              mounted under /api/jobs.
  *
  * Ported from the standalone CareerCompass app. Three things were left behind:
- * its own Express server (this is a router inside the LMS), its own database
- * connection (the LMS owns one, see ./config/db.js) and its anonymous
+ * its own Express server (this is a router inside YATICORPX3), its own database
+ * connection (YATICORPX3 owns one, see ./config/db.js) and its anonymous
  * sessionId identity — every caller here is a signed-in student, so searches
  * are keyed on the real user.
  *
  * Every model registers as JobBoard* over a jobboard_* collection so that
- * generic names — Job, Role, Search — cannot collide with an LMS model added
+ * generic names — Job, Role, Search — cannot collide with an YATICORPX3 model added
  * later. Same arrangement as the career module next door.
  */
 const express = require('express');

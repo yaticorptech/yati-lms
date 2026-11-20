@@ -86,8 +86,8 @@ export const AdmissionForm = ({ dept, student, pick, fresh, card, application, o
                             <Field label="QR code number"><Input value={person.qrCodeNumber} onChange={setP('qrCodeNumber')} className="font-mono" required={!application} /></Field>
                         </div>
                         <p className="mt-2 text-xs text-ink-3">{application
-                            ? 'From the student’s YATICORP AI card. Leave empty if they already have a YATICORP account with this email — they are admitted on it.'
-                            : 'From the student’s YATICORP AI card. The card gives them their Institution dashboard.'}</p>
+                            ? 'From the student’s YATICORPX3 AI card. Leave empty if they already have a YATICORPX3 account with this email — they are admitted on it.'
+                            : 'From the student’s YATICORPX3 AI card. The card gives them their Institution dashboard.'}</p>
                     </section>
                 )}
                 <section>

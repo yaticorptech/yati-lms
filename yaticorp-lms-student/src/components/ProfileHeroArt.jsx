@@ -1,7 +1,7 @@
 /**
  * @description The profile hero's illustration: a student with a laptop by
  *              a window, shelf and plants — flat vector, drawn inline so it
- *              is crisp at any size, themed to the LMS purple, and never a
+ *              is crisp at any size, themed to YATICORPX3 purple, and never a
  *              broken image. A few pieces drift gently; nothing loops fast.
  */
 export default function ProfileHeroArt({ className = '' }) {
