@@ -10,6 +10,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { Plus, Edit2, Trash2, ArrowLeft, GripVertical, Video, FileText, CheckSquare, Briefcase, ChevronDown, ChevronRight, Settings, ArrowUpDown, UploadCloud, Search, EyeOff, Eye, Book, HelpCircle, Clock, PlayCircle, PenTool, Layout, CheckCircle2, ExternalLink, X } from 'lucide-react';
 import AddLessonModal from '../components/AddLessonModal';
 import { useCourseScope } from '../utils/courseScope';
+import { studentAppUrl } from '../utils/studentUrl';
 
 const CourseEditor = () => {
     // Platform courses, or an organization's own — see utils/courseScope.js.
@@ -310,7 +311,7 @@ const CourseEditor = () => {
                     <button
                         onClick={() => {
                             const token = localStorage.getItem('adminToken');
-                            const studentUrl = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5173';
+                            const studentUrl = studentAppUrl('http://localhost:5173');
                             window.open(`${studentUrl}/preview/${id}?token=${token}`, '_blank');
                         }}
                         className="flex items-center px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold bg-white text-slate-800 hover:bg-slate-50 transition-colors shadow-sm"

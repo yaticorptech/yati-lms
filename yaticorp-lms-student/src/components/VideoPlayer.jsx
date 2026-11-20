@@ -108,6 +108,8 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
     const [interruptedAt, setInterruptedAt] = useState(null);
     // The media error it gave up on, so the overlay can say what went wrong.
     const [errorCode, setErrorCode] = useState(null);
+    // The browser's own words for it (Chrome: DEMUXER_ERROR_…, PIPELINE_ERROR_…), shown small so a phone's screenshot names the cause.
+    const [errorDetail, setErrorDetail] = useState('');
     // Seconds the video was resumed from; shown briefly so 12:34 is not a surprise.
     const [resumedFrom, setResumedFrom] = useState(null);
 
@@ -258,6 +260,7 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
             // browser's codec support failed, and Chrome adds its own detail.
             console.error('[VideoPlayer] giving up on video', { url, code: v.error.code, detail: v.error.message, at });
             setErrorCode(v.error.code);
+            setErrorDetail(`code ${v.error.code}${v.error.message ? ` · ${v.error.message}` : ''}`);
             setInterruptedAt(at);
             return;
         }
@@ -314,6 +317,8 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
                 ref={videoRef}
                 src={url}
                 controls
+                playsInline
+                preload="metadata"
                 controlsList="nodownload noplaybackrate"
                 disablePictureInPicture
                 onContextMenu={(e) => e.preventDefault()}
@@ -342,6 +347,7 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-black/80 p-6 text-center text-white">
                     <p className="font-semibold">{failureText(interruptedAt, errorCode).title}</p>
                     <p className="mt-1 max-w-sm text-sm text-slate-300">{failureText(interruptedAt, errorCode).hint}</p>
+                    {errorDetail && <p className="mt-2 max-w-sm break-words font-mono text-[10px] text-slate-500">{errorDetail}</p>}
                     <button
                         type="button"
                         onClick={retryNow}

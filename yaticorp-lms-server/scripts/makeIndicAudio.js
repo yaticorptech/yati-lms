@@ -118,8 +118,9 @@ const mins = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Mat
         const capOf = (t) => { const n = [...t].length; return n <= 3 ? 1.4 : Math.min(30, 1.2 + 0.12 * n); };
         let bad = 0;
         for (const c of clips) {
-            if (!store.has(c)) continue;
-            const f = store.fileOf(c); const b = fs.readFileSync(f);
+            // Only a clip kept as it is served now (store.js: tidied); one still to be tidied from its first recording is passed over.
+            const f = store.fileOf(c); if (!fs.existsSync(f)) continue;
+            const b = fs.readFileSync(f);
             const secs = (b.length - 44) / (b.readUInt16LE(34) / 8) / b.readUInt32LE(24);
             if (secs > capOf(c.text) + 0.1) { if (!DRY) fs.unlinkSync(f); bad++; }
         }

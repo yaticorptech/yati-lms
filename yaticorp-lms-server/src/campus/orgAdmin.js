@@ -108,7 +108,26 @@ const canTeach = (req, subject) => req.campusRole === 'admin' || req.campusRole 
     || (req.campusRole === 'teacher' && (subject.teacherIds || []).some((t) => same(t, req.admin._id)));
 /** The departments this teacher heads: chosen as Head of department (by account, or by name for older set-ups). */
 // By account only: a name can be changed or shared, so it never makes anyone a head.
-const hodDepartments = (req) => req.campus.departments.filter((d) => d.headId && same(d.headId, req.admin._id));
+/*
+ * A demo card's teacher (services/demoDashboards.js; 2026-11-19, the owner: "in the teacher's dashboard show the
+ * HOD tasks") works as a head too, so a presentation shows the Department (HOD) menu: of the department named in
+ * DEMO_DEPARTMENT (its name or code) — or, unset, the one with the most subjects. The department's own head stays
+ * its head: nothing is written to it, and its Head of department on the organization's pages does not change.
+ */
+const demoDepartment = (req) => {
+    const all = req.campus.departments;
+    if (!all.length) return null;
+    const want = String(process.env.DEMO_DEPARTMENT || '').trim().toLowerCase();
+    const named = want ? all.find((d) => String(d.name || '').toLowerCase() === want || String(d.code || '').toLowerCase() === want) : null;
+    if (named) return named;
+    const subjects = (d) => req.campus.subjects.filter((x) => same(x.departmentId, d._id)).length;
+    return all.reduce((best, d) => (subjects(d) > subjects(best) ? d : best), all[0]);
+};
+const hodDepartments = (req) => {
+    const mine = req.campus.departments.filter((d) => d.headId && same(d.headId, req.admin._id));
+    const demo = req.campusRole === 'teacher' && req.admin?.demo ? demoDepartment(req) : null;
+    return demo && !mine.some((d) => same(d._id, demo._id)) ? [...mine, demo] : mine;
+};
 const deptView = (d) => ({ _id: d._id, name: d.name, code: d.code, semesters: d.semesters, sections: d.sections || [], head: d.head, headId: d.headId || null });
 const sectionOk = (dept, section) => !section || (dept.sections || []).includes(section);
 /** A department with more than one section: every student is in one of them, and every class is one. */
@@ -1534,7 +1553,8 @@ teacher.use(safe(async (req, res, next) => {
     req.campus = campus;
     req.campusOrg = full;
     req.campusRole = 'teacher';
-    req.admin = { _id: t._id, name: t.name };
+    // `demo`: a demo card's teacher, who works as a head of department too (hodDepartments).
+    req.admin = { _id: t._id, name: t.name, demo: Boolean(t.demoCard) };
     req.organization = { _id: t.organizationId };
     next();
 }));

@@ -40,7 +40,7 @@ const view = (t) => ({
     dailyWordGoal: t.dailyWordGoal || 500,
     organizationId: t.organizationId || null,
     // An AI card opens the research tools; without one, only clubs and units.
-    research: Boolean(t.cardNumber),
+    research: Boolean(t.cardNumber || t.demoCard),
     // What their organization turned on for them: 360 (they land there) and
     // Scouts & Guides — only with an organization, which makes unit leaders.
     mentor360: Boolean(t.mentor360) && Boolean(t.organizationId),

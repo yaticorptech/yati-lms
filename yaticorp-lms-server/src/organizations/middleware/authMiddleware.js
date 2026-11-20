@@ -48,6 +48,11 @@ const STAFF_ANY = [/^\/api\/organizations\/me\/(nccnss|research-session|password
  * and its own password.
  */
 const departmentMay = (req) => /^\/api\/organizations\/me\/(campus|password|status)(\/|$)/.test(String(req.originalUrl || '').split('?')[0].toLowerCase());
+/**
+ * The admission office also checks a scanned card and brings its student into the organization:
+ * step 1 of a new admission (Campus → Admissions → Scan card). Those two calls and no other.
+ */
+const officeMay = (req) => req.method === 'POST' && /^\/api\/organizations\/me\/cards(\/check)?\/?$/.test(String(req.originalUrl || '').split('?')[0].toLowerCase());
 const STAFF_READ = [
     /^\/api\/organizations\/me\/?$/,
     /^\/api\/organizations\/me\/(dashboard|students|courses|modules|lessons|course-access|certificate-progress|requests\/count|bsg\/feed)(\/|$)/,
@@ -127,7 +132,7 @@ const protectOrgAdmin = async (req, res, next) => {
             return res.status(404).json({ message: 'The linked organization no longer exists' });
         }
 
-        if ((admin.campusDepartmentId || admin.campusExamBoard || admin.campusOffice) && !departmentMay(req)) {
+        if ((admin.campusDepartmentId || admin.campusExamBoard || admin.campusOffice) && !departmentMay(req) && !(admin.campusOffice && officeMay(req))) {
             return res.status(403).json({ code: 'STAFF_LIMITED', message: 'This sign-in can only use Campus.' });
         }
         if (admin.staff && !staffMay(req)) {

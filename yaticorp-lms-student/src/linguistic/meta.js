@@ -8,6 +8,7 @@ import { previousPage } from '../hooks/useGoBack';
 import { BookA, PenLine, BookOpen, Mic, Languages } from 'lucide-react';
 import { mediaUrl } from './api';
 import client from '../utils/api';
+import { letterRev } from './letterVoice';
 import { kokoroBlob, kokoroSupported } from '../lib/kokoro';
 
 /** Bright flat colours: a face, the darker edge a button stands on, and a light tint. */
@@ -244,7 +245,8 @@ let playing = null; let asked = 0;
  * (aiVoiceOn false). VITE_AI_VOICE=on (in .env.development.local) brings them back in development; a build has them.
  */
 const ENV = import.meta.env || {};
-const AI_VOICE = !ENV.DEV || ENV.VITE_AI_VOICE === 'on';
+// Always on (2026-11-17, the user: "in Multilingo use the TTS voice, not the device voice") — in development too.
+const AI_VOICE = true; void ENV;
 // On (2026-11-06, user: "use the tts inside this project"). Set false to fall back to the device voice.
 const SERVER_VOICE_ON = AI_VOICE;
 const usesServerVoice = (lang) => SERVER_VOICE_ON && SERVER_LANGS.has(norm(lang).split('-')[0]);
@@ -286,8 +288,15 @@ const plainVoice = (voice) => !voice || voice === 'f';
  * keeps only its first burst, and the letters it had made were trimmed so. Asked for afresh — v3 and a key of its own —
  * past the copies of the old ones on the device and in the browser's cache. (Kokoro's English letters are made here.)
  */
-const clipV = (text, lang) => (!usesKokoro(lang) && [...String(text).trim()].length <= 3 ? 3 : 2);
-const clipKey = (text, lang, voice) => `${usesKokoro(lang) ? 'kokoro:' : ''}${clipV(text, lang) === 3 ? 'once:' : ''}${base(lang)}|${String(text).trim()}${!plainVoice(voice) ? `|${voice}` : ''}`;
+// v5 (2026-11-19, the owner: "after a word it feels odd, like 'aah'"): the server now keeps every clip tidied — ended
+// where its text ends (its tts/tidy.js) — so every clip it makes, a word as much as a letter, is asked for once more,
+// past the copies on the device and in the browser's cache. (Kokoro's English, made on the device, is not touched.)
+const SERVER_CLIP_V = 5;
+// A letter (up to 3 characters) also carries the revision of its language's recorded letters (letterVoice.js): the
+// server records letters with care and may record one again, and the new one is then asked for by itself.
+const letterTag = (text, lang) => ([...String(text).trim()].length <= 3 ? `r${letterRev(lang)}` : '');
+const clipV = (text, lang) => (usesKokoro(lang) ? 2 : `${SERVER_CLIP_V}${letterTag(text, lang)}`);
+const clipKey = (text, lang, voice) => `${usesKokoro(lang) ? 'kokoro:' : `tidy${SERVER_CLIP_V}${letterTag(text, lang)}:`}${base(lang)}|${String(text).trim()}${!plainVoice(voice) ? `|${voice}` : ''}`;
 /*
  * English people in their own Kokoro voices (2026-11-13, the story film: "résumé, certificates — not pronounced
  * right" in the old Indian-English recordings): the narrator and women af_heart, men am_michael, an older man (a low,
@@ -343,6 +352,11 @@ export const aiClip = (text, lang, voice) => {
     const r = text ? courseSpeech(text, lang, voiceCourse) : null; // the same text the audio pack downloaded
     return r && usesServerVoice(r[1]) ? serverClip(r[0], r[1], voice) : null;
 };
+/**
+ * An English clip whatever the course is (2026-11-17, IELTS): aiClip reads only the course's own language, so on a
+ * Malayalam course the IELTS recordings were silent. Same voices and the same device cache. `voice`: 'f' or 'm'.
+ */
+export const englishClip = (text, voice = 'f') => (text && String(text).trim() ? serverClip(String(text).trim(), 'en-IN', voice) : Promise.reject(new Error('No text')));
 /** Whether lessons are read by the AI voice (and so need their audio downloaded first). */
 export const aiVoiceOn = () => SERVER_VOICE_ON;
 /** A clip the server has already made, or null (204) without waiting for the voice model. */
@@ -547,31 +561,22 @@ export const play = (src, text, lang = 'en-IN', on = {}) => {
         return a;
     }
     // A woman or a man speaking (the conversation's people): the device's voice of theirs — the AI voice has one voice.
-    if (text && usesServerVoice(lang) && !gender) {
+    // A man speaking: the TTS voice's man (2026-11-17, no device voice).
+    const spec = voice || (gender === 'm' ? 'm' : null);
+    if (text && usesServerVoice(lang)) {
         stopAll();
         on.onLoading?.(true);
-        // Not made yet on the server (2026-11-14, "don't make users wait"): after 3 s the device's voice reads it
-        // now; the server goes on making the clip, so it is the AI voice next time.
-        let spoke = false;
-        const slow = setTimeout(() => {
-            if (me !== asked || !(typeof window !== 'undefined' && window.speechSynthesis && readerFor(lang))) return;
-            spoke = true; on.onLoading?.(false); deviceSay(text, lang, null, { rate, gender });
-        }, 3000);
-        serverClip(text, lang, voice).then((url) => {
-            clearTimeout(slow);
+        serverClip(text, lang, spec).then((url) => {
             on.onLoading?.(false);
-            if (me !== asked || spoke) return; // tapped something else meanwhile, or already read by the device
+            if (me !== asked) return; // tapped something else meanwhile
             const a = new Audio(url);
             playing = a;
             if (rate) a.playbackRate = rate;
             talkWith(a, gender, text);
             a.play().catch(() => {});
         }).catch((e) => {
-            clearTimeout(slow);
             on.onLoading?.(false);
-            if (me !== asked || spoke) return;
-            // The voice service is down or slow (2026-11-11): the device's voice reads it rather than nothing.
-            if (typeof window !== 'undefined' && window.speechSynthesis && readerFor(lang)) { deviceSay(text, lang, null, { rate, gender }); return; }
+            if (me !== asked) return;
             on.onError?.(e?.response?.status === 503 ? 'The voice service is not set up.' : 'The voice could not be made. Try again.');
         });
         return null;
@@ -618,7 +623,6 @@ export const readAloud = (texts, lang = 'en-IN', on = {}) => {
                 on.onLoading?.(false);
                 if (stopped || me !== asked) return;
                 if (url) await new Promise((resolve) => { const a = new Audio(url); playing = a; a.onended = resolve; a.onerror = resolve; a.play().catch(resolve); });
-                else await new Promise((resolve) => deviceSay(part.text, part.lang, resolve)); // service down: the device reads it
             } else await new Promise((resolve) => deviceSay(part.text, part.lang, resolve));
         }
         if (!stopped && me === asked) done();

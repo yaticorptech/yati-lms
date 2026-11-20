@@ -79,6 +79,8 @@ const LinguisticSections = React.lazy(() => import('./linguistic/Sections'));
 const LinguisticRoadmap = React.lazy(() => import('./linguistic/Roadmap'));
 const LinguisticLetters = React.lazy(() => import('./linguistic/LettersChart'));
 const LinguisticDashboard = React.lazy(() => import('./linguistic/Dashboard'));
+const LinguisticIelts = React.lazy(() => import('./linguistic/ielts/IeltsHome'));
+const LinguisticIeltsTest = React.lazy(() => import('./linguistic/ielts/IeltsTest'));
 
 /**
  * Signed in, or off to the sign-in page — which is told where the student was
@@ -157,6 +159,8 @@ const Signup = React.lazy(() => import('./pages/Signup'));
 const PassportLanding = React.lazy(() => import('./pages/PassportLanding'));
 const AdminAccess = React.lazy(() => import('./pages/AdminAccess'));
 const TeacherAdminAccess = React.lazy(() => import('./teacher/pages/TeacherAdminAccess'));
+// A demo card changing dashboard from the organisation panel lands here (pages/DemoSwitch.jsx).
+const DemoSwitch = React.lazy(() => import('./pages/DemoSwitch'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 const EnrolledCourses = React.lazy(() => import('./pages/EnrolledCourses'));
 // Downloaded when first opened rather than with the sign-in page: the player
@@ -428,6 +432,7 @@ function App() {
       {/* A superadmin opening a student's dashboard from the admin Users page. */}
       <Route path="/admin-access" element={<React.Suspense fallback={<CareerFallback />}><AdminAccess /></React.Suspense>} />
       {/* …and a teacher's, from the admin Teachers page (2026-11-11). */}
+      <Route path="/demo-switch" element={<React.Suspense fallback={<CareerFallback />}><DemoSwitch /></React.Suspense>} />
       <Route path="/admin-access/teacher" element={<React.Suspense fallback={<CareerFallback />}><TeacherAdminAccess /></React.Suspense>} />
       {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
           has to be able to open these, and so does anyone deciding whether to
@@ -512,7 +517,10 @@ function App() {
             <Route path="roadmap" element={<React.Suspense fallback={<CareerFallback />}><LinguisticRoadmap /></React.Suspense>} />
             <Route path="letters" element={<React.Suspense fallback={<CareerFallback />}><LinguisticLetters /></React.Suspense>} />
             <Route path="dashboard" element={<React.Suspense fallback={<CareerFallback />}><LinguisticDashboard /></React.Suspense>} />
+            <Route path="ielts" element={<React.Suspense fallback={<CareerFallback />}><LinguisticIelts /></React.Suspense>} />
           </Route>
+          {/* An IELTS section covers the whole screen, like a lesson. */}
+          <Route path="linguistic/ielts/:attemptId/:section" element={<React.Suspense fallback={<CareerFallback />}><LinguisticIeltsTest /></React.Suspense>} />
           <Route path="linguistic/placement" element={<React.Suspense fallback={<CareerFallback />}><LinguisticPlacement /></React.Suspense>} />
           <Route path="linguistic/review" element={<React.Suspense fallback={<CareerFallback />}><LinguisticReview /></React.Suspense>} />
           <Route path="linguistic/daily" element={<React.Suspense fallback={<CareerFallback />}><LinguisticDaily /></React.Suspense>} />

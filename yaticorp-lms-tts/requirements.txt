@@ -1,5 +1,8 @@
 # Intel Macs: torch 2.2.2 is the last build; keep numpy < 2 with it.
 torch==2.2.2
+# Pinned to torch's own version (2026-11-17): unpinned, pip pulled the newest CUDA 13 torchaudio and the
+# server crashed on start with "libcudart.so.13: cannot open shared object file".
+torchaudio==2.2.2
 numpy==1.26.4
 # Exact pins stop pip backtracking for ages on Python 3.9 (2026-11-12).
 fastapi==0.115.6
