@@ -22,7 +22,9 @@ export const ADMIN_VIEW_KEY = 'adminViewing';
 export const SESSION_ENDED_KEY = 'yati:sessionEnded';
 
 /** The saved login. Device-wide, in localStorage, shared by every tab. */
-const LOGIN_KEYS = ['studentToken', 'studentData', ADMIN_VIEW_KEY];
+/** A demo card open in this browser: its switch pass (utils/demoSwitch.js). Gone with any sign-in or sign-out. */
+export const DEMO_KEY = 'yati.demoCard';
+const LOGIN_KEYS = ['studentToken', 'studentData', ADMIN_VIEW_KEY, DEMO_KEY];
 
 /**
  * What a tab remembers about the student signed in to it (sessionStorage).
@@ -53,7 +55,7 @@ export const forgetStudent = ({ keep = [] } = {}) => {
 };
 
 /** Pages that are not somewhere to come back to after signing in. */
-const NOT_A_DESTINATION = ['/login', '/signup', '/admin-access', '/admin-access/teacher', '/reset-password'];
+const NOT_A_DESTINATION = ['/login', '/signup', '/admin-access', '/admin-access/teacher', '/demo-switch', '/reset-password'];
 
 /**
  * A place in this app to go after signing in, or '/'.

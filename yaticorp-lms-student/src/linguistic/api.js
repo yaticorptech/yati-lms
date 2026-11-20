@@ -1,5 +1,6 @@
 /** Linguistic Ability — the calls, on the LMS's axios client (as interview/api.js). */
 import client from '../utils/api';
+import { noteLetterVoice } from './letterVoice';
 import { askIfDriveRequired } from '../integrations/google/driveGate';
 
 const unwrap = (err) => {
@@ -9,20 +10,52 @@ const unwrap = (err) => {
     e.status = err.response?.status;
     throw e;
 };
-const get = (p) => client.get(`/linguistic${p}`).then((r) => r.data).catch(unwrap);
+// Reading never fails on a blip (2026-11-14, "You appear to be offline" while the server restarted): no answer at
+// all, or a 502–504 from the proxy, is asked again — up to five tries over about ten seconds.
+const get = async (p) => {
+    let last;
+    for (let i = 0; i < 5; i += 1) {
+        try { return (await client.get(`/linguistic${p}`, { timeout: 20000 })).data; } catch (err) {
+            last = err;
+            const s = err.response?.status;
+            if (err.response && !(s >= 502 && s <= 504)) break;
+            await new Promise((r) => setTimeout(r, 1000 + i * 500));
+        }
+    }
+    return unwrap(last);
+};
 const post = (p, b) => client.post(`/linguistic${p}`, b).then((r) => r.data).catch(unwrap);
 const del = (p) => client.delete(`/linguistic${p}`).then((r) => r.data).catch(unwrap);
+/**
+ * An answer check (2026-11-14: "Checking…" stayed for ever when the server restarted mid-request): 12 s at most,
+ * then asked again — up to three tries, a second apart — so a lost reply never stops the lesson. Checking an answer
+ * twice is harmless (it is judged the same way again).
+ */
+const checkPost = async (p, b) => {
+    let last;
+    for (let i = 0; i < 5; i += 1) {
+        try { return (await client.post(`/linguistic${p}`, b, { timeout: 12000 })).data; } catch (err) {
+            last = err;
+            if (err.response && !(err.response.status >= 502 && err.response.status <= 504)) break; // a real answer: not retried
+            await new Promise((r) => setTimeout(r, 1000));
+        }
+    }
+    return unwrap(last);
+};
 
 export const linguisticApi = {
-    dashboard: () => get('/'),
+    // With the revision of the course's recorded letters (letterVoice.js), as the letters page has too.
+    dashboard: () => get('/').then(noteLetterVoice),
     /** The learning path: each level's units and lessons, with which are open and which is next. */
     path: () => get('/path'),
     // Every letter of the course's language on one page (2026-10-31).
-    letters: () => get('/letters'),
+    letters: () => get('/letters').then(noteLetterVoice),
     /** Start at a level chosen instead of taking the placement test. */
     chooseLevel: (level) => post('/level', { level }),
     /** Straight to a section not open yet (2026-10-31): its jump test, one try → { lesson, module }. */
     jump: (level) => post('/jump', { level }),
+    /** "Jump here?" on a unit (2026-11-13): its test, the unit review before it → { unit, lesson, module }. */
+    jumpUnit: (unit) => post('/jump-unit', { unit }),
     /** Why they are learning, and how much English they know (0 new … 4 most topics). */
     setAbout: (reason, know, more = {}) => post('/about', { reason, know, ...more }),
     setKnows: (knows) => post('/knows', knows),
@@ -44,11 +77,12 @@ export const linguisticApi = {
     module: (module) => get(`/modules/${module}`),
     lesson: (id) => get(`/lessons/${id}`),
     /** The unit this lesson is in, every lesson as the student has it: for downloading its audio first. */
-    lessonPack: (id) => get(`/lessons/${id}/pack`),
+    // `ahead`: a unit not open yet — only its audio, so it is ready when it opens (2026-11-13).
+    lessonPack: (id, ahead = false) => get(`/lessons/${id}/pack${ahead ? '?ahead=1' : ''}`),
     step: (id, step) => post(`/lessons/${id}/step`, { step }),
-    check: (id, section, qid, given) => post(`/lessons/${id}/check`, { section, id: qid, given }),
+    check: (id, section, qid, given) => checkPost(`/lessons/${id}/check`, { section, id: qid, given }),
     /** Check one quiz answer as it is given (nothing saved); the quiz is still submitted whole at the end. */
-    quizCheck: (id, qid, given) => post(`/lessons/${id}/quiz/check`, { id: qid, given }),
+    quizCheck: (id, qid, given) => checkPost(`/lessons/${id}/quiz/check`, { id: qid, given }),
     quiz: (id, answers) => post(`/lessons/${id}/quiz`, { answers }),
     writing: (id, taskId, answer) => post(`/lessons/${id}/writing/${taskId}`, { answer }),
     // Said, not ticked (2026-10-28): the server ticks the checklist from what was said.
@@ -72,6 +106,14 @@ export const linguisticApi = {
     /** The certificate PDF, as a Blob. */
     certificatePdf: (level, course = null) => client.get(`/linguistic/certificates/${level}/pdf${course ? `?course=${encodeURIComponent(course)}` : ''}`, { responseType: 'blob' }).then((r) => r.data)
         .catch((err) => { askIfDriveRequired(err, 'So the certificates you earn here are kept in your own Google Drive.'); return unwrap(err); }),
+    /** IELTS mock tests (2026-11-17): the tests, my attempts and where to book the real exam. */
+    ielts: () => get('/ielts'),
+    ieltsStart: (testId) => post('/ielts/attempts', { testId }),
+    ieltsAttempt: (id) => get(`/ielts/attempts/${id}`),
+    // Writing and Speaking are marked by the AI examiner: up to two minutes.
+    ieltsSubmit: (id, section, body) => client.post(`/linguistic/ielts/attempts/${id}/${section}`, body, { timeout: 120000 }).then((r) => r.data).catch(unwrap),
+    ieltsDiscard: (id) => del(`/ielts/attempts/${id}`),
+    ieltsRedo: (id, section) => del(`/ielts/attempts/${id}/${section}`),
     hideCertificate: (level, course = null) => del(`/certificates/${level}${course ? `?course=${encodeURIComponent(course)}` : ''}`)
 };
 

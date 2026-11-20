@@ -25,7 +25,6 @@ import MemoryMatrixTable from './games/MemoryMatrixTable';
 import SequenceTable from './games/SequenceTable';
 import SudokuTable from './games/SudokuTable';
 import FinalVaultTable from './games/vault/FinalVaultTable';
-import KingdomTable from './games/kingdom/KingdomTable';
 import RoomLobby from './RoomLobby';
 import { OnlineSearch, PlayersBoard, MatchIntro } from './OnlineTable';
 import useGroupTime from './useGroupTime';
@@ -48,7 +47,7 @@ const TABLES = {
     // Word Logic: its own design (2026-11-02).
     wordlogic: WordLogicTable,
     memorymatrix: MemoryMatrixTable, sequence: SequenceTable, sudoku: SudokuTable,
-    finalvault: FinalVaultTable, lostkingdom: KingdomTable,
+    finalvault: FinalVaultTable,
     // The solo games played as races, and in turns for two (2026-10-29).
     ...Object.fromEntries(Object.keys(GROUP_GAMES).filter((id) => GROUP_GAMES[id].table === 'race').map((id) => [id, RaceTable])),
     ...Object.fromEntries(Object.keys(GROUP_GAMES).filter((id) => GROUP_GAMES[id].table === 'turns').map((id) => [id, TurnTable]))
@@ -326,7 +325,7 @@ export default function GamePage() {
     // Out: left, or (Sudoku, the stage games) left or closed / finished as their own view says it (2026-11-02:
     // a Sudoku board closed by mistakes kept the guard up, and Back asked to leave a game already left).
     const meOut = (v, you) => (v?.out || []).includes(you) || !!(v?.players?.[you] && (v.players[you].left || v.players[you].closed || v.players[you].finished || v.players[you].done || v.players[you].failed));
-    // Lost Kingdom and the races say "my own run is over" on `view.me` (2026-11-06: all trials done, the others still
+    // Final Vault and the races say "my own run is over" on `view.me` (2026-11-06: all trials done, the others still
     // racing, and Back still asked to leave). The Final Vault keeps asking once done (waitingDone, below).
     const myRunOver = game?.game !== 'finalvault' && !!(view?.me && (view.me.done || view.me.failed));
     const playingNow = game?.kind === 'room' && game?.status === 'active' && game?.you != null && !meOut(view, game.you) && !myRunOver;
@@ -413,7 +412,7 @@ export default function GamePage() {
     const backLabel = room ? 'Back to Group games' : game.competition ? 'Back to the competition' : 'Back to games';
     // After a room's game: a new room for the same game and difficulty.
     // An online table: another search at the same size and fee.
-    const again = () => run('again', () => (game.online ? roomsApi.online(game.game, game.online.players, game.online.fee) : roomsApi.create(game.game, game.options || {})))
+    const again = () => run('again', () => (game.online ? roomsApi.online(game.game, game.online.players, game.online.fee, game.options?.zone || game.zone) : roomsApi.create(game.game, game.options || {})))
         .then((r) => { if (r?.game?.id) navigate(`/games/play/${r.game.id}`, { replace: true, state: { from: 'group' } }); })
         .catch(() => {});
     const sideName = (side) => {
@@ -435,9 +434,9 @@ export default function GamePage() {
     // Chess in play (2026-11-02, the account owner's design): a dark wood-and-gold room, the board in the middle.
     const chessDark = game.game === 'chess' && game.status !== 'waiting' && !searching;
     // Every other group game in play (2026-11-02): the same dark room as the search, the game lit in the middle.
-    // Chess, Word Logic, The Final Vault and The Lost Kingdom keep their own designs.
+    // Chess, Word Logic and The Final Vault keep their own designs.
     const groupDark = room && game.status === 'active' && !!GROUP_GAMES[game.game]
-        && !['chess', 'wordlogic', 'finalvault', 'lostkingdom'].includes(game.game);
+        && !['chess', 'wordlogic', 'finalvault'].includes(game.game);
     const dark = searching || chessDark || groupDark;
     // Chess shows just its name and the last-move line (no Online/time-left badges); once finished, only the name.
     const chessDone = chessDark && game.status !== 'active' && game.status !== 'waiting';

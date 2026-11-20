@@ -197,6 +197,16 @@ const startingCreditFrom = async () => {
   creditFrom = doc?.startingCreditFrom || new Date();
   return creditFrom;
 };
+// From when a new account's starting credit waits for its AI Passport scan.
+let passportFrom = null;
+const passportCreditFrom = async () => {
+  if (passportFrom) return passportFrom;
+  const { RewardConfig } = require('../models');
+  await RewardConfig.updateOne({ $or: [{ passportCreditFrom: null }, { passportCreditFrom: { $exists: false } }] }, { $set: { passportCreditFrom: new Date() } });
+  const doc = await RewardConfig.findOne().select('passportCreditFrom').lean();
+  passportFrom = doc?.passportCreditFrom || new Date();
+  return passportFrom;
+};
 const grantStartingCredit = async (userId) => {
   const id = String(userId);
   if (credited.has(id)) return null;
@@ -218,6 +228,10 @@ const grantStartingCredit = async (userId) => {
     credited.add(id);
     return null;
   }
+  // An account made since the AI Passport reward began gets this money only
+  // from scanning its passport book, which pays it (services/passport.js).
+  // Not memoised: the scan can come at any time.
+  if (user.createdAt && user.createdAt >= await passportCreditFrom()) return null;
   const existing = !user.createdAt || user.createdAt < cutoff || (wallet?.createdAt && wallet.createdAt < cutoff);
   if (existing && money(wallet?.available || 0) !== 0) {
     credited.add(id);
@@ -236,4 +250,4 @@ const grantStartingCredit = async (userId) => {
 // grows from the starting credit and whatever an administrator adds. Credits
 // XP made before then stay in the history ('xp_reward').
 
-module.exports = { credit, debit, redeemPoints, requestWithdrawal, decideWithdrawal, auditWallet, redeemedThisMonth, money, grantStartingCredit, startingCreditFrom };
+module.exports = { credit, debit, redeemPoints, requestWithdrawal, decideWithdrawal, auditWallet, redeemedThisMonth, money, grantStartingCredit, startingCreditFrom, passportCreditFrom };

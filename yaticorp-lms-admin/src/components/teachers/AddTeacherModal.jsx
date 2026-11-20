@@ -56,9 +56,10 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
     const [research, setResearch] = useState(true);
     // What their dashboard shows, each on or off (also on the Teachers page later):
     // Scouts & Guides and 360. Without a card, both start on; with one, 360 starts off.
-    const [features, setFeatures] = useState({ scouts: true, mentor360: false });
-    // Without a card they have nothing but these: at least one must be on.
-    const nothingOn = choosing && access.teacher && !research && !features.scouts && !features.mentor360;
+    // Not chosen here any more (2026-11-14): Student Ranking comes when an HOD makes them a mentor, Scouts &
+    // Guides when they lead a unit (or on the Teachers page later).
+    const features = { mentor360: false };
+    const nothingOn = false;
     const needsCard = !orgOnly && access.teacher && research;
     const showDetails = chosen && !orgOnly && (card || !needsCard);
     // An organization's teacher without a card: name and mobile number; they
@@ -141,11 +142,11 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
                                     <p className={LABEL}>Their teacher dashboard</p>
                                     <div className="grid gap-2 sm:grid-cols-2">
                                         {[
-                                            [true, CreditCard, 'With an AI card', 'Research, publications, thesis, writing and plagiarism tools, plus any clubs and units they lead. Signs in with the card.'],
-                                            [false, Compass, 'Without a card', 'Only what you turn on below: Scouts & Guides, 360, or both. Just their name and mobile number; they set up the rest on Sign Up.']
+                                            [true, CreditCard, 'With an AI card', 'Research tools, plus their subjects, attendance, announcements and internal marks. Signs in with the card.'],
+                                            [false, Compass, 'Without a card', 'Their subjects, attendance, announcements and internal marks. Just their name and mobile number; they set up the rest on Sign Up.']
                                         ].map(([v, Icon, title, hint]) => (
                                             <label key={title} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${research === v ? 'border-emerald-300 bg-emerald-50 ring-1 ring-emerald-300' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                                <input type="radio" name="teacher-research" checked={research === v} onChange={() => { setResearch(v); setFeatures((f) => ({ ...f, mentor360: !v })); setError(''); }} className="mt-1 h-4 w-4 shrink-0 accent-emerald-600" />
+                                                <input type="radio" name="teacher-research" checked={research === v} onChange={() => { setResearch(v); setError(''); }} className="mt-1 h-4 w-4 shrink-0 accent-emerald-600" />
                                                 <span className="min-w-0">
                                                     <span className="flex items-center gap-1.5 text-sm font-bold text-slate-800"><Icon size={15} className="text-emerald-600" /> {title}</span>
                                                     <span className="mt-0.5 block text-xs text-slate-500">{hint}</span>
@@ -155,22 +156,7 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
                                     </div>
                                 </div>
                             )}
-                            {access.teacher && (
-                                <div className="space-y-2 pt-1">
-                                    <p className={LABEL}>Their dashboard shows</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {[['scouts', Compass, 'Scouts & Guides'], ['mentor360', Orbit, '360 mentor']].map(([key, Icon, label]) => (
-                                            <label key={key} className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${features[key] ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                                                <input type="checkbox" checked={features[key]} onChange={(e) => setFeatures((f) => ({ ...f, [key]: e.target.checked }))} className="h-4 w-4 accent-emerald-600" />
-                                                <Icon size={15} className="text-emerald-600" /> {label}
-                                            </label>
-                                        ))}
-                                    </div>
-                                    {nothingOn
-                                        ? <p role="alert" className="text-xs font-semibold text-red-600">Choose Scouts &amp; Guides, 360, or both: without a card that is all their dashboard has.</p>
-                                        : <p className="text-xs text-slate-500">You can turn each on or off later on the Teachers page.</p>}
-                                </div>
-                            )}
+                            <p className="text-xs text-slate-500">Their subjects are assigned by the department’s HOD. Student Ranking comes when an HOD makes them a mentor.</p>
                             <p className="text-xs text-slate-500">To let someone into this organization dashboard, add them under <strong>Users</strong>.</p>
                         </div>
                     )}

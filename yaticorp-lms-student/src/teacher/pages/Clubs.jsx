@@ -174,8 +174,8 @@ export default function TeacherClubs() {
         <div className="space-y-5">
             <PageHeader icon={Users} title="My Clubs" subtitle="Clubs you are in charge of. Add their events; the members see them on their calendar." />
             {!clubs ? (error ? <ErrorNote onRetry={load}>{error}</ErrorNote> : <Loading />) : clubs.length === 0 && nothingOn ? (
-                <EmptyState icon={Users} title="Nothing is turned on for you yet">
-                    Your organization turns on Scouts &amp; Guides, 360 or both for you. Once it does, they show up in your menu.
+                <EmptyState icon={Users} title="No clubs in your charge">
+                    You do not lead a club yet. Your organization chooses each club’s teacher in charge; your classes are under Attendance.
                 </EmptyState>
             ) : clubs.length === 0 ? (
                 <EmptyState icon={Users} title="No clubs in your charge">

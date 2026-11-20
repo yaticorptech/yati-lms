@@ -6,13 +6,14 @@ import ProfileImage from '../components/ProfileImage';
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import DeviceLimitDialog from '../components/DeviceLimitDialog';
-import { Navigate, Link, useSearchParams, useLocation } from 'react-router-dom';
+import DemoDashboardChooser from '../components/DemoDashboardChooser';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import SupportDialog from '../components/SupportDialog';
 import AuthBrandPanel from '../components/AuthBrandPanel';
 import { isNative } from '../native/platform';
 import useBackClose from '../native/useBackClose';
-import { SESSION_ENDED_KEY, safeNextPath } from '../utils/sessionExpiry';
+import { SESSION_ENDED_KEY } from '../utils/sessionExpiry';
 import teacherApi, { enterTeacher, hasTeacherSession, TEACHER_SESSION_ENDED } from '../teacher/teacherSession';
 import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info, ShieldCheck, RefreshCw } from 'lucide-react';
 
@@ -260,11 +261,14 @@ const Login = () => {
     const { user, login, replaceDevice, enterApp } = useContext(AuthContext);
     // A 3rd device: the popup to swap it in (components/DeviceLimitDialog).
     const [deviceConflict, setDeviceConflict] = useState(null);
+    // A demo card's scan: its session and switch pass, held while the presenter picks a dashboard (components/DemoDashboardChooser).
+    const [demoSession, setDemoSession] = useState(null);
     // Where the student was heading when they were asked to sign in (a link
     // to a lesson, a page left when the session ended). Only a path in this
     // app is taken; anything else means the dashboard.
-    const [searchParams] = useSearchParams();
-    const next = safeNextPath(searchParams.get('next') || '/');
+    // Signing in always opens the Dashboard, never the page the student was
+    // on when signed out (that used to bring them back to Career Path).
+    const next = '/';
     const swapped = Boolean(useLocation().state?.authSwapFrom);
     const [cardNumber, setCardNumber] = useState('');
     const [password, setPassword] = useState('');
@@ -318,8 +322,15 @@ const Login = () => {
             setScannedName(res.data?.name || '');
             setScannedCard(true);
             setCardCheck('');
-        } catch {
-            if (checkedNumberRef.current === number) setCardCheck('');
+        } catch (err) {
+            if (checkedNumberRef.current !== number) return;
+            // The server's own words under the box (2026-11-16: they were dropped, so the hint never showed). Not for a
+            // teacher's card, or a "91" + mobile number that is no card: those are for the sign-in itself to decide.
+            const code = err.response?.data?.code;
+            const maybePhone = /^91[6-9]\d{9}$/.test(number) && err.response?.status === 404 && !code;
+            const msg = err.response?.data?.message;
+            if (msg && code !== 'TEACHER_CARD' && !maybePhone && err.response?.status < 500) { setCardCheckError(msg); setCardCheck('error'); }
+            else setCardCheck('');
         }
     };
     const [showHow, setShowHow] = useState(false);
@@ -352,8 +363,12 @@ const Login = () => {
                 if (err.response?.data?.code !== 'TEACHER_CARD') throw err;
                 res = await teacherApi.post('/auth/card-scan', { code: decodedText });
             }
-            // A demo (presentation) card signs in by its scan alone: straight to the dashboard.
+            // A demo (presentation) card signs in by its scan alone, and opens any dashboard: the presenter picks.
+            if (res.data?.token && res.data?.demo) { setDemoSession(res.data); return; }
+            // A developer card signs in by its scan alone: straight to the dashboard.
             if (res.data?.token && res.data?.role !== 'teacher') { enterApp(res.data, next); return; }
+            // A developer teacher card signs in by its scan alone too.
+            if (res.data?.token) { enterTeacher(res.data); return; }
             setCardNumber(res.data.cardNumber);
             setScannedName(res.data.name || '');
             setScannedCard(true);
@@ -447,6 +462,7 @@ const Login = () => {
             <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-56 -z-10 h-[30rem] w-[30rem] rounded-full bg-violet-600/15 blur-[140px]" />
             {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
             {showContact && <SupportDialog onClose={() => setShowContact(false)} page="login" tone="dark" />}
+            {demoSession && <DemoDashboardChooser token={demoSession.demoSwitch} session={demoSession} name={demoSession.name} onClose={() => setDemoSession(null)} />}
             {deviceConflict && (
                 <DeviceLimitDialog conflict={deviceConflict} onClose={() => setDeviceConflict(null)}
                     onReplace={(removeId) => replaceDevice(deviceConflict.ticket, removeId, next)} />

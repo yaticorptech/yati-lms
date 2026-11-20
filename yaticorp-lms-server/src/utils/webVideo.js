@@ -17,7 +17,10 @@ const fs = require('fs');
 const path = require('path');
 
 // Codecs browsers decode in an MP4/MOV, and ones they do not.
-const PLAYABLE_VIDEO = ['avc1', 'avc3', 'vp09', 'vp08', 'av01'];
+// Only H.264 plays on every device (2026-11-17: an iPhone showed "cannot be played in your browser"):
+// iPhones and iPads do not play VP8/VP9 at all, nor AV1 before the iPhone 15 Pro.
+const PLAYABLE_VIDEO = ['avc1', 'avc3'];
+const NOT_ON_IPHONE = { vp09: 'VP9', vp08: 'VP8', av01: 'AV1' };
 const UNPLAYABLE_VIDEO = {
     hvc1: 'HEVC (H.265)', hev1: 'HEVC (H.265)', dvh1: 'HEVC (H.265, Dolby Vision)', dvhe: 'HEVC (H.265, Dolby Vision)',
     ap4h: 'Apple ProRes', ap4x: 'Apple ProRes', apch: 'Apple ProRes', apcn: 'Apple ProRes', apcs: 'Apple ProRes', apco: 'Apple ProRes',
@@ -26,7 +29,6 @@ const UNPLAYABLE_VIDEO = {
     svq3: 'Sorenson Video', 'SVQ3': 'Sorenson Video', s263: 'H.263',
 };
 // The same, as Matroska codec ids.
-const MKV_PLAYABLE = ['V_MPEG4/ISO/AVC', 'V_VP9', 'V_VP8', 'V_AV1'];
 const MKV_UNPLAYABLE = { 'V_MPEGH/ISO/HEVC': 'HEVC (H.265)', 'V_MPEG4/ISO/ASP': 'MPEG-4 Part 2 (DivX/Xvid)', 'V_PRORES': 'Apple ProRes', 'V_MPEG2': 'MPEG-2' };
 
 // Containers no browser's <video> element opens at all.
@@ -80,6 +82,28 @@ const readMoov = (fd, fileSize) => {
 /** Every known codec fourcc that appears anywhere in the buffer. */
 const codecsIn = (buf, names) => names.filter((name) => buf.includes(name, 0, 'latin1'));
 
+/*
+ * H.264 that a computer plays and a phone does not (2026-11-17: a lesson played on desktop and failed on every
+ * iPhone and Android): computers decode any H.264 in software, phones only in hardware — 8-bit 4:2:0 (Baseline,
+ * Main, High) up to 4K. A 10-bit or 4:2:2 export (High 10 / High 4:2:2 / 4:4:4, "high quality" presets in
+ * Premiere, DaVinci, OBS) or a frame larger than 4K fails on phones with "cannot be played in your browser".
+ */
+const PHONE_UNPLAYABLE_PROFILES = { 110: 'High 10 (10-bit)', 122: 'High 4:2:2', 244: 'High 4:4:4', 44: 'CAVLC 4:4:4' };
+const phoneProblem = (moov) => {
+    const hint = 'Export it as an H.264 MP4, 8-bit, 1080p (the "most compatible" setting in most editors) and upload it again.';
+    const c = moov.indexOf('avcC', 0, 'latin1');
+    if (c >= 0 && c + 6 < moov.length) {
+        const profile = PHONE_UNPLAYABLE_PROFILES[moov[c + 5]];
+        if (profile) return `This video is H.264 ${profile}, which plays on computers but not on phones. ${hint}`;
+    }
+    const e = moov.indexOf('avc1', 0, 'latin1');
+    if (e >= 0 && e + 32 <= moov.length) {
+        const w = moov.readUInt16BE(e + 28), h = moov.readUInt16BE(e + 30);
+        if (Math.max(w, h) > 4096 || Math.min(w, h) > 2304) return `This video is ${w}×${h}, larger than phones can play. ${hint}`;
+    }
+    return null;
+};
+
 const exportHint = 'Export it as an H.264 MP4 (the "most compatible" setting in most editors) and upload it again.';
 
 /**
@@ -105,14 +129,17 @@ const unplayableReason = (filePath, originalName = '') => {
 
         if (head.toString('hex', 0, 4) === MKV_MAGIC) {
             const start = readAt(fd, 0, Math.min(fileSize, MKV_SCAN_BYTES));
-            if (codecsIn(start, MKV_PLAYABLE).length) return null;
             const bad = codecsIn(start, Object.keys(MKV_UNPLAYABLE))[0];
-            return bad ? `This video is encoded with ${MKV_UNPLAYABLE[bad]}, which browsers cannot play. ${exportHint}` : null;
+            if (bad) return `This video is encoded with ${MKV_UNPLAYABLE[bad]}, which browsers cannot play. ${exportHint}`;
+            // WebM and MKV play on computers and Android, but never on an iPhone or iPad.
+            return `iPhones and iPads cannot play WebM or MKV files (${ext}). ${exportHint}`;
         }
 
         const moov = readMoov(fd, fileSize);
         if (!moov) return null;
-        if (codecsIn(moov, PLAYABLE_VIDEO).length) return null;
+        if (codecsIn(moov, PLAYABLE_VIDEO).length) return phoneProblem(moov);
+        const ios = codecsIn(moov, Object.keys(NOT_ON_IPHONE))[0];
+        if (ios) return `This video is encoded with ${NOT_ON_IPHONE[ios]}, which iPhones and iPads cannot play. ${exportHint}`;
         const bad = codecsIn(moov, Object.keys(UNPLAYABLE_VIDEO))[0];
         if (!bad) return null;
         return `This video is encoded with ${UNPLAYABLE_VIDEO[bad]}, which most browsers cannot play. ${exportHint}`;

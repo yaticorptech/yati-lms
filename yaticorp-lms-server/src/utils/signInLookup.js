@@ -54,4 +54,18 @@ const SHARED_PHONE = 'More than one account uses this mobile number and password
 const TOO_MANY_ON_PHONE = 'Too many accounts use this mobile number. Sign in with your card number instead.';
 const PASSWORD_NOT_SET = 'Your organization added you, but you have not set up your account yet. Open Sign Up, choose Teacher, and verify with this mobile number.';
 
-module.exports = { kindOf, phonePattern, byPhone, SHARED_PHONE, TOO_MANY_ON_PHONE, PASSWORD_NOT_SET };
+/**
+ * Another teacher already on this mobile number (2026-11-14): one number, one teacher — any teacher of the
+ * same organization, and any teacher without a card anywhere (the number is their sign-in). Returns their name.
+ */
+const teacherWithPhone = async (phone, { organizationId = null, exceptId = null } = {}) => {
+    const k = kindOf(phone);
+    if (!k.digits || k.digits.length < 7) return null;
+    const { Teacher } = require('../teacher/models');
+    const or = [{ cardNumber: { $in: [null, ''] } }];
+    if (organizationId) or.push({ organizationId });
+    const t = await Teacher.findOne({ phone: { $regex: phonePattern(k.digits) }, status: { $ne: 'deleted' }, $or: or, ...(exceptId ? { _id: { $ne: exceptId } } : {}) }).select('name').lean();
+    return t?.name || null;
+};
+
+module.exports = { teacherWithPhone, kindOf, phonePattern, byPhone, SHARED_PHONE, TOO_MANY_ON_PHONE, PASSWORD_NOT_SET };

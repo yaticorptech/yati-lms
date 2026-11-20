@@ -1,19 +1,29 @@
 import { useMemo } from 'react';
 import QuizGame from './QuizGame';
-import { SENTENCE_GAPS } from '../../data/brainPuzzles';
+import { currentAgeBand } from './levels';
+import { GAP_BANDS, bandOrDefault } from '../../data/bands/vocab';
 
-/** 📝 Vocabulary: pick the word that fits the sentence. */
+/**
+ * 📝 Vocabulary: pick the word that fits the sentence.
+ *
+ * Banded by age (2026-11-13, data/bands/vocab.js): four-to-six-word picture
+ * sentences for Classes 1–2, simple sentences, then grammar in context,
+ * complex sentences for Classes 9–10 and the exam bank for Classes 11–12.
+ */
 export default function SentenceGap({ onExit }) {
+  const band = bandOrDefault(currentAgeBand());
   const questions = useMemo(
     () =>
-      SENTENCE_GAPS.map((q) => ({
+      GAP_BANDS[band].map((q) => ({
         text: q.text,
         answer: q.answer,
         options: [q.answer, ...q.wrong],
         note: q.text.replace('___', q.answer),
+        explain: q.explain,
+        picture: q.picture,
         level: q.level
       })),
-    []
+    [band]
   );
 
   return (
@@ -24,7 +34,7 @@ export default function SentenceGap({ onExit }) {
       questions={questions}
       onExit={onExit}
       renderPrompt={(q) => (
-        <p className="text-xl leading-relaxed font-bold text-ink-900">
+        <p className={`leading-relaxed font-bold text-ink-900 ${q.picture ? 'text-2xl sm:text-3xl' : 'text-xl'}`}>
           {q.text.split('___')[0]}
           <span className="mx-1 inline-block min-w-16 border-b-4 border-pink-400 align-bottom" />
           {q.text.split('___')[1]}

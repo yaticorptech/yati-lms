@@ -10,6 +10,7 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { Plus, Edit2, Trash2, ArrowLeft, GripVertical, Video, FileText, CheckSquare, Briefcase, ChevronDown, ChevronRight, Settings, ArrowUpDown, UploadCloud, Search, EyeOff, Eye, Book, HelpCircle, Clock, PlayCircle, PenTool, Layout, CheckCircle2, ExternalLink, X } from 'lucide-react';
 import AddLessonModal from '../components/AddLessonModal';
 import { useCourseScope } from '../utils/courseScope';
+import { studentAppUrl } from '../utils/studentUrl';
 
 const CourseEditor = () => {
     // Platform courses, or an organization's own — see utils/courseScope.js.
@@ -290,6 +291,12 @@ const CourseEditor = () => {
                 <span className={`px-2.5 py-0.5 text-[11px] font-bold rounded tracking-wide ${course.isPublished ? 'bg-[#e8f5e9] text-[#2e7d32]' : 'bg-slate-100 text-slate-600'}`}>
                     {course.isPublished ? 'Published' : 'Draft'}
                 </span>
+                {/* A private course (2026-11-12): published, only its chosen students see it — set on the Private courses page. */}
+                {course.isPrivate && (
+                    <Link to="/private-courses" className="px-2.5 py-0.5 text-[11px] font-bold rounded tracking-wide bg-amber-50 text-amber-700 hover:bg-amber-100" title="Only the students chosen on the Private courses page can see it">
+                        Private: chosen students only
+                    </Link>
+                )}
             </div>
 
             {/* Title & Action Buttons Row — stacked until there is room for a long
@@ -304,7 +311,7 @@ const CourseEditor = () => {
                     <button
                         onClick={() => {
                             const token = localStorage.getItem('adminToken');
-                            const studentUrl = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5173';
+                            const studentUrl = studentAppUrl('http://localhost:5173');
                             window.open(`${studentUrl}/preview/${id}?token=${token}`, '_blank');
                         }}
                         className="flex items-center px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold bg-white text-slate-800 hover:bg-slate-50 transition-colors shadow-sm"

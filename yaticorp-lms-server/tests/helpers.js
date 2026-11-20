@@ -25,6 +25,9 @@ for (const k of ['MONGO_URI', 'MONGODB_URI']) {
 // point it at a server of their own.
 for (const k of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'BREVO_API_KEY']) delete process.env[k];
 process.env.BOUNCE_WATCH = 'off';
+// Every language open to learn in the tests (they test every course); only English, Kannada and Hindi otherwise
+// (2026-11-13, linguistic service.js `openCourses`) — the lock's own test sets it back.
+process.env.LINGUISTIC_OPEN_COURSES = 'all';
 const mongoose = require('mongoose');
 const express = require('express');
 const jwt = require('jsonwebtoken');

@@ -28,5 +28,6 @@ router.use((req, res) => {
 // registers before anyone opens a wallet is still on the right side of it.
 // Mongoose queues the query until the database is connected.
 require('./services/walletService').startingCreditFrom().catch((e) => console.error('[rewards] starting-credit cut-off:', e.message));
+require('./services/walletService').passportCreditFrom().catch((e) => console.error('[rewards] passport-credit cut-off:', e.message));
 
 module.exports = router;

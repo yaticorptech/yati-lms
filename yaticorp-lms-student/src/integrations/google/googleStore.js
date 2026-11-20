@@ -59,9 +59,11 @@ export const consentRequest = () => askState;
  * Ask for consent. Resolves true once connected, false if declined.
  * `required`: an upload waits on it (2026-11-02: uploads are kept only in the student's Drive).
  */
-export const requestConsent = (reason, { required = false } = {}) =>
+export const requestConsent = (reason, { required = false, intro = false } = {}) =>
   new Promise((resolve) => {
-    askState = { reason, resolve, required };
+    // Something already asking wins; the app-open prompt (intro) never replaces it.
+    if (askState && intro) { resolve(false); return; }
+    askState = { reason, resolve, required, intro };
     emit();
   });
 

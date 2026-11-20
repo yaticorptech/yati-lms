@@ -6,6 +6,7 @@
  *   GET    /                 the devices, the limits, the residential card, and when they may next remove one
  *   PUT    /residential      { enabled } — a residential card allows a second computer (lab and home)
  *   DELETE /                 reset: every device off, the yearly removal given back
+ *   DELETE /:deviceId        one device off (not counted against the student's yearly removal)
  *
  * `findStudent(req)` returns the student this administrator may manage, or null.
  */
@@ -46,6 +47,17 @@ module.exports = (findStudent) => {
             await resetDevices(u._id);
             res.json({ devices: [], residentialCard: !!u.residentialCard, limits: limitsFor(u), canRemoveAt: null, message: `Devices reset — ${u.name} can sign in on new devices now.` });
         } catch (e) { res.status(500).json({ message: 'Could not reset the devices.' }); }
+    });
+    router.delete('/:deviceId', async (req, res) => {
+        try {
+            const u = await load(req, res); if (!u) return;
+            const target = (u.devices || []).find((d) => d.deviceId === String(req.params.deviceId));
+            if (!target) return res.status(404).json({ message: 'That device is not on this account.' });
+            await User.updateOne({ _id: u._id }, { $pull: { devices: { deviceId: target.deviceId } } });
+            devicesChanged(u._id);
+            const next = await User.findById(u._id).select('devices deviceRemovedAt residentialCard').lean();
+            res.json({ ...answer(next), message: `${target.name || 'The device'} removed — ${u.name} can sign in on a new device in its place.` });
+        } catch (e) { res.status(500).json({ message: 'Could not remove the device.' }); }
     });
     return router;
 };

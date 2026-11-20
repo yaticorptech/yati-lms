@@ -34,7 +34,7 @@ const withSearch = (filter, raw) => {
     const q = String(raw || '').trim().slice(0, 60);
     if (!q) return filter;
     const pattern = new RegExp(escapeRegExp(q.replace(/\s+/g, '')), 'i');
-    return { ...filter, $or: [{ CardNumber: pattern }, { SerialNumber: pattern }, { qrCodeNumber: pattern }] };
+    return { ...filter, $or: [{ CardNumber: pattern }, { SerialNumber: pattern }, { qrCodeNumber: pattern }, { passportCode: pattern }] };
 };
 
 const listCards = async (req, res) => {
@@ -44,7 +44,7 @@ const listCards = async (req, res) => {
         const limit = 50;
         const filter = withSearch({ ...STATE_QUERY[state] }, req.query.q);
         const [rows, total, waiting, verified, registered, inactive] = await Promise.all([
-            Card.find(filter).select('CardNumber SerialNumber qrCodeNumber status verified verifiedAt verifiedVia createdAt').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+            Card.find(filter).select('CardNumber SerialNumber qrCodeNumber status verified verifiedAt verifiedVia passportCode createdAt').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
             Card.countDocuments(filter),
             Card.countDocuments(STATE_QUERY.waiting),
             Card.countDocuments(STATE_QUERY.verified),
@@ -52,7 +52,7 @@ const listCards = async (req, res) => {
             Card.countDocuments(STATE_QUERY.inactive)
         ]);
         res.json({
-            cards: rows.map((c) => ({ _id: c._id, CardNumber: c.CardNumber, SerialNumber: c.SerialNumber || '', qrCodeNumber: c.qrCodeNumber, state: stateOf(c), verifiedAt: c.verifiedAt || null, verifiedVia: c.verifiedVia || null, createdAt: c.createdAt || null })),
+            cards: rows.map((c) => ({ _id: c._id, CardNumber: c.CardNumber, SerialNumber: c.SerialNumber || '', qrCodeNumber: c.qrCodeNumber, state: stateOf(c), verifiedAt: c.verifiedAt || null, verifiedVia: c.verifiedVia || null, passportCode: c.passportCode || null, createdAt: c.createdAt || null })),
             total, page, pages: Math.max(1, Math.ceil(total / limit)),
             counts: { waiting, verified, registered, inactive }
         });

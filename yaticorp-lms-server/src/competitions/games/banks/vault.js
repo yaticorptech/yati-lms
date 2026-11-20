@@ -77,8 +77,8 @@ const PATTERNS = {
  * (lockClues.js). Opening it shows the relic carved inside — "the symbol from the first door" of the Final Trial.
  * (The symbol rows above are kept for the record; the lock no longer uses them.)
  */
-const ancientLock = (rng) => {
-    const { code, clues } = lockCode(rng);
+const ancientLock = (rng, zone) => {
+    const { code, clues } = lockCode(rng, { simple: zone === 'young' });
     const relic = pick(rng, RELICS);
     return {
         title: 'The Ancient Lock', kind: 'lockcode',
@@ -103,10 +103,13 @@ const RING_RULES = [
  * a compass and two lanterns make B, a lantern and two books make C — the book's value, from four choices. Every
  * step divides exactly, so there is one answer and it is reached by reasoning, not guessing.
  */
-const mathLogic = (rng) => {
-    const compass = int(rng, 3, 12);
-    let lantern; do lantern = int(rng, 2, 9); while (lantern === compass);
-    let book; do book = int(rng, 2, 9); while (book === lantern || book === compass);
+// By zone (../zones.js, 2026-11-13): Young Thinkers' values 1–5 (every total 15 or under), Master Minds' up to 15.
+const MATH_RANGE = { young: [[1, 5], [1, 5]], master: [[6, 15], [3, 12]] };
+const mathLogic = (rng, zone) => {
+    const [[c0, c1], [v0, v1]] = MATH_RANGE[zone] || [[3, 12], [2, 9]];
+    const compass = int(rng, c0, c1);
+    let lantern; do lantern = int(rng, v0, v1); while (lantern === compass);
+    let book; do book = int(rng, v0, v1); while (book === lantern || book === compass);
     const totals = [3 * compass, compass + 2 * lantern, lantern + 2 * book];
     const from = Math.max(1, book - int(rng, 0, 3));
     const choices = [from, from + 1, from + 2, from + 3];
@@ -141,17 +144,21 @@ const hiddenMechanism = (rng) => {
  * from a sum; ☾ a step from ☀, double it, or a difference; △ the people drawn
  * on the wall, or a sum or difference of the other two. Every digit 0–9.
  */
-const secretCode = (rng) => {
+// By zone (2026-11-13): Young Thinkers a number given and a small step, and people to count; Master Minds every
+// symbol worked out from the others.
+const CODE_WAYS = { young: ['given-plus', 'given-minus'], master: ['sum', 'given-double', 'given-minus', 'sum'] };
+const CODE_TRI = { young: ['people', 'people', 'sum'], master: ['sum', 'diff'] };
+const secretCode = (rng, zone) => {
     for (;;) {
         const lines = []; const why = [];
         let sun; let moon;
-        const way = pick(rng, ['given-plus', 'given-double', 'sum', 'given-minus']);
+        const way = pick(rng, CODE_WAYS[zone] || ['given-plus', 'given-double', 'sum', 'given-minus']);
         if (way === 'given-plus') { sun = int(rng, 1, 6); const d = int(rng, 1, 3); moon = sun + d; lines.push(`☀ = ${sun}`, `☾ = ☀ + ${d}`); why.push(`☀ = ${sun}`, `☾ = ${sun} + ${d} = ${moon}`); }
         if (way === 'given-double') { sun = int(rng, 1, 4); moon = sun * 2; lines.push(`☀ = ${sun}`, '☾ = ☀ × 2'); why.push(`☀ = ${sun}`, `☾ = ${sun} × 2 = ${moon}`); }
         if (way === 'given-minus') { sun = int(rng, 4, 9); const d = int(rng, 1, 3); moon = sun - d; lines.push(`☀ = ${sun}`, `☾ = ☀ − ${d}`); why.push(`☀ = ${sun}`, `☾ = ${sun} − ${d} = ${moon}`); }
         if (way === 'sum') { moon = int(rng, 1, 5); sun = moon + int(rng, 1, 4); lines.push(`☾ = ${moon}`, `☀ + ☾ = ${sun + moon}`); why.push(`☾ = ${moon}`, `☀ = ${sun + moon} − ${moon} = ${sun}`); }
         let triangle; let figures = null; let note;
-        const tri = pick(rng, ['people', 'people', 'sum', 'diff']);
+        const tri = pick(rng, CODE_TRI[zone] || ['people', 'people', 'sum', 'diff']);
         if (tri === 'people') { figures = int(rng, 2, 7); triangle = figures; note = '△ = how many people are drawn on the wall.'; why.push(`△ = ${figures} people`); }
         if (tri === 'sum') { triangle = sun + moon; lines.push('△ = ☀ + ☾'); note = 'Use the numbers you found for ☀ and ☾.'; why.push(`△ = ${sun} + ${moon} = ${triangle}`); }
         if (tri === 'diff') { triangle = Math.abs(sun - moon); lines.push(sun >= moon ? '△ = ☀ − ☾' : '△ = ☾ − ☀'); note = 'Use the numbers you found for ☀ and ☾.'; why.push(`△ = ${triangle}`); }
@@ -187,11 +194,11 @@ const trace = (puzzle, states) => {
     }
     return { hit: false, path, turns };
 };
-const lightPath = (rng) => {
+const lightPath = (rng, zone) => {
     for (let tries = 0; tries < 2000; tries += 1) {
         const source = int(rng, 0, N - 1);
-        // Walk a beam with two or three turns, a mirror at each.
-        const want = int(rng, 2, 3);
+        // Walk a beam with two or three turns, a mirror at each (Young Thinkers two, Master Minds three).
+        const want = zone === 'young' ? 2 : zone === 'master' ? 3 : int(rng, 2, 3);
         let r = source; let c = -1; let dr = 0; let dc = 1;
         const mirrors = []; const solve = []; const used = new Set();
         let ok = true;
@@ -244,9 +251,12 @@ const lightPath = (rng) => {
     throw new Error('Could not build a light path.');
 };
 
+/** What to do for the code, step by step: the numbers come from the 3rd door (☀ ☾ △), in the order found here. */
+const ruleText = (fourth) => `Code: take the numbers of ☀ ☾ △ from the 3rd door and type them in the order you put the symbols. Then add ${fourth} as the 4th digit.`;
+
 /* ── 5 · The Final Trial ──────────────────────────────────────────────── */
 const PERMS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]].map((p) => p.map((i) => RELICS[i]));
-const finalTrial = (rng, lockKey, numbers, level) => {
+const finalTrial = (rng, lockKey, numbers, level, zone) => {
     const order = pick(rng, PERMS);
     const ref = (x) => (x === lockKey ? 'The symbol from the first door' : `The ${NAME[x]}`);
     const POS = ['first', 'in the middle', 'last'];
@@ -269,21 +279,23 @@ const finalTrial = (rng, lockKey, numbers, level) => {
         if (after < before) clues.push(c);
         if (after === 1) break;
     }
-    if (PERMS.filter((o) => clues.every((k) => k.ok(o))).length !== 1) return finalTrial(rng, lockKey, numbers, level);
+    if (PERMS.filter((o) => clues.every((k) => k.ok(o))).length !== 1) return finalTrial(rng, lockKey, numbers, level, zone);
     const digits = order.map((x) => numbers[x]);
     // The fourth digit, a different rule each game.
-    const last = pick(rng, [
-        { rule: 'then the last digit of their total', d: digits.reduce((a, b) => a + b, 0) % 10, why: `their total is ${digits.reduce((a, b) => a + b, 0)}` },
-        { rule: 'then the biggest of the three numbers again', d: Math.max(...digits), why: `the biggest is ${Math.max(...digits)}` },
-        { rule: 'then the smallest of the three numbers again', d: Math.min(...digits), why: `the smallest is ${Math.min(...digits)}` }
-    ]);
+    const rules = [
+        { rule: 'the last digit of their total', d: digits.reduce((a, b) => a + b, 0) % 10, why: `their total is ${digits.reduce((a, b) => a + b, 0)}` },
+        { rule: 'the biggest of the 3 numbers', d: Math.max(...digits), why: `the biggest is ${Math.max(...digits)}` },
+        { rule: 'the smallest of the 3 numbers', d: Math.min(...digits), why: `the smallest is ${Math.min(...digits)}` }
+    ];
+    // Young Thinkers: the biggest or the smallest, never a total to work out (2026-11-13).
+    const last = pick(rng, zone === 'young' ? rules.slice(1) : rules);
     const code = `${digits.join('')}${last.d}`;
     return {
         title: 'The Final Trial', kind: 'final',
         pub: {
             prompt: 'Put the 3 symbols in the right order, then enter the 4-digit code.',
             relics: [...RELICS], clues: clues.map((c) => c.text),
-            rule: `Code = the numbers of the 3 symbols (from Puzzle 3) in your order, ${last.rule}.`
+            rule: ruleText(last.rule)
         },
         solution: `Order ${order.map((x) => GLYPH[x]).join(' ')}; numbers ${digits.join(' ')}, ${last.why}: code ${code}.`,
         answer: { order, code },
@@ -298,6 +310,13 @@ const finalTrial = (rng, lockKey, numbers, level) => {
  * Final Trial's "the symbol from the first door" still means what it did. Changes `shared` in place; true if it did.
  */
 const upgradeLock = (shared) => {
+    // Games made before 2026-11-11 keep the old, unclear wording of the code: told again as ruleText says it.
+    for (const st of shared?.stages || []) {
+        for (const o of [st, st?.pub]) {
+            const m = o && typeof o.rule === 'string' && o.rule.match(/^Code = the numbers of the 3 symbols .*? in your order, then (.*?)(?: again)?\.$/);
+            if (m) o.rule = ruleText(m[1].replace('three numbers', '3 numbers'));
+        }
+    }
     // The second door, likewise: the rings become the Math Logic Challenge (seeded from the old door).
     const two = shared?.stages?.[1];
     let changed = false;
@@ -345,22 +364,28 @@ const checkAnswer = (st, v) => {
  * ./vaultValidate.js, which reads each as a student would and works the
  * answer out afresh. A set that fails is thrown away and made again.
  */
-const vaultStages = (rng, level = 'medium') => {
+const vaultStages = (rng, level = 'medium', zone = null) => {
     const { validate } = require('./vaultValidate');
     for (let tries = 0; tries < 25; tries += 1) {
-        const stages = makeStages(rng, level);
+        const stages = makeStages(rng, level, zone);
         const problems = validate(stages);
         if (!problems.length) return stages;
         console.warn('[final vault] a set of chambers failed its check and was made again:', problems.join('; '));
     }
     throw new Error('Could not make a valid set of chambers.');
 };
-const makeStages = (rng, level) => {
-    const lock = ancientLock(rng);
-    const rings = mathLogic(rng);
-    const code = secretCode(rng);
-    const light = lightPath(rng);
-    const trial = finalTrial(rng, lock.relic, code.numbers, level);
+/**
+ * By the room's age zone (../zones.js, 2026-11-13), the same five chambers made gentler or harder: Young Thinkers'
+ * treasure hunt has no "twice" clues on the lock, small numbers behind the book, a symbol given and people to count
+ * on the wall, a two-mirror beam and the biggest or smallest digit to finish; Master Minds' escape room has bigger
+ * numbers, every wall symbol worked out from the others, and a three-mirror beam. No zone: as before.
+ */
+const makeStages = (rng, level, zone) => {
+    const lock = ancientLock(rng, zone);
+    const rings = mathLogic(rng, zone);
+    const code = secretCode(rng, zone);
+    const light = lightPath(rng, zone);
+    const trial = finalTrial(rng, lock.relic, code.numbers, level, zone);
     // Data only, from here on: it is kept in the game's state.
     return [lock, rings, code, light, trial].map(({ numbers, ...st }) => st);
 };

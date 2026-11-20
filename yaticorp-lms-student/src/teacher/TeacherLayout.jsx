@@ -5,9 +5,9 @@
  * places a teacher goes most.
  */
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users, Compass, Orbit, MessageCircleQuestion
+    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users, Compass, Orbit, MessageCircleQuestion, CalendarCheck, Megaphone, Building2, ChevronDown, ClipboardCheck, GraduationCap, CalendarRange, Lock, BookOpen, Trophy, ArrowLeft
 } from 'lucide-react';
 import { useTeacher, hasResearch } from './useTeacher';
 import useBackClose from '../native/useBackClose';
@@ -18,6 +18,7 @@ import TeacherSupport from './TeacherSupport';
 import { colorOf } from './kit';
 import { TeacherAvatar } from './ui';
 import teacherApi, { isEmbedded, readTeacherAdminView } from './teacherSession';
+import DemoBar from '../components/DemoBar';
 
 const NAV = [
     { items: [{ to: '/teacher', label: 'Dashboard', icon: LayoutDashboard, end: true, color: 'emerald' }] },
@@ -49,24 +50,49 @@ const ALL = NAV.flatMap((g) => g.items);
 const UNITS = { to: '/teacher/scout-units', label: 'My Units', short: 'Units', icon: Compass, color: 'amber' };
 const CLUBS = { to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users, color: 'violet', clubsOnly: true };
 // 360: the classes they teach (course, section, subject) and their students (pages/Mentor360.jsx).
-const MENTOR = { to: '/teacher/360', label: '360 Dashboard', short: '360', icon: Orbit, color: 'teal' };
+const MENTOR = { to: '/teacher/360', label: 'Student Ranking', short: 'Ranking', icon: Orbit, color: 'teal' };
+// Campus: attendance for the subjects their department gave them (pages/Attendance.jsx).
+const ATTENDANCE = { to: '/teacher/attendance', label: 'Attendance', short: 'Attendance', icon: CalendarCheck, color: 'emerald' };
+// Campus: the head of a department sets its timetable and posts announcements (pages/Department.jsx).
+const DEPARTMENT = { to: '/teacher/department', label: 'My department', short: 'Department', icon: Megaphone, color: 'amber' };
+// The HOD's parts of their department, each its own menu item (2026-11-14); locked ones greyed.
+// The HOD's department, in working order (2026-11-14): who is in it, what is taught and when,
+// how the students are doing, then notices, mentoring and the department's ranking.
+const HOD_ITEMS = [
+    { to: '/teacher/department/students', label: 'Students', short: 'Students', icon: GraduationCap, color: 'indigo' },
+    { to: '/teacher/department/teachers', label: 'Teachers', short: 'Teachers', icon: Users, color: 'rose' },
+    { to: '/teacher/department/subjects', label: 'Subjects', short: 'Subjects', icon: BookOpen, color: 'emerald' },
+    { to: '/teacher/department/timetable', label: 'Timetable', short: 'Timetable', icon: CalendarRange, color: 'sky' },
+    { to: '/teacher/department/attendance', label: 'Attendance report', short: 'Report', icon: ClipboardCheck, color: 'teal' },
+    { to: '/teacher/department/announcements', label: 'Announcements', short: 'Notices', icon: Megaphone, color: 'amber' },
+    { to: '/teacher/department/mentors', label: 'Mentors', short: 'Mentors', icon: Orbit, color: 'teal' },
+    { to: '/teacher/department/ranking', label: 'Department ranking', short: 'Ranking', icon: Trophy, color: 'amber' }
+];
 /**
  * The menu from what the organization turned on for this teacher (Teachers →
  * the switches, 2026-10-30): 360 and Scouts & Guides (My Units), one, both or
  * neither; My Clubs only while they are in charge of a club. With a card the
  * research tools come first, as before.
  */
-const navFor = (research, mentor, scouts) => {
+const navFor = (research, mentor, scouts, attendance, hod, rankingName = 'Student Ranking') => {
+    // A teacher's own classes first (taking attendance, their mentees), then — for a HOD — the
+    // department they run, then clubs and units.
+    const mine = [...(attendance ? [ATTENDANCE] : []), ...(mentor ? [{ ...MENTOR, label: rankingName, short: rankingName }] : [])];
+    const department = hod ? HOD_ITEMS.map((i) => (i.to === '/teacher/department/ranking' ? { ...i, label: `${rankingName} — department` } : i)) : [];
     if (research) {
-        const activities = NAV[NAV.length - 1];
+        const activities = NAV[NAV.length - 1].items.filter((i) => scouts || i.to !== UNITS.to).map((i) => ({ ...i, color: i.to === UNITS.to ? 'amber' : 'violet' }));
         return [
             NAV[0],
-            ...(mentor ? [{ title: '360', items: [MENTOR] }] : []),
-            ...NAV.slice(1, -1),
-            { ...activities, items: activities.items.filter((i) => scouts || i.to !== UNITS.to) }
+            ...(mine.length ? [{ title: 'My classes', icon: CalendarCheck, collapsible: true, items: mine }] : []),
+            ...(department.length ? [{ title: 'Department (HOD)', icon: Building2, collapsible: true, items: department }] : []),
+            ...(activities.length ? [{ title: 'Activities', icon: Users, collapsible: true, items: activities }] : []),
+            { title: 'Research', icon: FlaskConical, collapsible: true, items: [...NAV[1].items, ...NAV[2].items] }
         ];
     }
-    return [{ title: 'My dashboard', items: [...(mentor ? [MENTOR] : []), ...(scouts ? [UNITS] : []), CLUBS] }];
+    return [
+        ...(mine.length || scouts ? [{ title: 'My classes', items: [...mine, ...(scouts ? [UNITS] : []), CLUBS] }] : [{ title: 'My dashboard', items: [CLUBS] }]),
+        ...(department.length ? [{ title: 'Department (HOD)', items: department }] : [])
+    ];
 };
 
 
@@ -100,36 +126,126 @@ const useHasClubs = (teacherId) => {
     return has;
 };
 
+// Whether this teacher has subjects to take attendance for (Campus on, and a department gave them one).
+const ATT_KEY = 'teacher-has-attendance';
+const HOD_KEY = 'teacher-is-hod';
+/** [has subjects, heads a department] — one ask of /campus, remembered for the session. */
+const useHasAttendance = (teacherId) => {
+    const read = (k) => { try { return !!teacherId && sessionStorage.getItem(k) === String(teacherId); } catch { return false; } };
+    const [has, setHas] = useState(() => read(ATT_KEY));
+    const [hod, setHod] = useState(() => read(HOD_KEY));
+    // What the organization calls Student Ranking (e.g. "Swastika 360"), for the menu.
+    const [name, setName] = useState(() => { try { return sessionStorage.getItem('teacher-ranking-name') || 'Student Ranking'; } catch { return 'Student Ranking'; } });
+    useEffect(() => { try { sessionStorage.setItem('teacher-ranking-name', name); } catch { /* storage unavailable */ } }, [name]);
+    useEffect(() => {
+        if (!teacherId) return undefined;
+        let live = true;
+        const keep = (k, yes) => { try { if (yes) sessionStorage.setItem(k, String(teacherId)); else sessionStorage.removeItem(k); } catch { /* storage unavailable */ } };
+        teacherApi.get('/campus').then((r) => {
+            if (!live) return;
+            const yes = (r.data?.subjects || []).length > 0; const head = (r.data?.hodOf || []).length > 0;
+            setHas(yes); setHod(head); keep(ATT_KEY, yes); keep(HOD_KEY, head);
+            if (r.data?.rankingName) setName(r.data.rankingName);
+        }).catch(() => {
+            if (!live) return;
+            setHas(false); setHod(false);
+            // No Campus: the name from Student Ranking itself (a mentor without classes).
+            teacherApi.get('/360').then((x) => { if (live && x.data?.title) setName(x.data.title); }).catch(() => {});
+        });
+        return () => { live = false; };
+    }, [teacherId]);
+    return [has, hod, name];
+};
+
+/** A dropdown section of the menu: opens by itself on the page it holds; remembered otherwise. */
+const NavSection = ({ group, onPick }) => {
+    const { pathname } = useLocation();
+    const here = group.items.some((i) => pathname === i.to || pathname.startsWith(`${i.to}/`));
+    // Closed by default (2026-11-14): only the section holding the page you are on opens by itself.
+    const [open, setOpen] = useState(here);
+    useEffect(() => { if (here) setOpen(true); }, [here]);
+    const toggle = () => setOpen((o) => !o);
+    const id = `nav-${group.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    return (
+        <div>
+            <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id}
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider transition-colors hover:bg-slate-50 ${here ? 'text-slate-700' : 'text-slate-400 hover:text-slate-600'}`}>
+                {group.icon && <group.icon size={14} aria-hidden="true" />}
+                <span className="flex-1">{group.title}</span>
+                {!open && <span className="rounded-full bg-slate-100 px-1.5 text-[10px] font-semibold normal-case tracking-normal text-slate-500">{group.items.length}</span>}
+                <ChevronDown size={15} aria-hidden="true" className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+            </button>
+            <div id={id} className={`grid transition-[grid-template-rows] duration-200 ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                <div className="min-h-0 overflow-hidden">
+                    <div className="space-y-0.5 pt-1">
+                        {group.items.map((item) => (
+                            <NavLink key={item.to} to={item.to} end={item.end} onClick={onPick} tabIndex={open ? undefined : -1} className={(a) => `${navClass(item.color)(a)} ${item.locked ? 'opacity-60 grayscale' : ''}`}>
+                                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${colorOf(item.color).soft}`}><item.icon size={16} aria-hidden="true" /></span> <span className="flex-1">{item.label}</span>
+                                {item.locked && <Lock size={12} className="shrink-0 text-slate-400" aria-label="Locked" />}
+                            </NavLink>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Back (2026-11-14, user: "add back buttons, no page has one"): on every page but the Dashboard, a
+ * back button with the page's name — to the page before, or the Dashboard when opened directly.
+ */
+const BackBar = ({ nav }) => {
+    const { pathname } = useLocation();
+    const navigate = useNavigate();
+    const path = pathname.replace(/\/$/, '');
+    if (path === '/teacher' || path === '') return null;
+    const items = nav.flatMap((g) => g.items);
+    const here = items.filter((i) => path === i.to || path.startsWith(`${i.to}/`)).sort((a, b) => b.to.length - a.to.length)[0];
+    const label = here?.label || (path.startsWith('/teacher/profile') ? 'My profile' : '');
+    const back = () => { if (window.history.length > 1 && window.history.state?.idx > 0) navigate(-1); else navigate('/teacher'); };
+    return (
+        <div className="mb-4 flex min-w-0 items-center gap-3">
+            <button type="button" onClick={back} aria-label="Back"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:border-emerald-300 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
+                <ArrowLeft size={18} aria-hidden="true" />
+            </button>
+            {label && <h1 className="min-w-0 truncate text-lg font-semibold text-slate-900">{label}</h1>}
+        </div>
+    );
+};
+
 const NavList = ({ onPick, nav, hasClubs }) => (
-    <nav aria-label="Teacher" className="space-y-6">
-        {nav.map((group) => ({ ...group, items: group.items.filter((item) => !item.clubsOnly || hasClubs) })).filter((group) => group.items.length).map((group, i) => (
+    <nav aria-label="Teacher" className="space-y-4">
+        {nav.map((group) => ({ ...group, items: group.items.filter((item) => !item.clubsOnly || hasClubs) })).filter((group) => group.items.length).map((group, i) => (group.collapsible ? <NavSection key={group.title} group={group} onPick={onPick} /> : (
             <div key={group.title || i}>
                 {group.title && <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{group.title}</p>}
                 <div className="space-y-0.5">
                     {group.items.map((item) => (
-                        <NavLink key={item.to} to={item.to} end={item.end} onClick={onPick} className={navClass(item.color)}>
-                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${colorOf(item.color).soft}`}><item.icon size={16} aria-hidden="true" /></span> <span>{item.label}</span>
+                        <NavLink key={item.to} to={item.to} end={item.end} onClick={onPick} className={(a) => `${navClass(item.color)(a)} ${item.locked ? 'opacity-60 grayscale' : ''}`}>
+                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${colorOf(item.color).soft}`}><item.icon size={16} aria-hidden="true" /></span> <span className="flex-1">{item.label}</span>
+                            {item.locked && <Lock size={12} className="shrink-0 text-slate-400" aria-label="Locked" />}
                         </NavLink>
                     ))}
                 </div>
             </div>
-        ))}
+        )))}
     </nav>
 );
 
-const Brand = () => (
+const Brand = ({ hod }) => (
     <Link to="/teacher" className="flex min-w-0 items-center gap-2">
         <img src="/assets/YATICORP-dark.png" alt="Yaticorp" className="h-7 max-w-[8.5rem] object-contain" />
-        <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">Teacher</span>
+        <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">{hod ? 'HOD' : 'Teacher'}</span>
     </Link>
 );
 
-const Me = ({ teacher }) => (
+const Me = ({ teacher, hod }) => (
     <Link to="/teacher/profile" className="flex min-w-0 items-center gap-3 rounded-lg p-2 transition-colors hover:bg-slate-50">
         <TeacherAvatar teacher={teacher} />
         <span className="min-w-0">
             <span className="block truncate text-sm font-semibold text-slate-900">{teacher?.name || 'Teacher'}</span>
-            <span className="block truncate text-xs text-slate-500">{teacher?.designation || teacher?.institution || 'My profile'}</span>
+            <span className="block truncate text-xs text-slate-500">{hod ? 'HOD · Head of Department' : (teacher?.designation === 'HOD' ? '' : teacher?.designation) || teacher?.institution || 'My profile'}</span>
         </span>
     </Link>
 );
@@ -155,16 +271,21 @@ export default function TeacherLayout() {
     const research = hasResearch(teacher);
     const mentor = Boolean(teacher?.mentor360);
     const scouts = teacher?.scouts === true;
-    const nav = navFor(research, mentor, scouts);
+    const [hasAttendance, isHod, rankingName] = useHasAttendance(teacher?._id);
+    const nav = navFor(research, mentor, scouts, hasAttendance || (!research && Boolean(teacher?.organizationId)), isHod, rankingName);
     // Nothing turned on and no club: no bottom bar rather than an empty one.
-    const bottom = research ? BOTTOM.map((to) => ALL.find((x) => x.to === to)) : nav[0].items.filter((i) => !i.clubsOnly || hasClubs);
+    // The phone bar: Dashboard, then My department (HOD) and Attendance, then the research tools — five in all.
+    const campusBar = [...(isHod ? [{ ...DEPARTMENT, to: '/teacher/department/subjects' }] : []), ...(hasAttendance ? [ATTENDANCE] : [])];
+    const bottom = research
+        ? [ALL[0], ...campusBar, ...BOTTOM.slice(1).map((to) => ALL.find((x) => x.to === to))].slice(0, 5)
+        : nav[0].items.filter((i) => !i.clubsOnly || hasClubs);
     const [menuOpen, setMenuOpen] = useState(false);
     const [supportOpen, setSupportOpen] = useState(false);
     const location = useLocation();
     useBackClose(() => setMenuOpen(false), menuOpen);
     // Without a card: the profile is completed before the other pages open (./profileGate.jsx).
     const missing = useMissingProfile(teacher, !research && Boolean(teacher), location.pathname);
-    const gated = missing.length > 0 && !['/teacher/profile', '/teacher/360'].includes(location.pathname.replace(/\/$/, ''));
+    const gated = missing.length > 0 && !['/teacher/profile', '/teacher/360', '/teacher/attendance', '/teacher/department'].includes(location.pathname.replace(/\/$/, '')) && !location.pathname.startsWith('/teacher/department/');
     useEffect(() => { window.scrollTo?.(0, 0); }, [location.pathname]);
     // Inter on the teacher side, popups included (they render outside this tree).
     useEffect(() => {
@@ -179,18 +300,18 @@ export default function TeacherLayout() {
         <div className="min-h-screen bg-slate-50/80">
             {/* Sidebar */}
             <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-200 bg-white sidebar:flex">
-                <div className="flex h-16 items-center border-b border-slate-200 px-5"><Brand /></div>
+                <div className="flex h-16 items-center border-b border-slate-200 px-5"><Brand hod={isHod} /></div>
                 <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5"><NavList nav={nav} hasClubs={hasClubs} /></div>
                 <div className="space-y-1 border-t border-slate-200 p-3">
                     <SupportButton onClick={() => setSupportOpen(true)} />
-                    <Me teacher={teacher} />
+                    <Me teacher={teacher} hod={isHod} />
                     <SignOut onClick={signOut} />
                 </div>
             </aside>
 
             {/* Phone and tablet top bar */}
             <header className="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sidebar:hidden">
-                <Brand />
+                <Brand hod={isHod} />
                 <div className="flex items-center gap-1">
                     <Link to="/teacher/profile" aria-label="My profile" className="rounded-full p-1 hover:bg-slate-100"><TeacherAvatar teacher={teacher} className="h-8 w-8 text-[11px]" /></Link>
                     <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-expanded={menuOpen} className="rounded-full p-2 text-slate-600 hover:bg-slate-100"><Menu size={22} /></button>
@@ -208,7 +329,7 @@ export default function TeacherLayout() {
                         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4"><NavList nav={nav} hasClubs={hasClubs} onPick={() => setMenuOpen(false)} /></div>
                         <div className="space-y-1 border-t border-slate-200 p-3" onClick={(e) => { if (e.target.closest('a')) setMenuOpen(false); }}>
                             <SupportButton onClick={() => { setMenuOpen(false); setSupportOpen(true); }} />
-                            <Me teacher={teacher} />
+                            <Me teacher={teacher} hod={isHod} />
                             <SignOut onClick={signOut} />
                         </div>
                     </div>
@@ -216,6 +337,8 @@ export default function TeacherLayout() {
             )}
 
             <main className="px-4 pb-28 pt-20 sidebar:ml-64 sidebar:px-8 sidebar:pb-10 sidebar:pt-8">
+                {/* A demo (presentation) card: says so, and changes to its student or organisation dashboard. */}
+                <DemoBar as="teacher" name={teacher?.name} className="mx-auto mb-4 w-full max-w-[100rem] rounded-xl" />
                 {/* A super admin working in this teacher's dashboard: said plainly, with the way out. */}
                 {adminView && (
                     <div role="status" className="mx-auto mb-4 flex w-full max-w-[100rem] items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
@@ -233,6 +356,7 @@ export default function TeacherLayout() {
                     that is left only stops lines stretching on a very wide
                     monitor. */}
                 <div className="mx-auto w-full max-w-[100rem]">
+                    {!gated && <BackBar nav={nav} />}
                     {gated ? <CompleteProfileFirst missing={missing} /> : <Outlet />}
                 </div>
             </main>

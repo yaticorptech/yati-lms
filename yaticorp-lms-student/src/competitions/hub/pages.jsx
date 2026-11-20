@@ -19,6 +19,7 @@ import { ARENA, PANEL } from './gameInfo';
 import { gameRules } from '../gameRules';
 import { StatusChip, Empty } from '../parts';
 import { Box, Heading, Failed, Loading, CompetitionCard, ArenaGoldCard, MatchList, LeaderboardTab, ResultsTab, HistoryTab } from '../CompetitionsHome';
+import Select from '../../components/Select';
 // A plain card, as Box draws it (the calendar's on its own page).
 const BOX = 'rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5';
 
@@ -314,7 +315,8 @@ const AddEvent = ({ day, onClose }) => {
     const FIELD = 'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100';
     return (
         <Portal>
-            <div className="fixed inset-0 z-[130] flex items-end justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:items-center" onClick={onClose}>
+            {/* In the middle of the screen on a phone too (2026-11-12), not stuck to the bottom. */}
+            <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
                 <form onSubmit={save} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add event" className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl" data-add-event>
                     <div className="flex items-center justify-between gap-2">
                         <p className="flex items-center gap-2 text-lg font-black text-slate-900"><CalendarPlus className="h-5 w-5 text-violet-600" /> Add event</p>
@@ -323,7 +325,7 @@ const AddEvent = ({ day, onClose }) => {
                     <label className="mt-4 block text-xs font-bold text-slate-600">Event name
                         <input value={f.title} onChange={(e) => set({ title: e.target.value })} maxLength={120} placeholder="e.g. Chess quarter-final" className={FIELD} data-event-title />
                     </label>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <label className="block text-xs font-bold text-slate-600">Date<input type="date" required value={f.date} onChange={(e) => set({ date: e.target.value })} className={FIELD} data-event-date /></label>
                         {/* The time on a 12-hour clock: hour, minute, and AM / PM (2026-11-04). */}
                         <div className="block text-xs font-bold text-slate-600">Time
@@ -332,14 +334,15 @@ const AddEvent = ({ day, onClose }) => {
                                     const [h24, mi] = f.time.split(':').map(Number);
                                     const pm = h24 >= 12; const h12 = h24 % 12 || 12;
                                     const to24 = (h, m, p) => `${pad((h % 12) + (p ? 12 : 0))}:${pad(m)}`;
-                                    const SEL = 'min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-1.5 py-2.5 text-center text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100';
+                                    // The app's own white lists (2026-11-12), not the browser's grey ones.
+                                    const SEL = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 hover:border-violet-300';
                                     return (<>
-                                        <select aria-label="Hour" value={h12} onChange={(e) => set({ time: to24(Number(e.target.value), mi, pm) })} className={SEL}>{Array.from({ length: 12 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{h}</option>)}</select>
-                                        <select aria-label="Minute" value={mi} onChange={(e) => set({ time: to24(h12, Number(e.target.value), pm) })} className={SEL}>{Array.from({ length: 60 }, (_, i) => i).map((m) => <option key={m} value={m}>{pad(m)}</option>)}</select>
+                                        <div className="min-w-0 flex-1"><Select aria-label="Hour" value={h12} onChange={(e) => set({ time: to24(Number(e.target.value), mi, pm) })} className={SEL} tone="indigo">{Array.from({ length: 12 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{h}</option>)}</Select></div>
+                                        <div className="min-w-0 flex-1"><Select aria-label="Minute" value={mi} onChange={(e) => set({ time: to24(h12, Number(e.target.value), pm) })} className={SEL} tone="indigo">{Array.from({ length: 60 }, (_, i) => i).map((m) => <option key={m} value={m}>{pad(m)}</option>)}</Select></div>
                                         <span className="flex shrink-0 overflow-hidden rounded-xl ring-1 ring-slate-200" role="group" aria-label="AM or PM">
                                             {['AM', 'PM'].map((x) => (
                                                 <button key={x} type="button" aria-pressed={(x === 'PM') === pm} onClick={() => set({ time: to24(h12, mi, x === 'PM') })}
-                                                    className={`px-2 text-xs font-black ${(x === 'PM') === pm ? 'bg-violet-600 text-white' : 'bg-white text-slate-500 hover:bg-violet-50'}`}>{x}</button>
+                                                    className={`px-3 text-xs font-black ${(x === 'PM') === pm ? 'bg-violet-600 text-white' : 'bg-white text-slate-500 hover:bg-violet-50'}`}>{x}</button>
                                             ))}
                                         </span>
                                     </>);
@@ -347,11 +350,11 @@ const AddEvent = ({ day, onClose }) => {
                             </div>
                         </div>
                     </div>
-                    <label className="mt-3 block text-xs font-bold text-slate-600">Reminder
-                        <select value={f.remindBefore} onChange={(e) => set({ remindBefore: e.target.value })} className={FIELD} data-event-reminder>
+                    <div className="mt-3 block text-xs font-bold text-slate-600" data-event-reminder>Reminder
+                        <div className="mt-1"><Select aria-label="Reminder" value={f.remindBefore} onChange={(e) => set({ remindBefore: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 hover:border-violet-300">
                             {REMINDERS.map(([v, l]) => <option key={v || 'none'} value={v}>{l}</option>)}
-                        </select>
-                    </label>
+                        </Select></div>
+                    </div>
                     <label className="mt-3 block text-xs font-bold text-slate-600">Note (optional)
                         <input value={f.notes} onChange={(e) => set({ notes: e.target.value })} maxLength={500} placeholder="e.g. Join 10 minutes early with my code" className={FIELD} />
                     </label>

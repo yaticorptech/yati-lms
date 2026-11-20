@@ -177,7 +177,8 @@ const LANGS = {
 
 // The other 18 languages (2026-11-02, "make the last changes to all languages"), written compactly in content/comicLangs/.
 const MORE = { ...require('./comicLangs/south'), ...require('./comicLangs/north'), ...require('./comicLangs/west'), ...require('./comicLangs/europe'), ...require('./comicLangs/east') };
-// Their story 2 is still Three Silver Coins (comics.js LEGACY) until Meera's Kite is translated for them (2026-11-07).
-for (const [code, stories] of Object.entries(MORE)) for (const [order, story] of Object.entries(stories)) LANGS[order][code] = Number(order) === 2 ? { ...story, legacy: true } : story;
+// Their story 2 (Three Silver Coins) was removed on 2026-11-12 (user: "remove that silver coins story"): until the new
+// story 2 is translated for them, these courses have stories 1, 3 and 4 only.
+for (const [code, stories] of Object.entries(MORE)) for (const [order, story] of Object.entries(stories)) LANGS[order][code] = story;
 
 module.exports = { LANGS };

@@ -11,8 +11,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { FlaskConical, LayoutDashboard, Route, BookMarked, FileText, PenLine, ShieldCheck, Users, ExternalLink } from 'lucide-react';
 import api from '../../utils/api';
 import { PageHeader, Segmented, Banner, Rows, CARD } from '../../components/orgUi';
+import { studentAppUrl } from '../../utils/studentUrl';
 
-const STUDENT_PORTAL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
+const STUDENT_PORTAL = studentAppUrl('http://localhost:5174');
 // The teacher dashboard's pages, as tabs: [tab, teacher-dashboard path, label, icon].
 const TOOLS = [
     ['overview', '/teacher', 'Overview', LayoutDashboard],

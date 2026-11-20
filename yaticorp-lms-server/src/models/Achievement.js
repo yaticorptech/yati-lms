@@ -27,7 +27,15 @@ const achievementSchema = new mongoose.Schema({
     // (Bunny has no PDF renderer); stored beside it, removed with it.
     thumbnailObjectPath: { type: String, default: '' },
     publicId: { type: String, default: '' },     // Cloudinary
-    originalName: { type: String, default: '' }
+    originalName: { type: String, default: '' },
+    // Framed (2026-11-11): the file above is the certificate inside a border carrying its number in the student's
+    // series (services/certificateFrame.js); the file as uploaded is kept beside it.
+    framed: { type: Boolean, default: false },
+    certificateNumber: { type: String, default: '' },
+    original: {
+        type: { _id: false, fileUrl: String, fileType: String, storage: String, driveFileId: String, objectPath: String, publicId: String },
+        default: null
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Achievement', achievementSchema);

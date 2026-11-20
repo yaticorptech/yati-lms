@@ -16,8 +16,11 @@
  *   node scripts/makeIndicAudio.js --courses kn,ml    those courses first, then nothing else
  *   node scripts/makeIndicAudio.js --dry              only count what is left to make
  *   node scripts/makeIndicAudio.js --recheck          also delete and make again clips longer than their text
+ *   node scripts/makeIndicAudio.js --stories          only the stories and story films (comics), each person's voice
  */
 require('dotenv').config();
+// No time limit here (2026-11-12): the service finishes a clip even after a caller gives up, and it would be lost.
+process.env.TTS_TIMEOUT_MS = '0';
 const path = require('path');
 const Module = require('module');
 const mongoose = require('mongoose');
@@ -27,6 +30,7 @@ const args = process.argv.slice(2);
 const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : null; };
 const DRY = args.includes('--dry');
 const RECHECK = args.includes('--recheck');
+const STORIES = args.includes('--stories');
 const ONLY = (opt('--courses') || '').split(',').map((c) => c.trim()).filter(Boolean);
 
 /** The student app's own lesson builder and speech list, as CommonJS. */
@@ -74,14 +78,14 @@ const mins = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Mat
 
     // Every clip, in the order students meet them: course by course, the letters page, then lesson by lesson.
     const seen = new Set(); const clips = [];
-    const add = ([text, lang]) => {
-        const c = store.clean(text, lang);
+    // A clip's voice (2026-11-12): a story's men speak in a man's voice ('m'), all else the woman's.
+    const add = ([text, lang, voice]) => {
+        const c = store.clean(text, lang, voice);
         if (c.error) return;
         const k = store.keyOf(c);
         if (!seen.has(k)) { seen.add(k); clips.push(c); }
     };
     for (const course of courses) {
-        try { chartSpeech(alphabet.chartOf(course)).forEach(add); } catch { /* a course without a letters page */ }
         const lessons = new Map();
         for (const helper of helpers) {
             const progress = { course, language: helper };
@@ -92,11 +96,17 @@ const mins = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Mat
                     const steps = buildLesson(svc.publicLesson(served, null, config));
                     const key = String(doc._id);
                     if (!lessons.has(key)) lessons.set(key, { doc, texts: [] });
-                    steps.forEach((s) => lessons.get(key).texts.push(...stepSpeech(s)));
+                    steps.filter((s) => !STORIES || s.kind === 'comic').forEach((s) => lessons.get(key).texts.push(...stepSpeech(s)));
                 } catch (e) { console.warn(`  skipped ${course}/${helper} "${doc.title}": ${e.message}`); }
             }
         }
-        [...lessons.values()].sort((a, b) => byPath(a.doc, b.doc)).forEach((l) => l.texts.forEach(add));
+        // Lesson by lesson in course order (2026-11-13), the letters page after the first unit's lessons: a student's
+        // first lessons are whole long before the later ones are begun.
+        [...lessons.values()].sort((a, b) => byPath(a.doc, b.doc)).forEach((l, i) => {
+            if (i === 5 && !STORIES) try { chartSpeech(alphabet.chartOf(course)).forEach(add); } catch { /* no letters page */ }
+            l.texts.forEach(add);
+        });
+        if (lessons.size <= 5 && !STORIES) try { chartSpeech(alphabet.chartOf(course)).forEach(add); } catch { /* no letters page */ }
         console.log(`${course}: ${lessons.size} lessons`);
     }
     await mongoose.disconnect();
@@ -108,14 +118,18 @@ const mins = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Mat
         const capOf = (t) => { const n = [...t].length; return n <= 3 ? 1.4 : Math.min(30, 1.2 + 0.12 * n); };
         let bad = 0;
         for (const c of clips) {
-            if (!store.has(c)) continue;
-            const f = store.fileOf(c); const b = fs.readFileSync(f);
+            // Only a clip kept as it is served now (store.js: tidied); one still to be tidied from its first recording is passed over.
+            const f = store.fileOf(c); if (!fs.existsSync(f)) continue;
+            const b = fs.readFileSync(f);
             const secs = (b.length - 44) / (b.readUInt16LE(34) / 8) / b.readUInt32LE(24);
             if (secs > capOf(c.text) + 0.1) { if (!DRY) fs.unlinkSync(f); bad++; }
         }
         console.log(`Recheck: ${bad} clip(s) too long${DRY ? '' : ', deleted'}.`);
     }
-    const todo = clips.filter((c) => !store.has(c));
+    // In course order (2026-11-13: shortest-first over the whole course left every lesson's long sentences to the very
+    // end, so no lesson was ever complete); within each run of 16, shortest first, so a batch holds clips of a like length.
+    const left = clips.filter((c) => !store.has(c)); const todo = [];
+    for (let i = 0; i < left.length; i += 16) todo.push(...left.slice(i, i + 16).sort((a, b) => [...a.text].length - [...b.text].length));
     console.log(`Clips: ${clips.length} in all, ${clips.length - todo.length} already made, ${todo.length} to make.`);
     const per = {}; todo.forEach((c) => { per[c.lang] = (per[c.lang] || 0) + 1; });
     console.log(`To make, by language: ${Object.entries(per).map(([l, n]) => `${l} ${n}`).join(' · ')}`);
@@ -123,11 +137,16 @@ const mins = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Mat
 
     let made = 0, failed = 0; const t0 = Date.now();
     let stop = false; process.on('SIGINT', () => { if (stop) process.exit(1); stop = true; console.log('\nStopping after this clip… (run again to carry on)'); });
-    for (const clip of todo) {
-        if (stop) break;
-        try { await store.make(clip); made++; } catch (e) { failed++; console.warn(`  failed [${clip.lang}] "${clip.text.slice(0, 40)}": ${e.response?.status || e.code || e.message}`); }
-        const done = made + failed, per = (Date.now() - t0) / done;
-        console.log(`[${done}/${todo.length}] ${clip.lang} "${clip.text.slice(0, 40)}"  · about ${mins(per * (todo.length - done))} left`);
-    }
+    // Eight at once (2026-11-12): the voice service makes up to eight in one batch, far faster than one by one.
+    let next = 0;
+    const worker = async () => {
+        while (!stop && next < todo.length) {
+            const clip = todo[next++];
+            try { await store.make(clip, { background: true }); made++; } catch (e) { failed++; console.warn(`  failed [${clip.lang}] "${clip.text.slice(0, 40)}": ${e.response?.status || e.code || e.message}`); }
+            const done = made + failed, per = (Date.now() - t0) / done;
+            console.log(`[${done}/${todo.length}] ${clip.lang}${clip.voice === 'm' ? ' (m)' : ''} "${clip.text.slice(0, 40)}"  · about ${mins(per * (todo.length - done))} left`);
+        }
+    };
+    await Promise.all(Array.from({ length: 8 }, worker));
     console.log(`Done: ${made} made, ${failed} failed, in ${mins(Date.now() - t0)}.`);
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -24,11 +24,12 @@ const BADGE = {
 const RESULT_TONE = { verified: 'text-emerald-700', added: 'text-emerald-700', already_verified: 'text-slate-500', registered: 'text-slate-500' };
 /** How a card came to be usable, for the list. */
 const howVerified = (c) => {
-    if (c.state === 'verified') return `Verified ${fmt(c.verifiedAt)}`;
+    if (c.state === 'verified') return c.verifiedVia === 'passport' ? `Verified by AI Passport ${c.passportCode || ''} ${fmt(c.verifiedAt)}` : `Verified ${fmt(c.verifiedAt)}`;
     if (c.state === 'waiting') return c.createdAt ? `Added ${fmt(c.createdAt)}` : '';
     if (c.state !== 'registered') return '';
     if (c.verifiedVia === 'admin') return `Verified by you ${fmt(c.verifiedAt)}`;
     if (c.verifiedVia === 'account') return 'Verified when an admin added the holder';
+    if (c.verifiedVia === 'passport') return `Verified by AI Passport ${c.passportCode || ''} ${fmt(c.verifiedAt)}`.trim();
     return 'Registered before card checks';
 };
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
@@ -380,7 +381,7 @@ export default function VerifyCards() {
                             <li key={c._id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5">
                                 <span className="min-w-0 flex-1">
                                     <span className="block font-mono text-sm font-semibold text-slate-800">{c.CardNumber}</span>
-                                    <span className="block truncate text-xs text-slate-400">{[c.SerialNumber && `Serial ${c.SerialNumber}`, `QR ${c.qrCodeNumber}`].filter(Boolean).join(' · ')}</span>
+                                    <span className="block truncate text-xs text-slate-400">{[c.SerialNumber && `Serial ${c.SerialNumber}`, `QR ${c.qrCodeNumber}`, c.passportCode && `Passport ${c.passportCode}`].filter(Boolean).join(' · ')}</span>
                                 </span>
                                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold capitalize ${BADGE[c.state]}`}>{c.state}</span>
                                 <span className="w-full text-xs text-slate-500 sm:w-56">{howVerified(c)}</span>

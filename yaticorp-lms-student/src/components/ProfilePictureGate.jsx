@@ -13,6 +13,10 @@
  * Not while a superadmin is viewing the dashboard as the student: the picture
  * is the student's to choose, and the gate stood between the administrator
  * and the page they came to look at.
+ *
+ * Nor for a demo (presentation) card (2026-11-19, the owner: "don't show that upload uniform
+ * image and all like that; these are used for presentations, it will disturb them"): it is in
+ * the demo organisation only to show it, so no photo is asked of it.
  */
 import { lazy, Suspense, useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
@@ -20,6 +24,8 @@ import api from '../utils/api';
 // Fetched only for a student who still has to choose a photo — with its cropper, it is not small.
 const PhotoPicker = lazy(() => import('./PhotoPicker'));
 import { ADMIN_VIEW_KEY } from '../utils/sessionExpiry';
+import { isAvatarPicture } from '../utils/avatarPicture';
+import { isDemoCard } from '../utils/demoSwitch';
 
 const adminIsViewing = () => {
     try { return !!localStorage.getItem(ADMIN_VIEW_KEY); } catch { return false; }
@@ -27,25 +33,37 @@ const adminIsViewing = () => {
 
 export default function ProfilePictureGate() {
     const { user, setUser } = useContext(AuthContext);
-    const has = !!user?.profilePicture;
+    // In an institution (2026-11-16) the picture must be a real photo in uniform — it is printed on the
+    // admit card and marks card — so an avatar counts as no picture for them.
+    const inOrg = !!user?.organizationId;
+    const has = !!user?.profilePicture && !(inOrg && isAvatarPicture(user.profilePicture));
     const [needed, setNeeded] = useState(false);
-    const [viewing] = useState(adminIsViewing);
+    // An administrator's visit and a demo card are never stopped.
+    const [viewing] = useState(() => adminIsViewing() || isDemoCard(user));
+    const avatarNow = isAvatarPicture(user?.profilePicture);
 
     useEffect(() => {
-        if (!user || has || viewing) return undefined;
+        if (!user || viewing) return undefined;
+        // A real photo, known from this device: nothing to ask. An avatar is checked, as they may be in an institution now.
+        if (user.profilePicture && !avatarNow) return undefined;
+        if (user.profilePicture && avatarNow && needed) return undefined;
         let alive = true;
         api.get('/user/profile')
             .then((r) => {
                 if (!alive) return;
-                const saved = r.data?.user?.profilePicture;
-                if (!saved) { setNeeded(true); return; }
-                const updated = { ...user, profilePicture: saved };
-                setUser(updated);
-                localStorage.setItem('studentData', JSON.stringify(updated));
+                const saved = r.data?.user?.profilePicture || '';
+                const orgId = r.data?.user?.organizationId || null;
+                if (saved !== user.profilePicture || String(orgId || '') !== String(user.organizationId || '')) {
+                    const updated = { ...user, profilePicture: saved, organizationId: orgId };
+                    setUser(updated);
+                    localStorage.setItem('studentData', JSON.stringify(updated));
+                }
+                setNeeded(!saved || (!!orgId && isAvatarPicture(saved)));
             })
             .catch(() => {});
         return () => { alive = false; };
-    }, [user, has, setUser, viewing]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?._id, user?.profilePicture, user?.organizationId, viewing]);
 
-    return needed && user && !has && !viewing ? <Suspense fallback={null}><PhotoPicker required /></Suspense> : null;
+    return needed && user && !has && !viewing ? <Suspense fallback={null}><PhotoPicker required uniform={inOrg} /></Suspense> : null;
 }

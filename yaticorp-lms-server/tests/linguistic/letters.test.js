@@ -46,7 +46,9 @@ describe('the Letters unit', () => {
         assert.deepEqual([l.title, l.review, l.module, l.order, l.target], ['Letters: The four tones', 'letters', 'vocabulary', 0, 'zh']);
         assert.deepEqual(l.words[0], { word: '妈', kannada: 'mā (1st tone, high)', pos: '', example: '', locale: 'zh-CN' });
         const quiz = svc.quizOf(l);
-        assert.equal(quiz.length, 5, 'one for each of its five tones');
+        // Ten questions at least (2026-11-16): each of its five tones, then each again, another way.
+        assert.equal(quiz.length, 10, 'each of its five tones, twice');
+        assert.equal(new Set(quiz.map((q) => q.id)).size, 10, 'never the same question twice');
         assert.deepEqual([...new Set(quiz.map((q) => q.kind))].sort(), ['letterSound', 'listen', 'soundLetter']);
         assert.ok(quiz.every((q) => q.options.includes(q.answer) && new Set(q.options).size === q.options.length));
         assert.match(quiz.find((q) => q.kind === 'letterSound').prompt, /ಹೇಗೆ ಉಚ್ಚರಿಸಲಾಗುತ್ತದೆ/, 'asked in Kannada');
@@ -56,7 +58,8 @@ describe('the Letters unit', () => {
     });
 
     test('English (2026-10-31, "not the matching question — one word, like A for apple, for every letter"): each letter with its word and picture; the quiz asks "A is for …" and "… is for 🍎 apple"', () => {
-        const all = groupsOf('en').flatMap((g) => g.letters);
+        // A–Z (the letter pairs, vowel teams and blends after them, 2026-11-14, have their own test in more.test.js).
+        const all = groupsOf('en').slice(0, 3).flatMap((g) => g.letters);
         assert.equal(all.length, 26);
         assert.ok(all.every((l) => l.word && l.pic && l.word[0].toUpperCase() === l.char), 'every letter, its word starting with it');
         assert.ok(all.every((l) => l.sentence && l.sentence.toLowerCase().includes(l.word.toLowerCase())), 'and a sentence using its word');
@@ -64,7 +67,9 @@ describe('the Letters unit', () => {
         assert.deepEqual([l.words[0].word, l.words[0].pic, l.words[0].for, l.words[0].forSay], ['A', '🍎', 'apple', 'a for apple'], 'said "a for apple": the letter once, by its name (2026-11-07)');
         assert.match(l.learn.intro, /A for apple/);
         const quiz = svc.quizOf(l);
-        assert.equal(quiz.length, 9, 'one for each of its nine letters');
+        // Ten at least (2026-11-16): its nine letters, then one again, the other way.
+        assert.equal(quiz.length, 10, 'one for each of its nine letters, and one more');
+        assert.equal(new Set(quiz.map((q) => q.id)).size, 10, 'never the same question twice');
         assert.deepEqual([...new Set(quiz.map((q) => q.kind))].sort(), ['letterWord', 'wordLetter'], 'no matching of sounds');
         assert.ok(quiz.every((q) => q.options.includes(q.answer) && new Set(q.options).size === q.options.length));
         const word = quiz.find((q) => q.kind === 'letterWord');
@@ -76,6 +81,13 @@ describe('the Letters unit', () => {
         assert.match(inEnglish.find((q) => q.kind === 'letterWord').prompt, /^Which sentence has a word that starts with “[A-I]”\?$/);
         assert.match(inEnglish.find((q) => q.kind === 'wordLetter').prompt, /^Which letter does “[\w ]+” start with\? \S+ [A-Z].+\.$/);
         assert.equal(gradeQuestion(word, word.answer).correct, true);
+        // The sentences to choose are read aloud as each is tapped (2026-11-12, the user: "why is this sentence's voice
+        // not coming"): in English. The letters to choose too ("give the voice for this also"), each by its name once.
+        assert.equal(word.optionsSay, 'en-IN');
+        assert.equal(svc.publicQuestion(word, 'x').optionsSay, 'en-IN', 'sent to the app');
+        const letter = svc.publicQuestion(quiz.find((q) => q.kind === 'wordLetter'), 'x');
+        assert.equal(letter.optionsSay, 'en-IN');
+        assert.deepEqual(Object.entries(letter.optionsSpeak).sort(), letter.options.map((o) => [o, o.toLowerCase()]).sort(), 'each letter said once by its name: "u" for U, not "capital U"');
     });
 });
 
@@ -83,7 +95,10 @@ describe('A for apple in Kannada and Hindi (2026-11-02, "apply for all languages
     test('every letter has a word, with its picture and a sentence using it: one that starts with it, else (2026-11-04) one with it inside', () => {
         for (const code of ['kn', 'hi']) {
             const all = groupsOf(code).flatMap((g) => g.letters);
-            assert.equal(all.filter((l) => !l.word).map((l) => l.char).join(' '), '', `${code}: every letter, vowel signs on ka too (2026-11-04, "give the word for that letter")`);
+            // ka's vowel signs still every one (2026-11-04); the other consonants' with them (ಖ, ಗ ಘ… 2026-11-13) where an
+            // everyday word has the syllable — the rest shown with their sound (twins.test.js).
+            const ka = code === 'kn' ? 'ಕ' : 'क';
+            assert.equal(all.filter((l) => !l.word && (!l.twin || l.char.startsWith(ka))).map((l) => l.char).join(' '), '', `${code}: every letter, vowel signs on ka too (2026-11-04, "give the word for that letter")`);
             for (const l of all.filter((x) => x.word)) {
                 if (l.inside) assert.ok(l.word.includes(l.inside) && l.char.includes(l.inside) && !l.word.startsWith(l.char), `${code} ${l.char}: ${l.word} has it inside (${l.inside})`);
                 else assert.ok(l.word.startsWith(l.char), `${code} ${l.char}: ${l.word} starts with it`);
@@ -136,7 +151,8 @@ describe('A for apple in every language (2026-11-02, "make the last changes to a
     for (const code of require('../../src/linguistic/courses').courseCodes().filter((c) => c !== 'en')) {
         test(`${code}: its letters with a word, a picture and a sentence using it`, () => {
             // Chinese: its numbers and first characters (its tones and A–Z names are learnt by their sound).
-            const all = groupsOf(code).filter((g) => !['signs', 'tones', 'alphabet'].includes(g.id)).flatMap((g) => g.letters);
+            // The vowel-sign lessons (ಕ ಖ, ಗ ಘ… 2026-11-13): words where an everyday one starts with the syllable, tested below.
+            const all = groupsOf(code).filter((g) => !String(g.id).startsWith('signs') && !['tones', 'alphabet'].includes(g.id)).flatMap((g) => g.letters);
             const worded = all.filter((l) => l.word);
             // Every letter (2026-11-04), but those no everyday word has: Punjabi ਅਃ ਙ ਞ, Odia ଵ, Japanese ヲ (and among the
             // vowel signs, not counted here, Tamil கஂ and Punjabi ਕਂ).
@@ -171,7 +187,7 @@ describe('every letter on one page (2026-10-31)', () => {
         assert.equal((await api('POST', '/course', { course: 'kn', start: 'beginner' })).status, 200);
         const c = (await api('GET', '/letters')).body;
         assert.deepEqual([c.course.code, c.locale], ['kn', 'kn-IN']);
-        assert.deepEqual(c.groups.map((g) => g.title), ['Vowels', 'Consonants 1', 'Consonants 2', 'Vowel signs']);
+        assert.deepEqual(c.groups.map((g) => g.title), ['Vowels', 'Consonants 1', 'Consonants 2', 'ಕ ಖ with vowel signs', 'Joined letters 1: ಕ್ಕ ತ್ತ ಪ್ಪ', 'Joined letters 2: ಕ್ರ ಪ್ರ ತ್ರ']);
         assert.deepEqual(c.table.columns.slice(0, 4).map((x) => x.say), ['a', 'aa', 'i', 'ii']);
         const ka = c.table.rows[0];
         assert.deepEqual(ka.cells.slice(0, 4).map((x) => `${x.char} ${x.say}`), ['ಕ ka', 'ಕಾ kaa', 'ಕಿ ki', 'ಕೀ kii']);

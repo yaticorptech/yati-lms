@@ -1,4 +1,7 @@
 const Goal = require('../models/Goal');
+
+/** Make sure the games zone of the current class is held on the account (best effort: never blocks the goal). */
+const holdGameZone = (userId) => require('../services/gameZone').effectiveZone(userId).catch((e) => console.error('[career/goals] hold game zone:', e));
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // The Goal schema requires different fields depending on the education level —
@@ -165,6 +168,9 @@ const updateGoal = async (req, res) => {
     if (!goal) {
       return res.status(404).json({ message: 'No career goal found to update.' });
     }
+    // Hold the games zone of the class as it is now, before it changes (services/gameZone.js): the roadmap follows
+    // the new class at once, the games zone by its own rule.
+    await holdGameZone(req.user._id);
 
     for (const field of EDITABLE_GOAL_FIELDS) {
       if (req.body[field] !== undefined) goal[field] = req.body[field];
@@ -187,6 +193,8 @@ const deleteGoal = async (req, res) => {
       return res.status(404).json({ message: 'No career goal found.' });
     }
 
+    // Deleting the goal must not leave the games with "class unknown" (every zone open): hold the zone first.
+    await holdGameZone(req.user._id);
     await goal.deleteOne();
     res.status(200).json({ message: 'Career goal deleted successfully.' });
   } catch (error) {

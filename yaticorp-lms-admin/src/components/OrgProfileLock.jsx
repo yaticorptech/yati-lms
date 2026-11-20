@@ -36,8 +36,8 @@ const OrgProfileLock = ({ missing = [] }) => (
                     <h2 id="org-lock-title" className="mt-3 text-lg font-bold">Locked until your profile is complete</h2>
                 </div>
                 <div className="p-6">
-                    <p className="text-sm leading-relaxed text-slate-600">Add your <strong className="text-slate-800">{listOf(missing) || 'details'}</strong> in Settings to unlock this page.</p>
-                    <Link to={missing.length === 1 && missing[0] === 'courses and sections' ? '/organization/settings#courses' : '/organization/settings'} className={`${BTN} mt-5 w-full`}>Complete profile <ArrowRight size={16} aria-hidden="true" /></Link>
+                    <p className="text-sm leading-relaxed text-slate-600">Add your <strong className="text-slate-800">{listOf(missing) || 'details'}</strong> to unlock this page.</p>
+                    <Link to={missing.length === 1 && missing[0] === 'departments' ? '/organization/campus/departments' : '/organization/settings'} className={`${BTN} mt-5 w-full`}>Complete profile <ArrowRight size={16} aria-hidden="true" /></Link>
                 </div>
             </section>
         </div>

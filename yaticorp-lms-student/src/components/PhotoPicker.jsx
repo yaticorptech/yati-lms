@@ -88,8 +88,11 @@ const SupportMessage = ({ user }) => {
     );
 };
 
-export default function PhotoPicker({ required = false, onClose, account = null }) {
+export default function PhotoPicker({ required = false, onClose, account = null, uniform: uniformProp }) {
     const { user, setUser, logout } = useContext(AuthContext);
+    // A student in an institution uploads their real photo in uniform — no avatars (2026-11-16).
+    // Not asked of a demo (presentation) card (2026-11-19): it may keep an avatar.
+    const uniform = uniformProp ?? (!account && !!user?.organizationId && !user?.demoCard);
     const accent = ACCENTS[account ? 'emerald' : 'indigo'];
     const currentPicture = account ? account.picture : user?.profilePicture;
     const [helpOpen, setHelpOpen] = useState(false);
@@ -218,8 +221,10 @@ export default function PhotoPicker({ required = false, onClose, account = null 
                     >
                         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
                             <div className="min-w-0">
-                                <h3 id="picker-title" className="font-bold text-slate-800">{required ? 'Add your profile picture' : 'Change photo'}</h3>
-                                {required && <p className="mt-0.5 text-sm text-slate-500">Every student needs a profile picture. Upload your photo or pick an avatar to continue.</p>}
+                                <h3 id="picker-title" className="font-bold text-slate-800">{uniform ? 'Upload your photo in uniform' : required ? 'Add your profile picture' : 'Change photo'}</h3>
+                                {uniform
+                                    ? <p className="mt-0.5 text-sm text-slate-500">Your institution uses this photo on your ID, admit card and marks card, so it must be a real photo of you in uniform.</p>
+                                    : required && <p className="mt-0.5 text-sm text-slate-500">Every student needs a profile picture. Upload your photo or pick an avatar to continue.</p>}
                             </div>
                             {!required && (
                                 <button onClick={close} disabled={savingAvatar} className="text-slate-400 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
@@ -233,7 +238,7 @@ export default function PhotoPicker({ required = false, onClose, account = null 
                                     disabled={savingAvatar}
                                     className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-60 ${accent.button}`}
                                 >
-                                    <Upload size={15} /> Upload a photo
+                                    <Upload size={15} /> {uniform ? 'Upload photo in uniform' : 'Upload a photo'}
                                 </button>
                                 {account?.remove && currentPicture && (
                                     <button type="button" onClick={removePhoto} disabled={savingAvatar}
@@ -246,6 +251,18 @@ export default function PhotoPicker({ required = false, onClose, account = null 
                                 <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{problem}</p>
                             )}
 
+                            {uniform && (
+                                <div className="mt-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+                                    <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">A good uniform photo</p>
+                                    <ul className="mt-2 grid gap-1.5 text-sm text-slate-700 sm:grid-cols-2">
+                                        {['Wearing your institution uniform', 'Face straight to the camera', 'Plain, light background', 'Good light — no filters or sunglasses'].map((t) => (
+                                            <li key={t} className="flex items-start gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> {t}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {!uniform && (<>
                             <div className="my-4 flex items-center gap-3 text-[11px] font-black uppercase tracking-wider text-slate-400">
                                 <span className="h-px flex-1 bg-slate-200" />
                                 <span className="flex items-center gap-1"><Sparkles size={12} /> or pick an avatar</span>
@@ -293,8 +310,10 @@ export default function PhotoPicker({ required = false, onClose, account = null 
                                     );
                                 })}
                             </div>
+                            </>)}
                         </div>
 
+                        {(!uniform || !required) && (
                         <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
                             {!required && (
                                 <button
@@ -305,14 +324,15 @@ export default function PhotoPicker({ required = false, onClose, account = null 
                                     Cancel
                                 </button>
                             )}
-                            <button
+                            {!uniform && <button
                                 onClick={() => selectedAvatar && savePictureUrl(selectedAvatar)}
                                 disabled={!selectedAvatar || savingAvatar}
                                 className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${accent.button}`}
                             >
                                 {savingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Use this avatar
-                            </button>
+                            </button>}
                         </div>
+                        )}
 
                         {/* Required, but never a trap: the way out that is not a picture. */}
                         {required && (

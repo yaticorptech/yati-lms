@@ -33,7 +33,7 @@
  * that run many short-lived instances).
  */
 const { isConnected } = require('../config/db');
-const { ingestAll, deactivateStale, meteredUsage } = require('./providerService');
+const { ingestAll, deactivateStale, retireDeadLinks, meteredUsage } = require('./providerService');
 const { geocodeMissing } = require('./geocodeService');
 const { embedMissing } = require('./embedService');
 const { claimRun, markRun } = require('./stateService');
@@ -68,6 +68,9 @@ const runScheduledMaintenance = async () => {
         }
 
         const retired = await deactivateStale(45);
+        // Jobs the employer took down before the 45 days were up.
+        const links = await retireDeadLinks();
+        console.log(`[jobs]   ${links.checked} apply links checked, ${links.dead} closed jobs hidden.`);
         const geo = await geocodeMissing({ maxPlaces: GEOCODE_BATCH });
         const emb = await embedMissing({ maxTexts: EMBED_TEXTS });
 

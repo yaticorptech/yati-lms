@@ -17,7 +17,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { Presentation, UserPlus, Upload, Eye, UserMinus, Copy, Check, CheckCircle2, XCircle, Mail, Phone, Clock, Loader2, Pencil, Compass, Users, Orbit, BookOpen, CalendarDays } from 'lucide-react';
+import { Presentation, UserPlus, Upload, Eye, UserMinus, Copy, Check, CheckCircle2, XCircle, Mail, Phone, Clock, Loader2, Pencil, Compass, Users, Orbit, BookOpen, CalendarDays, Camera, X } from 'lucide-react';
 import PasswordStrengthChecker from '../../components/PasswordStrengthChecker';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
@@ -27,6 +27,23 @@ import BulkTeachersModal from '../../components/teachers/BulkTeachersModal';
 import TeacherDetailModal from '../../components/teachers/TeacherDetailModal';
 import { TeacherStatus, TeacherSummary } from '../../components/teachers/TeacherBits';
 import { formatDate, relativeDay } from '../../utils/dates';
+import { useQrReader } from '../../utils/qrReader';
+
+/** The camera reading a card's QR code; the first code read is handed back and the camera stops. */
+const SCAN_ID = 'qr-reader-org-teacher';
+const CardScanBox = ({ onRead, onClose }) => {
+    const [done, setDone] = useState(false);
+    const { error, retry } = useQrReader(SCAN_ID, (text) => { if (done) return; setDone(true); onRead(text); }, !done);
+    return (
+        <div className="relative rounded-xl border border-slate-200 bg-slate-50 p-2">
+            <button type="button" onClick={onClose} aria-label="Close the camera" className="absolute right-2 top-2 z-10 rounded-full bg-white/90 p-1 text-slate-500 shadow hover:text-slate-800"><X size={14} /></button>
+            <div id={SCAN_ID} className="w-full overflow-hidden rounded-lg" />
+            {error
+                ? <p className="mt-2 text-xs text-red-600">{error} <button type="button" onClick={retry} className="font-bold underline">Try again</button></p>
+                : <p className="mt-1 text-center text-xs text-slate-500">Hold the QR code on the card up to the camera.</p>}
+        </div>
+    );
+};
 
 const TABS = [['teachers', 'Teachers'], ['requests', 'Requests']];
 const REQUEST_TABS = [['pending', 'Waiting'], ['approved', 'Approved'], ['rejected', 'Rejected']];
@@ -45,7 +62,7 @@ const OrgTeachers = () => {
     // Activities was a tab here until it got its own sidebar item (2026-10-31): an old link lands there.
     if (params.get('tab') === 'activities') return <Navigate to="/organization/360-activities" replace />;
     // Courses & sections moved to Settings → Institution (2026-11-04).
-    if (params.get('tab') === 'classes') return <Navigate to="/organization/settings#courses" replace />;
+    if (params.get('tab') === 'classes') return <Navigate to="/organization/campus/departments" replace />;
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
@@ -102,16 +119,6 @@ const TeachersTab = ({ onNotice, onPending }) => {
 
     const close = () => setOpen(null);
     const teachers = data?.teachers || [];
-    // Scouts & Guides or 360 on or off for one teacher: shown at once, put back if the server says no.
-    const [switching, setSwitching] = useState('');
-    const setFeature = async (t, key, on) => {
-        const patch = (value) => setData((d) => d && { ...d, teachers: d.teachers.map((x) => (x._id === t._id ? { ...x, features: { ...x.features, [key]: value } } : x)) });
-        setSwitching(`${t._id}:${key}`);
-        patch(on);
-        try { onNotice((await api.put(`/organizations/me/teachers/${t._id}/features`, { [key]: on })).data.message); }
-        catch (err) { patch(!on); setError(err.response?.data?.message || 'That did not go through.'); }
-        finally { setSwitching(''); }
-    };
     // Teachers with the organisation dashboard only: a sign-in to this panel, no teacher account.
     const staff = data?.staff || [];
     const removeStaff = async (a) => {
@@ -129,7 +136,7 @@ const TeachersTab = ({ onNotice, onPending }) => {
                         <span className="shrink-0 rounded-xl bg-indigo-100 p-2.5 text-indigo-600"><UserPlus size={20} /></span>
                         <div className="min-w-0">
                             <p className="font-bold text-slate-800">Add teachers</p>
-                            <p className="mt-0.5 text-sm text-slate-500">With their YATICORP card, or without one (just name and mobile number) for Scouts &amp; Guides and 360. Many at once with a spreadsheet.</p>
+                            <p className="mt-0.5 text-sm text-slate-500">With their YATICORP card, or without one (just name and mobile number) for Scouts &amp; Guides and Student Ranking. Many at once with a spreadsheet.</p>
                         </div>
                     </div>
                     <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
@@ -199,7 +206,7 @@ const TeachersTab = ({ onNotice, onPending }) => {
                                     {(t.leads?.length > 0 || t.research === false) && (
                                         <Line label="Leads"><TeacherLeads leads={t.leads} /></Line>
                                     )}
-                                    <Line label="Dashboard"><FeatureSwitches teacher={t} busy={switching} onChange={setFeature} /></Line>
+                                    {/* No Scouts / Ranking switches (2026-11-14): Ranking follows the HOD's mentor list. */}
                                 </dl>
 
                                 <div className="mt-auto flex flex-col gap-2 rounded-b-2xl border-t border-slate-100 bg-slate-50/70 px-4 py-2.5 sm:flex-row sm:items-center sm:gap-3">
@@ -277,8 +284,9 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
     const [code, setCode] = useState('');
     const [card, setCard] = useState(null);
     const [checking, setChecking] = useState(false);
-    const checkCard = async () => {
-        const raw = code.trim();
+    const [scanning, setScanning] = useState(false);
+    const checkCard = async (scanned) => {
+        const raw = (typeof scanned === 'string' ? scanned : code).trim();
         if (!raw) return;
         setChecking(true); setError('');
         const digits = raw.replace(/[\s-]/g, '');
@@ -381,12 +389,14 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
                                                         <span>Card <strong className="font-mono">{card.CardNumber}</strong> is free to use</span>
                                                         <button type="button" onClick={() => { setCard(null); setCode(''); }} className="text-xs font-bold hover:underline">Change</button>
                                                     </div>
-                                                ) : (
+                                                ) : (<>
                                                     <div className="flex gap-2">
                                                         <input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); checkCard(); } }}
                                                             placeholder="QR code or 12-digit card number" aria-label="QR code or card number" className={`${INPUT} min-w-0 flex-1 font-mono`} />
                                                         <button type="button" onClick={checkCard} disabled={checking || !code.trim()} className={`${BTN} shrink-0`}>{checking && <Loader2 size={15} className="animate-spin" />}Check card</button>
+                                                        <button type="button" onClick={() => setScanning((v) => !v)} aria-pressed={scanning} className={`${BTN2} shrink-0`}><Camera size={15} /> Scan</button>
                                                     </div>
+                                                    {scanning && <CardScanBox onRead={(text) => { setScanning(false); setCode(text); checkCard(text); }} onClose={() => setScanning(false)} />}</>
                                                 )}
                                                 <p className="text-xs text-slate-500">From then on they sign in with this card and their same password, not their email.</p>
                                             </div>
@@ -411,12 +421,14 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
                                                 <span>Card <strong className="font-mono">{card.CardNumber}</strong> is free to use</span>
                                                 <button type="button" onClick={() => { setCard(null); setCode(''); }} className="text-xs font-bold hover:underline">Change</button>
                                             </div>
-                                        ) : (
+                                        ) : (<>
                                             <div className="flex gap-2">
                                                 <input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); checkCard(); } }}
                                                     placeholder="QR code or 12-digit card number" aria-label="QR code or card number" className={`${INPUT} min-w-0 flex-1 font-mono`} />
                                                 <button type="button" onClick={checkCard} disabled={checking || !code.trim()} className={`${BTN} shrink-0`}>{checking && <Loader2 size={15} className="animate-spin" />}Check card</button>
+                                                <button type="button" onClick={() => setScanning((v) => !v)} aria-pressed={scanning} className={`${BTN2} shrink-0`}><Camera size={15} /> Scan</button>
                                             </div>
+                                            {scanning && <CardScanBox onRead={(text) => { setScanning(false); setCode(text); checkCard(text); }} onClose={() => setScanning(false)} />}</>
                                         )}
                                         <div className="grid gap-3 sm:grid-cols-2">
                                             <label className="block"><span className={LABEL}>Phone *</span>{input('phone', { type: 'tel' })}</label>
@@ -449,24 +461,6 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
  * (2026-10-30): Scouts & Guides (their units) and 360 (a mentor's sections
  * and students). With both on they see both.
  */
-const FEATURES = [['scouts', 'Scouts & Guides', Compass], ['mentor360', '360 mentor', Orbit]];
-const FeatureSwitches = ({ teacher, busy, onChange }) => (
-    <div className="flex flex-wrap gap-1.5" role="group" aria-label={`What ${teacher.name}'s dashboard shows`}>
-        {FEATURES.map(([key, label, Icon]) => {
-            const on = Boolean(teacher.features?.[key]);
-            return (
-                <button key={key} type="button" role="switch" aria-checked={on} aria-label={`${label} for ${teacher.name}`}
-                    disabled={busy === `${teacher._id}:${key}`} onClick={() => onChange(teacher, key, !on)}
-                    className={`inline-flex items-center gap-2 rounded-full border py-1 pl-2.5 pr-1 text-xs font-semibold transition-colors disabled:opacity-60 ${on ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`}>
-                    <Icon size={13} className="shrink-0" aria-hidden />{label}
-                    <span className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                        <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-[14px]' : 'translate-x-0.5'}`} />
-                    </span>
-                </button>
-            );
-        })}
-    </div>
-);
 
 const AiCardBadge = () => <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">AI card</span>;
 

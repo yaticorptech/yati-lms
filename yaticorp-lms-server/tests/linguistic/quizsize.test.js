@@ -26,9 +26,14 @@ describe('a translation lesson\'s quiz', () => {
             assert.ok(topics.length >= 8, `${course || 'en'}: its topic lessons and their second units (${topics.length})`);
             for (const doc of topics) {
                 const l = svc.serve(doc, progressIn(language, course));
-                const quiz = svc.quizOf(l);
+                // Its own translations and words: 4 or 5. Since 2026-11-12 the quiz also holds the lesson's fill in the blanks,
+                // tap what you hear, conversation and picture cards (the user: "more quiz questions than practice").
+                const all = svc.quizOf(l);
+                const quiz = all.filter((q) => !['blanks', 'hear', 'chat', 'picture'].includes(q.type));
                 const at = `${doc.seedKey} (${course || 'en'} for ${language})`;
                 assert.ok(quiz.length >= 4 && quiz.length <= 5, `${at}: ${quiz.length} questions`);
+                // More quiz questions than practice screens (2026-11-12: a translation lesson practises two sentences and "say it").
+                assert.ok(all.length > 3 && all.length > quiz.length, `${at}: the quiz with the others, ${all.length}`);
                 assert.equal(new Set(quiz.map((q) => q.id)).size, quiz.length, `${at}: each its own id`);
                 const practised = new Set((l.items || []).flatMap((x) => [x.source, x.model]).map(low));
                 const theirs = new Set((units.unitWordsOf(doc, language)?.words || []).flatMap((w) => [w.word, ...String(w.kannada).split(/\s*[,;/]\s*/)]).map(low));

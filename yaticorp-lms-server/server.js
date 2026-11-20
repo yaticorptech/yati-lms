@@ -104,6 +104,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Import Routes
 app.use('/api/i18n', require('./src/routes/i18nMissing'));        // text the app could not translate yet
+app.use('/api/auth/demo', require('./src/routes/demoDashboardRoutes'));   // a demo card's teacher and organisation dashboards
 app.use('/api/auth', require('./src/routes/authRoutes'));       // All credential/auth routes
 app.use('/api/admin/teachers', require('./src/teacher/admin'));   // before /api/admin's own routes
 app.use('/api/admin/demo-cards', require('./src/routes/demoCardRoutes'));   // presentation cards (Admin → Demo cards)

@@ -44,6 +44,8 @@ const HUB = {
 const ExtraCurricular = React.lazy(() => import('./nccnss/ExtraCurricular'));
 const Student360 = React.lazy(() => import('./pages/Student360'));
 const CompetitionDetail = React.lazy(() => import('./competitions/CompetitionDetail'));
+// Games hours set by the student's organization (2026-11-14).
+import GamesGate from './components/GamesGate';
 const GamePage = React.lazy(() => import('./competitions/GamePage'));
 const QuizPage = React.lazy(() => import('./competitions/QuizPage'));
 // Quiz Arena: three-round live quiz contests (competitions/arena/).
@@ -51,6 +53,8 @@ const ArenaDetail = React.lazy(() => import('./competitions/arena/ArenaDetail'))
 const ArenaPlay = React.lazy(() => import('./competitions/arena/ArenaPlay'));
 // Group Brain certificate check, public.
 const VerifyCertificate = React.lazy(() => import('./competitions/VerifyCertificate'));
+// Any certificate by its number (YATI<card>-001…), open to everyone (2026-11-11).
+const VerifyPage = React.lazy(() => import('./certificates/VerifyPage'));
 const PracticePage = React.lazy(() => import('./interview/PracticePage'));
 const AptitudePage = React.lazy(() => import('./interview/AptitudePage'));
 const MockInterview = React.lazy(() => import('./interview/MockInterview'));
@@ -75,6 +79,8 @@ const LinguisticSections = React.lazy(() => import('./linguistic/Sections'));
 const LinguisticRoadmap = React.lazy(() => import('./linguistic/Roadmap'));
 const LinguisticLetters = React.lazy(() => import('./linguistic/LettersChart'));
 const LinguisticDashboard = React.lazy(() => import('./linguistic/Dashboard'));
+const LinguisticIelts = React.lazy(() => import('./linguistic/ielts/IeltsHome'));
+const LinguisticIeltsTest = React.lazy(() => import('./linguistic/ielts/IeltsTest'));
 
 /**
  * Signed in, or off to the sign-in page — which is told where the student was
@@ -122,11 +128,16 @@ const TeacherWritingEditor = React.lazy(() => import('./teacher/pages/WritingEdi
 const TeacherPlagiarism = React.lazy(() => import('./teacher/pages/Plagiarism'));
 const TeacherProfile = React.lazy(() => import('./teacher/pages/TeacherProfile'));
 const TeacherMentor360 = React.lazy(() => import('./teacher/pages/Mentor360'));
+// Campus: the subject teacher takes attendance for their subjects.
+const TeacherAttendance = React.lazy(() => import('./teacher/pages/Attendance'));
+// Campus: the head of department's timetable and announcements.
+const TeacherDepartment = React.lazy(() => import('./teacher/pages/Department'));
+// Institution (Campus): the student's admission, attendance — marks, exams, fees and feedback coming soon.
+const Institution = React.lazy(() => import('./campus/Institution'));
 const teacherPage = (Page) => <React.Suspense fallback={<YatiLoader label="Loading this page" />}><Page /></React.Suspense>;
-// Where a teacher without an AI card starts: the first thing their organization
-// turned on for them — 360 (their classes and students), then Scouts & Guides —
-// else their clubs page, which says when nothing is on yet.
-const teacherHome = (teacher) => (teacher?.mentor360 ? '/teacher/360' : teacher?.scouts === true ? '/teacher/scout-units' : '/teacher/clubs');
+// Where a teacher without an AI card starts (2026-11-14): their classes — Attendance, which says when the HOD
+// has not given them a subject yet. 360 first when they are a mentor.
+const teacherHome = (teacher) => (teacher?.mentor360 ? '/teacher/360' : teacher?.organizationId ? '/teacher/attendance' : '/teacher/clubs');
 // The research pages need an AI card.
 const ResearchOnly = ({ children }) => {
   const { teacher } = useTeacher();
@@ -145,8 +156,11 @@ const researchPage = (Page) => <ResearchOnly>{teacherPage(Page)}</ResearchOnly>;
 // its own code and the rest stays on the server until it is wanted.
 const Profile = React.lazy(() => import('./pages/Profile'));
 const Signup = React.lazy(() => import('./pages/Signup'));
+const PassportLanding = React.lazy(() => import('./pages/PassportLanding'));
 const AdminAccess = React.lazy(() => import('./pages/AdminAccess'));
 const TeacherAdminAccess = React.lazy(() => import('./teacher/pages/TeacherAdminAccess'));
+// A demo card changing dashboard from the organisation panel lands here (pages/DemoSwitch.jsx).
+const DemoSwitch = React.lazy(() => import('./pages/DemoSwitch'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 const EnrolledCourses = React.lazy(() => import('./pages/EnrolledCourses'));
 // Downloaded when first opened rather than with the sign-in page: the player
@@ -163,6 +177,7 @@ import { RewardsProvider } from './context/RewardsContext';
 // mounted at /api/career on the same server, behind the same student token.
 // Lazily loaded, shell and pages alike — the section pulls in chart.js and
 // react-markdown, which no other student screen needs.
+const ApplyPage = React.lazy(() => import('./admission/ApplyPage'));
 const CareerShell = React.lazy(() => import('./career/CareerShell'));
 const CareerProviders = React.lazy(() => import('./career/CareerProviders'));
 // The mascot workbench: dev builds only, reached by typing /dev/mascot.
@@ -241,6 +256,13 @@ const LinguisticGate = () => {
 // Every lazily-loaded route waits behind this, so it is the thing a student
 // actually sees while a page is downloading.
 const CareerFallback = () => <YatiLoader label="Loading this page" />;
+// A college's admission link loads under its own logo, not YATICORP's (2026-11-16).
+const ApplyFallback = () => {
+    const code = (window.location.pathname.match(/^\/apply\/([^/]+)/) || [])[1];
+    let logo = null;
+    try { logo = code ? localStorage.getItem(`apply-logo:${decodeURIComponent(code).toLowerCase()}`) : null; } catch { /* storage unavailable */ }
+    return <div className="flex min-h-dvh items-center justify-center bg-[#f6f4ef]">{logo ? <img src={logo} alt="" className="h-20 w-20 animate-pulse rounded-2xl bg-white object-contain p-2 shadow-lg" /> : <span className="h-6 w-6 animate-spin rounded-full border-2 border-stone-300 border-t-stone-600" />}</div>;
+};
 
 // ─── Loop Walker ─────────────────────────────────────────────────────────────
 // Loop stands in the bottom-right corner and never walks (mode 'stand', asked
@@ -333,7 +355,8 @@ const LOOP_PAGES = {
   '/career/badges': { label: 'Rewards', text: 'Your level, XP and badges, how close the next badge is, and the roadmap milestones you can share.' },
   '/interview': { label: 'Job Preparation', text: 'Get interview-ready: practise common questions, then take an AI mock interview by voice and get feedback to improve.' },
   '/jobs': { label: 'Jobs', text: 'Jobs that match your skills and goal. Filter by type and location, apply, and save the ones you like.' },
-  '/360': { label: '360', text: 'Your 360 activities and marks. Upload proof for each activity, and your 360 teacher checks it and gives the marks.' },
+  '/institution': { label: 'Institution', text: 'Your record at your college: your admission and attendance in each subject.' },
+  '/360': { label: 'Student Ranking', text: 'Your Student Ranking activities and marks. Upload proof for each activity, and your ranking teacher checks it and gives the marks.' },
   '/games': { label: 'Games', text: "Quick memory, logic, word and number games. Each level's stars earn you XP, within today's play time." },
   '/competitions': { label: 'Competitions', text: 'Play Chess, rapid-fire rounds, coding clashes and IQ puzzles in competitions, for your college, and take part in quizzes and hackathons.' },
   '/linguistic/dashboard': { label: 'Language Learning', text: 'Your language dashboard: where you are, your streak and XP, your roadmap, each skill and your certificates. Tap Learn to go on with your path.' },
@@ -385,7 +408,8 @@ function App() {
   const here = pathname.replace(/\/+$/, '') || '/';
   useSayPageOnNav(here, new URLSearchParams(search).get('tab'), LOOP_PAGES, LOOP_TABS);
   // Yati is the students' companion: not on the teacher dashboard either.
-  const showLoop = !LOOP_HIDDEN_ON.includes(here) && !here.startsWith('/teacher');
+  // Nor on the public certificate check (2026-11-11, the user: "remove mascot from this page").
+  const showLoop = !LOOP_HIDDEN_ON.includes(here) && !here.startsWith('/teacher') && here !== '/verify' && !here.startsWith('/verify/') && !here.startsWith('/apply/');
   // A game in play hides Loop without unmounting it (components/loopVisibility).
   // Not in Language Learning (2026-11-07, the user: "remove the side standing mascot from the multilingo section"): its own
   // mascot is in the lessons. Kept loaded, so it is back at once on the next page.
@@ -400,12 +424,15 @@ function App() {
         On a phone its feet stay above the bottom bar (data-loop-skip). */}
     {showLoop && <LoopWalker hidden={loopHidden} mode="stand" side="right" greeting={LOOP_GREETING} explain={LOOP_EXPLAIN} describeButton={describeLoopButton} height={120} mobileHeight={108} hint={false} />}
     <Routes>
+      {/* A college's public admission form (2026-11-16): the link it shares with new students. */}
+      <Route path="/apply/:orgCode" element={<React.Suspense fallback={<ApplyFallback />}><ApplyPage /></React.Suspense>} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<React.Suspense fallback={<CareerFallback />}><Signup /></React.Suspense>} />
       <Route path="/reset-password" element={<React.Suspense fallback={<CareerFallback />}><ResetPassword /></React.Suspense>} />
       {/* A superadmin opening a student's dashboard from the admin Users page. */}
       <Route path="/admin-access" element={<React.Suspense fallback={<CareerFallback />}><AdminAccess /></React.Suspense>} />
       {/* …and a teacher's, from the admin Teachers page (2026-11-11). */}
+      <Route path="/demo-switch" element={<React.Suspense fallback={<CareerFallback />}><DemoSwitch /></React.Suspense>} />
       <Route path="/admin-access/teacher" element={<React.Suspense fallback={<CareerFallback />}><TeacherAdminAccess /></React.Suspense>} />
       {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
           has to be able to open these, and so does anyone deciding whether to
@@ -414,6 +441,10 @@ function App() {
       {/* Anyone may check a Group Brain certificate's ID (its QR code opens this). */}
       <Route path="/verify/group-brain/:certId?" element={<React.Suspense fallback={<CareerFallback />}><VerifyCertificate /></React.Suspense>} />
       <Route path="/verify/certificate/:certId?" element={<React.Suspense fallback={<CareerFallback />}><VerifyCertificate /></React.Suspense>} />
+      {/* Any certificate by its number: the one students write in their AI passport (2026-11-11). */}
+      {/* An AI Passport sticker's QR: keeps the ID for sign-up or the claim popup. */}
+      <Route path="/passport/:code?" element={<React.Suspense fallback={<CareerFallback />}><PassportLanding /></React.Suspense>} />
+      <Route path="/verify/:number?" element={<React.Suspense fallback={<CareerFallback />}><VerifyPage /></React.Suspense>} />
       <Route path="/privacy" element={<React.Suspense fallback={<CareerFallback />}><Privacy /></React.Suspense>} />
       <Route path="/terms" element={<React.Suspense fallback={<CareerFallback />}><Terms /></React.Suspense>} />
       <Route path="/preview/:courseId" element={<React.Suspense fallback={<CareerFallback />}><CoursePreview /></React.Suspense>} />
@@ -430,9 +461,9 @@ function App() {
         {/* Games: the brain games (Brain Boosters), a section of their own since
             2026-10-23 (no longer a Career Path tab); their server routes stay
             open when Career Path is locked. Competitions: Chess, the brain games, quizzes and hackathons. */}
-        <Route path="games" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CareerProviders><CareerGames /></CareerProviders></React.Suspense></EnglishOnly>} />
+        <Route path="games" element={<EnglishOnly><GamesGate><React.Suspense fallback={<CareerFallback />}><CareerProviders><CareerGames /></CareerProviders></React.Suspense></GamesGate></EnglishOnly>} />
         {/* A Group Brain room — its lobby, game and result — is part of Games, not Competitions. */}
-        <Route path="games/play/:gameId" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense></EnglishOnly>} />
+        <Route path="games/play/:gameId" element={<EnglishOnly><GamesGate><React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense></GamesGate></EnglishOnly>} />
         <Route path="competitions" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CompetitionsOverview /></React.Suspense></EnglishOnly>} />
         {/* "Live now" left the tabs (2026-11-07): live competitions are on the Competitions page's Live & Upcoming. */}
         <Route path="competitions/live" element={<Navigate to="/competitions" replace />} />
@@ -445,6 +476,7 @@ function App() {
         <Route path="competitions/leaderboard" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.leaderboard /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/results" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><HUB.results /></React.Suspense></EnglishOnly>} />
         <Route path="360" element={<React.Suspense fallback={<CareerFallback />}><Student360 /></React.Suspense>} />
+        <Route path="institution" element={<React.Suspense fallback={<CareerFallback />}><Institution /></React.Suspense>} />
         <Route path="extracurricular" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />
         <Route path="extracurricular/:id" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />
         <Route path="ncc-nss" element={<Navigate to="/extracurricular" replace />} />
@@ -485,7 +517,10 @@ function App() {
             <Route path="roadmap" element={<React.Suspense fallback={<CareerFallback />}><LinguisticRoadmap /></React.Suspense>} />
             <Route path="letters" element={<React.Suspense fallback={<CareerFallback />}><LinguisticLetters /></React.Suspense>} />
             <Route path="dashboard" element={<React.Suspense fallback={<CareerFallback />}><LinguisticDashboard /></React.Suspense>} />
+            <Route path="ielts" element={<React.Suspense fallback={<CareerFallback />}><LinguisticIelts /></React.Suspense>} />
           </Route>
+          {/* An IELTS section covers the whole screen, like a lesson. */}
+          <Route path="linguistic/ielts/:attemptId/:section" element={<React.Suspense fallback={<CareerFallback />}><LinguisticIeltsTest /></React.Suspense>} />
           <Route path="linguistic/placement" element={<React.Suspense fallback={<CareerFallback />}><LinguisticPlacement /></React.Suspense>} />
           <Route path="linguistic/review" element={<React.Suspense fallback={<CareerFallback />}><LinguisticReview /></React.Suspense>} />
           <Route path="linguistic/daily" element={<React.Suspense fallback={<CareerFallback />}><LinguisticDaily /></React.Suspense>} />
@@ -546,6 +581,9 @@ function App() {
         <Route path="writing/:id" element={researchPage(TeacherWritingEditor)} />
         <Route path="plagiarism" element={researchPage(TeacherPlagiarism)} />
         <Route path="clubs" element={teacherPage(TeacherClubs)} />
+        <Route path="attendance" element={teacherPage(TeacherAttendance)} />
+        <Route path="department" element={teacherPage(TeacherDepartment)} />
+        <Route path="department/:part" element={teacherPage(TeacherDepartment)} />
         <Route path="scout-units" element={<FeatureOnly on={(t) => t?.scouts === true}>{teacherPage(TeacherScoutUnits)}</FeatureOnly>} />
         <Route path="360" element={<FeatureOnly on={(t) => Boolean(t?.mentor360)}>{teacherPage(TeacherMentor360)}</FeatureOnly>} />
         <Route path="profile" element={teacherPage(TeacherProfile)} />

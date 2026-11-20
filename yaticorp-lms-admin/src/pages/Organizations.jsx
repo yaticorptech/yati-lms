@@ -21,7 +21,7 @@ import { startViewingOrganization } from '../utils/viewOrganization';
 import {
     Building2, Plus, Users, CheckCircle2, XCircle, AlertTriangle,
     Loader2, Copy, Check, ExternalLink, Ban, RotateCcw, Mail, Phone, MapPin, Globe, X,
-    UserPlus, UserMinus, ArrowRight, BookOpen, LayoutDashboard, Trash2, ChevronDown, History, Trophy, Orbit
+    UserPlus, UserMinus, ArrowRight, BookOpen, LayoutDashboard, Trash2, ChevronDown, History, Trophy, Orbit, School
 } from 'lucide-react';
 import api from '../utils/api';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
@@ -108,16 +108,28 @@ const FEATURES = {
         offNote: 'Turning it off keeps the competitions it already made; you run them from Competitions.'
     },
     three60: {
-        icon: Orbit, title: '360', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200', iconTone: 'bg-emerald-50 text-emerald-600',
+        icon: Orbit, title: 'Student Ranking', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200', iconTone: 'bg-emerald-50 text-emerald-600',
         field: 'three60Allowed', endpoint: 'three60', onLabel: 'Unlocked',
-        aria: (org) => `360 for ${org.name}`,
-        what: '360 tracks each student’s growth beyond the classroom (academics, campus involvement, skills, internships and more) and turns it into marks.',
+        aria: (org) => `Student Ranking for ${org.name}`,
+        what: 'Student Ranking tracks each student’s growth beyond the classroom (academics, campus involvement, skills, internships and more) and turns it into marks.',
         gets: [
-            'Its 360 Activities page: the activities, in categories, and the most marks each can give.',
-            'Its 360 teachers check the proof students upload and give the marks.',
-            'Students on a 360 teacher’s list upload proof and see their 360 marks.'
+            'Its Student Ranking page: the activities, in categories, and the most marks each can give.',
+            'Its ranking teachers check the proof students upload and give the marks.',
+            'Students on a ranking teacher’s list upload proof and see their ranking marks.'
         ],
-        offNote: 'Locking it again stops its teachers and students using 360. Its activities, proof and marks are kept.'
+        offNote: 'Locking it again stops its teachers and students using Student Ranking. Its activities, proof and marks are kept.'
+    },
+    campus: {
+        icon: School, title: 'Campus', tone: 'bg-teal-50 text-teal-800 ring-teal-200', iconTone: 'bg-teal-50 text-teal-700',
+        field: 'campusAllowed', endpoint: 'campus', onLabel: 'On',
+        aria: (org) => `Campus for ${org.name}`,
+        what: 'Campus is the student management system, inside the organization dashboard: departments with their own sign-ins, admissions, subjects, attendance, internal marks, fees and receipts, exam applications and admit cards, an examination board that publishes marks cards, and feedback.',
+        gets: [
+            'Its administrator sets up departments, their sign-ins and the examination board under Campus; each of those sign-ins opens Campus with its own menu.',
+            'Departments admit students, set subjects and fees; teachers take attendance and enter internal marks.',
+            'Students with an AI card get an Institution dashboard, and their published marks cards on their profile.'
+        ],
+        offNote: 'Turning it off keeps every department, admission, mark and receipt; nobody uses Campus until it is on again.'
     }
 };
 

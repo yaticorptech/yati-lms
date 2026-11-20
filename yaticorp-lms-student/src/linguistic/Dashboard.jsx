@@ -138,7 +138,9 @@ const DOORS = [
     { id: 'learn', to: '/linguistic', label: 'Learn: study new words and sentences', name: 'Learn', sub: 'Study new words & sentences', tint: ['#F1FBEA', '#E4F6D9'], edge: '#CDEDBB', ink: '#2FB52F', arrow: ['#46C746', '#22A322'] },
     { id: 'writing', to: '/linguistic/writing', label: 'Write: practise writing', name: 'Write', sub: 'Practice writing', tint: ['#EEF6FF', '#E1EFFE'], edge: '#C3DDF8', ink: '#1A84F0', arrow: ['#3B98F5', '#1477E0'] },
     { id: 'practice', to: '/linguistic/practice', label: 'Practice: solve exercises and improve', name: 'Practice', sub: 'Solve exercises & improve', tint: ['#FFF5EA', '#FFEBD8'], edge: '#F9D7B2', ink: '#F2994A', arrow: ['#FFA43A', '#F2861C'] },
-    { id: 'badges', to: '/linguistic/badges', label: 'Certificates: view your progress and awards', name: 'Certificates', sub: 'View your progress & awards', tint: ['#F6F0FF', '#ECE2FE'], edge: '#DCCBFB', ink: '#9B4DFF', arrow: ['#A866FF', '#8A3BF0'] }
+    { id: 'badges', to: '/linguistic/badges', label: 'Certificates: view your progress and awards', name: 'Certificates', sub: 'View your progress & awards', tint: ['#F6F0FF', '#ECE2FE'], edge: '#DCCBFB', ink: '#9B4DFF', arrow: ['#A866FF', '#8A3BF0'] },
+    // IELTS (2026-11-17, the user: "create the same button and add IELTS here"): its own page, like Learn.
+    { id: 'ielts', to: '/linguistic/ielts', link: true, label: 'IELTS: mock tests and booking the real exam', name: 'IELTS', sub: 'Mock tests & band scores', tint: ['#FFF0F1', '#FFE2E5'], edge: '#F8C4CA', ink: '#E5484D', arrow: ['#F0636A', '#D63A41'] }
 ];
 const line = { strokeLinecap: 'round', strokeLinejoin: 'round' };
 /** Each door's picture, drawn: an open book with its ribbon, a notepad and pencil, a clipboard of ticks and a pencil, a certificate with its medal. */
@@ -173,6 +175,20 @@ const DOOR_PICS = {
             <g transform="rotate(40 48 36)"><rect x="43.5" y="12" width="9" height="34" rx="2" fill="#F7C531" stroke="#B5791A" strokeWidth="1.6" /><rect x="43.5" y="12" width="9" height="6" rx="2" fill="#F07A8B" /><path d="M43.5 46 L48 54 L52.5 46 Z" fill="#F4D7A8" stroke="#B5791A" strokeWidth="1.4" {...line} /><path d="M46.6 51 L48 54 L49.4 51 Z" fill="#3A3A3A" /></g>
         </svg>
     ),
+    ielts: (
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+            <rect x="10" y="8" width="38" height="48" rx="5" fill="#E5484D" stroke="#9E2A2E" strokeWidth="2" />
+            <rect x="14" y="13" width="30" height="38" rx="2.5" fill="#fff" />
+            <rect x="17" y="17" width="24" height="8" rx="2" fill="#1F3A68" />
+            <text x="29" y="23.4" textAnchor="middle" fontSize="6.4" fontWeight="900" fill="#fff" fontFamily="system-ui, sans-serif">IELTS</text>
+            {[31, 37, 43].map((y, i) => <path key={y} d={`M18 ${y} H${i === 2 ? 30 : 40}`} stroke="#C9CFDA" strokeWidth="2.2" {...line} />)}
+            <path d="M39 32 C39 23 57 23 57 32" fill="none" stroke="#1F3A68" strokeWidth="2.6" {...line} />
+            <rect x="36.5" y="31" width="6" height="10" rx="2.5" fill="#F7C531" stroke="#1F3A68" strokeWidth="1.8" />
+            <rect x="53.5" y="31" width="6" height="10" rx="2.5" fill="#F7C531" stroke="#1F3A68" strokeWidth="1.8" />
+            <circle cx="47" cy="50" r="8.5" fill="#2FB52F" stroke="#1E7D1E" strokeWidth="1.8" />
+            <path d="M43.2 50.2 l2.6 2.6 l4.8 -5.2" stroke="#fff" strokeWidth="2.4" fill="none" {...line} />
+        </svg>
+    ),
     badges: (
         <svg viewBox="0 0 64 64" aria-hidden="true">
             <rect x="6" y="9" width="46" height="40" rx="4" fill="#7E4BE0" stroke="#4E2B9A" strokeWidth="2" />
@@ -195,21 +211,22 @@ const DOOR_PICS = {
 function Doors({ tab, onTab }) {
     const navigate = useNavigate();
     return (
-        <nav role="tablist" aria-label="Language Learning" className="grid grid-cols-4 gap-1 sm:grid-cols-2 sm:gap-4 xl:flex xl:gap-4" data-lingo-doors>
+        <nav role="tablist" aria-label="Language Learning" className="grid grid-cols-5 gap-1 sm:grid-cols-3 sm:gap-4 xl:flex xl:gap-4" data-lingo-doors>
             {DOORS.map((d) => {
-                // The open tab's door is lit; Learn (another page) never is.
-                const on = d.id !== 'learn' && tab === d.id;
+                // The open tab's door is lit; Learn and IELTS (pages of their own) never are.
+                const page = d.id === 'learn' || d.link;
+                const on = !page && tab === d.id;
                 return (
                     <div key={d.id} className="group/door relative min-w-0 flex-1">
-                        <button type="button" role={d.id === 'learn' ? 'link' : 'tab'} aria-selected={d.id === 'learn' ? undefined : on} aria-controls={d.id === 'learn' ? undefined : 'lingo-tab-panel'} aria-label={d.label} data-door={d.id} data-active={on || undefined}
-                            onClick={() => (d.id === 'learn' ? navigate(d.to) : onTab(on ? 'learn' : d.id))}
+                        <button type="button" role={page ? 'link' : 'tab'} aria-selected={page ? undefined : on} aria-controls={page ? undefined : 'lingo-tab-panel'} aria-label={d.label} data-door={d.id} data-active={on || undefined}
+                            onClick={() => (page ? navigate(d.to) : onTab(on ? 'learn' : d.id))}
                             className={`group relative block w-full rounded-2xl text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:rounded-[22px] sm:transition-[transform,box-shadow] sm:duration-200 ${on ? '' : 'sm:group-hover/door:-translate-y-0.5'}`}
                             style={{ '--door-shadow': `0 10px 24px ${d.ink}26` }}>
                             {/* On a phone: a round button, its picture and its name under it. */}
                             <span className="flex flex-col items-center gap-1.5 py-1 sm:hidden" data-door-button>
-                                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full shadow-[0_6px_14px_rgba(31,42,68,.14)] ring-[3px] transition-transform group-active:scale-95"
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full min-[400px]:h-16 min-[400px]:w-16 shadow-[0_6px_14px_rgba(31,42,68,.14)] ring-[3px] transition-transform group-active:scale-95"
                                     style={{ background: `linear-gradient(160deg, ${d.tint[0]}, ${d.tint[1]})`, '--tw-ring-color': on ? d.ink : d.edge }} aria-hidden="true">
-                                    <span className="block h-11 w-11" data-door-pic>{DOOR_PICS[d.id]}</span>
+                                    <span className="block h-9 w-9 min-[400px]:h-11 min-[400px]:w-11" data-door-pic>{DOOR_PICS[d.id]}</span>
                                 </span>
                                 <span className="whitespace-nowrap text-[clamp(11px,3.4vw,13px)] font-extrabold leading-tight tracking-tight" style={{ color: on ? d.ink : '#17184a' }}>{d.name}</span>
                             </span>
@@ -644,7 +661,16 @@ export default function Dashboard() {
     // Which door is open, in the address (?tab=practice), so Back and a reload keep it.
     const [params, setParams] = useSearchParams();
     const tab = ['practice', 'badges', 'writing'].includes(params.get('tab')) ? params.get('tab') : 'learn';
-    const setTab = (id) => setParams(id === 'learn' ? {} : { tab: id });
+    // A door tapped (2026-11-12, "it should automatically scroll down and show"): the page goes down to what it opened,
+    // after the layout's jump to the top that every change of address makes (StudentLayout ScrollReset).
+    const tapped = useRef(false);
+    const setTab = (id) => { tapped.current = true; setParams(id === 'learn' ? {} : { tab: id }); };
+    useEffect(() => {
+        if (!tapped.current) return undefined;
+        tapped.current = false;
+        const frame = requestAnimationFrame(() => document.getElementById('lingo-tab-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        return () => cancelAnimationFrame(frame);
+    }, [tab]);
     const Page = PAGES[tab];
     // As the reference picture (2026-10-29): the greeting and scene, the four doors, then the roadmap on the
     // left (about three fifths) beside the languages and the skills. The rest of the dashboard's cards —
@@ -654,7 +680,7 @@ export default function Dashboard() {
             <Hero dash={dash} />
             <Doors tab={tab} onTab={setTab} />
             {/* The open tab's page: Learn is the dashboard's own cards; the others, their pages, here. */}
-            <div id="lingo-tab-panel" role="tabpanel" className="space-y-6" data-lingo-tab={tab}>
+            <div id="lingo-tab-panel" role="tabpanel" className="scroll-mt-24 space-y-6" data-lingo-tab={tab}>
                 {Page ? <Suspense fallback={<Loading label="Opening…" />}><Page key={`${dash.language?.code || 'kn'}:${dash.course?.code || 'en'}`} /></Suspense> : (
                     <>
                     {/* The roadmap across the whole row; under it the languages, the skills and the levels, side by side. */}

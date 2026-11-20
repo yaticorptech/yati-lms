@@ -31,7 +31,7 @@ const seed = async () => {
     // The other languages' courses (courses.js), every level's review lessons (reviews.js), the topics' second units (parts.js)
     // and the Advanced talks (talks.js): their stubs, once each, by seedKey.
     // And every course's Letters unit (alphabet.js, 2026-10-31).
-    const courseStubs = [...require('./courses').stubs(), ...require('./reviews').stubs(), ...require('./parts').stubs(), ...require('./talks').stubs(), ...require('./alphabet').stubs(), ...require('./comics').stubs()];
+    const courseStubs = [...require('./courses').stubs(), ...require('./reviews').stubs(), ...require('./parts').stubs(), ...require('./talks').stubs(), ...require('./alphabet').stubs(), ...require('./comics').stubs(), ...require('./more').stubs()];
     const haveStub = new Set((await LinguisticLesson.find({ seedKey: { $in: courseStubs.map((x) => x.seedKey) } }).select('seedKey').lean()).map((l) => l.seedKey));
     for (const stub of courseStubs) {
         if (haveStub.has(stub.seedKey)) continue;
@@ -43,9 +43,12 @@ const seed = async () => {
     // And the picture stories' (2026-11-07: story 2 became Meera's Kite; the courses still telling the old one keep its title).
     const { LANGS: COMIC_LANGS } = require('./content/comicLangs');
     for (const st of require('./comics').stubs()) {
-        const legacy = st.course && COMIC_LANGS[st.order]?.[st.course]?.legacy;
-        if (!legacy) await LinguisticLesson.updateOne({ seedKey: st.seedKey, title: { $ne: st.title } }, { $set: { title: st.title } });
+        await LinguisticLesson.updateOne({ seedKey: st.seedKey, title: { $ne: st.title } }, { $set: { title: st.title } });
     }
+    // Three Silver Coins removed (2026-11-12, user: "remove that silver coins story"): the courses that still told it as
+    // story 2 have no story 2 now — their stored lessons taken off the path (kept as drafts, so progress records stay whole).
+    const told = new Set(Object.keys(COMIC_LANGS[2] || {}).map((c) => `${c}:comic-advanced-2`));
+    await LinguisticLesson.updateMany({ review: 'comic', order: 2, course: { $ne: null }, seedKey: { $regex: /:comic-advanced-2$/, $nin: [...told] }, status: 'published' }, { $set: { status: 'draft' } });
     // A unit review no longer starts with matching pairs (2026-10-29, pairs once a unit): its stubs' summary says so.
     const { UNIT } = require('./reviews');
     await LinguisticLesson.updateMany({ review: 'unit', summary: 'This unit’s words again: match the pairs, then a quick quiz with listening.' }, { $set: { summary: UNIT.summary } });

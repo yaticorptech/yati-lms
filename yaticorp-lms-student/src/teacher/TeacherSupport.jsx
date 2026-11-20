@@ -13,7 +13,7 @@ import { Modal, ErrorNote } from './ui';
 import SupportHistory from '../components/SupportHistory';
 import { btn, inputClass } from './kit';
 
-const TOPICS = ['360 and my students', 'Classes I teach', 'My profile', 'Sign-in and password', 'Something else'];
+const TOPICS = ['Student Ranking and my students', 'Classes I teach', 'My profile', 'Sign-in and password', 'Something else'];
 const LABEL = 'mb-1.5 block text-sm font-medium text-slate-700';
 
 export default function TeacherSupport({ teacher, onClose }) {

@@ -1,6 +1,7 @@
 import { useState, useContext, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, ArrowRight, Check, Search, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Check, Search, Sparkles, X } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import Input from '../components/common/Input';
 import Button from '../components/ui/Button';
@@ -104,6 +105,63 @@ const PROMPTS = {
   }
 };
 
+
+/** The careers of one field, in a popup over the page: pick one, or close it with ×, Esc or a click outside. */
+function CareersPopup({ field, onClose, onPick }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const before = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = before; };
+  }, [onClose]);
+  const careers = CAREER_GOALS_BY_FIELD[field] || [];
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink-900/50 p-4 backdrop-blur-sm" onClick={onClose} data-career-popup={field}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="career-popup-title"
+        onClick={(e) => e.stopPropagation()}
+        className="animate-scale-in relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-surface shadow-2xl"
+      >
+        <div className="flex items-center gap-3 border-b border-line-200 px-5 py-4 pr-14 sm:px-6">
+          <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-journey-50 text-xl ring-1 ring-journey-100 ring-inset">
+            {FIELD_EMOJI[field]}
+          </span>
+          <div className="min-w-0">
+            <h2 id="career-popup-title" className="text-lg font-black text-ink-900">{field}</h2>
+            <p className="text-xs font-semibold text-ink-400">Pick the career closest to yours</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            autoFocus
+            className="absolute top-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-surface-100 hover:text-ink-900"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="grid gap-2 overflow-y-auto p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
+          {careers.map((career) => (
+            <button
+              key={career}
+              type="button"
+              onClick={() => { onPick(career); onClose(); }}
+              data-mascot-card
+              className="fp-press flex min-h-12 items-center gap-3 rounded-xl border border-line-200 bg-surface px-3.5 py-2.5 text-left text-sm font-bold text-ink-800 transition-colors hover:border-journey-300 hover:bg-journey-50"
+            >
+              <span className="min-w-0 flex-1">{career}</span>
+              <span aria-hidden className="text-ink-300">›</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 export default function Onboarding() {
   const { user } = useContext(AuthContext);
@@ -318,8 +376,8 @@ export default function Onboarding() {
   // roadmap is already saved by the time this renders.
   if (done) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center p-4 py-12">
-        <div className="fp-journey-gradient animate-pop-in relative w-full max-w-2xl overflow-hidden rounded-3xl p-8 text-center text-white shadow-float sm:p-12">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-8">
+        <div className="fp-journey-gradient animate-pop-in relative w-full overflow-hidden rounded-3xl p-8 text-center text-white shadow-float sm:p-12">
           <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
           <div
             aria-hidden
@@ -360,8 +418,8 @@ export default function Onboarding() {
   // inside a button the student has stopped looking at.
   if (isGenerating) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center p-4 py-12">
-        <div className="w-full max-w-2xl">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-8">
+        <div className="w-full">
           <GeneratingRoadmap />
         </div>
       </div>
@@ -371,8 +429,9 @@ export default function Onboarding() {
   const prompt = PROMPTS[step];
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center p-4 py-12">
-      <div className="w-full max-w-2xl">
+    // The whole width of the page (2026-11-12): every step, with its choices spread over more columns.
+    <div className="flex flex-1 flex-col px-4 py-6 sm:px-8 sm:py-8">
+      <div className="w-full">
         <div className="fp-journey-gradient relative mb-5 overflow-hidden rounded-3xl p-6 text-center text-white shadow-float sm:p-8">
           <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
           <div
@@ -473,7 +532,7 @@ export default function Onboarding() {
             feel like a form to fill in. Radios under the hood, so keyboard and
             screen reader behaviour is the native one. */}
         {step === 1 && (
-          <fieldset className="grid gap-2.5 sm:grid-cols-2">
+          <fieldset className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             <legend className="sr-only">Current education level</legend>
             {EDUCATION_LEVELS.map((lvl) => {
               const selected = formData.educationLevel === lvl;
@@ -511,7 +570,7 @@ export default function Onboarding() {
 
         {/* Step 2 */}
         {step === 2 && (
-          <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
             {(formData.educationLevel.includes('School') || formData.educationLevel.includes('Secondary')) && (
               /* Picked from a list rather than typed, for the same reason as the
                  career goal below: "10th", "Class X" and "class 10" all reached
@@ -624,70 +683,15 @@ export default function Onboarding() {
               </div>
             )}
 
-            {!formData.careerGoal && !careerIsOther && (
-              <>
-                <div>
-                  <p className="mb-2.5 text-[0.68rem] font-black tracking-[0.14em] text-ink-400 uppercase">
-                    Browse by field
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.keys(CAREER_GOALS_BY_FIELD).map((field) => {
-                      const open = openField === field;
-                      return (
-                        <button
-                          key={field}
-                          type="button"
-                          onClick={() => setOpenField(open ? null : field)}
-                          aria-pressed={open}
-                          className={`fp-press inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-bold transition-all ${
-                            open
-                              ? 'bg-gradient-to-r from-journey-600 to-indigo-600 text-white shadow-md shadow-journey-600/25'
-                              : 'bg-surface-50 text-ink-700 ring-1 ring-line-200 ring-inset hover:bg-journey-50 hover:text-journey-700'
-                          }`}
-                        >
-                          <span aria-hidden>{FIELD_EMOJI[field]}</span>
-                          {field}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {openField && (
-                  <div className="animate-fade-in-up grid gap-2.5 sm:grid-cols-2">
-                    {CAREER_GOALS_BY_FIELD[openField].map((career) => (
-                      <button
-                        key={career}
-                        type="button"
-                        onClick={() => handleCareerSelect(career)}
-                        data-mascot-card
-                        className="fp-lift fp-press flex min-h-14 items-center gap-3 rounded-2xl border border-line-200 bg-surface p-3.5 text-left text-sm font-bold text-ink-800 transition-colors hover:border-journey-300 hover:bg-journey-50"
-                      >
-                        <span
-                          aria-hidden
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-journey-50 text-base ring-1 ring-journey-100 ring-inset"
-                        >
-                          {FIELD_EMOJI[openField]}
-                        </span>
-                        <span className="min-w-0">{career}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Chosen from a list rather than typed. Free text gave the roadmap
-                prompt "sofware engg", "SDE" and "Software Engineer" as three
-                different careers, and made the admin breakdown of what students
-                want unreadable. The list opens in full on focus and filters as
-                they type, so browsing and searching are the same gesture. */}
-            <div className="rounded-2xl border border-line-200 bg-surface-50/60 p-4">
+            {/* Redesigned 2026-11-12 ("clean and organised"): the search first — the quickest way for anyone who
+                knows the answer — then the sixteen fields as even tiles, four to a row (two on a phone), each with
+                its icon and how many careers it holds; the chosen field's careers open in a panel under them. */}
+            <div className="rounded-2xl border border-line-200 bg-surface-50/60 p-4 sm:p-5">
               <p className="mb-2.5 flex items-center gap-1.5 text-[0.68rem] font-black tracking-[0.14em] text-ink-400 uppercase">
                 <Search className="h-3.5 w-3.5" />
                 {formData.careerGoal && !careerIsOther
                   ? 'Or pick a different one'
-                  : `Or search all ${CAREER_GOALS.length}`}
+                  : `Search all ${CAREER_GOALS.length} careers`}
               </p>
               <SuggestField
                 label="Search or select your career"
@@ -698,6 +702,50 @@ export default function Onboarding() {
                 required
               />
             </div>
+
+            {!formData.careerGoal && !careerIsOther && (
+              <section aria-labelledby="browse-fields">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="h-px flex-1 bg-line-200" />
+                  <h3 id="browse-fields" className="text-[0.68rem] font-black tracking-[0.14em] text-ink-400 uppercase">
+                    Or browse by field
+                  </h3>
+                  <span className="h-px flex-1 bg-line-200" />
+                </div>
+                {/* Small tiles (2026-11-12, "make those cards small"): the icon and the name only, four to a row. */}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-career-fields>
+                  {Object.keys(CAREER_GOALS_BY_FIELD).map((field) => {
+                    const open = openField === field;
+                    return (
+                      <button
+                        key={field}
+                        type="button"
+                        onClick={() => setOpenField(field)}
+                        aria-haspopup="dialog"
+                        className={`fp-press flex h-full w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm leading-tight font-bold transition-all ${
+                          open
+                            ? 'bg-gradient-to-r from-journey-600 to-indigo-600 text-white shadow-md shadow-journey-600/25'
+                            : 'bg-surface text-ink-800 ring-1 ring-line-200 ring-inset hover:bg-journey-50 hover:ring-journey-200'
+                        }`}
+                      >
+                        <span
+                          aria-hidden
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base ${
+                            open ? 'bg-white/20' : 'bg-journey-50 ring-1 ring-journey-100 ring-inset'
+                          }`}
+                        >
+                          {FIELD_EMOJI[field]}
+                        </span>
+                        <span className="min-w-0">{field}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* A field's careers in a popup (2026-11-12): × in its corner, Esc or a click outside closes it. */}
+                {openField && <CareersPopup field={openField} onClose={() => setOpenField(null)} onPick={handleCareerSelect} />}
+              </section>
+            )}
 
             {careerIsOther && (
               <Input
@@ -728,7 +776,7 @@ export default function Onboarding() {
 
         {/* Step 5 */}
         {step === 5 && (
-          <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
             <SuggestField
               label="Country"
               value={formData.country}

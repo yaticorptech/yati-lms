@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowBigUp, CornerDownLeft, Delete, GripHorizontal, Minus, Plus, X } from 'lucide-react';
+import { ArrowBigUp, Check, ChevronDown, CornerDownLeft, Delete, GripHorizontal, Keyboard, Minus, Plus, X } from 'lucide-react';
 import LetterKeys from './LetterKeys';
 import { LAYOUTS } from './letters';
 import { LANGS, isRtl } from '../meta';
@@ -84,10 +84,14 @@ function useNoteCursor(editorRef, onStart) {
     return { box, type, erase };
 }
 
-const KEY = 'flex h-10 min-w-0 items-center justify-center rounded-lg bg-[var(--k-bg)] text-base font-semibold text-[var(--k)] shadow-[0_2px_0_var(--k-ring)] ring-1 ring-[var(--k-ring)] transition-colors hover:brightness-125 active:translate-y-px active:shadow-none sm:h-11 sm:text-lg';
+const KEY = 'flex h-10 min-w-0 [[data-note-sheet]_&]:h-11 items-center justify-center rounded-lg bg-[var(--k-bg)] text-base font-semibold text-[var(--k)] shadow-[0_2px_0_var(--k-ring)] ring-1 ring-[var(--k-ring)] transition-colors hover:brightness-125 active:translate-y-px active:shadow-none sm:h-11 sm:text-lg';
 
 /** One dark keyboard, white letters (2026-10-31). */
 const paint = () => ({ '--k': '#ffffff', '--k-bg': '#334155', '--k-soft': '#3f4c63', '--k-ring': '#0f172a', '--k-bar': '#0f172a', '--k-win': '#1e293b', '--k-strong': '#38bdf8' });
+/** On a phone, the lessons' white keyboard (2026-11-12, "use the keyboard already in Multilingo, the white one"). */
+const paintLight = () => ({ '--k': '#3c3c3c', '--k-bg': '#ffffff', '--k-soft': '#eef6ff', '--k-ring': '#E5E5E5', '--k-bar': '#ffffff', '--k-win': '#F7F7F7', '--k-strong': '#1cb0f6' });
+/** A phone-sized screen: the keyboard docks along the bottom instead of floating. */
+const isPhone = () => typeof window !== 'undefined' && window.innerWidth < 640;
 
 /*
  * Kannada for the note (2026-10-31, "I want to write ಅಲ್ಲಿ, I'm not able"): every key types straight at the note's
@@ -207,13 +211,87 @@ const follow = (e, move) => {
  * its bar anywhere on the screen, made bigger or smaller from its corner (or −/+), closed with ×. It opens at the
  * bottom of the screen, not attached to the note; the language is switched from its bar.
  */
+function KeysFor({ code, box, type, erase }) {
+    return LATIN.includes(code) ? <LatinKeys key={code} code={code} type={type} erase={erase} />
+        : code === 'zh' ? <HanziKeys type={type} erase={erase} />
+            : code === 'ko' || code === 'ja' ? <LetterKeys key={code} code={code} {...box} />
+                : <ScriptKeys key={code} code={code} type={type} erase={erase} />;
+}
+
+/**
+ * On a phone (2026-11-12, "make the keyboard big so it fits the mobile screen"): the white keyboard of the lessons
+ * (KeysPopup), docked across the bottom of the screen at full size — the floating window drew its keys at 640 px and
+ * shrank them to a phone's width, too small to tap. Its keys scroll inside it; the language is picked from a list that
+ * opens in the sheet itself; Done closes it. The note keeps room above it, so the line being written stays in view.
+ */
+function PhoneKeys({ code, onCode, editorRef, onClose, ...keys }) {
+    const sheet = useRef(null);
+    const [langs, setLangs] = useState(false);
+    useEffect(() => {
+        const el = editorRef.current, s = sheet.current;
+        if (!el || !s) return undefined;
+        const was = el.style.paddingBottom;
+        const fit = () => { el.style.paddingBottom = `${s.offsetHeight + 16}px`; };
+        fit();
+        const ro = new ResizeObserver(fit);
+        ro.observe(s);
+        return () => { ro.disconnect(); el.style.paddingBottom = was; };
+    }, [editorRef]);
+    const l = LANGS[code];
+    return createPortal(
+        <div ref={sheet} role="dialog" aria-label="On-screen keyboard" onMouseDown={(e) => e.preventDefault()}
+            className="lingo fixed inset-x-0 bottom-0 z-[90] rounded-t-3xl border-t-2 border-[#E5E5E5] bg-white px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(0,0,0,0.15)]"
+            style={paintLight()} data-note-keys={code} data-note-sheet>
+            <div className="mb-2 flex items-center gap-2 px-1">
+                <button type="button" onClick={() => setLangs((v) => !v)} aria-expanded={langs} aria-haspopup="listbox"
+                    className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] px-3 text-left text-[15px] font-extrabold text-[#3c3c3c]" data-note-keys-lang>
+                    <Keyboard size={19} className="shrink-0 text-[#1cb0f6]" />
+                    <span className="min-w-0 flex-1 truncate" lang={code}>{l?.native}{l && l.native !== l.name ? <span className="font-bold text-[#999]"> · {l.name}</span> : null}</span>
+                    <ChevronDown size={18} className={`shrink-0 text-[#999] transition-transform ${langs ? 'rotate-180' : ''}`} />
+                </button>
+                <button type="button" onClick={onClose} className="lingo-btn inline-flex h-11 shrink-0 items-center gap-1.5 px-4 text-sm" style={{ background: '#fff', borderColor: '#E5E5E5', color: '#777' }} data-keys-close>
+                    <X size={16} strokeWidth={3} /> Done
+                </button>
+            </div>
+            {langs ? (
+                <ul role="listbox" aria-label="Keyboard language" className="max-h-[50vh] overflow-y-auto overscroll-contain rounded-2xl border-2 border-[#E5E5E5] bg-white p-1" data-note-keys-langs>
+                    {Object.entries(LANGS).map(([c, x]) => (
+                        <li key={c}>
+                            <button type="button" role="option" aria-selected={c === code} onClick={() => { onCode(c); setLangs(false); }} lang={c}
+                                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-bold ${c === code ? 'bg-[#DDF4FF] text-[#1899d6]' : 'text-[#3c3c3c] hover:bg-[#F7F7F7]'}`}>
+                                <span className="min-w-0 flex-1">{x.native}</span>
+                                <span className="text-sm font-semibold text-[#999]">{x.name}</span>
+                                {c === code && <Check size={18} className="shrink-0" />}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <div className="max-h-[46vh] overflow-y-auto overscroll-contain rounded-2xl bg-[#F7F7F7] p-2" dir={isRtl(code) ? 'rtl' : undefined}>
+                    <KeysFor code={code} {...keys} />
+                </div>
+            )}
+            <style>{'[data-note-sheet] .lingo-tile,[data-note-sheet] [data-kana-tab]{background:#fff!important;border-color:#E5E5E5!important;color:#3c3c3c!important}[data-note-sheet] [data-letter-keys]{background:transparent;border-color:transparent;padding:0}'}</style>
+        </div>,
+        document.body
+    );
+}
+
 export default function NoteKeys({ code, onCode, editorRef, onStart, onClose }) {
     const { box, type, erase } = useNoteCursor(editorRef, onStart);
+    const [phone, setPhone] = useState(isPhone);
+    useEffect(() => { const on = () => setPhone(isPhone()); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on); }, []);
+    useEffect(() => { store(PICKED, code); }, [code]);
+    if (phone) return <PhoneKeys code={code} onCode={onCode} editorRef={editorRef} onClose={onClose} box={box} type={type} erase={erase} />;
+    return <FloatingKeys code={code} onCode={onCode} onClose={onClose} box={box} type={type} erase={erase} />;
+}
+
+/** On a computer: the floating window, as before. */
+function FloatingKeys({ code, onCode, onClose, box, type, erase }) {
     const win = useRef(null);
     const [width, setWidth] = useState(() => clamp(Number(recall(SIZED)) || BASE, MIN, maxWidth()));
     const [pos, setPos] = useState(null);           // { x, y } once moved; till then at the bottom, in the middle
     const pick = onCode;
-    useEffect(() => { store(PICKED, code); }, [code]);
     const resize = (w) => { const n = clamp(Math.round(w), MIN, maxWidth()); setWidth(n); store(SIZED, String(n)); };
     // Kept on the screen when the window gets smaller.
     useEffect(() => {
@@ -245,10 +323,7 @@ export default function NoteKeys({ code, onCode, editorRef, onStart, onClose }) 
             </div>
             <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: '70vh' }}>
                 <div className="p-2" style={{ width: BASE, zoom }} dir={isRtl(code) ? 'rtl' : undefined}>
-                    {LATIN.includes(code) ? <LatinKeys key={code} code={code} type={type} erase={erase} />
-                        : code === 'zh' ? <HanziKeys type={type} erase={erase} />
-                            : code === 'ko' || code === 'ja' ? <LetterKeys key={code} code={code} {...box} />
-                                : <ScriptKeys key={code} code={code} type={type} erase={erase} />}
+                    <KeysFor code={code} box={box} type={type} erase={erase} />
                 </div>
             </div>
             <style>{'[data-note-keys] .lingo-tile,[data-note-keys] [data-kana-tab]{background:var(--k-bg)!important;border-color:var(--k-ring)!important;color:var(--k)!important}[data-note-keys] [data-letter-keys] p,[data-note-keys] [data-key-say]{color:#94a3b8}[data-note-keys] [data-letter-keys]{background:transparent;border-color:transparent}'}</style>

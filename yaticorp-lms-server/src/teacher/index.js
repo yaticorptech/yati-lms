@@ -207,7 +207,7 @@ const recentWork = async (teacherId) => {
  * is opened by an AI card. A teacher added without one — a club or Scouts
  * leader — reaches only their profile, organization, clubs and units.
  */
-const needsCard = (req, res, next) => (req.teacher.cardNumber
+const needsCard = (req, res, next) => (req.teacher.cardNumber || req.teacher.demoCard
     ? next()
     : res.status(403).json({ code: 'NO_RESEARCH', message: 'The research tools come with an AI card. Your account runs your clubs and Scouts units.' }));
 
@@ -346,7 +346,11 @@ router.use('/scout-units', featureOn('scouts', 'Scouts & Guides'), require('../n
 
 /* ── 360: the classes I teach (course, section, subject) and their students (src/three60) ── */
 
-router.use('/360', featureOn('mentor360', '360'), require('../three60').mentor);
+router.use('/360', featureOn('mentor360', 'Student Ranking'), require('../three60').mentor);
+
+/* ── Campus: attendance (and internal marks) for the subjects I teach (src/campus/orgAdmin.js) ── */
+
+router.use('/campus', require('../campus/orgAdmin').teacher);
 
 // Everything below is the research side.
 router.use(needsCard);

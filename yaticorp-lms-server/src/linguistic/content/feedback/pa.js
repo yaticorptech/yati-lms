@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'I, you, we ਜਾਂ they ਨਾਲ "don\'t" (do not) ਵਰਤੋ।',
     withDoesnt: 'he, she ਜਾਂ it ਨਾਲ "doesn\'t" (does not) ਵਰਤੋ।',
     thirdS: 'ਵਰਤਮਾਨ ਕਾਲ ਵਿੱਚ he, she ਜਾਂ it ਨਾਲ ਕਿਰਿਆ ਨੂੰ -s ਲੱਗਦਾ ਹੈ: he goes, she has, it works.',
+    noThirdS: 'I, you, we ਜਾਂ they ਨਾਲ ਕਿਰਿਆ ਨੂੰ -s ਨਹੀਂ ਲੱਗਦਾ: I go, you have, they work.',
     thereAre: 'ਇੱਕ ਤੋਂ ਵੱਧ ਚੀਜ਼ਾਂ ਲਈ "there are" (ਜਾਂ "there were") ਵਰਤੋ।',
     participle: 'have, has ਜਾਂ had ਤੋਂ ਬਾਅਦ past participle: have gone, has eaten, had done.',
     stative: 'know, understand, want ਵਰਗੀਆਂ ਕਿਰਿਆਵਾਂ ਨੂੰ -ing ਨਹੀਂ ਲੱਗਦਾ: "I understand", "I am understanding" ਨਹੀਂ।',

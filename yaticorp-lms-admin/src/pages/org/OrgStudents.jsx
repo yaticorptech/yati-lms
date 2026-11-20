@@ -19,7 +19,7 @@
  * the one that is showing is built.
  */
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams, useOutletContext } from 'react-router-dom';
+import { Link, Navigate, useSearchParams, useOutletContext } from 'react-router-dom';
 import OrgCertificateProgress from './OrgCertificateProgress';
 import OrgRequests from './OrgRequests';
 import { Users, ChevronRight, Award, Download, UserMinus, Loader2, UserPlus } from 'lucide-react';
@@ -75,7 +75,7 @@ const arrange = (students, { q, filter }) => {
 
 const pick = (value, options, fallback) => (options.some(([key]) => key === value) ? value : fallback);
 
-const StudentList = ({ tabs }) => {
+export const StudentList = ({ tabs }) => {
     const [params, setParams] = useSearchParams();
     const q = params.get('q') || '';
     const filter = pick(params.get('filter'), FILTERS, 'all');
@@ -195,7 +195,7 @@ const StudentList = ({ tabs }) => {
             const rows = arrange(res.data.students || [], { q, filter });
 
             const with360 = Boolean(res.data.three60);
-            const header = ['Name', 'Email', 'Status', 'Courses enrolled', 'Courses completed', 'Overall progress % (all enrolled courses)', 'Lessons completed', 'Quizzes passed', 'Certificates', 'XP', 'Level', ...(with360 ? ['360 score'] : []), 'Joined organization', 'Last active'];
+            const header = ['Name', 'Email', 'Status', 'Courses enrolled', 'Courses completed', 'Overall progress % (all enrolled courses)', 'Lessons completed', 'Quizzes passed', 'Certificates', 'XP', 'Level', ...(with360 ? ['Ranking score'] : []), 'Joined organization', 'Last active'];
             const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
             const body = rows.map((s) => [
                 s.name, s.email, s.status, s.coursesEnrolled, s.coursesCompleted, s.progressPercent,
@@ -286,7 +286,7 @@ const StudentList = ({ tabs }) => {
                                         open, platform and bundle courses included. */}
                                     <th className="px-6 py-4 font-semibold" title="Average across all the student's enrolled courses, not only yours">Overall progress</th>
                                     <th className="px-6 py-4 font-semibold">XP</th>
-                                    {on360 && <th className="px-6 py-4 font-semibold" title="Marks from approved 360 activity proofs">360 score</th>}
+                                    {on360 && <th className="px-6 py-4 font-semibold" title="Marks from approved Student Ranking activity proofs">ranking score</th>}
                                     <th className="px-6 py-4 font-semibold">Last active</th>
                                     <th className="px-6 py-4 font-semibold">Account status</th>
                                     <th className="sticky right-0 bg-slate-50 px-6 py-4 font-semibold text-right">Details</th>
@@ -374,7 +374,7 @@ const StudentList = ({ tabs }) => {
                                     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                                         <span title="Account status"><Pill status={s.status} /></span>
                                         <span className="tabular-nums">{s.xp} XP</span>
-                                        {on360 && <span className="rounded-md bg-teal-50 px-1.5 py-0.5 font-semibold text-teal-700 tabular-nums" title="360 score">360: {fmtScore(s.score360)}</span>}
+                                        {on360 && <span className="rounded-md bg-teal-50 px-1.5 py-0.5 font-semibold text-teal-700 tabular-nums" title="Ranking score">Ranking: {fmtScore(s.score360)}</span>}
                                         {s.certificates > 0 && (
                                             <span className="inline-flex items-center gap-1 font-semibold text-amber-600" title="Certificates issued"><Award size={12} />{s.certificates}</span>
                                         )}
@@ -424,7 +424,12 @@ const VIEWS = [
  */
 const OrgStudents = () => {
     const [params, setParams] = useSearchParams();
-    const { staff, pendingRequests } = useOutletContext() || {};
+    const { staff, pendingRequests, campusOn } = useOutletContext() || {};
+    // Campus on (2026-11-16): Campus → Students is the one student list, with every tab of this page.
+    if (campusOn) {
+        const v = params.get('view');
+        return <Navigate to={`/organization/campus/students${v === 'certificates' ? '?view=certificates' : v === 'requests' ? '' : '?view=members'}`} replace />;
+    }
     // A teacher signed in to the panel cannot decide requests, so they see no Requests tab.
     const views = staff ? VIEWS.filter(([v]) => v !== 'requests') : VIEWS;
     const asked = params.get('view');

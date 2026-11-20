@@ -9,7 +9,9 @@
  * spaces) on the words of its sound in English letters under it.
  */
 const { wordHints } = require('..');
-const OWN = { kn: require('./kn'), hi: require('./hi') };
+// And the new sections' sentences (more.js, 2026-11-14), read lazily (more.js reads the content this file serves).
+const OWN = {};
+for (const code of ['kn', 'hi']) Object.defineProperty(OWN, code, { enumerable: true, configurable: true, get() { const v = { ...require(`./${code}`), ...require('../../../more').glossesOf(code) }; Object.defineProperty(OWN, code, { value: v, enumerable: true }); return v; } });
 const MORE = require('./more');
 
 const MARK = /^[\p{P}\p{S}]+$/u;

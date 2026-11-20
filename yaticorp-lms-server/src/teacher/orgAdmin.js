@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
         const rows = await Teacher.find(filter).select(FIELDS).sort({ name: 1 }).collation({ locale: 'en', strength: 2 }).lean();
         const [summaries, staff] = await Promise.all([
             summarise(rows),
-            Admin.find({ organizationId: req.organization._id, staff: true }).select('name email staffTeacherId createdAt').sort({ name: 1 }).lean()
+            Admin.find({ organizationId: req.organization._id, staff: true, campusDepartmentId: null, campusExamBoard: { $ne: true }, campusOffice: { $ne: true } }).select('name email staffTeacherId createdAt').sort({ name: 1 }).lean()
         ]);
         const ids = rows.map((r) => r._id);
         const [units, clubs, org360] = await Promise.all([
@@ -94,7 +94,7 @@ router.get('/', async (req, res) => {
             // Each teacher with what they can open; organization-dashboard-only sign-ins listed after.
             teachers: rows.map((r, i) => {
                 const panel = staff.find((a) => String(a.staffTeacherId) === String(r._id));
-                return { ...r, summary: summaries[i], research: Boolean(r.cardNumber), features: { scouts: r.scouts !== false, mentor360: Boolean(r.mentor360) }, leads: leads(r._id), teaches: teaches[String(r._id)] || [], orgAccess: Boolean(panel), panelEmail: panel?.email || '' };
+                return { ...r, summary: summaries[i], research: Boolean(r.cardNumber || r.demoCard), features: { scouts: r.scouts !== false, mentor360: Boolean(r.mentor360) }, leads: leads(r._id), teaches: teaches[String(r._id)] || [], orgAccess: Boolean(panel), panelEmail: panel?.email || '' };
             }),
             staff: staff.filter((a) => !a.staffTeacherId && (!q || `${a.name} ${a.email}`.toLowerCase().includes(q))),
             pendingRequests: await countPending(req.organization._id),
@@ -193,17 +193,14 @@ router.post('/', async (req, res) => {
             const back = await rejoin(req, details, access);
             if (back) return res.status(back.status).json(back.body);
         }
-        // Without a card their dashboard is only Scouts & Guides and 360: one must be on.
+        // Since 2026-11-14 a teacher's dashboard is their campus work (subjects the HOD assigns, attendance,
+        // announcements, internal marks), plus research with an AI card. Ranking comes when an HOD makes them
+        // a mentor, Scouts & Guides when they lead a unit (or switched on later on the Teachers page).
         const asked = featuresOf(body);
-        if (!access.research && asked && asked.scouts === false && asked.mentor360 === false) {
-            return res.status(400).json({ field: 'features', message: 'Choose Scouts & Guides, 360, or both for a teacher without a card.' });
-        }
-        // Without a card, added by mobile number: not twice in this organization.
-        if (!access.research && !staff) {
-            const { kindOf, phonePattern } = require('../utils/signInLookup');
-            const k = kindOf(details.phone);
-            const twice = k.digits && await Teacher.findOne({ organizationId: req.organization._id, cardNumber: { $in: [null, ''] }, phone: { $regex: phonePattern(k.digits) } }).select('name').lean();
-            if (twice) return res.status(400).json({ field: 'phone', message: `${twice.name} is already one of your teachers with this mobile number.` });
+        // One mobile number, one teacher (2026-11-14): not two of this organization's, card or not.
+        if (!staff && details.phone) {
+            const twice = await require('../utils/signInLookup').teacherWithPhone(details.phone, { organizationId: req.organization._id });
+            if (twice) return res.status(400).json({ field: 'phone', message: `This mobile number is already ${twice}’s. Each teacher needs their own number.` });
         }
         const teacher = access.research
             ? await createTeacher(details, { by: 'organization', organizationId: req.organization._id })
@@ -242,7 +239,7 @@ router.put('/:teacherId/features', async (req, res) => {
         if (!t) return notMine(res);
         const features = { scouts: t.scouts !== false, mentor360: Boolean(t.mentor360) };
         const [key] = Object.keys(set);
-        const what = key === 'scouts' ? 'Scouts & Guides' : '360';
+        const what = key === 'scouts' ? 'Scouts & Guides' : 'Student Ranking';
         res.json({ features, message: `${what} is ${set[key] ? 'on' : 'off'} for ${t.name}.` });
     } catch (error) {
         console.error('[org-teachers] features failed:', error.message);
@@ -353,7 +350,7 @@ router.put('/requests/:requestId', async (req, res) => {
 router.delete('/staff/:adminId', async (req, res) => {
     try {
         if (!mongoose.isValidObjectId(req.params.adminId)) return notMine(res);
-        const gone = await Admin.findOneAndDelete({ _id: req.params.adminId, organizationId: req.organization._id, staff: true });
+        const gone = await Admin.findOneAndDelete({ _id: req.params.adminId, organizationId: req.organization._id, staff: true, campusDepartmentId: null, campusExamBoard: { $ne: true }, campusOffice: { $ne: true } });
         if (!gone) return notMine(res);
         res.json({ message: `${gone.name} can no longer sign in to this panel.` });
     } catch (error) {
@@ -381,7 +378,7 @@ const panelEmail = async (v, exceptId) => {
 router.put('/staff/:adminId', async (req, res) => {
     try {
         if (!mongoose.isValidObjectId(req.params.adminId)) return notMine(res);
-        const admin = await Admin.findOne({ _id: req.params.adminId, organizationId: req.organization._id, staff: true });
+        const admin = await Admin.findOne({ _id: req.params.adminId, organizationId: req.organization._id, staff: true, campusDepartmentId: null, campusExamBoard: { $ne: true }, campusOffice: { $ne: true } });
         if (!admin) return notMine(res);
         const b = req.body || {};
         const keepPanel = b.organization === undefined ? true : Boolean(b.organization);

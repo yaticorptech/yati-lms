@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'Com I, you, we ou they, use "don\'t" (do not).',
     withDoesnt: 'Com he, she ou it, use "doesn\'t" (does not).',
     thirdS: 'Com he, she ou it, o verbo ganha -s no presente: he goes, she has, it works.',
+    noThirdS: 'Com I, you, we ou they, o verbo não leva -s: I go, you have, they work.',
     thereAre: 'Com mais de uma coisa, use "there are" (ou "there were").',
     participle: 'Depois de have, has ou had, use o particípio: have gone, has eaten, had done.',
     stative: 'Verbos como know, understand e want não são usados com -ing: "I understand", não "I am understanding".',

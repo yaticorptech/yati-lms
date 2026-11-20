@@ -100,7 +100,8 @@ const SearchSelect = ({ items, value, onChange, placeholder, loading, emptyText 
                         <Search size={15} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" className="w-full rounded-lg bg-slate-50 py-2 pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/30" />
                     </div>
-                    <ul className="max-h-60 overflow-y-auto py-1">
+                    {/* A short box that scrolls (2026-11-16, "make student names a scroll"): about three and a half names show, so the list never covers the fields below. */}
+                    <ul className="max-h-[8.75rem] overflow-y-auto overscroll-contain py-1 [scrollbar-color:#c7d2fe_transparent] [scrollbar-width:thin]">
                         {allowNone && (
                             <li><button type="button" onClick={() => pick('')} className="w-full px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-50">None</button></li>
                         )}
@@ -140,10 +141,10 @@ const ScoutUnitSelect = ({ value, onChange, noneLabel = 'No unit yet', label = '
     const units = useScoutUnits();
     return (
         <Field label={label}>
-            <select className={INPUT} value={value || ''} onChange={(e) => onChange(e.target.value)} disabled={units.loading}>
+            <Select className={INPUT} value={value || ''} onChange={(e) => onChange(e.target.value)} disabled={units.loading}>
                 <option value="">{units.loading ? 'Loading…' : noneLabel}</option>
                 {units.items.map((u) => <option key={u.id} value={u.id}>{u.label} · {u.sub}</option>)}
-            </select>
+            </Select>
         </Field>
     );
 };
@@ -153,9 +154,9 @@ const MemberFields = ({ form, set, scheme, lockUnit }) => (
     <>
         {scheme === 'CLUB' && (
             <Field label="Post in the club">
-                <select className={INPUT} value={form.role || 'member'} onChange={(e) => set('role', e.target.value)}>
+                <Select className={INPUT} value={form.role || 'member'} onChange={(e) => set('role', e.target.value)}>
                     {ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
+                </Select>
             </Field>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -170,15 +171,15 @@ const MemberFields = ({ form, set, scheme, lockUnit }) => (
         )}
         <div className="grid grid-cols-2 gap-3">
             <Field label="Year">
-                <select className={INPUT} value={form.year} onChange={(e) => set('year', e.target.value)}>
+                <Select className={INPUT} value={form.year} onChange={(e) => set('year', e.target.value)}>
                     {[1, 2, 3].map((y) => <option key={y} value={y}>Year {y}</option>)}
-                </select>
+                </Select>
             </Field>
             {scheme === 'NCC' && (
                 <Field label="Certificate">
-                    <select className={INPUT} value={form.certStage} onChange={(e) => set('certStage', e.target.value)}>
+                    <Select className={INPUT} value={form.certStage} onChange={(e) => set('certStage', e.target.value)}>
                         <option value="">—</option>{['A', 'B', 'C'].map((c) => <option key={c} value={c}>{c} certificate</option>)}
-                    </select>
+                    </Select>
                 </Field>
             )}
         </div>
@@ -230,9 +231,9 @@ const LogActivityDialog = ({ member, activity, onClose, onDone }) => {
     return (
         <DialogShell title={`${activity ? 'Edit' : 'Add'} activity — ${member.student.name}`} onClose={onClose} onSubmit={submit} busy={busy} error={error} submitLabel={activity ? 'Save' : 'Add'}>
             <Field label="Type">
-                <select className={INPUT} value={form.kind} onChange={(e) => set('kind', e.target.value)}>
+                <Select className={INPUT} value={form.kind} onChange={(e) => set('kind', e.target.value)}>
                     {ACTIVITY_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
+                </Select>
             </Field>
             <Field label="What was it"><input className={INPUT} value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Blood donation camp" required /></Field>
             <div className="grid grid-cols-2 gap-3">
@@ -413,10 +414,10 @@ const UnitFilter = ({ value, onChange }) => {
     const units = useScoutUnits();
     if (!units.items.length) return null;
     return (
-        <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Unit" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+        <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Unit" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
             <option value="">All units</option>
             {units.items.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
-        </select>
+        </Select>
     );
 };
 
@@ -466,12 +467,10 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
         <div className="space-y-3">
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                {/* Which members: tabs on a wider screen, a dropdown on a phone (2026-11-02). */}
-                <div className="hidden sm:block">
-                    <Segmented options={memberFilters} value={filter} onChange={setFilter} counts={memberCounts} />
-                </div>
-                <div className="sm:hidden">
-                    <Select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Show members" className={INPUT}>
+                {/* Which members: a dropdown on every screen (2026-11-14) — tabs under the page's own tabs read as more tabs. */}
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Show</span>
+                    <Select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Show members" className={`${INPUT} sm:!w-56`}>
                         {memberFilters.map(([key, label]) => <option key={key || 'all'} value={key}>{memberCounts[key] ? `${label} (${memberCounts[key]})` : label}</option>)}
                     </Select>
                 </div>
@@ -500,10 +499,10 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
                                         </div>
                                     </td>
                                     <td className="px-3 py-3">
-                                        <select value={r.role || 'member'} onChange={(e) => update(r, { role: e.target.value })} disabled={r.status === 'pending'} aria-label={`Post of ${r.student.name}`}
+                                        <Select value={r.role || 'member'} onChange={(e) => update(r, { role: e.target.value })} disabled={r.status === 'pending'} aria-label={`Post of ${r.student.name}`}
                                             className={`rounded-lg border px-2 py-1.5 text-xs font-bold ${r.role && r.role !== 'member' ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600'}`}>
                                             {ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                                        </select>
+                                        </Select>
                                     </td>
                                     <td className="px-3 py-3 text-slate-700">{r.year}</td>
                                     <td className={`px-3 py-3 tabular-nums font-semibold ${r.summary.attendance === null ? 'text-slate-400' : r.summary.attendance < r.summary.minAttendance ? 'text-red-600' : 'text-emerald-700'}`}>
@@ -593,6 +592,8 @@ const AwardDialog = ({ member, ranks, onClose, onDone }) => {
     const [error, setError] = useState('');
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'type' ? { name: '' } : {}) }));
     const submit = async () => {
+        // The page's own dropdown has no "required" of the browser's: say it here.
+        if (!String(form.name || '').trim()) { setError(form.type === 'rank' ? 'Choose a rank.' : 'Type its name.'); return; }
         setBusy(true); setError('');
         try { onDone((await api.post(`${BASE}/members/${member._id}/awards`, form)).data.message); }
         catch (err) { setError(errorOf(err, 'Could not record it.')); setBusy(false); }
@@ -600,16 +601,16 @@ const AwardDialog = ({ member, ranks, onClose, onDone }) => {
     return (
         <DialogShell title={`Record for ${member.student.name}`} onClose={onClose} onSubmit={submit} busy={busy} error={error} submitLabel="Record">
             <Field label="What">
-                <select className={INPUT} value={form.type} onChange={(e) => set('type', e.target.value)}>
+                <Select className={INPUT} value={form.type} onChange={(e) => set('type', e.target.value)}>
                     {AWARD_TYPES.filter(([v]) => v !== 'rank' || ranks.length).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
+                </Select>
             </Field>
             <Field label={form.type === 'rank' ? 'Rank' : form.type === 'badge' ? 'Badge' : 'Training'}>
                 {form.type === 'rank' ? (
-                    <select className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} required>
+                    <Select className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)}>
                         <option value="">Choose…</option>
                         {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    </Select>
                 ) : <input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={form.type === 'badge' ? 'e.g. First Aid, Camper' : 'e.g. District camp, Basic course'} required />}
             </Field>
             <div className="grid grid-cols-2 gap-3">
@@ -1071,10 +1072,10 @@ const UnitDialog = ({ unit, onClose, onDone }) => {
             <Field label="Name"><input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. 1st Scout Troop" required /></Field>
             <div className="grid grid-cols-2 gap-3">
                 <Field label="Section">
-                    <select className={INPUT} value={form.section} onChange={(e) => set('section', e.target.value)}>
+                    <Select className={INPUT} value={form.section} onChange={(e) => set('section', e.target.value)}>
                         <option value="">Choose…</option>
                         {Object.entries(SECTION_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                    </select>
+                    </Select>
                 </Field>
                 <Field label="BSG registration no."><input className={INPUT} value={form.regNo} onChange={(e) => set('regNo', e.target.value)} placeholder="If registered" /></Field>
             </div>
@@ -1129,7 +1130,10 @@ const UnitsTab = () => {
     return (
         <div className="space-y-3">
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
-            <div className="flex justify-end"><button onClick={() => setEditing('new')} className={BTN}><Plus size={16} /> Add unit</button></div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-slate-500">Students choose one of these units when they ask to join. The unit’s leaders (teachers) and you can both accept the request.</p>
+                <button onClick={() => setEditing('new')} className={`${BTN} shrink-0`}><Plus size={16} /> Add unit</button>
+            </div>
             <div className={`${CARD} overflow-x-auto`}>
                 {loading ? <Rows count={3} /> : failed ? <LoadFailed what="the units" onRetry={reload} /> : rows.length === 0 ? (
                     <Empty icon={Users}>No units yet. Add your Cub pack, Bulbul flock, Scout troop, Guide company, Rover crew or Ranger team, then put members in them.</Empty>
@@ -1348,6 +1352,38 @@ const ClubsView = () => {
     );
 };
 
+/**
+ * Show Extra-curricular to every student (2026-11-16): on, all the organization's students get the
+ * Extra Curricular tab on their dashboard; off, only those already in a unit or club.
+ */
+const StudentVisibility = () => {
+    const staff = Boolean(useOutletContext()?.staff);
+    const [open, setOpen] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [note, setNote] = useState('');
+    useEffect(() => { api.get('/organizations/me/nccnss/visibility').then((r) => setOpen(Boolean(r.data?.open))).catch(() => setOpen(null)); }, []);
+    if (open === null) return null;
+    const toggle = async () => {
+        setBusy(true); setNote('');
+        try { const r = await api.put('/organizations/me/nccnss/visibility', { open: !open }); setOpen(r.data.open); setNote(r.data.message); }
+        catch (err) { setNote(err.response?.data?.message || 'That could not be saved. Please try again.'); }
+        finally { setBusy(false); }
+    };
+    return (
+        <div className={`${CARD} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
+            <div className="min-w-0">
+                <p className="font-bold text-slate-900">Show Extra-curricular to all students</p>
+                <p className="mt-0.5 text-sm text-slate-500">{open ? 'On: every student in your organization sees it on their dashboard and can ask to join NCC, NSS, Scouts or a club.' : 'Off: only students already in a unit or club see it.'}</p>
+                {note && <p role="status" className="mt-1.5 text-xs font-semibold text-indigo-600">{note}</p>}
+            </div>
+            <button type="button" role="switch" aria-checked={open} aria-label="Show Extra-curricular to all students" onClick={toggle} disabled={busy || staff}
+                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:opacity-60 ${open ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${open ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+        </div>
+    );
+};
+
 const OrgNccNss = () => {
     // A BSG office handles Scouts & Guides only: no NCC, NSS or clubs.
     const office = Boolean(useOutletContext()?.organization?.bsgOffice);
@@ -1362,9 +1398,20 @@ const OrgNccNss = () => {
     }
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            <PageHeader icon={Shield} title="Extra-curricular"
-                subtitle="NSS, NCC, Scouts & Guides and your clubs. Pick one to see its members, events and approvals." />
-            <Segmented options={SECTIONS} value={section} onChange={setSection} />
+            <h1 className="sr-only">Extra-curricular</h1>
+            <StudentVisibility />
+            {/* The section being run, set apart from the tabs inside it (2026-11-14): bold filled buttons. */}
+            <div role="tablist" aria-label="Extra-curricular" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                {SECTIONS.map(([key, label]) => {
+                    const on = section === key;
+                    return (
+                        <button key={key} type="button" role="tab" aria-selected={on} onClick={() => setSection(key)}
+                            className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 sm:min-w-[9rem] ${on ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'border border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700'}`}>
+                            <Shield size={16} aria-hidden="true" className={on ? 'text-indigo-200' : 'text-slate-400'} /> {label}
+                        </button>
+                    );
+                })}
+            </div>
             {section === 'CLUB' ? <ClubsView /> : <SchemeView key={section} scheme={section} />}
         </div>
     );

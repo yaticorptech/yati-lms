@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'I、you、we 或 they 后面用 "don\'t"（do not）。',
     withDoesnt: 'he、she 或 it 后面用 "doesn\'t"（does not）。',
     thirdS: '一般现在时里，he、she 或 it 后面的动词要加 -s：he goes, she has, it works.',
+    noThirdS: '主语是 I、you、we 或 they 时，动词不加 -s：I go, you have, they work.',
     thereAre: '不止一样东西时，用 "there are"（或 "there were"）。',
     participle: 'have、has 或 had 后面用过去分词：have gone, has eaten, had done.',
     stative: 'know、understand、want 这类动词不用 -ing 形式："I understand"，不是 "I am understanding"。',

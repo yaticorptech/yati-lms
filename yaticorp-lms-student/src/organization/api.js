@@ -13,7 +13,7 @@ const organizationApi = {
     lookup: (orgCode) => api.get(`/organizations/student/lookup/${encodeURIComponent(orgCode)}`).then((r) => r.data),
 
     /** Ask to join. The organization's own admin decides. */
-    requestJoin: (orgCode) => api.post('/organizations/student/requests', { orgCode }).then((r) => r.data),
+    requestJoin: (orgCode, campus = {}) => api.post('/organizations/student/requests', { orgCode, ...campus }).then((r) => r.data),
 
     /** Withdraw a request that has not been decided yet. */
     cancelRequest: (requestId) => api.delete(`/organizations/student/requests/${requestId}`).then((r) => r.data),

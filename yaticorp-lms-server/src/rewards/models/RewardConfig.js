@@ -60,6 +60,10 @@ const rewardConfigSchema = new mongoose.Schema({
   // credit. Set automatically the first time a grant is considered, so every
   // account that existed before the credit was introduced is left out.
   startingCreditFrom: { type: Date, default: null },
+  // From this moment the starting credit is the AI Passport reward: an account
+  // made since gets it only by scanning its passport book (services/passport.js).
+  // Set the first time the server starts with this rule.
+  passportCreditFrom: { type: Date, default: null },
   // ₹ (or the wallet currency) each feature costs. Keys are WALLET_ACTIONS; 0 = free.
   walletRules: { type: Map, of: Number, default: () => new Map(Object.entries(C.DEFAULT_WALLET_RULES)) },
   // Default rules the admin removed (the rest of a removed rule is simply

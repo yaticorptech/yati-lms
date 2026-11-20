@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
     LayoutDashboard, Trophy, Radio, CheckCircle2, ClipboardCheck, AlertTriangle, Megaphone, Building2, Award,
-    Library, ArrowRight, Loader2, RefreshCw, Users, FileStack, Plus
+    Library, Loader2, RefreshCw, Users, FileStack, Plus
 } from 'lucide-react';
 import api from '../utils/api';
 import Competitions from './Competitions';
@@ -80,24 +80,6 @@ function Participants() {
 }
 
 const VIEW_TITLES = { colleges: 'Colleges taking part', all: 'All competitions', live: 'Live now', upcoming: 'Upcoming and registering', completed: 'Completed', draft: 'Drafts', pending: 'With registrations to approve', decide: 'With matches to decide', publish: 'With results to publish', teams: 'With approved teams' };
-
-/** A to-do list: the competitions needing that action, each opening its page. */
-const Queue = ({ icon: Icon, title, tone, rows, empty, detail }) => (
-    <section className={`${CARD} p-5`} data-queue={title}>
-        <h2 className="mb-3 flex items-center gap-2 text-base font-black text-slate-900"><span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tone}`}><Icon size={16} aria-hidden /></span>{title}<span className="ml-auto rounded-full bg-slate-100 px-2 text-xs font-bold text-slate-600">{rows.length}</span></h2>
-        {rows.length ? (
-            <ul className="space-y-1.5">
-                {rows.slice(0, 6).map((r) => (
-                    <li key={r.key}><Link to={r.to} className="flex items-center gap-3 rounded-xl px-3 py-2.5 ring-1 ring-slate-100 hover:bg-indigo-50/60">
-                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-slate-800">{r.name}</span><span className="block truncate text-xs text-slate-500">{detail(r)}</span></span>
-                        <ArrowRight size={15} className="shrink-0 text-slate-400" aria-hidden />
-                    </Link></li>
-                ))}
-                {rows.length > 6 && <li className="px-3 pt-1 text-xs text-slate-500">and {rows.length - 6} more on the Competitions page.</li>}
-            </ul>
-        ) : <p className="rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">{empty}</p>}
-    </section>
-);
 
 const MANAGE = [
     ['/competitions/question-bank', 'Quiz Arena question bank', 'The questions Quiz Arena draws from, round by round.', Library],
@@ -196,12 +178,6 @@ export default function CompetitionDashboard() {
                     </div>
                     {view === 'colleges' ? <Participants /> : <Competitions cardsOnly view={view} />}
                 </section>}
-
-                <div className="grid gap-4 lg:grid-cols-3">
-                    <Queue icon={ClipboardCheck} title="Registrations to approve" tone="bg-amber-50 text-amber-600" rows={d.pending} empty="No team is waiting for approval." detail={(c) => `${c.counts.pending} team${c.counts.pending === 1 ? '' : 's'} waiting · ${c.gameLabel}`} />
-                    <Queue icon={AlertTriangle} title="Matches to decide" tone="bg-orange-50 text-orange-600" rows={d.decide} empty="No match needs a decision." detail={(c) => `${c.counts.needsDecision} match${c.counts.needsDecision === 1 ? '' : 'es'} · ${c.gameLabel}`} />
-                    <Queue icon={Megaphone} title="Results to publish" tone="bg-emerald-50 text-emerald-600" rows={d.publish} empty="Every finished competition's results are out." detail={(c) => `${c.gameLabel} · finished, results not published`} />
-                </div>
 
                 {/* Live now, Games and Colleges taking part left out (2026-11-07); the Live now tile above still shows them. */}
                 <section className={`${CARD} p-5`}>

@@ -40,7 +40,7 @@ const view = (t) => ({
     dailyWordGoal: t.dailyWordGoal || 500,
     organizationId: t.organizationId || null,
     // An AI card opens the research tools; without one, only clubs and units.
-    research: Boolean(t.cardNumber),
+    research: Boolean(t.cardNumber || t.demoCard),
     // What their organization turned on for them: 360 (they land there) and
     // Scouts & Guides — only with an organization, which makes unit leaders.
     mentor360: Boolean(t.mentor360) && Boolean(t.organizationId),
@@ -192,6 +192,10 @@ const cardScan = async (req, res) => {
             return res.status(404).json({ code: 'NOT_REGISTERED', message: 'This card has no teacher account yet. Register your card first.' });
         }
         if (teacher.status !== 'active') return res.status(403).json(notActive(teacher));
+        // A developer card (DEVICE_LIMIT_EXEMPT_CARDS): its scan is the sign-in, as on the student side.
+        const { isExemptCard } = require('../services/deviceGuard');
+        const viaQr = Boolean(card.qrCodeNumber) && candidates.some((c) => String(c) === String(card.qrCodeNumber));
+        if (req.body?.typed !== true && viaQr && (isExemptCard(teacher.cardNumber) || isExemptCard(card.CardNumber))) return welcome(res, teacher);
         res.json({ cardNumber: String(teacher.cardNumber) });
     } catch (error) {
         console.error('[teacher] card scan failed:', error.message);
@@ -318,8 +322,21 @@ const updateMe = async (req, res) => {
             if (!Number.isFinite(goal) || goal < 50 || goal > 20000) errors.dailyWordGoal = 'Daily goal must be between 50 and 20,000 words';
             else changes.dailyWordGoal = goal;
         }
+        // Once saved, view only (2026-11-14): name, mobile, email, designation, department and institution
+        // are not changed by the teacher again; their organization corrects them if they are wrong.
+        for (const key of ['name', 'email', 'phone', 'designation', 'department', 'institution']) {
+            if (changes[key] === undefined) continue;
+            const was = String(req.teacher[key] || '').trim();
+            if (was && was.toLowerCase() !== String(changes[key]).trim().toLowerCase()) errors[key] = 'This is already saved and cannot be changed. Ask your organization to correct it.';
+            else if (was) delete changes[key];
+        }
         const wrong = Object.keys(errors);
         if (wrong.length) return res.status(400).json({ field: wrong[0], message: errors[wrong[0]], errors });
+        // One mobile number, one teacher (2026-11-14).
+        if (changes.phone && changes.phone !== req.teacher.phone) {
+            const twice = await require('../utils/signInLookup').teacherWithPhone(changes.phone, { organizationId: req.teacher.organizationId || null, exceptId: req.teacher._id });
+            if (twice) return res.status(400).json({ field: 'phone', message: 'Another teacher already uses this mobile number. Use your own number.' });
+        }
         if (changes.email && changes.email !== req.teacher.email
             && await Teacher.exists({ email: new RegExp(`^\\s*${escapeRegExp(changes.email)}\\s*$`, 'i'), _id: { $ne: req.teacher._id } })) {
             return res.status(400).json({ field: 'email', code: 'EMAIL_TAKEN', message: 'A teacher account already uses this email address. Use another one.' });
@@ -485,8 +502,10 @@ const adminAccess = async (req, res) => {
         ).lean();
         if (!grant) return gone();
         const Admin = require('../models/Admin');
-        const [teacher, admin] = await Promise.all([Teacher.findById(grant.userId), Admin.findById(grant.adminId).select('name email role')]);
-        if (!admin || admin.role !== 'superadmin') return gone();
+        const [teacher, admin] = await Promise.all([Teacher.findById(grant.userId), Admin.findById(grant.adminId).select('name email role organizationId')]);
+        // The super admin, or (2026-11-14) the teacher's own organization opening its HOD's dashboard.
+        const own = admin?.role === 'orgadmin' && teacher && String(admin.organizationId || '') === String(teacher.organizationId || '');
+        if (!admin || (admin.role !== 'superadmin' && !own)) return gone();
         if (!teacher) return res.status(404).json({ message: 'That teacher no longer exists.' });
         if (teacher.status !== 'active') return res.status(400).json({ message: 'This teacher is not active. Unblock or approve them to open their dashboard.' });
         const token = jwt.sign({ id: teacher._id, role: 'teacher', impersonatedBy: String(admin._id) }, process.env.JWT_SECRET, { expiresIn: ADMIN_VIEW_SESSION });

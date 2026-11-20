@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { Star, Play, Target, Timer, Trophy, ChevronRight, RotateCcw, Sparkles, ArrowRight, Gamepad2, Lightbulb, Clock3 } from 'lucide-react';
 import { coachFor, quoteFor } from './gameCoach';
+import GameDemo from './GameDemo';
 import '../artwork.css';
 
 /**
@@ -244,7 +245,7 @@ const Leaves = ({ className = '' }) => (
 
 const STEP_TONES = ['from-pink-500 to-rose-500', 'from-sky-500 to-blue-600', 'from-emerald-400 to-green-600'];
 
-export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }) {
+export function LevelIntro({ gameId, level, stars, onStart }) {
   const coach = coachFor(gameId);
   const quote = quoteFor(gameId, level);
   const still = reducedMotion();
@@ -266,7 +267,7 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
       {/* Phones get a compact version of the same layout: the badge, type and
           card all shrink so the briefing is one comfortable screen rather
           than three. */}
-      <div className="relative grid items-center gap-3 p-3 sm:gap-6 sm:p-7 lg:grid-cols-[16rem_minmax(0,1fr)_19rem] lg:gap-8 lg:p-8">
+      <div className="relative grid items-center gap-3 p-3 sm:gap-6 sm:p-7 lg:grid-cols-[12rem_minmax(0,1fr)_minmax(24rem,30rem)] lg:gap-8 lg:p-8">
         {/* ---- The level ---- */}
         <div className="animate-pop-in mx-auto h-20 w-20 min-[400px]:h-24 min-[400px]:w-24 sm:h-60 sm:w-60 lg:h-64 lg:w-64" style={at(0)}>
           <LevelBadgeArt level={level} still={still} />
@@ -303,11 +304,8 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
           {/* The objective and the clock, so the words above never replace
               the one thing the student has to know. Phones leave the
               objective out and keep the pills; with no pill the row goes too. */}
-          <p className={`animate-fade-in-up mt-2 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-bold text-slate-500 sm:mt-4 sm:flex lg:justify-start ${seconds !== undefined || stars > 0 ? 'flex' : 'hidden'}`} style={at(0.3)}>
-            <span className="hidden items-center gap-1.5 sm:inline-flex"><Target className="h-3.5 w-3.5 text-violet-500" />{objective}</span>
-            {seconds !== undefined && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 ring-inset tabular-nums"><Timer className="h-3.5 w-3.5 text-orange-500" />{seconds}s</span>
-            )}
+          {/* No objective text or time here (2026-11-14, the user): the demo shows how to play. Only the best stars. */}
+          <p className={`animate-fade-in-up mt-2 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-bold text-slate-500 sm:mt-4 sm:flex lg:justify-start ${stars > 0 ? 'flex' : 'hidden'}`} style={at(0.3)}>
             {stars > 0 && (
               /* The best run so far, as a pill like the clock beside it. Plain
                  SolidStars rather than <Stars>: that one is a block and would
@@ -347,23 +345,8 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
             </span>
             How to play
           </p>
-          <ol className="mt-1 divide-y divide-slate-100 sm:mt-2">
-            {coach.steps.map((step, i) => (
-              <li key={i} className="animate-fade-in-up flex items-center gap-2.5 py-1.5 text-[0.8rem] leading-snug font-semibold text-slate-700 sm:gap-3 sm:py-3 sm:text-[0.9rem]" style={at(0.46 + i * 0.08)}>
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[0.7rem] font-black text-white shadow-md sm:h-8 sm:w-8 sm:text-sm ${STEP_TONES[i % STEP_TONES.length]}`}>
-                  {i + 1}
-                </span>
-                {step}
-              </li>
-            ))}
-          </ol>
-          <p className="mt-1.5 flex items-center gap-2.5 rounded-2xl bg-violet-100/80 px-3 py-2 text-xs font-bold text-violet-800 ring-1 ring-violet-200/70 ring-inset sm:mt-2 sm:py-2.5 sm:text-sm">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-white">
-              <Clock3 className="h-3.5 w-3.5" />
-            </span>
-            <span className="min-w-0 flex-1">{coach.tip}</span>
-            <Sparkles aria-hidden className="yatiArt-twinkle h-4 w-4 shrink-0 text-violet-500" />
-          </p>
+          {/* A few seconds of the game being played (2026-11-14, the user), its steps written under it in turn. */}
+          <div className="mt-2 sm:mt-3"><GameDemo gameId={gameId} steps={coach.steps} /></div>
         </div>
       </div>
     </div>

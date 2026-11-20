@@ -118,7 +118,7 @@ export const buildWorkbook = (groups, target) => {
         ['Extra', '"Yes" for a bonus or an activity for one year only (e.g. Mock Interview, final year): it adds to the student\'s score but not to the total.'],
         ['Counts toward total', 'Worked out for you. Settings → "Your list adds up to" should match "Total to aim for" (e.g. 360).'],
         [''],
-        ['Upload the file on the 360 Activities page, check the list, then press Save. Activities you keep by name keep the proof and marks already given.']
+        ['Upload the file on the Student Ranking page, check the list, then press Save. Activities you keep by name keep the proof and marks already given.']
     ]);
     help['!cols'] = [{ wch: 22 }, { wch: 110 }];
     const wb = XLSX.utils.book_new();

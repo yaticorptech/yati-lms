@@ -20,6 +20,7 @@ module.exports = {
     withDont: 'I, you, we, they에는 "don\'t"(do not)를 씁니다.',
     withDoesnt: 'he, she, it에는 "doesn\'t"(does not)를 씁니다.',
     thirdS: '현재형에서 he, she, it 뒤의 동사에는 -s가 붙습니다: he goes, she has, it works.',
+    noThirdS: 'I, you, we, they와 함께 쓰면 동사에 -s를 붙이지 않아요: I go, you have, they work.',
     thereAre: '둘 이상이면 "there are"(또는 "there were")를 씁니다.',
     participle: 'have, has, had 뒤에는 과거분사를 씁니다: have gone, has eaten, had done.',
     stative: 'know, understand, want 같은 동사는 -ing로 쓰지 않습니다: "I am understanding"이 아니라 "I understand".',

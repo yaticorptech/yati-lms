@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Brain, Layers, RotateCcw, Star, Target, Timer, Trophy, Zap } from 'lucide-react';
+import { ArrowLeft, Brain, Layers, Pause, Play, RotateCcw, Star, Target, Timer, Trophy, Zap } from 'lucide-react';
 import { LevelIntro, LevelResult } from './LevelPanels';
+import HowToPlay from './HowToPlay';
+import SessionFeedback from './SessionFeedback';
 import MissionArt from '../plan/MissionArt';
 import GameCelebration from '../../../components/GameCelebration';
 import { starsForGame, starsOn, gameXpTable, GAME_XP } from './levels';
@@ -152,9 +154,24 @@ function RewardCard({ tint, iconBox, icon: Icon, label, value }) {
   );
 }
 
+/**
+ * Paused (2026-11-14): the board is covered — nothing on it can be read or tapped — until Resume. A game that offers
+ * pause passes `paused` and `onPause` (a toggle) and stops its own clocks while paused.
+ */
+function PauseCover({ onResume }) {
+  return (
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-2xl bg-white/95 backdrop-blur-sm" role="dialog" aria-label="Paused">
+      <p className="text-lg font-black text-[#1b2456]">Paused</p>
+      <button type="button" onClick={onResume} className="fp-press inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-black text-white" autoFocus>
+        <Play className="h-4 w-4" /> Resume
+      </button>
+    </div>
+  );
+}
+
 export default function GameShell({
   title,
-  blurb,
+  blurb: _blurb, // kept in the props: the objective goes on the briefing, not the header
   tone,
   score,
   scoreLabel = 'Score',
@@ -167,8 +184,10 @@ export default function GameShell({
   intro,
   result,
   children,
-  footer,
-  variant
+  footer: _footer, // the long in-game line: left out, the How to play box is kept short (2026-11-14)
+  variant,
+  paused = false,
+  onPause
 }) {
   const premium = variant === 'premium';
   // Neither the briefing nor the result: the level is being played, and only
@@ -252,9 +271,9 @@ export default function GameShell({
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[0.66rem] font-bold tracking-[0.18em] text-violet-600 uppercase">{title}</p>
-            <h2 className="mt-0.5 text-base leading-snug font-extrabold tracking-tight text-[#1b2456] sm:text-xl lg:text-[1.4rem]">
-              {blurb || title}
+            {/* Just the game's name on top (2026-11-14, the user): the objective is on the briefing. */}
+            <h2 className="text-base leading-snug font-extrabold tracking-tight text-[#1b2456] sm:text-xl lg:text-[1.4rem]">
+              {title}
             </h2>
           </div>
 
@@ -286,6 +305,11 @@ export default function GameShell({
             </div>
           )}
 
+          {onPause && !intro && !result && (
+            <button type="button" onClick={onPause} aria-label={paused ? 'Resume' : 'Pause'} className={roundBtn} data-game-pause>
+              {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            </button>
+          )}
           <button type="button" onClick={onRestart} aria-label="Start over" className={roundBtn}>
             <RotateCcw className="h-4 w-4" />
           </button>
@@ -299,7 +323,7 @@ export default function GameShell({
 
         {!playing ? (
           <div className="p-3 sm:p-6">
-            {intro ? <LevelIntro {...intro} tone={tone} /> : <LevelResult {...result} tone={tone} />}
+            {intro ? <LevelIntro {...intro} tone={tone} /> : <><LevelResult {...result} tone={tone} /><SessionFeedback gameId={progress?.gameId} /></>}
             {cheering && (
               <GameCelebration
                 eyebrow={result.atEnd ? 'Every level cleared' : 'Level complete'}
@@ -316,27 +340,16 @@ export default function GameShell({
         ) : (
           <div className="p-3 min-[400px]:p-4 sm:p-6">
             <div className="grid w-full items-start gap-3 sm:gap-5 xl:grid-cols-[14rem_minmax(0,1fr)_14rem]">
-              {/* Left: how to play */}
-              {footer && (
-                <aside className="order-2 xl:order-none">
-                  <div className="flex items-center gap-3 rounded-2xl bg-violet-50/90 px-4 py-3.5 ring-1 ring-violet-100 ring-inset xl:flex-col xl:items-start xl:gap-3 xl:px-5 xl:py-5">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm ring-1 ring-violet-100 ring-inset">
-                      <Brain className="h-5 w-5" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[0.62rem] font-bold tracking-[0.14em] text-violet-500 uppercase">How to play</p>
-                      <div className="mt-1 text-sm leading-snug font-semibold text-[#1b2456] [&_p]:text-left [&_p]:text-sm [&_p]:text-[#1b2456]">
-                        {footer}
-                      </div>
-                    </div>
-                  </div>
-                </aside>
-              )}
+              {/* Left: how to play — the goal, the steps, the tip, and what to do now (2026-11-14). */}
+              {/* Phones and tablets: How to play first, then the board (2026-11-16, the user). */}
+              <aside className="order-1 xl:order-none">
+                <HowToPlay gameId={progress?.gameId} />
+              </aside>
 
               {/* Centre: the board */}
-              <div className="order-1 min-w-0 xl:order-none">
+              <div className="order-2 min-w-0 xl:order-none">
                 <div className="gs-rise flex min-h-[17rem] items-center justify-center rounded-[22px] bg-white px-3 py-5 min-[400px]:px-4 min-[400px]:py-6 sm:rounded-[26px] ring-1 ring-[#e6e3f6] ring-inset shadow-[0_1px_2px_rgba(27,36,86,0.05),0_28px_56px_-30px_rgba(76,58,180,0.4)] sm:min-h-[24rem] sm:px-8 sm:py-9">
-                  <div className="w-full">{children}</div>
+                  <div className="relative w-full"><div className="lg:[zoom:1.15] xl:[zoom:1.25]">{children}</div>{paused && <PauseCover onResume={onPause} />}</div>
                 </div>
               </div>
 
@@ -381,13 +394,13 @@ export default function GameShell({
           <div className="min-w-0 flex-1">
             {/* The game's name reads as the label; what you have to do reads as
                 the headline, because that is the thing a student needs. */}
-            <p className="text-[0.68rem] font-black tracking-[0.16em] text-violet-600 uppercase">{title}</p>
+
             {/* Up to three lines on a phone rather than one line cut short: this
                 is the objective, and "One tile changes eac…" is not an
                 objective. Wide screens keep the single truncating line — there
                 the console sits beside it and the width is genuinely limited. */}
-            <h2 className="mt-0.5 line-clamp-3 text-base leading-snug font-black text-[#1b2456] sm:line-clamp-none sm:truncate sm:text-2xl sm:leading-tight">
-              {blurb || title}
+            <h2 className="line-clamp-2 text-base leading-snug font-black text-[#1b2456] sm:truncate sm:text-2xl sm:leading-tight">
+              {title}
             </h2>
             {/* The section's own line, only on the briefing: during play the
                 band has a console to carry and no room for a flourish. */}
@@ -420,6 +433,11 @@ export default function GameShell({
             </div>
           )}
 
+          {onPause && !intro && !result && (
+            <button type="button" onClick={onPause} aria-label={paused ? 'Resume' : 'Pause'} data-game-pause className="fp-press relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#1b2456] shadow-md shadow-sky-900/10 ring-1 ring-sky-100 ring-inset transition-colors hover:bg-sky-50">
+              {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            </button>
+          )}
           <button
             type="button"
             onClick={onRestart}
@@ -456,7 +474,7 @@ export default function GameShell({
           without a single one of them having to say so. */}
       {intro || result ? (
         <div className="p-3 sm:p-6">
-          {intro ? <LevelIntro {...intro} tone={tone} /> : <LevelResult {...result} tone={tone} />}
+          {intro ? <LevelIntro {...intro} tone={tone} /> : <><LevelResult {...result} tone={tone} /><SessionFeedback gameId={progress?.gameId} /></>}
           {cheering && (
             <GameCelebration
               eyebrow={result.atEnd ? 'Every level cleared' : 'Level complete'}
@@ -488,30 +506,21 @@ export default function GameShell({
           {/* The full width of the shell, rails at its edges: the band above
               runs edge to edge, and a stage capped narrower than it left the
               rails floating in from both sides on a wide screen. */}
-          <div className="relative z-10 grid w-full items-start gap-4 xl:grid-cols-[13rem_minmax(0,1fr)_13rem]">
+          <div className="relative z-10 grid w-full items-start gap-4 xl:grid-cols-[12.5rem_minmax(0,1fr)_12rem]">
             {/* Left rail: what to do, said once and left there, and the day's
                 play time while it is running. */}
             <aside className="hidden flex-col gap-2.5 xl:flex">
-              {footer && (
-                <div className="rounded-2xl bg-violet-50 px-4 py-3.5 text-center text-sm leading-relaxed font-bold text-violet-900 ring-1 ring-violet-100 ring-inset [&_p]:text-sm [&_p]:text-violet-900">
-                  {footer}
-                </div>
-              )}
+              <HowToPlay gameId={progress?.gameId} />
             </aside>
 
             {/* The board itself. */}
             <div className="min-w-0">
-              <div className="flex min-h-[15rem] items-center justify-center rounded-3xl bg-surface px-4 py-6 shadow-card ring-1 ring-line-200 ring-inset sm:min-h-[17rem] sm:px-7 sm:py-8">
-                <div className="w-full">{children}</div>
+              {/* Narrower screens: the rails are gone, so How to play comes first, above the board (2026-11-16). */}
+              <div className="mb-3 xl:hidden"><HowToPlay gameId={progress?.gameId} compact /></div>
+              <div className="flex min-h-[15rem] items-center justify-center rounded-3xl bg-surface px-4 py-6 shadow-card ring-1 ring-line-200 ring-inset sm:min-h-[20rem] sm:px-7 sm:py-8 lg:min-h-[28rem]">
+                <div className="relative w-full"><div className="lg:[zoom:1.15] xl:[zoom:1.25]">{children}</div>{paused && <PauseCover onResume={onPause} />}</div>
               </div>
 
-              {/* On narrower screens the rails are gone, so the hint comes back
-                  under the board rather than disappearing with them. */}
-              {footer && (
-                <div className="mt-3 text-center text-xs font-semibold text-ink-400 xl:hidden [&_p]:text-xs [&_p]:text-ink-400">
-                  {footer}
-                </div>
-              )}
             </div>
 
             {/* Right rail: what this level is worth, and what has been banked
