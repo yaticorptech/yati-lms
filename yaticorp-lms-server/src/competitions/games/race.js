@@ -27,6 +27,17 @@ const race = (def) => makeStageEngine({
     },
     start: (shared) => ({ stage: 0, ...(def.begin ? def.begin(shared.stages[0]) : {}) }),
     actions: {
+        // A clock on each puzzle (def.stageMs, Math Sprint 2026-11-17: 10 s): when it runs out, the screen asks
+        // for the next one — no points, no penalty. A little slack for the network.
+        ...(def.stageMs ? {
+            skip: (s, seat, action, ctx) => {
+                const p = s.progress[seat];
+                if (ctx.now - (p.stageAt ?? s.phaseStartedAt) < def.stageMs - 1500) throw new GameError('There is still time on this one.');
+                p.stage += 1; p.stageAt = ctx.now; p.skipped = (p.skipped || 0) + 1;
+                if (p.stage >= s.shared.stages.length) p.done = true;
+                else if (def.begin) Object.assign(p, def.begin(s.shared.stages[p.stage]));
+            }
+        } : {}),
         [def.action]: (s, seat, action, ctx) => {
             const p = s.progress[seat];
             const st = s.shared.stages[p.stage];
@@ -34,7 +45,7 @@ const race = (def) => makeStageEngine({
             if (r.solved) {
                 p.points = (p.points || 0) + (r.points ?? 100);
                 p.solved = (p.solved || 0) + 1;
-                p.stage += 1;
+                p.stage += 1; p.stageAt = ctx.now;
                 if (p.stage >= s.shared.stages.length) p.done = true;
                 else if (def.begin) Object.assign(p, def.begin(s.shared.stages[p.stage]));
                 s.message = `${s.seats[seat].name} solved one.`;
@@ -51,7 +62,7 @@ const race = (def) => makeStageEngine({
         return {
             kind: def.id, total: s.shared.stages.length,
             me: p && { stage: p.stage, mistakes: p.mistakes, done: p.done, doneMs: p.doneMs, ...(def.mine ? def.mine(p) : {}) },
-            current: st && { index: p.stage, ...def.show(st, p) },
+            current: st && { index: p.stage, ...(def.stageMs ? { stageMs: def.stageMs, stageEndsAt: (p.stageAt ?? s.phaseStartedAt) + def.stageMs } : {}), ...def.show(st, p) },
             review: over && def.review ? s.shared.stages.map(def.review) : null
         };
     },
@@ -61,7 +72,7 @@ const race = (def) => makeStageEngine({
         if (def.score) return def.score(s, p);
         // Points earned move by move; a test player's steps (services/testBots.js) move the stage and the
         // mistakes without points, so those count at the usual 100 and −20.
-        const steps = p.stage - (p.solved || 0);
+        const steps = p.stage - (p.solved || 0) - (p.skipped || 0);
         const slips = p.mistakes - (p.wrong || 0);
         const base = (p.points || 0) + steps * 100 - slips * 20;
         const bonus = p.done ? 2 * Math.max(0, Math.round((s.runMs - (p.doneMs ?? s.runMs)) / 1000)) : 0;
@@ -190,8 +201,9 @@ const numberbonds = race({
 /* ── Math Sprint ────────────────────────────────────────────────────── */
 const mathsprint = race({
     id: 'mathsprint', label: 'Math Sprint', emoji: '🧮', summary: 'The same sums for everyone, typed against the clock.',
-    seconds: { easy: 60, medium: 60, hard: 75 }, action: 'answer',
-    zoneSeconds: { young: 75, master: 90 },
+    // 10 s a sum (2026-11-17), so the whole clock is the sums × 10 and a little over.
+    seconds: { easy: 155, medium: 155, hard: 155 }, action: 'answer', stageMs: 10000,
+    zoneSeconds: { young: 125 },
     make: (rng, d, zone) => Array.from({ length: zone === 'young' ? 12 : 15 }, () => {
         // Young Thinkers (./zones.js, 2026-11-13): adding and taking away within 20 — no answer, and no number, past 20.
         if (zone === 'young') {

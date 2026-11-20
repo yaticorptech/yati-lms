@@ -66,14 +66,16 @@ export const applyRule = (code, rule) => {
 
 const ORD = ['1st', '2nd', '3rd', '4th', '5th'];
 
-/** What the rule card says. */
+/** What the rule card says — in plain words (2026-11-18, the user: "show it in simple words"). */
 export const describeRule = (rule, doorName) => {
-  if (rule.kind === 'rotate') return `${doorName} door: its first digit moves to the end of the code.`;
+  if (rule.kind === 'rotate') return `${doorName} door: move the first number to the end.`;
   const by = Math.abs(rule.delta);
   return rule.delta > 0
-    ? `${doorName} door: the ${ORD[rule.pos]} digit turns UP by ${by} (9 wraps round to 0).`
-    : `${doorName} door: the ${ORD[rule.pos]} digit turns DOWN by ${by} (0 wraps round to 9).`;
+    ? `${doorName} door: add ${by} to the ${ORD[rule.pos]} number.`
+    : `${doorName} door: take away ${by} from the ${ORD[rule.pos]} number.`;
 };
+/** The small print under it: how numbers go round past 9 and 0. */
+export const ruleHint = (rule) => (rule.kind === 'rotate' ? 'Example: 4 7 2 → 7 2 4' : rule.delta > 0 ? 'After 9 comes 0.' : 'Before 0 comes 9.');
 
 /** Does an entry (array or string of digits) open a door whose code is `answer`? */
 export const checkCode = (answer, entry) => {

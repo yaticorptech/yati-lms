@@ -2,7 +2,11 @@
  * Treasure Path — maps, solver and the program runner, pure and seeded.
  *
  * A map is a grid of cells:
- *   '.' open   '#' rock   '~' water   'K' key   'D' door (open once the key is held)
+ *   '.' open   '#' rock   '~' water   'K' key   'D' door (open once the key is held)   'G' gem
+ *
+ * Gems (2026-11-18, the user: "it's a logic game — running to the treasure is not enough"): the chest opens only
+ * once every 💎 on the map is collected, so the student plans which gem to fetch first and how to fit the whole
+ * tour into the cards they have. A gem is never on the plain way to the chest, so every one is a real detour.
  * with a start and a treasure. A program is a list of cards: { dir, times }.
  * Every map is checked with a breadth-first search before it is handed out, so
  * none is ever unsolvable, and the search's shortest path is the 3-star target.
@@ -37,6 +41,7 @@ const ramp = (from, to, levelNo) => Math.round(from + (to - from) * clampN((leve
  *  repeat           — the ×2 / ×3 repeat cards are on offer
  *  slots            — how many cards a program may hold: null = shortest + slack (worked out per map)
  *  slack            — extra steps allowed over the shortest path (step limit)
+ *  gems             — gems to collect before the chest opens
  *  clue             — show "Go 2 right, then 1 down"
  *  maps, tries      — maps in a level, runs allowed per map
  */
@@ -45,22 +50,22 @@ export const pathConfig = (ageBand, difficulty = 1, levelNo = 1) => {
   const d = clampN(difficulty || 1, 1, 3);
   if (band === 'foundation') {
     return {
-      band, rows: 4, cols: 4, minOpt: 2, maxOpt: clampN(ramp(3, 4, levelNo) + (d >= 3 ? 1 : 0), 3, 4),
-      rocks: clampN(ramp(0, 2, levelNo) + (d - 1), 0, 3), water: false, keys: false, repeat: false,
+      band, rows: 4, cols: 4, minOpt: 2, maxOpt: clampN(ramp(3, 4, levelNo) + (d >= 3 ? 1 : 0), 3, 4) + (levelNo >= 3 ? 4 : 0),
+      rocks: clampN(ramp(0, 2, levelNo) + (d - 1), 0, 3), water: false, keys: false, repeat: false, gems: levelNo >= 3 ? 1 : 0,
       slack: 4, clue: levelNo <= 20 || d === 1, maps: 3, tries: 5
     };
   }
   if (band === 'developing') {
     return {
-      band, rows: 5, cols: 5, minOpt: 4, maxOpt: ramp(6, 8, levelNo) + (d - 1),
-      rocks: ramp(4, 6, levelNo) + d, water: true, keys: false, repeat: false,
+      band, rows: 5, cols: 5, minOpt: 4, maxOpt: ramp(6, 8, levelNo) + (d - 1) + (levelNo >= 6 ? 8 : 5),
+      rocks: ramp(4, 6, levelNo) + d, water: true, keys: false, repeat: false, gems: levelNo >= 6 ? 2 : 1,
       slack: d >= 3 ? 1 : 2, clue: false, maps: 3, tries: 3
     };
   }
   const keys = band === 'analytical' || d >= 2 || levelNo > 10;
   return {
-    band, rows: 6, cols: 7, minOpt: band === 'analytical' ? 9 : 7, maxOpt: 18,
-    rocks: ramp(8, 11, levelNo) + d + (band === 'analytical' ? 2 : 0), water: true, keys, repeat: true,
+    band, rows: 6, cols: 7, minOpt: band === 'analytical' ? 9 : 7, maxOpt: 26,
+    rocks: ramp(8, 11, levelNo) + d + (band === 'analytical' ? 2 : 0), water: true, keys, repeat: true, gems: levelNo >= 8 || band === 'analytical' ? 3 : 2,
     slack: band === 'analytical' ? 0 : 1, clue: false, maps: 3, tries: 3
   };
 };
@@ -69,21 +74,39 @@ const inside = (map, r, c) => r >= 0 && c >= 0 && r < map.rows && c < map.cols;
 const cellAt = (map, r, c) => map.grid[r][c];
 const blocked = (cell, hasKey) => cell === '#' || cell === '~' || (cell === 'D' && !hasKey);
 
+/*
+ * What the explorer holds, as bits: bit 0 the key, bit 1 + i the i-th gem (map.gems). The chest opens with every gem.
+ */
+const gemBit = (map, r, c) => {
+  const i = (map.gems || []).findIndex(([gr, gc]) => gr === r && gc === c);
+  return i < 0 ? 0 : 1 << (i + 1);
+};
+const pickUp = (map, r, c, have) => {
+  const cell = cellAt(map, r, c);
+  return have | (cell === 'K' ? 1 : 0) | (cell === 'G' ? gemBit(map, r, c) : 0);
+};
+const allGems = (map) => ((1 << ((map.gems || []).length + 1)) - 2);
+/** At the chest with every gem. */
+export const atTreasure = (map, r, c, have) => r === map.goal[0] && c === map.goal[1] && (have & allGems(map)) === allGems(map);
+/** How many gems a holding has. */
+export const gemsHeld = (have) => { let n = 0; for (let b = have >> 1; b; b >>= 1) n += b & 1; return n; };
+
 /**
- * Shortest path by breadth-first search over (row, col, key held).
+ * Shortest path by breadth-first search over (row, col, what is held).
  * Returns { steps, dirs } or null when the treasure cannot be reached.
  */
 export const solvePath = (map) => {
-  const key = (r, c, k) => (r * map.cols + c) * 2 + (k ? 1 : 0);
+  const span = 1 << ((map.gems || []).length + 1);
+  const key = (r, c, h) => (r * map.cols + c) * span + h;
   const [sr, sc] = map.start;
-  const startKey = cellAt(map, sr, sc) === 'K';
-  const prev = new Map([[key(sr, sc, startKey), null]]);
-  const queue = [[sr, sc, startKey]];
+  const h0 = pickUp(map, sr, sc, 0);
+  const prev = new Map([[key(sr, sc, h0), null]]);
+  const queue = [[sr, sc, h0]];
   for (let i = 0; i < queue.length; i++) {
-    const [r, c, k] = queue[i];
-    if (r === map.goal[0] && c === map.goal[1]) {
+    const [r, c, h] = queue[i];
+    if (atTreasure(map, r, c, h)) {
       const dirs = [];
-      let at = key(r, c, k);
+      let at = key(r, c, h);
       while (prev.get(at)) { dirs.push(prev.get(at).dir); at = prev.get(at).from; }
       dirs.reverse();
       return { steps: dirs.length, dirs };
@@ -91,13 +114,12 @@ export const solvePath = (map) => {
     for (const dir of DIR_KEYS) {
       const nr = r + DIRS[dir].dr, nc = c + DIRS[dir].dc;
       if (!inside(map, nr, nc)) continue;
-      const cell = cellAt(map, nr, nc);
-      if (blocked(cell, k)) continue;
-      const nk = k || cell === 'K';
-      const id = key(nr, nc, nk);
+      if (blocked(cellAt(map, nr, nc), h & 1)) continue;
+      const nh = pickUp(map, nr, nc, h);
+      const id = key(nr, nc, nh);
       if (prev.has(id)) continue;
-      prev.set(id, { from: key(r, c, k), dir });
-      queue.push([nr, nc, nk]);
+      prev.set(id, { from: key(r, c, h), dir });
+      queue.push([nr, nc, nh]);
     }
   }
   return null;
@@ -119,26 +141,26 @@ export const toCards = (dirs, maxRepeat = 1) => {
  * cells in a straight line: a BFS where one card is one edge.
  */
 export const fewestCards = (map, maxRepeat = 3) => {
-  const key = (r, c, k) => (r * map.cols + c) * 2 + (k ? 1 : 0);
+  const span = 1 << ((map.gems || []).length + 1);
+  const key = (r, c, h) => (r * map.cols + c) * span + h;
   const [sr, sc] = map.start;
-  const k0 = cellAt(map, sr, sc) === 'K';
-  const dist = new Map([[key(sr, sc, k0), 0]]);
-  const queue = [[sr, sc, k0]];
+  const h0 = pickUp(map, sr, sc, 0);
+  const dist = new Map([[key(sr, sc, h0), 0]]);
+  const queue = [[sr, sc, h0]];
   for (let i = 0; i < queue.length; i++) {
-    const [r, c, k] = queue[i];
-    const d = dist.get(key(r, c, k));
-    if (r === map.goal[0] && c === map.goal[1]) return d;
+    const [r, c, h] = queue[i];
+    const d = dist.get(key(r, c, h));
+    if (atTreasure(map, r, c, h)) return d;
     for (const dir of DIR_KEYS) {
-      let nr = r, nc = c, nk = k;
+      let nr = r, nc = c, nh = h;
       for (let t = 1; t <= maxRepeat; t++) {
         nr += DIRS[dir].dr; nc += DIRS[dir].dc;
         if (!inside(map, nr, nc)) break;
-        const cell = cellAt(map, nr, nc);
-        if (blocked(cell, nk)) break;
-        nk = nk || cell === 'K';
-        const id = key(nr, nc, nk);
-        if (!dist.has(id)) { dist.set(id, d + 1); queue.push([nr, nc, nk]); }
-        if (nr === map.goal[0] && nc === map.goal[1]) break; // a program stops at the treasure
+        if (blocked(cellAt(map, nr, nc), nh & 1)) break;
+        nh = pickUp(map, nr, nc, nh);
+        const id = key(nr, nc, nh);
+        if (!dist.has(id)) { dist.set(id, d + 1); queue.push([nr, nc, nh]); }
+        if (atTreasure(map, nr, nc, nh)) break; // a program stops at the treasure
       }
     }
   }
@@ -154,21 +176,23 @@ export const fewestCards = (map, maxRepeat = 3) => {
  */
 export const runProgram = (map, cards) => {
   let [r, c] = map.start;
-  let hasKey = cellAt(map, r, c) === 'K';
-  const trail = [{ r, c, hasKey }];
+  let have = pickUp(map, r, c, 0);
+  const trail = [{ r, c, hasKey: !!(have & 1), have }];
   for (const card of cards) {
     for (let t = 0; t < (card.times || 1); t++) {
       const nr = r + DIRS[card.dir].dr, nc = c + DIRS[card.dir].dc;
-      if (!inside(map, nr, nc) || blocked(cellAt(map, nr, nc), hasKey)) {
-        return { trail, outcome: 'bump', steps: trail.length - 1, bumpAt: { r: nr, c: nc, dir: card.dir } };
+      if (!inside(map, nr, nc) || blocked(cellAt(map, nr, nc), have & 1)) {
+        return { trail, outcome: 'bump', steps: trail.length - 1, bumpAt: { r: nr, c: nc, dir: card.dir }, have };
       }
       r = nr; c = nc;
-      if (cellAt(map, r, c) === 'K') hasKey = true;
-      trail.push({ r, c, hasKey });
-      if (r === map.goal[0] && c === map.goal[1]) return { trail, outcome: 'win', steps: trail.length - 1 };
+      have = pickUp(map, r, c, have);
+      trail.push({ r, c, hasKey: !!(have & 1), have });
+      if (atTreasure(map, r, c, have)) return { trail, outcome: 'win', steps: trail.length - 1, have };
     }
   }
-  return { trail, outcome: 'short', steps: trail.length - 1 };
+  // Ran out: on the chest without every gem is its own message.
+  const onChest = r === map.goal[0] && c === map.goal[1];
+  return { trail, outcome: onChest && map.gems?.length ? 'locked' : 'short', steps: trail.length - 1, have };
 };
 
 /** "Go 2 right, then 1 down." — the shortest path in words, for the youngest. */
@@ -210,12 +234,25 @@ const tryMap = (rng, cfg) => {
     const [r, c] = free[i];
     grid[r][c] = cfg.water && rng() < 0.4 ? '~' : '#';
   }
-  const map = { rows, cols, grid, start, goal, hasKey: !!cfg.keys };
+  // Gems: on free cells off the plain way to the chest, so each one is a real detour to plan.
+  const plain = solvePath({ rows, cols, grid, start, goal, gems: [] });
+  if (!plain) return null;
+  const onPlain = new Set();
+  { let [r, c] = start; onPlain.add(`${r},${c}`); for (const d of plain.dirs) { r += DIRS[d].dr; c += DIRS[d].dc; onPlain.add(`${r},${c}`); } }
+  const gems = [];
+  if (cfg.gems) {
+    const spots = shuffle(rng, grid.flatMap((row, r) => row.map((cell, c) => [r, c]))
+      .filter(([r, c]) => grid[r][c] === '.' && !onPlain.has(`${r},${c}`) && !(r === goal[0] && c === goal[1])));
+    for (const [r, c] of spots.slice(0, cfg.gems)) { grid[r][c] = 'G'; gems.push([r, c]); }
+    if (gems.length < cfg.gems) return null;
+  }
+  const map = { rows, cols, grid, start, goal, hasKey: !!cfg.keys, gems };
   const best = solvePath(map);
   if (!best || best.steps < cfg.minOpt || best.steps > cfg.maxOpt) return null;
   if (cfg.keys) {
     // The key must matter: with the door shut for good, there is no way through.
     const locked = { ...map, grid: grid.map((row) => row.map((cell) => (cell === 'D' ? '#' : cell === 'K' ? '.' : cell))) };
+    // (gems stay: a door that only matters when skipping a gem is still a door that matters)
     if (solvePath(locked)) return null;
   }
   return { map, best };
@@ -234,10 +271,13 @@ export const makePathMap = (rng, cfg) => {
   for (let attempt = 0; attempt < 400 && !found; attempt++) {
     found = tryMap(rng, { ...cfg, rocks: 0, minOpt: Math.min(cfg.minOpt, 2) });
   }
+  for (let attempt = 0; attempt < 400 && !found; attempt++) {
+    found = tryMap(rng, { ...cfg, rocks: 0, gems: 0, minOpt: Math.min(cfg.minOpt, 2) });
+  }
   if (!found) {
     // Cannot really happen; a straight corridor keeps the promise anyway.
     const grid = emptyGrid(cfg.rows, cfg.cols);
-    const map = { rows: cfg.rows, cols: cfg.cols, grid, start: [0, 0], goal: [0, Math.min(cfg.cols - 1, cfg.minOpt)], hasKey: false };
+    const map = { rows: cfg.rows, cols: cfg.cols, grid, start: [0, 0], goal: [0, Math.min(cfg.cols - 1, cfg.minOpt)], hasKey: false, gems: [] };
     found = { map, best: solvePath(map) };
   }
   const { map, best } = found;

@@ -55,18 +55,5 @@ export const THUMBS = {
       {label(28, 31, 8, '#cbd5e1', '3x=15')}
       {label(28, 44, 11, '#fdba74', 'x=5')}
     </>
-  ),
-  'fraction-battle': () => (
-    <>
-      <rect x="4" y="10" width="20" height="30" rx="5" fill="#d1fae5" stroke="#10b981" strokeWidth="2" />
-      <rect x="32" y="16" width="20" height="30" rx="5" fill="#ffe4e6" stroke="#f43f5e" strokeWidth="2" />
-      {label(14, 23, 10, '#065f46', '3')}
-      <path d="M8 26 H20" stroke="#065f46" strokeWidth="2" />
-      {label(14, 36, 10, '#065f46', '4')}
-      {label(42, 29, 10, '#9f1239', '5')}
-      <path d="M36 32 H48" stroke="#9f1239" strokeWidth="2" />
-      {label(42, 42, 10, '#9f1239', '6')}
-      {label(28, 54, 9, '#0f766e', 'VS')}
-    </>
   )
 };

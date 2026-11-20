@@ -2,16 +2,18 @@ import { Brain } from 'lucide-react';
 import { coachFor } from './gameCoach';
 import { goalOf } from './gameGoals';
 import { shortStepsOf } from './gameStepsShort';
+import { currentAgeBand } from './levels';
 
 /**
  * How to play, during the game (2026-11-14, the user: "show clear instructions on the left"): what the game is about
  * in one line, then its steps numbered, then the tip — and, under them, what to do right now (the game's own line).
  */
 export default function HowToPlay({ gameId, compact = false }) {
-  const coach = coachFor(gameId);
+  const young = ['foundation', 'developing'].includes(currentAgeBand());
+  const coach = coachFor(gameId, young);
   // Three short, simple, whole sentences (2026-11-14, the user): never cut off.
-  const steps = shortStepsOf(gameId) || coach.steps;
-  const goal = goalOf(gameId);
+  const steps = shortStepsOf(gameId, young) || coach.steps;
+  const goal = goalOf(gameId, young);
   return (
     <div className={`rounded-2xl bg-violet-50/90 text-left ring-1 ring-violet-100 ring-inset ${compact ? 'p-3' : 'p-4 xl:p-5'}`} data-how-to-play>
       <p className="flex items-center gap-2 text-[0.68rem] font-black tracking-[0.14em] text-violet-600 uppercase">

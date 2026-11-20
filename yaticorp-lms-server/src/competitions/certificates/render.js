@@ -13,7 +13,7 @@ const FONTS = {
     sans: 'Helvetica', sansBold: 'Helvetica-Bold', sansItalic: 'Helvetica-Oblique', sansBoldItalic: 'Helvetica-BoldOblique',
     mono: 'Courier', monoBold: 'Courier-Bold', monoItalic: 'Courier-Oblique', monoBoldItalic: 'Courier-BoldOblique'
 };
-// Yaticorp's logo: white on the dark templates, dark on the light ones.
+// YATICORPX3's logo: white on the dark templates, dark on the light ones.
 const LOGOS = {};
 const defaultLogo = (dark) => {
     // Cropped to the word itself (no padding), so it sits where the design puts it.
@@ -261,7 +261,7 @@ const drawPage = async (doc, design, cert) => {
 
 /** A PDF of these certificates, one a page, piped to `res` (or returned as a Buffer when res is null). */
 const pdf = async (res, design, certs, fileName = 'certificate.pdf') => {
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0, autoFirstPage: false, info: { Title: fileName.replace(/\.pdf$/, ''), Author: design.branding?.name || 'Yaticorp' } });
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0, autoFirstPage: false, info: { Title: fileName.replace(/\.pdf$/, ''), Author: design.branding?.name || 'YATICORPX3' } });
     registerNoto(doc);
     const chunks = [];
     if (res) {

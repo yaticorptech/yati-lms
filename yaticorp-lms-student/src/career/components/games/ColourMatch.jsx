@@ -157,7 +157,7 @@ function Round({ progress, onExit, title }) {
               {wordRule ? '🔤 Word — what it SAYS' : '🎨 Ink — what colour it IS'}
             </p>
           ) : (
-            <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">
+            <p className="text-xs font-bold tracking-[0.2em] text-slate-900 uppercase">
               {card.kind === 'blob' ? 'What colour is it?' : 'What colour is the ink?'}
             </p>
           )}

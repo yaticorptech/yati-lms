@@ -143,9 +143,9 @@ const draw = (res, { competition, team, playerName, place, paragraph, line: ownL
     // In India's time, as the other certificates (a competition finished after midnight IST is that day's, on a UTC server too).
     const when = new Date(competition.completedAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
     doc.fillColor('#64748b').font('Helvetica').fontSize(11)
-        .text(`Organized by ${competition.organizedBy || 'YATICORP'}  ·  ${when}`, 0, H - 120, { width: W, align: 'center' });
+        .text(`Organized by ${competition.organizedBy || 'YATICORPX3'}  ·  ${when}`, 0, H - 120, { width: W, align: 'center' });
     doc.strokeColor('#cbd5e1').lineWidth(1).moveTo(W / 2 - 110, H - 86).lineTo(W / 2 + 110, H - 86).stroke();
-    doc.fillColor('#475569').fontSize(10).text('YATICORP LMS · Games & Competitions', 0, H - 80, { width: W, align: 'center' });
+    doc.fillColor('#475569').fontSize(10).text('YATICORPX3 · Games & Competitions', 0, H - 80, { width: W, align: 'center' });
     doc.end();
 };
 

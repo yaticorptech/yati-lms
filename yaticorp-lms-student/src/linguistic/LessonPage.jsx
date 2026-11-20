@@ -16,7 +16,7 @@ import { COLORS, levelOf, backToPath, rememberLesson, setVoiceCourse } from './m
 import { Chunky, Loading, Problem } from './ui';
 import Session, { SessionFrame } from './session/Session';
 import { Finish, XpParts } from './session/Finish';
-import { buildLesson, heartsFor, clock, xpIn, xpBy } from './session/logic';
+import { buildLesson, clock, xpIn, xpBy } from './session/logic';
 import { tr, trf } from './say';
 import AudioPack, { needsPack } from './AudioPack';
 import { startBackgroundAudio, focusLesson } from './audioDownloader';
@@ -95,8 +95,9 @@ function LessonPage() {
     const lang = lesson.language;
     const T = tr(lang), F = trf(lang);
     const quizFrom = steps.findIndex((s) => s.part === 'quiz');
-    const runSteps = run.from === 'quiz' && quizFrom > 0 ? steps.slice(quizFrom) : steps;
-    const retry = () => { setDone(null); setRun((r) => ({ n: r.n + 1, from: 'quiz' })); linguisticApi.step(id, 'quiz').catch(() => {}); };
+    // A story's writing comes after its quiz (2026-11-19): the quiz again on a retry, the writing too only if not reached (out of hearts).
+    const runSteps = run.from === 'quiz' && quizFrom > 0 ? steps.slice(quizFrom).filter((s) => !s.afterQuiz || run.write) : steps;
+    const retry = () => { const write = !!done?.summary?.outOfHearts; setDone(null); setRun((r) => ({ n: r.n + 1, from: 'quiz', write })); linguisticApi.step(id, 'quiz').catch(() => {}); };
 
     const check = (step, given, value) => {
         if (step.kind === 'question') return step.section === 'quiz' ? linguisticApi.quizCheck(id, step.q.id, given) : linguisticApi.check(id, step.section, step.q.id, given);
@@ -188,7 +189,8 @@ function LessonPage() {
 
     return (
         <SessionFrame label={lesson.title}>
-            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={endSession}
+            {/* No hearts (2026-11-17, "this heart calculation is not needed"): the quiz is marked by its score at the end. */}
+            <Session key={run.n} steps={runSteps} hearts={null} check={check} onComplete={complete} onQuit={endSession}
                 onEnterPart={(part) => { if (part === 'practice' || part === 'quiz') linguisticApi.step(id, part).catch(() => {}); }}
                 label={lesson.title} />
         </SessionFrame>

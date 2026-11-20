@@ -3,7 +3,7 @@ import './templates.shared.js';
 
 export const CT = globalThis.CERTIFICATE_TEMPLATES;
 
-/** The pictures of a design, for the canvas: Yaticorp's logo (white on a dark template) when it carries Yaticorp's branding. */
+/** The pictures of a design, for the canvas: YATICORPX3's logo (white on a dark template) when it carries YATICORPX3's branding. */
 export const imagesOf = (template, branding = {}, signatories = []) => {
     const out = { logo: branding.logo || (branding.yaticorp ? '/assets/certificates/yaticorp-logo.png' : ''), seal: branding.seal || '', background: branding.background || '' };
     signatories.forEach((s, i) => { out[`sig${i}`] = s.signature || ''; });

@@ -80,53 +80,6 @@ function reverseRecall(f, ex) {
   };
 }
 
-// ---- Matrix Recall ---------------------------------------------------------------------------------------------------
-const MR = [
-  { m: [4, 7, 2, 9, 1, 5, 3, 8, 6], cell: 5, row: 0 },
-  { m: [8, 3, 6, 2, 9, 4, 7, 5, 1], cell: 1, row: 2 },
-  { m: [5, 2, 9, 6, 4, 8, 1, 7, 3], cell: 6, row: 1 }
-];
-const PAD12 = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'OK'];
-function matrixRecall(f, ex) {
-  const { m, cell, row } = MR[ex];
-  const sum = m[row * 3] + m[row * 3 + 1] + m[row * 3 + 2];
-  const sq = square(3, 24, 70, 6);
-  const q = f < 2 ? null : f < 5 ? 'cell' : 'row';
-  const inRow = (i) => Math.floor(i / 3) === row;
-  const reveal = (i) => f < 2 || (f >= 4 && i === cell) || (f === 7 && inRow(i));
-  const asked = (i) => (q === 'cell' && i === cell) || (q === 'row' && inRow(i));
-  const typed = f === 3 || f === 4 ? String(m[cell]) : f >= 6 ? String(sum) : '';
-  const keyPos = (k) => [62 + ((PAD12.indexOf(k) % 3) + 0.5) * 11.3, 50 + (Math.floor(PAD12.indexOf(k) / 3) + 0.5) * 11.5];
-  return {
-    body: (
-      <div className="absolute inset-0 text-[#1b2456]">
-        <p className="absolute inset-x-0 top-[12%] text-center text-xs font-extrabold">
-          {f < 2 ? 'Memorise the matrix' : q === 'cell' ? 'Which digit was in the gold cell?' : `What did row ${row + 1} add up to?`}
-        </p>
-        {f < 2 && <div className="absolute h-1.5 rounded-full bg-violet-500" style={box(6, 20, f === 0 ? 52 : 26, 2)} />}
-        <div className="absolute grid gap-1" style={boardStyle(3, sq)}>
-          {m.map((v, i) => (
-            <span key={i} className={`flex items-center justify-center rounded-lg text-xl font-extrabold tabular-nums ${asked(i) ? 'bg-amber-50 text-amber-800 ring-2 ring-amber-300' : f < 2 ? 'bg-white ring-1 ring-[#e4e1f5]' : 'bg-slate-100 text-slate-500'}`}>
-              {reveal(i) ? v : ''}
-            </span>
-          ))}
-        </div>
-        {f >= 2 && (
-          <>
-            <span className={`absolute flex items-center justify-center rounded-xl bg-white text-2xl font-extrabold tabular-nums ring-1 ${f === 4 || f === 7 ? 'text-emerald-600 ring-emerald-400' : 'ring-[#e4e1f5]'}`} style={box(64, 26, 30, 18)}>{typed || '…'}</span>
-            <div className="absolute grid grid-cols-3 gap-1" style={box(62, 50, 34, 46)}>
-              {PAD12.map((k) => <span key={k} className="flex items-center justify-center rounded-md bg-white text-xs font-black ring-1 ring-slate-200">{k}</span>)}
-            </div>
-          </>
-        )}
-      </div>
-    ),
-    hand: f === 3 ? [...keyPos(String(m[cell])), true] : f === 6 ? [...keyPos(String(sum % 10)), true] : f === 4 || f === 7 ? [...keyPos('OK'), true] : REST,
-    step: f < 2 ? 0 : f < 7 ? 1 : 2,
-    phase: f < 2 ? 'Memorise' : f === 2 || f === 3 ? 'Recall a cell' : f === 4 ? 'Correct' : f < 7 ? 'Recall a total' : 'Correct · 2 of 2'
-  };
-}
-
 // ---- Departure Board ------------------------------------------------------------------------------------------------
 const DB = [
   { rows: [['08:10', 'TOKYO', 'B4'], ['08:35', 'PARIS', 'A7'], ['09:05', 'DUBAI', 'C2']], note: 'PARIS now leaves from gate D3', q: 'Which gate is the flight to Paris?', a: 'D3' },
@@ -212,66 +165,11 @@ function ruleSwitch(f, ex) {
   };
 }
 
-// ---- Spatial Rotation Vault -----------------------------------------------------------------------------------------
-const norm = (cs) => {
-  const mx = Math.min(...cs.map((c) => c[0]));
-  const my = Math.min(...cs.map((c) => c[1]));
-  return cs.map(([x, y, m]) => [x - mx, y - my, m]);
-};
-const turn = (cs, k = 1) => (k === 0 ? cs : turn(norm(cs.map(([x, y, m]) => [-y, x, m])), k - 1));
-const flip = (cs) => norm(cs.map(([x, y, m]) => [-x, y, m]));
-const dims = (cs) => [Math.max(...cs.map((c) => c[0])) + 1, Math.max(...cs.map((c) => c[1])) + 1];
 const SRV = [
   { cells: [[1, 0], [2, 0], [0, 1], [1, 1], [1, 2]], marks: [0, 4], k: 1, right: 2 },
   { cells: [[0, 0], [0, 1], [1, 1], [1, 2], [1, 3]], marks: [0, 3], k: 2, right: 0 },
   { cells: [[1, 0], [0, 1], [1, 1], [1, 2], [1, 3]], marks: [1, 4], k: 3, right: 3 }
 ];
-/** A block figure as SVG; `tone(cell)` gives each block's fill class. */
-function fig(cells, style, tone) {
-  const [w, h] = dims(cells);
-  return (
-    <svg viewBox={`0 0 ${w * 10} ${h * 10}`} className="absolute" style={style} aria-hidden>
-      {cells.map((c) => <rect key={`${c[0]},${c[1]}`} x={c[0] * 10 + 0.6} y={c[1] * 10 + 0.6} width="8.8" height="8.8" rx="1.6" className={tone(c)} />)}
-    </svg>
-  );
-}
-/** Where a block of the big centred figure sits, in % of the box (the figure fits 60% × 64% from 20%, 18%). */
-const figPos = (cells, [x, y]) => {
-  const [w, h] = dims(cells);
-  const s = Math.min(0.6 / w, 0.48 / h);
-  return [(0.2 + (0.6 - w * s) / 2 + (x + 0.5) * s) * 100, ((0.18 * 0.75 + (0.48 - h * s) / 2 + (y + 0.5) * s) / 0.75) * 100];
-};
-function rotationVault(f, ex) {
-  const { cells, marks, k, right } = SRV[ex];
-  const base = cells.map(([x, y], i) => [x, y, marks.includes(i) ? 1 : 0]);
-  const turned = turn(base, k);
-  const decoys = [flip(base), turn(flip(base), 1), turn(flip(base), 2)];
-  const options = [...decoys.slice(0, right), turned, ...decoys.slice(right)];
-  const goldCells = turned.filter((c) => c[2]);
-  const tapped = f >= 5 ? goldCells.slice(0, f - 4) : [];
-  const isTapped = (c) => tapped.some((t) => t[0] === c[0] && t[1] === c[1]);
-  const big = box(20, 18, 60, 64);
-  return {
-    body: (
-      <div className="absolute inset-0 text-[#1b2456]">
-        <p className="absolute inset-x-0 top-[10%] text-center text-xs font-black tracking-[0.14em] text-indigo-500 uppercase">
-          {f < 2 ? `Memorise · ${5 - f}s` : f < 4 ? 'Same figure, turned?' : f < 7 ? `Tap the 2 marks (${tapped.length}/2)` : 'Every mark exact · +2'}
-        </p>
-        {f < 2 && fig(base, big, (c) => (c[2] ? 'fill-amber-400' : 'fill-slate-600'))}
-        {(f === 2 || f === 3) && options.map((o, j) => (
-          <div key={j} className={`absolute rounded-2xl ${f === 3 && j === right ? 'bg-emerald-50 ring-2 ring-emerald-500' : 'bg-slate-50 ring-1 ring-slate-200'}`} style={box(4 + j * 23.5, 26, 21.5, 52)}>
-            {fig(o, box(12, 12, 76, 76), () => 'fill-slate-600')}
-          </div>
-        ))}
-        {f >= 4 && fig(turned, big, (c) => (f === 7 && c[2] ? 'fill-amber-400' : isTapped(c) ? 'fill-violet-500' : 'fill-slate-600'))}
-        {(f === 5 || f === 6) && <span className="absolute flex items-center justify-center rounded-xl bg-indigo-600 text-xs font-black text-white" style={box(34, 86, 32, 11)}>Lock in marks</span>}
-      </div>
-    ),
-    hand: f === 3 ? [4 + right * 23.5 + 10.75, 54, true] : f === 5 || f === 6 ? [...figPos(turned, goldCells[f - 5]), true] : f === 7 ? [50, 91, true] : REST,
-    step: f < 2 ? 0 : f < 4 ? 1 : 2,
-    phase: f < 2 ? 'Memorise the marks' : f === 2 ? 'Find the turned one' : f === 3 ? 'Not the mirror' : f < 7 ? 'Place the marks' : 'Vault +2 points'
-  };
-}
 
 // ---- Interference Recall --------------------------------------------------------------------------------------------
 const IR = [
@@ -329,45 +227,6 @@ function interference(f, ex) {
 
 // ---- Tower Shift (master: next-door towers only) --------------------------------------------------------------------
 const TS_MOVES = [[0, 1], [1, 2], [0, 1], [2, 1], [1, 0], [1, 2], [0, 1], [1, 2]];
-const TS = [
-  { start: [[2, 1], [], []], pre: 'lift' },
-  { start: [[2, 1], [], [3]], pre: 'lift' },
-  { start: [[2, 1], [], []], pre: 'far' }
-];
-const RING = ['bg-gradient-to-b from-rose-400 to-rose-600', 'bg-gradient-to-b from-amber-300 to-orange-500', 'bg-gradient-to-b from-sky-400 to-blue-600'];
-const RING_W = [13, 19, 25];
-const towerX = (i) => 4 + (i + 0.5) * (92 / 3);
-function towerShift(f, ex) {
-  const { start, pre } = TS[ex];
-  const done = Math.max(0, Math.min(8, f - 1));
-  const pegs = start.map((s) => [...s]);
-  TS_MOVES.slice(0, done).forEach(([a, b]) => pegs[b].push(pegs[a].pop()));
-  const lifted = f === 1 ? 0 : null;
-  const move = f >= 2 && f <= 9 ? TS_MOVES[f - 2] : null;
-  const total = start.flat().length;
-  return {
-    body: (
-      <div className="absolute inset-0 text-[#1b2456]">
-        <p className={`absolute inset-x-0 top-[11%] text-center text-xs font-black ${f === 1 && pre === 'far' ? 'text-rose-600' : 'text-slate-600'}`}>
-          {f === 0 ? 'All rings to the right tower · next-door towers only' : f === 1 ? (pre === 'far' ? 'Next-door towers only: go through the middle' : 'Ring lifted — tap where to drop it') : f <= 9 ? `Move ${f - 1} of 8 · best possible 8` : `Solved in 8 moves — the best`}
-        </p>
-        <div className="absolute rounded-2xl bg-gradient-to-b from-sky-50 to-indigo-100 ring-1 ring-slate-200" style={box(3, 19, 94, 77)} />
-        {f === 1 && pre === 'far' && <div className="absolute rounded-2xl bg-rose-200/60" style={box(4 + (92 / 3) * 2, 20, 92 / 3, 75)} />}
-        <span className="absolute text-xs font-black tracking-widest text-indigo-500 uppercase" style={{ left: `${towerX(2) - 5}%`, top: '21%' }}>Goal</span>
-        {[0, 1, 2].map((i) => <span key={i} className="absolute rounded-t-full bg-gradient-to-r from-amber-700 via-amber-500 to-amber-800" style={box(towerX(i) - 1, 34, 2, 52)} />)}
-        <span className="absolute rounded-lg bg-gradient-to-b from-amber-600 to-amber-900" style={box(5, 86, 90, 6)} />
-        {pegs.flatMap((stack, p) => stack.map((size, h) => {
-          const up = lifted === p && h === stack.length - 1;
-          return <span key={size} className={`absolute rounded-full shadow-md ring-1 ring-black/10 transition-all duration-500 ${RING[size - 1]}`} style={box(towerX(p) - RING_W[size - 1] / 2, up ? 24 : 86 - (h + 1) * 11 + 1, RING_W[size - 1], 9.5)} />;
-        }))}
-      </div>
-    ),
-    hand: f === 1 ? [towerX(pre === 'far' ? 2 : 0), 58, true] : move ? [towerX(move[1]), 58, true] : REST,
-    step: f < 2 ? 0 : f < 9 ? 1 : 2,
-    phase: f === 0 ? `${total} rings, one tower` : f === 1 ? (pre === 'far' ? 'Too far!' : 'Lift the top ring') : f <= 9 ? `Move ${f - 1} of 8` : 'All on the goal'
-  };
-}
-
 // ---- Cipher Lab (substitution) --------------------------------------------------------------------------------------
 const CL = [
   { plain: 'THE TEETH', key: { T: 'Q', H: 'W', E: 'K' } },
@@ -375,50 +234,6 @@ const CL = [
   { plain: 'NINE INN', key: { N: 'J', I: 'Y', E: 'P' } }
 ];
 const ABC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-function cipherLab(f, ex) {
-  const { plain, key } = CL[ex];
-  const cipher = [...plain].map((ch) => key[ch] || ch).join('');
-  const counts = Object.values(key).map((c) => [c, [...cipher].filter((x) => x === c).length]).sort((a, b) => b[1] - a[1]);
-  const plainOf = Object.fromEntries(Object.entries(key).map(([p, c]) => [c, p]));
-  const done = counts.slice(0, Math.min(3, Math.floor(f / 2))).map((r) => r[0]);
-  const sel = f >= 1 && f <= 6 ? counts[Math.floor((f - 1) / 2)][0] : null;
-  const max = counts[0][1];
-  const keyPos = (p) => { const i = ABC.indexOf(p); return [3 + ((i % 13) + 0.5) * (94 / 13), 74 + Math.floor(i / 13) * 11.5 + 5.5]; };
-  return {
-    body: (
-      <div className="absolute inset-0 text-[#1b2456]">
-        <div className="absolute flex flex-wrap items-center justify-center gap-x-4 rounded-2xl bg-slate-900 px-2" style={box(4, 13, 92, 27)}>
-          {cipher.split(' ').map((w, wi) => (
-            <span key={wi} className="flex gap-0.5">
-              {[...w].map((c, j) => (
-                <span key={j} className={`flex w-5 flex-col items-center rounded font-mono ${c === sel ? 'bg-emerald-500/30 ring-1 ring-emerald-400' : ''}`}>
-                  <span className="text-xs text-slate-400">{c}</span>
-                  <span className={`text-base font-black ${done.includes(c) ? 'text-emerald-300' : 'text-slate-600'}`}>{done.includes(c) ? plainOf[c] : '_'}</span>
-                </span>
-              ))}
-            </span>
-          ))}
-        </div>
-        {counts.map(([c, n], j) => (
-          <div key={c} className="absolute flex flex-col items-center justify-end" style={box(6 + j * 12, 43, 9, 27)}>
-            <span className={`w-full rounded-t ${c === sel ? 'bg-emerald-500' : 'bg-slate-300'}`} style={{ height: `${(n / max) * 60}%` }} />
-            <span className={`font-mono text-xs font-black ${c === sel ? 'text-emerald-700' : 'text-slate-600'}`}>{c}</span>
-          </div>
-        ))}
-        <p className="absolute text-xs leading-snug font-bold" style={box(44, 46, 53, 22)}>
-          {f === 7 ? 'Broken · +3 points' : sel ? <>Cipher <span className="font-mono text-emerald-700">{sel}</span> → {done.includes(sel) ? <span className="font-mono">{plainOf[sel]}</span> : 'pick a letter'}</> : 'Most common cipher letter: likely E or A'}
-        </p>
-        <div className="absolute grid grid-cols-[repeat(13,minmax(0,1fr))] gap-0.5" style={box(3, 74, 94, 23)}>
-          {[...ABC].map((p) => <span key={p} className={`flex items-center justify-center rounded font-mono text-xs font-black ring-1 ${Object.keys(key).includes(p) && done.some((c) => plainOf[c] === p) ? 'bg-slate-100 text-slate-400 ring-slate-200' : 'bg-white ring-slate-300'}`}>{p}</span>)}
-        </div>
-        {f === 7 && <div className="absolute flex items-center justify-center rounded-2xl bg-emerald-50 font-serif text-xl text-[#1b2456] ring-1 ring-emerald-200" style={box(10, 42, 80, 28)}>“{plain.charAt(0) + plain.slice(1).toLowerCase()}”</div>}
-      </div>
-    ),
-    hand: f >= 1 && f <= 6 ? (f % 2 === 1 ? [10.5 + Math.floor((f - 1) / 2) * 12, 66, true] : [...keyPos(plainOf[sel]), true]) : REST,
-    step: f < 1 ? 0 : f < 7 ? 1 : 2,
-    phase: f === 0 ? 'Count the letters' : f === 7 ? 'Message decoded' : f % 2 === 1 ? 'Pick a cipher letter' : 'Give its plain letter'
-  };
-}
 
 // ---- Algorithm Builder ----------------------------------------------------------------------------------------------
 const LINE = { act: 'bg-sky-50 text-sky-900 ring-sky-200', loop: 'bg-amber-50 text-amber-900 ring-amber-300', end: 'bg-slate-50 text-slate-500 ring-slate-200' };
@@ -439,62 +254,6 @@ const AB = [
     states: [[3, 2, 1], [2, 1, 3], [1, 2, 3]]
   }
 ];
-function machine(ex, s) {
-  if (ex === 0) {
-    return (
-      <div className="absolute grid grid-cols-6 gap-px overflow-hidden rounded-xl bg-slate-300 ring-1 ring-slate-300" style={box(14, 18, 72, 19)}>
-        {range(6).map((x) => (
-          <div key={x} className="relative bg-white">
-            {x === 5 && <svg viewBox="0 0 20 20" className={`absolute inset-[18%] ${s === 5 ? 'opacity-20' : ''}`} aria-hidden><path d="M10 1 L18 8 L10 19 L2 8 Z" className="fill-emerald-500" /><path d="M10 1 L14 8 L10 19 L6 8 Z" className="fill-emerald-300" /></svg>}
-            {x === s && <svg viewBox="0 0 20 20" className="absolute inset-[10%] rotate-90" aria-hidden><rect x="4" y="5" width="12" height="12" rx="3" className="fill-indigo-600" /><path d="M10 1 L15 7 H5 Z" className="fill-amber-400" /><circle cx="10" cy="11" r="2" className="fill-white" /></svg>}
-          </div>
-        ))}
-      </div>
-    );
-  }
-  if (ex === 1) {
-    return (
-      <div className="absolute flex items-center justify-center gap-3" style={box(10, 15, 80, 24)}>
-        <span className="flex min-w-16 flex-col items-center rounded-xl bg-indigo-50 px-3 py-1 ring-2 ring-indigo-400"><span className="text-xs font-black text-slate-500">A</span><span className="text-2xl font-black tabular-nums">{s}</span></span>
-        <span className="text-xs font-bold text-slate-500">goal: A = 32</span>
-      </div>
-    );
-  }
-  return (
-    <div className="absolute flex items-center justify-center gap-2" style={box(10, 15, 80, 25)}>
-      {s.map((v, i) => <span key={i} className="flex h-full w-[16%] items-center justify-center rounded-lg bg-white text-2xl font-black text-slate-900 shadow-sm ring-2 ring-slate-300">{v}</span>)}
-    </div>
-  );
-}
-function algorithmBuilder(f, ex) {
-  const d = AB[ex];
-  const prog = d.progs[Math.min(3, f)];
-  const s = d.states[f < 5 ? 0 : f === 5 ? 1 : 2];
-  const tap = f >= 1 && f <= 3 ? d.taps[f - 1] : null;
-  return {
-    body: (
-      <div className="absolute inset-0 text-[#1b2456]">
-        <span className="absolute top-[3%] right-[3%] text-xs font-extrabold text-slate-600">Goal: {d.goal}</span>
-        {machine(ex, s)}
-        <div className="absolute grid grid-cols-3 gap-1.5" style={box(3, 41, 94, 11)}>
-          {d.palette.map((p, i) => <span key={p} className={`flex items-center justify-center truncate rounded-xl px-1 text-xs font-black ring-1 ${i === 2 ? LINE.loop : LINE.act} ${tap === i ? 'ring-2 ring-indigo-500' : ''}`}>+ {p}</span>)}
-        </div>
-        <ol className="absolute space-y-1 rounded-xl bg-slate-50 p-1 ring-1 ring-slate-200" style={box(3, 55, 66, 42)}>
-          {prog.length === 0 && <li className="p-2 text-center text-xs font-bold text-slate-400">Tap blocks to build the program</li>}
-          {prog.map(([label, depth, kind], i) => (
-            <li key={i} className={`flex h-[28%] items-center justify-between rounded-lg px-2 text-xs font-black ring-1 ${LINE[kind]} ${f === 5 && i === 1 ? 'outline-2 outline-indigo-600' : ''}`} style={{ marginLeft: depth ? '12%' : 0 }}>
-              {label}{kind === 'loop' && f < 4 && <span className="text-slate-500">− +</span>}
-            </li>
-          ))}
-        </ol>
-        <span className={`absolute flex items-center justify-center rounded-xl text-sm font-black text-white ${f >= 6 ? 'bg-emerald-600' : 'bg-indigo-700'}`} style={box(72, 58, 25, 36)}>{f >= 6 ? '★★★' : 'Run'}</span>
-      </div>
-    ),
-    hand: tap === 'plus' ? [65, 61, true] : tap !== null ? [3 + (tap + 0.5) * (94 / 3), 47, true] : f === 4 ? [84, 76, true] : REST,
-    step: f < 1 ? 0 : f < 4 ? 1 : 2,
-    phase: f === 0 ? 'See the goal' : f < 4 ? 'Build the program' : f === 4 ? 'Run it' : f === 5 ? 'Running…' : f === 6 ? 'It works!' : 'Optimal: 3 blocks'
-  };
-}
 
 // ---- Deduction Chamber ----------------------------------------------------------------------------------------------
 const DD = [
@@ -502,27 +261,6 @@ const DD = [
   { premises: ['All roses are flowers.', 'Some flowers fade quickly.'], conclusion: 'Some roses fade quickly.', answer: 'Does not follow', why: 'The flowers that fade need not be the roses.' },
   { premises: ['No fish are birds.', 'All sparrows are birds.'], conclusion: 'No sparrows are fish.', answer: 'Follows', why: 'Sparrows sit inside birds, and birds are kept apart from fish.' }
 ];
-function deduction(f, ex) {
-  const q = DD[ex];
-  const x = q.answer === 'Follows' ? 27 : 73;
-  return {
-    body: (
-      <div className="absolute inset-0 text-[#1b2456]">
-        <ul className="absolute space-y-1" style={box(5, 12, 90, 30)}>
-          {q.premises.map((p) => <li key={p} className="rounded-xl bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">{p}</li>)}
-        </ul>
-        <p className={`absolute rounded-xl bg-blue-50 px-3 py-1.5 text-sm font-black text-blue-900 transition-opacity duration-500 ${f >= 1 ? 'opacity-100' : 'opacity-0'}`} style={{ left: '5%', top: '45%', width: '90%' }}>Therefore: {q.conclusion}</p>
-        {['Follows', 'Does not follow'].map((o, i) => (
-          <span key={o} className={`absolute flex items-center justify-center rounded-xl text-sm font-black ring-1 ${f >= 3 && o === q.answer ? 'bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500' : 'bg-white ring-slate-200'}`} style={box(5 + i * 46, 65, 44, 15)}>{o}</span>
-        ))}
-        {f >= 3 && <p className="absolute text-center text-xs font-bold text-emerald-700" style={box(5, 83, 90, 15)}>Correct — {q.why}</p>}
-      </div>
-    ),
-    hand: f === 2 ? [x, 73, false] : f === 3 ? [x, 73, true] : REST,
-    step: f < 1 ? 0 : f < 3 ? 1 : 2,
-    phase: ['Read the facts', 'Read the claim', 'Does it follow?', 'Correct!', 'Validity, not truth', 'Validity, not truth'][f]
-  };
-}
 
 // ---- Boolean Breaker ------------------------------------------------------------------------------------------------
 const GATE_PATH = { AND: 'M0 0 H21 A15 15 0 0 1 21 30 H0 Z', OR: 'M0 0 Q10 15 0 30 Q26 30 39 15 Q26 0 0 0 Z', XOR: 'M5 0 Q15 15 5 30 Q29 30 42 15 Q29 0 5 0 Z', NOT: 'M2 2 L32 15 L2 28 Z' };
@@ -532,66 +270,6 @@ const BB = [
   { inputs: [[24, 28], [24, 72], [24, 110]], gates: [{ op: 'XOR', a: 0, b: 1, x: 95, y: 50 }, { op: 'AND', a: 3, b: 2, x: 185, y: 78 }], start: [0, 0, 0], toggles: [0, 2] }
 ];
 const NAMES = ['A', 'B', 'C'];
-const evalCircuit = (c, bits) => {
-  const v = [...bits];
-  c.gates.forEach((g) => { v.push(g.op === 'NOT' ? 1 - v[g.a] : g.op === 'AND' ? v[g.a] & v[g.b] : g.op === 'OR' ? v[g.a] | v[g.b] : v[g.a] ^ v[g.b]); });
-  return v;
-};
-function booleanBreaker(f, ex) {
-  const c = BB[ex];
-  const n = c.inputs.length;
-  const bits = [...c.start];
-  if (f >= 1) bits[c.toggles[0]] ^= 1;
-  if (f >= 3) bits[c.toggles[1]] ^= 1;
-  const tested = f === 2 || f >= 4 ? evalCircuit(c, bits) : null;
-  const out = c.inputs.length + c.gates.length - 1;
-  const lampOn = tested ? tested[out] === 1 : false;
-  const outPt = (node) => (node < n ? [c.inputs[node][0] + 11, c.inputs[node][1]] : [c.gates[node - n].x + (c.gates[node - n].op === 'NOT' ? 36 : 42), c.gates[node - n].y]);
-  const stroke = (node) => (tested ? (tested[node] ? '#f59e0b' : '#475569') : '#94a3b8');
-  const wire = (from, [tx, ty], key) => { const [ax, ay] = outPt(from); const mx = (ax + tx) / 2; return <path key={key} d={`M${ax} ${ay} C${mx} ${ay} ${mx} ${ty} ${tx} ${ty}`} fill="none" stroke={stroke(from)} strokeWidth={tested && tested[from] ? 3.5 : 2.5} />; };
-  const lamp = [268, c.gates[c.gates.length - 1].y];
-  const start = 50 - (n * 22 + (n - 1) * 2) / 2;
-  const swX = (k) => start + k * 24 + 11;
-  const tk = f === 1 ? c.toggles[0] : f === 3 ? c.toggles[1] : null;
-  return {
-    body: (
-      <div className="absolute inset-0 text-[#1b2456]">
-        <svg viewBox="0 0 300 126" className="absolute rounded-2xl bg-slate-50 ring-1 ring-slate-200" style={box(2, 12, 96, 54)} aria-hidden>
-          {c.gates.map((g, i) => (g.op === 'NOT' ? wire(g.a, [g.x + 2, g.y], `w${i}`) : [wire(g.a, [g.x + 2, g.y - 8], `w${i}a`), wire(g.b, [g.x + 2, g.y + 8], `w${i}b`)]))}
-          {wire(out, [lamp[0] - 14, lamp[1]], 'wl')}
-          {c.inputs.map(([x, y], k) => (
-            <g key={k}>
-              <circle cx={x} cy={y} r="11" fill={bits[k] ? '#fbbf24' : '#1e293b'} />
-              <text x={x} y={y + 4.5} textAnchor="middle" fontSize="13" fontWeight="800" fill={bits[k] ? '#0f172a' : '#e2e8f0'}>{NAMES[k]}</text>
-            </g>
-          ))}
-          {c.gates.map((g, i) => {
-            const lit = tested ? tested[n + i] === 1 : false;
-            return (
-              <g key={i} transform={`translate(${g.x} ${g.y - 15})`}>
-                <path d={GATE_PATH[g.op]} fill={lit ? '#fef3c7' : '#ffffff'} stroke={lit ? '#d97706' : '#334155'} strokeWidth="2" strokeLinejoin="round" />
-                {g.op === 'XOR' && <path d="M0 0 Q10 15 0 30" fill="none" stroke="#334155" strokeWidth="2" />}
-                {g.op === 'NOT' && <circle cx="36" cy="15" r="4" fill="#fff" stroke="#334155" strokeWidth="2" />}
-                <text x={g.op === 'NOT' ? 16 : 18} y={g.op === 'NOT' ? -3 : 19.5} textAnchor="middle" fontSize="12" fontWeight="800" fill="#334155">{g.op}</text>
-              </g>
-            );
-          })}
-          <circle cx={lamp[0]} cy={lamp[1]} r="14" fill={lampOn ? '#fde047' : '#334155'} stroke={lampOn ? '#ca8a04' : '#1e293b'} strokeWidth="2.5" />
-          {lampOn && <circle cx={lamp[0]} cy={lamp[1]} r="21" fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6" />}
-        </svg>
-        {c.inputs.map((_, k) => (
-          <span key={k} className={`absolute flex items-center justify-center rounded-xl font-mono text-sm font-black ${bits[k] ? 'bg-amber-400 text-slate-900' : 'bg-slate-800 text-slate-300'}`} style={box(swX(k) - 11, 69, 22, 13)}>{NAMES[k]} = {bits[k]}</span>
-        ))}
-        <span className={`absolute flex items-center justify-center rounded-xl text-xs font-black ${lampOn ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-slate-900'}`} style={box(22, 85, 56, 12)}>
-          {lampOn ? 'Lamp lit · solved' : f === 2 || f === 3 ? 'Lamp stayed dark · 1 test left' : 'Power on · 2 tests left'}
-        </span>
-      </div>
-    ),
-    hand: tk !== null ? [swX(tk), 76, true] : f === 2 || f === 4 ? [50, 91, true] : REST,
-    step: f < 1 ? 0 : f < 5 ? 1 : 2,
-    phase: f === 0 ? 'Read the circuit' : tk !== null ? `Set ${NAMES[tk]} = ${bits[tk]}` : f === 2 ? 'Still dark — think' : f === 4 ? 'Lamp on!' : 'Solved in 2 tests'
-  };
-}
 
 // ---- Network Logic --------------------------------------------------------------------------------------------------
 const NL = [
@@ -668,57 +346,12 @@ const SC = [
   { tasks: ['Design', 'Editing', 'Forecast'], order: [[2, 2], [0, 0], [1, 1]], rules: [['Forecast on Wed', 2], ['Design earlier than Editing', 6]] },
   { tasks: ['Graphics', 'Hiring', 'Budget'], order: [[1, 0], [2, 2], [0, 1]], rules: [['Hiring, Budget on different days', 4], ['Graphics not on Wed', 6]] }
 ];
-function constraintLab(f, ex) {
-  const d = SC[ex];
-  const placed = d.order.slice(0, Math.min(3, Math.floor(f / 2)));
-  const dayOf = (t) => { const p = placed.find((o) => o[0] === t); return p ? p[1] : null; };
-  const sel = f >= 1 && f <= 6 ? d.order[Math.floor((f - 1) / 2)][0] : null;
-  const chip = (t) => `flex items-center justify-center truncate rounded-xl px-1 text-xs font-bold ring-2 ${sel === t ? 'bg-violet-600 text-white ring-violet-600' : 'bg-white ring-slate-300'}`;
-  const dayX = (s) => 3 + s * 20.5 + 9.5;
-  const checks = [...d.rules, ['All 3 tasks placed', 6]];
-  return {
-    body: (
-      <div className="absolute inset-0 text-[#1b2456]">
-        <div className="absolute rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50" style={box(3, 13, 94, 15)}>
-          {f === 7 && <span className="absolute inset-y-[12%] right-[2%] flex w-[34%] items-center justify-center rounded-xl bg-emerald-600 text-xs font-black text-white">Solved</span>}
-          {f === 6 && <span className="absolute inset-y-[12%] right-[2%] flex w-[34%] items-center justify-center rounded-xl bg-slate-900 text-xs font-black text-white">Check schedule</span>}
-        </div>
-        {d.tasks.map((t, i) => (dayOf(i) === null ? <span key={t} className={`absolute ${chip(i)}`} style={box(5 + i * 20, 15, 18.5, 11)}>{t}</span> : null))}
-        {DAYS.map((day, s) => (
-          <div key={day} className="absolute flex flex-col items-center gap-1 rounded-2xl bg-white p-1 ring-2 ring-slate-200" style={box(3 + s * 20.5, 31, 19.5, 66)}>
-            <span className="text-xs font-black">{day}</span>
-            {d.tasks.map((t, i) => (dayOf(i) === s ? <span key={t} className={`h-[16%] w-full ${chip(i)}`}>{t}</span> : null))}
-          </div>
-        ))}
-        <ul className="absolute space-y-1.5 rounded-2xl bg-slate-50 p-2 ring-1 ring-slate-200" style={box(66, 31, 31, 66)}>
-          {checks.map(([text, at]) => (
-            <li key={text} className="flex items-start gap-1 text-xs leading-tight">
-              <span className={`mt-px flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${f >= at ? 'bg-emerald-500 text-white' : 'bg-white ring-1 ring-slate-300'}`}>{f >= at ? '✓' : ''}</span>
-              <span className={f >= at ? 'text-emerald-800' : 'text-slate-700'}>{text}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    ),
-    hand: sel === null ? (f === 7 ? [80, 20, true] : REST) : f % 2 === 1 ? [5 + sel * 20 + 9.25, 20, true] : [dayX(d.order[f / 2 - 1][1]), 50, true],
-    step: f < 1 ? 0 : f < 6 ? 1 : 2,
-    phase: f === 0 ? 'Read the rules' : f === 7 ? 'Schedule solved' : f % 2 === 1 ? 'Pick a task' : 'Place it on a day'
-  };
-}
 
 export const DEMOS = {
   'grid-recall': { frames: 10, draw: gridRecall },
   'reverse-recall': { frames: 8, draw: reverseRecall },
-  'matrix-recall': { frames: 8, draw: matrixRecall },
   'departure-board': { frames: 8, draw: departureBoard },
   'rule-switch': { frames: 8, draw: ruleSwitch },
-  'spatial-rotation-vault': { frames: 8, draw: rotationVault },
   'interference-recall': { frames: 8, draw: interference },
-  'tower-shift': { frames: 11, draw: towerShift },
-  'cipher-lab': { frames: 8, draw: cipherLab },
-  'algorithm-builder': { frames: 8, draw: algorithmBuilder },
-  deduction: { frames: 6, draw: deduction },
-  'boolean-breaker': { frames: 7, draw: booleanBreaker },
   'network-logic': { frames: 7, draw: networkLogic },
-  'strategic-constraint-lab': { frames: 8, draw: constraintLab }
 };

@@ -31,7 +31,7 @@ export default function VerifyCertificate() {
     return (
         <main className="flex min-h-screen items-start justify-center bg-gradient-to-br from-indigo-50 via-white to-violet-50 px-4 py-10">
             <div className="w-full max-w-lg space-y-4">
-                <p className="text-center text-xs font-black uppercase tracking-[0.25em] text-indigo-600">YATICORP · {issued ? 'Certificates' : 'Group Brain'}</p>
+                <p className="text-center text-xs font-black uppercase tracking-[0.25em] text-indigo-600">YATICORPX3 · {issued ? 'Certificates' : 'Group Brain'}</p>
                 <h1 className="text-center text-2xl font-black text-slate-900">Certificate check</h1>
                 <form onSubmit={(e) => { e.preventDefault(); if (typed.trim()) navigate(path(typed.trim().toUpperCase())); }} className="flex gap-2">
                     <label className="relative min-w-0 flex-1">
@@ -69,7 +69,7 @@ export default function VerifyCertificate() {
                         </dl>
                     </section>
                 )}
-                {!issued && <p className="text-center text-xs text-slate-500">Group Brain scores measure performance in these games; they are not IQ scores. <Link to="/login" className="font-semibold text-indigo-700 hover:underline">YATICORP</Link></p>}
+                {!issued && <p className="text-center text-xs text-slate-500">Group Brain scores measure performance in these games; they are not IQ scores. <Link to="/login" className="font-semibold text-indigo-700 hover:underline">YATICORPX3</Link></p>}
             </div>
         </main>
     );

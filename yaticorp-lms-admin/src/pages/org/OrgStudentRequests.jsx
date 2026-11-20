@@ -1,6 +1,6 @@
 /**
  * Student requests (2026-11-14): support tickets this organization's students sent to it (they choose
- * "YATICORP support" or their organization in the app's Contact Support). Reply, and mark in progress or
+ * "YATICORPX3 support" or their organization in the app's Contact Support). Reply, and mark in progress or
  * resolved; the student sees the reply in My requests and by email.
  * Server: GET|POST /api/organizations/me/student-tickets (src/organizations/index.js).
  */

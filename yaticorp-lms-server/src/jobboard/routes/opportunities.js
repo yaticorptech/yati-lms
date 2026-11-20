@@ -1,6 +1,6 @@
 /**
  * Local Jobs — age-aware, date-matched local work for every kind of student
- * the LMS has, mounted at /api/jobs/opportunities.
+ * YATICORPX3 has, mounted at /api/jobs/opportunities.
  *
  * Every read goes through the same three steps: load the student's profile,
  * derive their age band, and hand the pool to the recommender, which refuses
@@ -198,7 +198,7 @@ router.put('/profile', xpOnSuccess('opportunity_profile', () => 'opportunity_pro
             return res.status(400).json({ error: "Enter a valid email address for your parent or guardian." });
         }
         // A parent's address that cannot take mail is caught here, not as a
-        // bounce in the LMS's own inbox after the student was told "sent".
+        // bounce in YATICORPX3's own inbox after the student was told "sent".
         if (guardianEmail) {
             const why = await require('../../utils/emailService').recipientProblem(guardianEmail, { own: req.user?.email });
             if (why) return res.status(400).json({ error: why });
@@ -308,7 +308,7 @@ const filtersFrom = (query, band) => {
 
 /* ── The merged list ──────────────────────────────────────────────────────
 
-   One list, two sources. The LMS's own local jobs (put in by the admin, with
+   One list, two sources. YATICORPX3's own local jobs (put in by the admin, with
    real dates) and open part-time roles near the student from Google Jobs.
    Both are filed under the same categories, and both come back in one array
    so the tab can lay them out by date: the student's own free time first,
@@ -397,7 +397,7 @@ router.get('/', async (req, res, next) => {
         // Open to every band, on the account owner's explicit instruction
         // (2026-09-15). These are raw Google Jobs results: no age data, no
         // safety class, no verified organisation, and the apply link leaves
-        // the LMS — so none of the protections the local board applies reach
+        // YATICORPX3 — so none of the protections the local board applies reach
         // them, and a student under 18 sees them alongside vetted work. The
         // cards say where they came from and that they are not age-checked.
         const webAllowed = true;

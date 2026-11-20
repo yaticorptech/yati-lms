@@ -69,6 +69,7 @@ export const focusConfig = (ageBand, difficulty = 1, levelNo = 1) => {
         boardSeconds: 15 - d,
         sets: SEARCH_SETS.length
       };
+  base.creatures = levelNo < 4 ? ['fish'] : levelNo < 8 ? ['fish', 'bird'] : levelNo < 14 ? ['bird', 'plane', 'fish'] : ['plane', 'arrow', 'bird'];
   return base;
 };
 
@@ -105,5 +106,11 @@ export const makeFocusLevel = (rng, config) => {
   const sets = sample(rng, SEARCH_SETS.slice(0, config.sets), config.boards);
   const boards = shuffle(rng, sets).map((set) => makeBoard(rng, config, set));
   const max = trials.length + boards.reduce((s, b) => s + b.targets.length, 0);
-  return { trials, boards, max, pass: Math.ceil(max * 0.7) };
+  // Taking turns (2026-11-18, the user): a block of swimmers, then a search board, then swimmers, then a board…
+  const chunk = Math.ceil(trials.length / boards.length);
+  // What swims (the user: "change the fish to something confusing as levels go up"): one kind per block, from the
+  // level's list — fish first, then birds, paper planes and plain arrows; later blocks mix them.
+  const pool = config.creatures || ['fish'];
+  const creatures = Array.from({ length: boards.length }, (_, k) => pool[k % pool.length]);
+  return { trials, boards, max, pass: Math.ceil(max * 0.7), chunk, creatures };
 };

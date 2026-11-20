@@ -1,5 +1,5 @@
 /**
- * "Add your organization": the teacher's college or school on YATICORP, in a
+ * "Add your organization": the teacher's college or school on YATICORPX3, in a
  * popup opened from the dashboard (and from My profile) — no page or menu
  * item of its own. The same steps a student takes: type the Organization ID
  * the college gives you, check it is the right one, and ask to join; the

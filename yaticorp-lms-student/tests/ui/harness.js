@@ -98,7 +98,7 @@ export const screen = async ({ entry, api, script, width = 1400, height = 1400, 
         await build({
             entryPoints: [path.join(dir, 'entry.jsx')],
             bundle: true, outfile: path.join(dir, 'bundle.js'),
-            loader: { '.js': 'jsx' }, jsx: 'automatic', logLevel: 'silent',
+            loader: { '.js': 'jsx', '.png': 'dataurl', '.jpg': 'dataurl', '.webp': 'dataurl', '.svg': 'dataurl' }, jsx: 'automatic', logLevel: 'silent',
             absWorkingDir: ROOT,
             define: { 'process.env.NODE_ENV': '"production"', 'import.meta.env': '{"VITE_API_URL":"http://localhost/api","DEV":false,"PROD":true}' },
             plugins: [{

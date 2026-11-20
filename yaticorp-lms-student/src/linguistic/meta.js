@@ -32,17 +32,29 @@ export const MODULES = {
 export const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'translation'];
 // Each level is a section of the path, with its CEFR level. Named plainly since 2026-11-16 ("make it beginner");
 // it was Rookie / Explorer / Achiever from 2026-10-24.
+/** The sections a certificate is for (2026-11-18: two certificates, Beginner and Advanced): "Sections 1–3". */
+export const sectionsText = (s = []) => (s.length > 1 ? `Sections ${s[0]}–${s[s.length - 1]}` : s.length ? `Section ${s[0]}` : '');
+
 export const LEVELS = [
     // `named`: its level word written in the section's heading (2026-11-14). The level word (2026-11-16, the user: "section 1,
     // section 2 and section 3 will be Beginner, section 4 and section 5 will be Advanced"): two groups.
-    { id: 'beginner', label: 'Beginner', section: 'Rookie', cefr: 'A1', named: true, chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+    // Beginner and Advanced by name on their heading cards (2026-11-18, the user: "name it as beginner, not only rookie"):
+    // not `named`, so the word is not written twice.
+    { id: 'beginner', label: 'Beginner', section: 'Beginner', cefr: 'A1', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
     // Two sections added and Intermediate shown again (2026-11-14, the user: "add more sections … six units in each").
     // `bare`: no heading card on the path (2026-11-16, the user: "remove these two cards" — Sections 2 and 3, part of Beginner).
     { id: 'elementary', label: 'Beginner', section: 'Daily life', cefr: 'A2', named: true, bare: true, chip: 'bg-sky-50 text-sky-700 ring-sky-200' },
     { id: 'intermediate', label: 'Beginner', section: 'Explorer', cefr: 'B1', named: true, bare: true, chip: 'bg-amber-50 text-amber-700 ring-amber-200' },
-    { id: 'advanced', label: 'Advanced', section: 'Achiever', cefr: 'B2', named: true, chip: 'bg-rose-50 text-rose-700 ring-rose-200' },
+    { id: 'advanced', label: 'Advanced', section: 'Advanced', cefr: 'B2', chip: 'bg-rose-50 text-rose-700 ring-rose-200' },
     // No heading card either (2026-11-16, the user: "remove this card also" — Section 5, part of Advanced).
-    { id: 'professional', label: 'Advanced', section: 'Work and the world', cefr: 'C1', named: true, bare: true, chip: 'bg-violet-50 text-violet-700 ring-violet-200' }
+    { id: 'professional', label: 'Advanced', section: 'Work and the world', cefr: 'C1', named: true, bare: true, chip: 'bg-violet-50 text-violet-700 ring-violet-200' },
+    // Sections 6–10 (2026-11-17, the user: "add more sections, in the end they should speak the language"; label Advanced,
+    // no heading card, like Section 5).
+    { id: 'everyday', label: 'Advanced', section: 'Everyday talk', cefr: 'C1', named: true, bare: true, chip: 'bg-teal-50 text-teal-700 ring-teal-200' },
+    { id: 'services', label: 'Advanced', section: 'Getting things done', cefr: 'C1', named: true, bare: true, chip: 'bg-orange-50 text-orange-700 ring-orange-200' },
+    { id: 'workplace', label: 'Advanced', section: 'Talking at work', cefr: 'C1', named: true, bare: true, chip: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
+    { id: 'opinions', label: 'Advanced', section: 'Sharing your views', cefr: 'C2', named: true, bare: true, chip: 'bg-pink-50 text-pink-700 ring-pink-200' },
+    { id: 'society', label: 'Advanced', section: 'The world around us', cefr: 'C2', named: true, bare: true, chip: 'bg-lime-50 text-lime-700 ring-lime-200' }
 ];
 export const levelOf = (id) => LEVELS.find((l) => l.id === id) || LEVELS[0];
 /** The sections a course shows (all five since 2026-11-14). */
@@ -194,7 +206,31 @@ const voiceFor = (lang, gender = null) => {
  * Hindi or Marathi one. All on the device: nothing is sent anywhere.
  */
 const KN_FROM = 0x0c80, KN_TO = 0x0cff;
-const STAND_INS = { kn: [{ lang: 'te-IN', base: 0x0c00 }, { lang: 'hi-IN', base: 0x0900, hindi: true }, { lang: 'mr-IN', base: 0x0900 }] };
+/*
+ * Punjabi letters by a Hindi voice (2026-11-18, the user: "some are not pronounced correctly … each letter should be
+ * properly pronounced"): Gurmukhi sits in Unicode in Devanagari's order (ਕ ↔ क, ਖ਼ ↔ ख़, ੜ ↔ ड़), so a letter
+ * written in Devanagari says the same. Tippi (ੰ) is the bindu's nasal (ं); addak (ੱ) has no letter of its own there.
+ */
+const gurmukhiIn = (text) => [...String(text || '')].map((c) => {
+    const n = c.codePointAt(0);
+    if (n < 0x0a00 || n > 0x0a6f) return n === 0x0a70 ? 'ं' : n === 0x0a71 ? '' : c;
+    return String.fromCodePoint(n - 0x100);
+}).join('').replace(/स़/g, 'श').replace(/ल़/g, 'ळ'); // ਸ਼ ਲ਼ typed with a nukta: श ळ
+const STAND_INS = {
+    kn: [{ lang: 'te-IN', base: 0x0c00 }, { lang: 'hi-IN', base: 0x0900, hindi: true }, { lang: 'mr-IN', base: 0x0900 }],
+    // Hindi on a device with no Hindi voice (2026-11-17, the user: "in Hindi no voice is heard"): a Marathi or Nepali one
+    // reads the same Devanagari letters as they are.
+    hi: [{ lang: 'mr-IN' }, { lang: 'ne-NP' }],
+    // Not the Mac's Lekha (2026-11-18): she says ट and त, ड and द, ण and न alike, even in words — Punjabi letters
+    // then come from Chrome's Google Hindi voice, or else the AI voice.
+    pa: [{ lang: 'hi-IN', map: gurmukhiIn, avoid: /lekha/i }, { lang: 'mr-IN', map: gurmukhiIn, avoid: /lekha/i }]
+};
+/** A voice of `lang`'s language, not one `avoid` names; Google's first. */
+const voiceAvoiding = (lang, avoid) => {
+    if (!voices.length) readVoices();
+    const ok = voices.filter((v) => norm(v.lang).split('-')[0] === norm(lang).split('-')[0] && !avoid.test(v.name || ''));
+    return ok.find((v) => /google/i.test(v.name || '')) || ok[0] || null;
+};
 // Devanagari reads the short e and o (ಎ ಒ, ೆ ೊ) best as its own e and o.
 const DEVANAGARI_SHORT = { 'ऎ': 'ए', 'ऒ': 'ओ', 'ॆ': 'े', 'ॊ': 'ो' };
 // A Hindi voice has no ḷa, ṟa or ḻa (Marathi's does): the nearest sound it says (2026-10-31, "the correct pronunciation").
@@ -218,8 +254,9 @@ const readerFor = (lang, gender = null) => {
     const own = voiceFor(lang, gender);
     if (own) return { voice: own, lang, map: (t) => t };
     for (const s of STAND_INS[norm(lang).split('-')[0]] || []) {
-        const v = voiceFor(s.lang, gender);
-        if (v) return { voice: v, lang: s.lang, map: (t) => kannadaIn(t, s.base, !!s.hindi) };
+        const v = s.avoid ? voiceAvoiding(s.lang, s.avoid) : voiceFor(s.lang, gender);
+        // Its letters as the stand-in reads them: Punjabi's in Devanagari, Kannada's in Telugu or Devanagari; Hindi's as they are.
+        if (v) return { voice: v, lang: s.lang, map: s.map || (s.base ? (t) => kannadaIn(t, s.base, !!s.hindi) : (t) => t) };
     }
     return null;
 };
@@ -249,8 +286,35 @@ const ENV = import.meta.env || {};
 const AI_VOICE = true; void ENV;
 // On (2026-11-06, user: "use the tts inside this project"). Set false to fall back to the device voice.
 const SERVER_VOICE_ON = AI_VOICE;
-const usesServerVoice = (lang) => SERVER_VOICE_ON && SERVER_LANGS.has(norm(lang).split('-')[0]);
+// Where it is needed (2026-11-17, "use tts where it is needed"): in development too, a language the device has no
+// voice of its own for (Kannada on a Mac, read by a Hindi stand-in that drops its sounds) goes to the AI voice; one
+// it can say keeps the device's voice. If the voice service does not answer, play() falls back to the device anyway.
+const deviceHasOwn = (lang) => typeof window !== 'undefined' && !!window.speechSynthesis && !!voiceFor(lang);
+const usesServerVoice = (lang) => SERVER_LANGS.has(norm(lang).split('-')[0]) && (SERVER_VOICE_ON || !deviceHasOwn(lang));
 const base = (lang) => norm(lang).split('-')[0];
+/*
+ * The Hindi stories in Kokoro's voices (2026-11-18, the user: "use Kokoro for the Hindi stories section completely"):
+ * every line recorded ahead (scripts/storyHindiKokoro.mjs) into public/linguistic/story-hi, each person in their own
+ * Hindi voice. Its index — "<text>|<voice spec>" → file — is fetched once; a line found there plays that recording,
+ * on any device and before any other voice.
+ */
+const STORY_HI_DIR = `${ENV.BASE_URL || '/'}linguistic/story-hi/`;
+let storyHi = null; // { byKey, byText }
+if (typeof window !== 'undefined' && typeof fetch === 'function') {
+    fetch(`${STORY_HI_DIR}index.json`).then((r) => (r.ok ? r.json() : null)).then((index) => {
+        if (!index) return;
+        const byText = {};
+        for (const [k, f] of Object.entries(index)) { const t = k.slice(0, k.lastIndexOf('|')); if (!byText[t]) byText[t] = f; }
+        storyHi = { byKey: index, byText };
+    }).catch(() => {});
+}
+/** The Kokoro recording of a Hindi story line (its own speaker's voice when there is one), or null. */
+const storyClip = (text, lang, voice) => {
+    if (!storyHi || !text || base(lang) !== 'hi') return null;
+    const t = String(text).trim();
+    const f = storyHi.byKey[`${t}|${voice || 'f'}`] || storyHi.byText[t];
+    return f ? `${STORY_HI_DIR}${f}` : null;
+};
 /*
  * English is spoken by Kokoro-82M in the browser itself (2026-11-07): the model is downloaded once, kept on the
  * device, and makes each clip locally, with no call to the server. If it cannot load, the server voice reads it.
@@ -445,7 +509,7 @@ const pump = () => {
 export const prefetch = (items) => {
     const mine = [];
     for (const [text, lang = 'en-IN', voice] of items || []) {
-        if (!text || !String(text).trim() || !usesServerVoice(lang)) continue;
+        if (!text || !String(text).trim() || !usesServerVoice(lang) || storyClip(text, lang, voice)) continue;
         const key = clipKey(text, lang, voice);
         if (clips.has(key) || queue.some((q) => q.key === key)) continue;
         const job = { key, text, lang, voice };
@@ -510,6 +574,10 @@ export const play = (src, text, lang = 'en-IN', on = {}) => {
     // two people) — kept in the merge with the AI voices (2026-11-11): a person speaking is the device's woman or man.
     const { rate = null, gender = null, voice = null } = on;
     const me = ++asked;
+    // The page it was asked on (2026-11-18, the user: "why is it pronouncing some long sentence" on the letters page): a
+    // clip still being made when the student moves on — a lesson's sentence, say — is not played on the next page.
+    const page = typeof window !== 'undefined' ? window.location.pathname : '';
+    const moved = () => typeof window !== 'undefined' && window.location.pathname !== page;
     // English text is read by Kokoro even when an older recording exists (2026-11-07).
     if (src && !(text && usesKokoro(lang))) {
         stopAll();
@@ -526,15 +594,41 @@ export const play = (src, text, lang = 'en-IN', on = {}) => {
         if (!r) return null; // English beside a Kannada word, say: not read
         [text, lang] = r;
     }
+    // A Hindi story line: its Kokoro recording, whatever the voice settings (2026-11-18).
+    const story = storyClip(text, lang, voice);
+    if (story) {
+        stopAll();
+        const a = new Audio(story);
+        playing = a;
+        if (rate) a.playbackRate = rate;
+        talkWith(a, gender, text);
+        a.play().catch(() => {});
+        return a;
+    }
+    // A Punjabi letter alone (ਕ, ਆ, ਅਂ): the device's voice — Punjabi's own, else a Hindi one reading it in Devanagari
+    // (2026-11-18). The AI voice, made for sentences, says a lone letter wrong or adds made-up words ("ka katikatha hai").
+    if (text && !gender && norm(lang).startsWith('pa') && /^[\u0A00-\u0A7F]{1,3}$/u.test(text.trim())
+        && typeof window !== 'undefined' && window.speechSynthesis && readerFor(lang)) {
+        // Silent (2026-11-18, "some words have no voice": Chrome's Google voice needs the internet and at times drops
+        // a sound): not started within 1.5 s, the AI voice says it instead.
+        if (!on.noDevice) {
+            const again = () => { if (me === asked && !moved()) play(null, text, lang, { ...on, any: true, noDevice: true }); };
+            deviceSay(text.trim(), lang, null, { rate, onFail: again });
+            return null;
+        }
+    }
     // A woman or a man speaking (the conversation's people): the device's voice of theirs — the AI voice has one voice.
     // A man speaking: the TTS voice's man (2026-11-17, no device voice).
     const spec = voice || (gender === 'm' ? 'm' : null);
-    if (text && usesServerVoice(lang)) {
+    // Or a language the device has no voice for at all (Hindi on a laptop with none, 2026-11-17): the server's voice, in a
+    // local run too — rather than an English voice handed Devanagari, which says nothing.
+    const noDeviceVoice = SERVER_LANGS.has(base(lang)) && typeof window !== 'undefined' && !!window.speechSynthesis && voices.length > 0 && !readerFor(lang);
+    if (text && (usesServerVoice(lang) || noDeviceVoice)) {
         stopAll();
         on.onLoading?.(true);
         serverClip(text, lang, spec).then((url) => {
             on.onLoading?.(false);
-            if (me !== asked) return; // tapped something else meanwhile
+            if (me !== asked || moved()) return; // tapped something else meanwhile
             const a = new Audio(url);
             playing = a;
             if (rate) a.playbackRate = rate;
@@ -542,7 +636,7 @@ export const play = (src, text, lang = 'en-IN', on = {}) => {
             a.play().catch(() => {});
         }).catch((e) => {
             on.onLoading?.(false);
-            if (me !== asked) return;
+            if (me !== asked || moved()) return;
             on.onError?.(e?.response?.status === 503 ? 'The voice service is not set up.' : 'The voice could not be made. Try again.');
         });
         return null;
@@ -573,9 +667,15 @@ export const readAloud = (texts, lang = 'en-IN', on = {}) => {
         for (let k = 0; k < parts.length; k += 1) {
             const part = parts[k], prev = parts[k - 1];
             if (stopped || me !== asked) return;
-            if (prev) await rest(prev.line === part.line ? 250 : prev.voice !== part.voice ? gap + 250 : gap);
+            // Longer breaths (2026-11-18, "it must take pauses"): between sentences of a line, and more when the speaker changes.
+            if (prev) await rest(prev.line === part.line ? 420 : prev.voice !== part.voice ? gap + 400 : gap + 150);
             if (stopped || me !== asked) return;
             on.onLine?.(part.line);
+            const story = storyClip(part.text, part.lang, part.voice);
+            if (story) {
+                await new Promise((resolve) => { const a = new Audio(story); playing = a; a.onended = resolve; a.onerror = resolve; a.play().catch(resolve); });
+                continue;
+            }
             if (usesServerVoice(part.lang)) {
                 on.onLoading?.(true);
                 let url = null;
@@ -590,7 +690,7 @@ export const readAloud = (texts, lang = 'en-IN', on = {}) => {
     return () => { stopped = true; drop(); if (me === asked) stopAll(); on.onLoading?.(false); };
 };
 /** The device's own voice, only for languages Indic Parler-TTS has no voice for. */
-const deviceSay = (text, lang, onEnd, { rate = null, gender = null } = {}) => {
+const deviceSay = (text, lang, onEnd, { rate = null, gender = null, onFail = null } = {}) => {
     if (text && typeof window !== 'undefined' && window.speechSynthesis) {
         stopAll();
         // Its own voice, or for Kannada a Telugu, Hindi or Marathi one reading it in those letters (2026-10-31).
@@ -609,6 +709,17 @@ const deviceSay = (text, lang, onEnd, { rate = null, gender = null } = {}) => {
         if (v) { u.onstart = v.start; u.onboundary = (e) => { if (!e?.name || e.name === 'word') v.word(); }; }
         const end = () => { v?.off(); onEnd?.(); };
         u.onend = end; u.onerror = end;
+        if (onFail) {
+            let started = false, failed = false;
+            const fail = () => { if (started || failed) return; failed = true; clearTimeout(wait); try { window.speechSynthesis.cancel(); } catch { /* none */ } v?.off(); onFail(); };
+            const wait = setTimeout(fail, 1500);
+            const begin = u.onstart;
+            u.onstart = (e) => { started = true; clearTimeout(wait); begin?.(e); };
+            u.onerror = () => { if (started) end(); else fail(); };
+            // Chrome drops a sound asked for in the same moment the one before was cancelled: a moment between.
+            setTimeout(() => { if (!failed) window.speechSynthesis.speak(u); }, 60);
+            return;
+        }
         window.speechSynthesis.speak(u);
     } else onEnd?.();
 };

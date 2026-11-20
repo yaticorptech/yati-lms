@@ -114,9 +114,9 @@ const validateMethod = (method) => {
  */
 // eslint-disable-next-line no-unused-vars
 const requestWithdrawal = async ({ user, amount, method }) => {
-  // Wallet money stays inside the LMS: it pays for courses and the features
+  // Wallet money stays inside YATICORPX3: it pays for courses and the features
   // priced under Wallet rules, and is never paid out to a bank or UPI.
-  throw fail('Wallet balance cannot be withdrawn. Use it to enroll in courses and for features inside the LMS.', 410, 'WITHDRAWALS_OFF');
+  throw fail('Wallet balance cannot be withdrawn. Use it to enroll in courses and for features inside YATICORPX3.', 410, 'WITHDRAWALS_OFF');
 };
 
 /**

@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { Star, Play, Target, Timer, Trophy, ChevronRight, RotateCcw, Sparkles, ArrowRight, Gamepad2, Lightbulb, Clock3 } from 'lucide-react';
 import { coachFor, quoteFor } from './gameCoach';
 import GameDemo from './GameDemo';
+import { currentAgeBand } from './levels';
 import '../artwork.css';
 
 /**
@@ -246,7 +247,7 @@ const Leaves = ({ className = '' }) => (
 const STEP_TONES = ['from-pink-500 to-rose-500', 'from-sky-500 to-blue-600', 'from-emerald-400 to-green-600'];
 
 export function LevelIntro({ gameId, level, stars, onStart }) {
-  const coach = coachFor(gameId);
+  const coach = coachFor(gameId, ['foundation', 'developing'].includes(currentAgeBand()));
   const quote = quoteFor(gameId, level);
   const still = reducedMotion();
   const at = (sec) => (still ? undefined : { animationDelay: `${sec}s` });
@@ -353,7 +354,7 @@ export function LevelIntro({ gameId, level, stars, onStart }) {
   );
 }
 
-export function LevelResult({ passed, stars, headline, detail, atEnd, onNext, onRetry, tone }) {
+export function LevelResult({ passed, stars, headline, detail, atEnd, onNext, onRetry, tone, finishLine = null }) {
   return (
     <div className="mx-auto max-w-3xl">
       <div
@@ -407,6 +408,14 @@ export function LevelResult({ passed, stars, headline, detail, atEnd, onNext, on
             </div>
 
             <p className="mt-3 text-3xl leading-tight font-black text-ink-900 sm:text-4xl">{headline}</p>
+            {finishLine && (
+              <div className="gs-pop-in mt-2 inline-block rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-2 text-white shadow-md" data-finish-line>
+                <p className="text-base font-black">⏱ Your time: {finishLine.mine}</p>
+                {finishLine.other && (finishLine.otherName
+                  ? <p className="text-sm font-semibold text-white/90">🏅 <span className="font-black text-amber-200">{finishLine.otherName}</span> completed this in <span className="font-black text-amber-200">{finishLine.otherTime}</span></p>
+                  : <p className="text-xs font-semibold text-white/85">🏅 {finishLine.other}</p>)}
+              </div>
+            )}
             {detail && (
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-surface/80 px-3 py-1 text-sm font-bold text-ink-600 ring-1 ring-line-200 ring-inset tabular-nums">
                 {detail}
@@ -452,7 +461,6 @@ export function LevelResult({ passed, stars, headline, detail, atEnd, onNext, on
               </button>
               {!passed && (
                 <span className="inline-flex items-center gap-1.5 self-center text-xs font-semibold text-ink-400">
-                  <Sparkles className="h-3.5 w-3.5 text-journey-400" />
                   Every try makes you quicker.
                 </span>
               )}

@@ -183,7 +183,7 @@ const AdminLayout = () => {
             `}>
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                     {/* The dark-lettered logo: the original is white artwork for a dark ground. */}
-                    <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 object-contain" />
+                    <img src="/assets/YATICORP-dark.png" alt="YATICORPX3" className="h-8 object-contain" />
                     <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-700 p-1" aria-label="Close menu">
                         <X size={24} />
                     </button>
@@ -251,6 +251,10 @@ const AdminLayout = () => {
                         <ScrollText size={20} /> <span className="font-medium">Admin audit log</span>
                     </Link>
                     )}
+                    {/* Platform Settings, last in the sidebar too (2026-11-18), as well as in the profile menu. */}
+                    <Link to="/settings" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/settings') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                        <Settings size={20} /> <span className="font-medium">Platform Settings</span>
+                    </Link>
                 </nav>
 
                 {/* No "Student Portal" link: a super admin is not signed in on the student
@@ -267,7 +271,7 @@ const AdminLayout = () => {
                             <Menu size={24} />
                         </button>
                         <Link to="/" className="flex items-center min-w-0 py-1.5">
-                            <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-5 sm:h-6 w-auto max-w-full object-contain" />
+                            <img src="/assets/YATICORP-dark.png" alt="YATICORPX3" className="h-5 sm:h-6 w-auto max-w-full object-contain" />
                         </Link>
                     </div>
 

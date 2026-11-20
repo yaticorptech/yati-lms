@@ -24,6 +24,25 @@ before(async () => {
 after(async () => { await cleanup([s.user], app.server); });
 
 describe('picture stories', () => {
+    // 2026-11-20, the user, of the story film introduced as "read it panel by panel… the bubbles… Read aloud": "that is a
+    // video — give the lines for the video".
+    test('a story film is introduced as a video, a picture story as panels; in the student\'s language', async () => {
+        for (const st of comics.stubs().filter((x) => !x.course)) {
+            const story = comics.storyOf(st);
+            const l = comics.build(st, 'kn');
+            assert.equal(l.learn.intro, story.film ? comics.FILM_INTRO : comics.INTRO, st.title);
+            assert.equal(st.summary, story.film ? comics.FILM_SUMMARY : comics.SUMMARY, st.title);
+            if (story.film) assert.doesNotMatch(l.learn.intro + st.summary, /panel|bubble|Read aloud|in pictures/i, st.title);
+        }
+        for (const code of ['kn', 'hi', 'ta', 'te', 'ml', 'mr', 'bn', 'gu', 'pa', 'or', 'ur', 'ar', 'ru', 'es', 'fr', 'de', 'pt', 'zh', 'ja', 'ko']) {
+            const said = require(`../../src/linguistic/content/explain/${code}`).texts[comics.FILM_INTRO];
+            assert.ok(said && said !== comics.FILM_INTRO, `${code}: the film's introduction in it`);
+        }
+        const film = await LinguisticLesson.findOne({ seedKey: 'comic-advanced-2' }).lean();
+        assert.equal(film?.summary, comics.FILM_SUMMARY, 'the stored film\'s summary');
+        assert.match(require('../../src/linguistic/content/explain/kn').texts[comics.FILM_INTRO], /ವಿಡಿಯೋ/);
+    });
+
     test('every story is whole: each speaker in the panel, the first to speak on the left; five questions, the answer among four different choices', () => {
         assert.equal(comics.STORIES.length, 4);
         assert.equal(new Set(comics.STORIES.map((x) => x.theme)).size, 4, 'each story its own look');
@@ -112,7 +131,7 @@ describe('picture stories', () => {
         assert.equal(r.body.review, 'comic');
         assert.equal(r.body.comic.title, 'The Shared Well');
         assert.equal(r.body.comic.panels.length, 8);
-        assert.match(r.body.learn.intro, /panel by panel/);
+        assert.match(r.body.learn.intro, /[ಀ-೿].*\(panel\)/, 'in the student\'s Kannada (2026-11-18)');
         // Its five questions, and since 2026-11-16 made up to ten (its own lines heard, …).
         assert.equal(r.body.quiz.length, 10);
         assert.ok(r.body.quiz.every((q) => q.answer === undefined), 'no answers sent');

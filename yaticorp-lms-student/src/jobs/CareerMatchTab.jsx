@@ -14,7 +14,7 @@ import GeminiCreditTip from '../components/GeminiCreditTip';
 import { ensureDriveLinked, askToLinkDrive } from '../integrations/google/driveGate';
 
 // The resume is kept in the student's own Google Drive (2026-11-02): linked first, or no upload.
-const RESUME_DRIVE_REASON = 'The resume you upload is kept in your own Google Drive, in the YATICORP Learning folder.';
+const RESUME_DRIVE_REASON = 'The resume you upload is kept in your own Google Drive, in the YATICORPX3 Learning folder.';
 const pickAfterDrive = async (input) => { if (await ensureDriveLinked(RESUME_DRIVE_REASON)) input?.click(); };
 
 const MAX_BYTES = 5 * 1024 * 1024;

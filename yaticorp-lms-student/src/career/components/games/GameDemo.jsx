@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CATALOG } from './catalog';
 import { GAME_DEMOS } from './demos/index.js';
+import { currentAgeBand } from './levels';
 
 /**
  * How to play, shown (2026-11-14, the user: "instead of the how-to-play text, a small demo of a few seconds for every
@@ -17,20 +18,24 @@ const KIND = {
   // flip cards to pair
   'memory-match': 'flip', 'animal-pair-safari': 'flip',
   // watch a run light up, then repeat it
+  'number-trail': 'sequence',
   'sequence-recall': 'sequence', 'flash-sequence': 'sequence', 'light-up-garden': 'sequence', 'sequence-vault': 'sequence', 'departure-board': 'grid',
   // tiles light, then tap where they were
-  'grid-recall': 'grid', 'pattern-recall': 'grid', 'matrix-recall': 'grid', 'grid-navigator': 'grid', 'spot-the-change': 'change', 'dual-image-recall': 'change', 'whats-missing': 'change', 'spatial-rotation-vault': 'grid', 'lights-out': 'grid', 'picture-word-hunt': 'grid',
+  'grid-recall': 'grid', 'pattern-recall': 'grid', 'grid-navigator': 'grid', 'spot-the-change': 'change', 'dual-image-recall': 'change', 'whats-missing': 'change', 'lights-out': 'grid', 'picture-word-hunt': 'grid',
   // fill cells of a puzzle grid
-  'mini-sudoku': 'fill', 'sudoku-challenge': 'fill', 'constraint-grid': 'fill', 'picture-logic': 'fill', 'number-pattern-lab': 'fill', 'word-relation-matrix': 'fill', 'shape-builder': 'fill', 'tic-tac-toe': 'fill',
+  'word-search': 'fill',
+  'mini-sudoku': 'fill', 'sudoku-challenge': 'fill', 'constraint-grid': 'fill', 'picture-logic': 'fill', 'word-relation-matrix': 'fill', 'shape-builder': 'fill', 'tic-tac-toe': 'fill',
   // put things in order
-  'speed-sort': 'order', 'clue-chain': 'order', 'verbal-architect': 'order', 'nuance-navigator': 'order', 'algorithm-builder': 'order', 'scale-balance': 'order', 'strategic-constraint-lab': 'order', 'fraction-battle': 'order',
+  'speed-sort': 'order', 'clue-chain': 'order', 'scale-balance': 'order',
   // move to a goal
+  
   'mini-maze-mission': 'move', 'treasure-path': 'move', 'network-logic': 'move', 'number-hop': 'move', 'missing-number-race': 'move',
   // towers of rings or blocks
-  'tower-shift': 'tower', 'tower-strategy': 'tower', 'last-stone': 'tower',
+  'tower-strategy': 'tower', 'last-stone': 'tower',
   // type it
-  'typing-sprint': 'type', 'word-scramble': 'type', 'letter-builder': 'type', 'number-recall': 'type', 'reverse-recall': 'type', 'cipher-challenge': 'type', 'cipher-lab': 'type', 'equation-rush': 'type', 'running-total': 'type', 'number-forge': 'type', 'ratio-relay': 'type',
+  'typing-sprint': 'type', 'word-scramble': 'type', 'letter-builder': 'type', 'number-recall': 'type', 'reverse-recall': 'type', 'cipher-challenge': 'type', 'equation-rush': 'type', 'running-total': 'type', 'number-forge': 'type', 'ratio-relay': 'type',
   // catch the right things as they move
+  'sum-pop': 'catch',
   'count-and-catch': 'catch', 'word-balloon-pop': 'catch', 'focus-filter': 'catch', 'interference-recall': 'catch', 'rhyme-detective': 'catch', 'fruit-shop': 'catch', 'shape-count-dash': 'catch', 'dot-count': 'catch', 'word-association-grid': 'catch'
 };
 // Everything else picks the right answer from a few.
@@ -52,19 +57,12 @@ const CHOOSE = {
   'idiom-sense': [['Break the ice', ['start talking', 'smash ice', 'feel cold', 'be rude'], 0], ['Piece of cake', ['dessert', 'very easy', 'small part', 'birthday'], 1], ['Hit the books', ['punch', 'study hard', 'throw', 'tidy up'], 1]],
   'analogy-master': [['Hot : Cold :: Up : ?', ['Down', 'Top', 'Sky', 'High'], 0], ['Bird : Fly :: Fish : ?', ['Walk', 'Swim', 'Run', 'Jump'], 1], ['Pen : Write :: Knife : ?', ['Cut', 'Eat', 'Cook', 'Draw'], 0]],
   'context-detective': [['“arid” land, no rain', ['dry', 'wet', 'green', 'cold'], 0], ['a “jubilant” crowd cheered', ['angry', 'joyful', 'tired', 'quiet'], 1], ['“feeble” after the fever', ['weak', 'strong', 'fast', 'loud'], 0]],
-  'semantic-precision': [['A ___ smile (warm)', ['nice', 'radiant', 'okay', 'good'], 1], ['He ___ the cup (dropped by accident)', ['moved', 'let fall', 'put', 'got'], 1], ['A ___ answer (exactly right)', ['good', 'fine', 'precise', 'big'], 2]],
-  'argument-analyzer': [['Which weakens it?', ['A', 'B', 'C', 'D'], 2], ['The conclusion?', ['Line 1', 'Line 2', 'Line 3', 'Line 4'], 3], ['Hidden assumption?', ['A', 'B', 'C', 'D'], 0]],
+  'best-buy': [['Rice: better deal?', ['1 kg ₹60', '5 kg ₹250', '2 kg ₹130', '—'], 1], ['Which costs less?', ['₹400, 25% off', 'Flat ₹320', '—', '—'], 1], ['Pens: better deal?', ['5 for ₹40', '10 for ₹70', '—', '—'], 1]],
+  'quick-estimate': [['≈ 48 × 21', ['100', '1000', '10000', '300'], 1], ['Jar: how full?', ['25%', '50%', '75%', '90%'], 2], ['≈ 310 + 590', ['600', '900', '1200', '1800'], 1]],
   'math-sprint': [['7 + 5 = ?', ['11', '12', '13', '14'], 1], ['9 − 4 = ?', ['3', '4', '5', '6'], 2], ['6 × 3 = ?', ['15', '18', '21', '24'], 1]],
   'percent-snap': [['25% of 80', ['15', '20', '25', '30'], 1], ['10% of 350', ['3.5', '35', '350', '0.35'], 1], ['50% of 46', ['22', '23', '24', '26'], 1]],
-  'probability-lab': [['P(🔴) from 🔴🔴🔵🔵', ['1/4', '1/2', '3/4', '1'], 1], ['P(6) on a die', ['1/2', '1/3', '1/6', '1/12'], 2], ['P(two heads)', ['1/2', '1/4', '1/3', '3/4'], 1]],
-  'quantitative-arena': [['A: 2³   B: 3²', ['A', 'B', 'Equal', 'Can’t tell'], 1], ['A: 0.5   B: 1/2', ['A', 'B', 'Equal', 'Can’t tell'], 2], ['x > 0 · A: x   B: x²', ['A', 'B', 'Equal', 'Can’t tell'], 3]],
-  'decision-theory-arena': [['Best expected value?', ['Plan A', 'Plan B', 'Plan C', 'Plan D'], 2], ['Safest worst case?', ['Plan A', 'Plan B', 'Plan C', 'Plan D'], 0], ['Best after a loss?', ['Stay', 'Switch', 'Wait', 'Stop'], 1]],
-  'statistical-inference': [['Higher mean?', ['Set A', 'Set B', 'Same', '?'], 0], ['Outlier removed: mean…', ['rises', 'falls', 'same', '?'], 1], ['Correlation?', ['positive', 'negative', 'none', '?'], 0]],
-  'numerical-optimization': [['Most value under 10 kg?', ['A+B', 'B+C', 'A+C', 'C'], 1], ['Cheapest mix?', ['2A+B', 'A+2B', '3A', '3B'], 0], ['Best split?', ['5/5', '7/3', '3/7', '10/0'], 1]],
   'data-dash': [['Tallest bar?', ['Mon', 'Tue', 'Wed', 'Thu'], 2], ['Total of A and B?', ['12', '15', '18', '21'], 2], ['Mean of 4, 6, 8?', ['5', '6', '7', '8'], 1]],
   'mental-math-circuit': [['5 → ×2 → +3', ['10', '13', '16', '8'], 1], ['8 → −2 → ×3', ['18', '22', '24', '14'], 0], ['20 → ÷4 → +7', ['11', '12', '13', '27'], 1]],
-  'boolean-breaker': [['1 AND 0', ['0', '1'], 0], ['1 OR 0', ['0', '1'], 1], ['NOT 1', ['0', '1'], 0]],
-  'deduction': [['All cats purr. Tom purrs. → Tom is a cat?', ['Follows', 'Doesn’t'], 1], ['All A are B. All B are C. → All A are C?', ['Follows', 'Doesn’t'], 0], ['No fish fly. Nemo is a fish. → Nemo can’t fly?', ['Follows', 'Doesn’t'], 0]],
   'logic-detective': [['Who did it?', ['🧑', '👩', '🧔', '👧'], 3], ['Who has the key?', ['🧑', '👩', '🧔', '👧'], 1], ['Which door?', ['🚪1', '🚪2', '🚪3', '🚪4'], 2]]
 };
 const CHOOSE_BY_CATEGORY = {
@@ -75,7 +73,7 @@ const CHOOSE_BY_CATEGORY = {
 };
 const TYPE_WORD = {
   'typing-sprint': ['apple', 'river', 'happy'], 'word-scramble': ['plane', 'house', 'tiger'], 'letter-builder': ['cat', 'sun', 'dog'], 'number-recall': ['4827', '3916', '58204'],
-  'reverse-recall': ['7284', '6193', '40285'], 'cipher-challenge': ['hello', 'brain', 'smart'], 'cipher-lab': ['brain', 'logic', 'think'], 'equation-rush': ['x = 4', 'x = 7', 'x = 3'],
+  'reverse-recall': ['7284', '6193', '40285'], 'cipher-challenge': ['hello', 'brain', 'smart'], 'equation-rush': ['x = 4', 'x = 7', 'x = 3'],
   'running-total': ['17', '23', '9'], 'number-forge': ['24', '15', '36'], 'ratio-relay': ['12', '9', '20']
 };
 const TYPE_CLUE = { 'word-scramble': ['l p a n e', 'o s h u e', 'r i g e t'], 'letter-builder': ['🐱  t a c', '☀️  n u s', '🐶  g o d'], 'reverse-recall': ['4 8 2 7', '3 9 1 6', '5 8 2 0 4'], 'number-recall': ['4 8 2 7', '3 9 1 6', '5 8 2 0 4'], 'equation-rush': ['3x + 5 = 17', '2x − 4 = 10', 'x / 3 + 2 = 3'] };
@@ -257,7 +255,8 @@ const demoKindOf = (gameId) => KIND[gameId] || 'choose';
  * step: 0|1|2, phase: 'label' } } — `ex` 0..2 is which of three examples is playing.
  */
 export default function GameDemo({ gameId, steps = [] }) {
-  const own = GAME_DEMOS[gameId];
+  // Young Thinkers see their own version of a game's demo when it plays differently for them (`id:young`).
+  const own = (['foundation', 'developing'].includes(currentAgeBand()) && GAME_DEMOS[`${gameId}:young`]) || GAME_DEMOS[gameId];
   const scene = own ? { frames: own.frames, draw: (f, id, ex) => own.draw(f, ex) } : SCENES[demoKindOf(gameId)];
   const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   // A tick counter: each run of the scene is one example, then the next (three in turn, 2026-11-14).

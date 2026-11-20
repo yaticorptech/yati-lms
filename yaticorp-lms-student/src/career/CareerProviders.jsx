@@ -7,7 +7,7 @@
  *
  * The `.futurepath` class is not decoration: it is the scope career.css is
  * written against. Rendered without it, every screen in the section falls back
- * to the LMS's font and neutral palette. The negative margins cancel
+ * to YATICORPX3's font and neutral palette. The negative margins cancel
  * StudentLayout's content padding so the section can run edge-to-edge and then
  * re-apply its own — on the same `sidebar` breakpoint StudentLayout switches
  * its padding at. Keyed to `md` instead, every width between the two pulled

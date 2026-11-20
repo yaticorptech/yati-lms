@@ -1,7 +1,7 @@
 /**
  * One student's whole learning record, as their organization sees it.
  *
- * Every section is drawn from data the LMS already holds. Where a student has
+ * Every section is drawn from data YATICORPX3 already holds. Where a student has
  * nothing — no courses, no Career Path, no certificates — the section says so
  * rather than showing an invented number or a persuasive-looking zero chart.
  * Career Path and rewards are absent entirely from the response unless the

@@ -85,10 +85,10 @@ function Round({ progress, onExit }) {
         detail: allFound ? `All ${board.groups.length} groups found with ${mistakes} mistake${mistakes === 1 ? '' : 's'}.` : `Groups: ${board.groups.map((g) => `${g.label} (${g.words.join(', ')})`).join(' · ')}`,
         atEnd: progress.atEnd, onNext: progress.advance, onRetry: progress.retry
       } : null}
-      footer={<p className="text-center text-sm text-ink-500">Find the {board.groups.length} groups · {config.mistakes - mistakes} mistake{config.mistakes - mistakes === 1 ? '' : 's'} left</p>}
+      footer={<p className="text-center text-sm text-slate-400">Find the {board.groups.length} groups · {config.mistakes - mistakes} mistake{config.mistakes - mistakes === 1 ? '' : 's'} left</p>}
     >
       {started && (
-        <div className="mx-auto w-full max-w-lg">
+        <div className="vx-t5 mx-auto flex w-full max-w-lg flex-col justify-start max-sm:flex-1">
           <div className="grid gap-2">
             {solved.map((id) => {
               const g = groupOf(id);
@@ -101,13 +101,13 @@ function Round({ progress, onExit }) {
             })}
           </div>
 
-          <div key={shake} className={`mt-2 grid grid-cols-4 gap-1.5 sm:gap-2 ${shake ? 'gs-wrong' : ''}`}>
+          <div key={shake} className={`vx-card mt-2 grid grid-cols-4 gap-1.5 p-2 sm:gap-2 sm:p-3 ${shake ? 'gs-wrong' : ''}`}>
             {remaining.map((w) => {
               const on = picked.includes(w);
               return (
                 <button key={w} type="button" onClick={() => toggle(w)} aria-pressed={on}
-                  className={`fp-press flex min-h-14 items-center justify-center min-w-0 rounded-xl px-1 text-center text-xs leading-tight font-black break-words uppercase ring-1 ring-inset transition-colors sm:min-h-16 sm:text-sm ${
-                    on ? 'bg-slate-800 text-white ring-slate-900' : 'bg-orange-50 text-ink-900 ring-orange-200 hover:bg-orange-100'
+                  className={`fp-press flex min-h-[4.25rem] items-center justify-center min-w-0 rounded-xl px-0.5 text-center leading-tight ${w.length > 9 ? 'text-[0.56rem] min-[400px]:text-[0.62rem]' : 'text-[0.68rem] min-[400px]:text-xs'} font-black break-words uppercase ring-1 ring-inset transition-colors sm:min-h-16 sm:text-sm ${
+                    on ? 'bg-amber-300 text-amber-950 ring-white shadow-[0_0_16px_-2px_rgba(252,211,77,0.9)]' : 'bg-white/20 text-white ring-white/30 shadow-[0_3px_0_rgba(49,16,120,0.45)] hover:bg-white/30'
                   }`}
                   style={{ hyphens: 'auto' }}
                   lang="en">
@@ -118,20 +118,20 @@ function Round({ progress, onExit }) {
           </div>
 
           <div className="mt-3 flex items-center justify-center gap-2" aria-label={`${config.mistakes - mistakes} mistakes left`}>
-            <span className="text-xs font-bold text-ink-500">Mistakes left</span>
+            <span className="text-xs font-bold text-slate-600">Mistakes left</span>
             {Array.from({ length: config.mistakes }, (_, i) => (
-              <span key={i} className={`h-3 w-3 rounded-full ${i < config.mistakes - mistakes ? 'bg-slate-700' : 'bg-slate-200'}`} />
+              <span key={i} className={`h-3 w-3 rounded-full ${i < config.mistakes - mistakes ? 'bg-rose-500' : 'bg-slate-200'}`} />
             ))}
           </div>
 
-          <p className={`mt-2 min-h-5 text-center text-sm font-black ${feedback ? feedbackTone[feedback.tone] : 'text-ink-500'}`} role="status" aria-live="polite">
+          <p className={`mt-2 min-h-5 text-center text-sm font-black ${feedback ? feedbackTone[feedback.tone] : 'text-slate-600'}`} role="status" aria-live="polite">
             {feedback?.text || (picked.length ? `${picked.length} of 4 picked` : 'Tap four words that belong together.')}
           </p>
 
           <div className="mt-3 grid grid-cols-3 gap-2">
             <button type="button" onClick={() => setOrder((o) => shuffle(rng, o))} className="fp-press min-h-11 rounded-xl bg-slate-100 text-xs font-black text-slate-700 ring-1 ring-slate-200 sm:text-sm">Shuffle</button>
             <button type="button" onClick={() => setPicked([])} disabled={!picked.length} className="fp-press min-h-11 rounded-xl bg-slate-100 text-xs font-black text-slate-700 ring-1 ring-slate-200 disabled:opacity-40 sm:text-sm">Clear</button>
-            <button type="button" onClick={submit} disabled={picked.length !== 4} className="fp-press min-h-11 rounded-xl bg-rose-600 text-xs font-black text-white disabled:opacity-40 sm:text-sm">Submit</button>
+            <button type="button" onClick={submit} disabled={picked.length !== 4} className="vx-cta fp-press min-h-11 text-xs disabled:opacity-40 sm:text-sm">Submit</button>
           </div>
         </div>
       )}

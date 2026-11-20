@@ -191,6 +191,8 @@ const scanCard = async (req, res) => {
             if (await require('../teacher/auth').findTeacherByCard(card.CardNumber)) {
                 return res.status(404).json({ code: 'TEACHER_CARD', message: 'This card is registered to a teacher account. Choose Teacher to sign in.' });
             }
+            // A parent's card (2026-11-19): its number, to sign in with on the parent side.
+            if (card.parent?.password) return res.status(404).json({ code: 'PARENT_CARD', cardNumber: String(card.CardNumber).replace(/\D/g, ''), name: card.parent.name || '', message: 'This card is registered to a parent account.' });
             return res.status(404).json({
                 code: 'NOT_REGISTERED',
                 message: 'This card has no account yet. Sign up first, then come back and scan to sign in.'

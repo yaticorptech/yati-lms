@@ -437,7 +437,7 @@ const OrganizationCourses = ({ org, startingId, startError, onStart }) => {
             <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
                 {/* The logo as uploaded, whole: no tile, outline or crop.
                     Cropped into a rounded square it cut a tall logo (the
-                    YATICORP mascot) and boxed it in (2026-10-02). */}
+                    YATICORPX3 mascot) and boxed it in (2026-10-02). */}
                 {organization.logo ? (
                     <img src={organization.logo} alt="" className="h-12 w-12 shrink-0 object-contain" />
                 ) : (

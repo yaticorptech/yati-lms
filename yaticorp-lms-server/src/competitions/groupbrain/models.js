@@ -1,5 +1,5 @@
 /**
- * Group Brain's records (asked 2026-10-27, part 3), in the LMS's MongoDB like
+ * Group Brain's records (asked 2026-10-27, part 3), in YATICORPX3's MongoDB like
  * everything else. A room's game itself is a PlayGame (../models/PlayGame.js);
  * these are what it leaves behind, and what the dashboards, leaderboards and
  * certificates are worked out from.

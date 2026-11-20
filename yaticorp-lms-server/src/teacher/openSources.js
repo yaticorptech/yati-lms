@@ -2,7 +2,7 @@
  * Free outside sources for the plagiarism check (2026-11-04): open research
  * (OpenAlex, 250M+ papers: abstracts, and the whole paper when it has a free
  * open-access PDF) and Wikipedia. All free, no key. Distinctive sentences from the text are searched; what comes back
- * is compared by the same shingle match as YATICORP's own documents
+ * is compared by the same shingle match as YATICORPX3's own documents
  * (./similarity.js), so a match is real overlap, not a search hit.
  *
  * Fails soft: a slow or unreachable service only means fewer sources, never a

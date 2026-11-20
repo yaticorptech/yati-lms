@@ -1,4 +1,4 @@
-/** Who can see the bio: only the student, their LMS profile, or anyone with a link. */
+/** Who can see the bio: only the student, their YATICORPX3 profile, or anyone with a link. */
 import { useEffect, useState } from 'react';
 import { X, Lock, UserRound, Link2, Check, Copy } from 'lucide-react';
 import { Btn } from './ui';
@@ -7,7 +7,7 @@ import useBackClose from '../native/useBackClose';
 
 const OPTIONS = [
     { id: 'private', icon: Lock, title: 'Private', hint: 'Only you can see your Learning Bio.' },
-    { id: 'profile', icon: UserRound, title: 'Visible on my LMS profile', hint: 'Shown on your profile inside the LMS.' },
+    { id: 'profile', icon: UserRound, title: 'Visible on my YATICORPX3 profile', hint: 'Shown on your profile inside YATICORPX3.' },
     { id: 'shareable', icon: Link2, title: 'Shareable by link', hint: 'Anyone with the link can read a public version: bio, skills, courses, certificates, projects, achievements.' }
 ];
 

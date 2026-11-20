@@ -143,9 +143,21 @@ const lookupOrganization = async (req, res) => {
 
         // Campus on (2026-11-14): the student picks their department and semester with the request.
         const departments = organization.campusAllowed ? require('../../campus/core').joinChoices((await require('../../campus/core').loadCampus(organization._id)).campus) : [];
+        // Its classes (2026-11-19, Campus → Departments → Add class): the student chooses theirs with the request.
+        const classes = ((await Organization.findById(organization._id).select('campus.classes').lean())?.campus?.classes || [])
+            .map((c) => ({ _id: c._id, name: c.name, section: c.section || '' }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }) || a.section.localeCompare(b.section));
+        // What their profile already says, matched to its departments and sections (2026-11-19, services/joinSuggest.js).
+        const suggested = departments.length ? await require('../services/joinSuggest').suggestJoin(req.user._id, organization._id, departments).catch(() => null) : null;
         res.json({
             organization: publicShape(organization),
             departments,
+            suggested,
+            classes,
+            suggestedClass: classes.length ? await require('../services/joinSuggest').suggestClass(req.user._id, organization._id, classes).catch(() => null) : null,
+            // Which card fits them when nothing matched (2026-11-19): a class at school, or a department at college.
+            profileLevel: await require('../../career/models/Goal').findOne({ userId: req.user._id }).select('currentClass degree').lean()
+                .then((g) => (g?.currentClass ? 'school' : g?.degree ? 'college' : null)).catch(() => null),
             // The client uses these to decide whether to offer the button at all,
             // but the POST below re-checks both — the frontend is never the gate.
             alreadyMember: String(student?.organizationId || '') === String(organization._id),
@@ -205,11 +217,18 @@ const createRequest = async (req, res) => {
             });
         }
 
+        // Its classes (2026-11-19): the class and section asked for — either that or the department below is enough
+        // (the user: "if any one card is filled, give the send request option").
+        let classId = null;
+        const orgClasses = (await Organization.findById(organization._id).select('campus.classes campus.departments').lean())?.campus || {};
+        const chosenClass = (orgClasses.classes || []).find((c) => String(c._id) === String(req.body.classId || ''));
+        if (chosenClass) classId = chosenClass._id;
+
         // Campus on, with departments: which department, semester and section they are asking for.
         let campusChoice;
         if (organization.campusAllowed) {
             const { campus } = await require('../../campus/core').loadCampus(organization._id);
-            if (campus.departments.length) {
+            if (campus.departments.length && !(classId && !req.body.departmentId)) {
                 const dept = campus.departments.find((d) => String(d._id) === String(req.body.departmentId || ''));
                 if (!dept) return res.status(400).json({ field: 'departmentId', message: 'Choose your department.' });
                 const semester = Math.round(Number(req.body.semester));
@@ -221,11 +240,15 @@ const createRequest = async (req, res) => {
             }
         }
 
+        // With classes and nothing else chosen: the class is needed.
+        if ((orgClasses.classes || []).length && !classId && !campusChoice) return res.status(400).json({ field: 'classId', message: 'Choose your class and section.' });
+
         const request = await JoinRequest.create({
             userId: req.user._id,
             organizationId: organization._id,
             status: 'pending',
-            ...(campusChoice ? { campus: campusChoice } : {})
+            ...(campusChoice ? { campus: campusChoice } : {}),
+            ...(classId ? { classId } : {})
         });
 
         res.status(201).json({
@@ -302,9 +325,11 @@ const leaveOrganization = async (req, res) => {
         // Conditional on the same organization still being set, so a superadmin
         // assigning them somewhere at this moment is not undone.
         await require('../../campus/core').archiveCampus(req.user._id, student.organizationId, 'Left the institution');
+        // Their class there, kept: joining again fills it in (2026-11-19).
+        await require('../services/joinSuggest').rememberClass(req.user._id, student.organizationId).catch(() => {});
         const result = await User.updateOne(
             { _id: req.user._id, organizationId: student.organizationId },
-            { $set: { organizationId: null, organizationJoinedAt: null } }
+            { $set: { organizationId: null, organizationJoinedAt: null, orgClassId: null } }
         );
         if (result.modifiedCount !== 1) {
             return res.status(409).json({ message: 'Your membership changed just now. Refresh and try again.' });

@@ -55,7 +55,7 @@ const Facts = ({ rows }) => (
 
 // `cardsOnly` (the Competition Dashboard, 2026-11-04): just the cards, every one, with Open / Edit / Delete and the create form — no banner, no filter boxes.
 // `view`: the filter, set from outside (the Competition Dashboard's boxes); else the page's own boxes set it.
-export default function Competitions({ apiBase = '/competitions/admin', linkBase = '/competitions', organizer = 'YATICORP', embedded = false, hosted = false, cardsOnly = false, view = null, formOnly = false }) {
+export default function Competitions({ apiBase = '/competitions/admin', linkBase = '/competitions', organizer = 'YATICORPX3', embedded = false, hosted = false, cardsOnly = false, view = null, formOnly = false }) {
     const navigate = useNavigate();
     const [rows, setRows] = useState(() => lastSeen[apiBase]?.rows ?? null);
     const [error, setError] = useState('');

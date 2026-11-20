@@ -1,5 +1,5 @@
 /**
- * Access hours: an organization can open YATICORP to its students only at
+ * Access hours: an organization can open YATICORPX3 to its students only at
  * set times (its Dashboard → Access hours; server:
  * organizations/services/accessSchedule.js). Outside them the student is
  * still signed in, and sees this screen: when the platform opens, the hours,
@@ -45,7 +45,7 @@ export default function PlatformClosed({ access, onCheck, onSignOut, name }) {
                     <div className="rounded-2xl bg-white p-5 shadow-md ring-1 ring-slate-100">
                         {access?.opensAt ? (
                             <>
-                                <p className="text-sm font-semibold text-slate-500">YATICORP opens</p>
+                                <p className="text-sm font-semibold text-slate-500">YATICORPX3 opens</p>
                                 <p className="mt-0.5 text-xl font-black text-slate-900">{fmtWhen(access.opensAt)}</p>
                                 <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-sm font-bold text-indigo-700 tabular-nums">in {countdown(access.opensAt, now)}</p>
                             </>

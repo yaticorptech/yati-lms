@@ -235,7 +235,7 @@ const NavList = ({ onPick, nav, hasClubs }) => (
 
 const Brand = ({ hod }) => (
     <Link to="/teacher" className="flex min-w-0 items-center gap-2">
-        <img src="/assets/YATICORP-dark.png" alt="Yaticorp" className="h-7 max-w-[8.5rem] object-contain" />
+        <img src="/assets/YATICORP-dark.png" alt="YATICORPX3" className="h-7 max-w-[8.5rem] object-contain" />
         <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">{hod ? 'HOD' : 'Teacher'}</span>
     </Link>
 );

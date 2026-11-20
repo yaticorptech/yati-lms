@@ -95,7 +95,7 @@ router.post('/', async (req, res) => {
         const body = req.body || {};
         const org = isSuper(req) ? await organizationFor(body.organizationId) : null;
         const teacher = await createTeacher(body, { by: 'admin', organizationId: org?._id || null, adminId: req.admin._id });
-        sendWelcome(teacher, body.password, 'The YATICORP administrator');
+        sendWelcome(teacher, body.password, 'The YATICORPX3 administrator');
         res.status(201).json({ _id: teacher._id, name: teacher.name, email: teacher.email, cardNumber: teacher.cardNumber, status: teacher.status, organization: orgShape(org), message: `${teacher.name} was added. Their sign-in details were emailed to ${teacher.email}.` });
     } catch (error) {
         if (error instanceof AccountError) return accountError(res, error);
@@ -109,7 +109,7 @@ router.post('/bulk', upload.single('file'), async (req, res) => {
         if (!req.file) return res.status(400).json({ field: 'file', message: 'Choose the filled-in Excel file first.' });
         const org = isSuper(req) && req.body?.organizationId ? await organizationFor(req.body.organizationId) : null;
         const results = await createFromSheet(req.file.buffer, { by: 'admin', organizationId: org?._id || null, adminId: req.admin._id });
-        for (const { teacher, password } of results.created) sendWelcome(teacher, password, 'The YATICORP administrator');
+        for (const { teacher, password } of results.created) sendWelcome(teacher, password, 'The YATICORPX3 administrator');
         delete results.created;
         res.json({ message: `${results.successCount} added, ${results.failedCount} could not be added.`, results });
     } catch (error) {
@@ -213,7 +213,7 @@ router.patch('/:id/status', async (req, res) => {
         if (before.status === 'pending' && status === 'active') {
             const url = process.env.FRONTEND_URL || 'http://localhost:5173';
             require('../utils/emailService').sendEmail({
-                to: t.email, toName: t.name, subject: 'Your YATICORP teacher account is approved',
+                to: t.email, toName: t.name, subject: 'Your YATICORPX3 teacher account is approved',
                 htmlContent: `<div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;"><h2 style="color:#059669">You're approved</h2><p>Hi ${t.name.replace(/[<>&"]/g, '')}, your teacher account is ready. Choose <strong>Teacher</strong> on the sign-in page and sign in with your card number and password.</p><p><a href="${url}/login?as=teacher" style="background:#059669;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:bold">Sign in</a></p></div>`
             }).catch((error) => console.error('[teacher-admin] approval email failed:', error.message));
         }
@@ -258,7 +258,7 @@ router.post('/:id/send-password-reset', async (req, res) => {
         await Teacher.updateOne({ _id: t._id }, { $set: { resetPasswordToken: crypto.createHash('sha256').update(token).digest('hex'), resetPasswordExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000) } });
         const url = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?as=teacher&token=${token}`;
         await require('../utils/emailService').sendEmail({
-            to: t.email, toName: t.name, subject: 'Set a new password for your YATICORP teacher account',
+            to: t.email, toName: t.name, subject: 'Set a new password for your YATICORPX3 teacher account',
             htmlContent: `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;"><h2 style="color:#059669">Set a new password</h2><p>Hi ${t.name.replace(/[<>&"]/g, '')}, the administrator sent you this link to set a new password.</p><a href="${url}" style="display:inline-block;margin:20px 0;padding:12px 24px;background:#059669;color:#fff;font-weight:bold;text-decoration:none;border-radius:8px">Set my password</a><p style="color:#94a3b8;font-size:13px">The link works once and expires in 24 hours.</p></div>`
         });
         res.json({ message: `A reset link was emailed to ${t.email}. It works once, for 24 hours.` });

@@ -7,11 +7,12 @@
 const { makeEngine } = require('./quizCore');
 const { fromBank, fromMaker, MAKERS } = require('./banks/solo');
 
-const quiz = (id, label, emoji, summary, pick, seconds = 20) => makeEngine({
-    id, label, emoji, summary, mode: 'simultaneous', maxSeats: 20,
+const quiz = (id, label, emoji, summary, pick, seconds = 20, zoneSeconds = null) => makeEngine({
+    id, label, emoji, summary, mode: 'simultaneous', maxSeats: 20, zoneSeconds,
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 8, max: 60, fallback: seconds },
     revealMs: 4000,
+    quickReveal: true, // group play: the options coloured for a moment, no answer box, then on (2026-11-17)
     pick
 });
 
@@ -40,7 +41,7 @@ const GAMES = {
     // Young Thinkers (./zones.js, 2026-11-13): the first half matches colours and shapes, with nothing to read; then the ink.
     colourmatch: ['Colour Match', '🎨', 'Name the ink colour, not the word.', (count, rng, level, met, zone) => (zone === 'young'
         ? [...fromMaker(MAKERS.colourLook)(Math.ceil(count / 2), rng, 'easy', met, zone), ...fromMaker(MAKERS.colour)(Math.floor(count / 2), rng, 'easy', met, zone)]
-        : fromMaker(MAKERS.colour)(count, rng, level, met, zone)), 8],
+        : fromMaker(MAKERS.colour)(count, rng, level, met, zone)), 8, { young: 8 }], // 8 s a question in Young Thinkers (2026-11-17)
     dotcount: ['Dot Count', '🔵', 'How many dots of one colour? Count fast.', fromMaker(MAKERS.dots), 15],
     clockread: ['Clock Read', '🕰️', 'Read the hands and pick the time.', fromMaker(MAKERS.clock), 15],
     shapematrix: ['Shape Matrix', '🧮', 'Spot the rule and finish the grid.', fromMaker(MAKERS.matrix), 25],
@@ -49,7 +50,7 @@ const GAMES = {
     seenbefore: ['Seen Before', '👀', 'A set flashes up. Which one did you see?', fromMaker(MAKERS.seen), 10],
     spotthechange: ['Spot the Change', '👁️', 'One tile changes. Which one was it?', fromMaker(MAKERS.change), 12],
     matchback: ['Match Back', '🔂', 'Letters flash by: was the last the same as the one before?', fromMaker(MAKERS.matchBack), 8],
-    runningtotal: ['Running Total', '➕', 'Numbers arrive one at a time. Keep the total.', fromMaker(MAKERS.running), 12]
+    runningtotal: ['Running Total', '➕', 'Numbers arrive one at a time. Keep the total.', fromMaker(MAKERS.running), 20]
 };
 
 const IDS = Object.keys(GAMES);
@@ -57,7 +58,7 @@ const engines = {};
 /** The engine for one of these games, made once. */
 const soloEngine = (id) => {
     if (!GAMES[id]) return null;
-    if (!engines[id]) { const [label, emoji, summary, pick, seconds] = GAMES[id]; engines[id] = quiz(id, label, emoji, summary, pick, seconds); }
+    if (!engines[id]) { const [label, emoji, summary, pick, seconds, zoneSeconds] = GAMES[id]; engines[id] = quiz(id, label, emoji, summary, pick, seconds, zoneSeconds); }
     return engines[id];
 };
 

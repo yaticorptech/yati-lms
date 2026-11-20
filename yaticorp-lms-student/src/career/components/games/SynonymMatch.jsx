@@ -37,6 +37,7 @@ export default function SynonymMatch({ onExit }) {
   return (
     <QuizGame
       gameId="synonym-match"
+      dark={['intermediate', 'analytical', 'advanced'].includes(currentAgeBand())}
       title="Synonyms & Antonyms"
       tone="bg-gradient-to-br from-fuchsia-500 to-purple-700"
       questions={questions}

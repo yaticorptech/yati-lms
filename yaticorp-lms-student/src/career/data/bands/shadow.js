@@ -5,9 +5,11 @@
  * overlapping) and a row of coloured choices. The shadow is the same emoji
  * drawn with `filter: brightness(0)`, so it always matches its choice exactly.
  *
- * Every item sits in a look-alike pair (🐈/🐆, 🍐/🍎 …). Young players get
- * choices from different pairs only; older players get the target's twin as a
- * decoy, a turned shadow, or a shadow with a cloud over part of it.
+ * Every item sits in a look-alike pair (🐈/🐆, 🍐/🍎 …), and every pair in a
+ * shape family. Young players get choices from different pairs only; older
+ * players get the target's twin as a decoy, a turned shadow, or a shadow with a
+ * cloud over part of it. As the level rises the other choices come more and
+ * more from the target's own family.
  */
 import { pick, shuffle } from '../seeded.js';
 
@@ -39,8 +41,23 @@ export const PAIRS = [
   [['⚽', 'ball'], ['🍪', 'cookie']]
 ];
 
-/** Every item, with the index of its pair. */
-export const ITEMS = PAIRS.flatMap((pair, group) => pair.map(([emoji, name]) => ({ emoji, name, group })));
+/*
+ * Shape families (2026-11-18, the user: "as level increases keep similar looking shadows"): pairs whose
+ * outlines are alike as a group — four-legged animals, little creatures, birds and swimmers, round and curved
+ * food, vehicles, held things, tall things. Higher levels fill the choices from the target's family.
+ */
+const FAMILY_OF = {
+  cat: 'quad', elephant: 'quad', horse: 'quad', giraffe: 'quad',
+  rabbit: 'small', turtle: 'small', crab: 'small', butterfly: 'small',
+  rooster: 'bird', penguin: 'bird', fish: 'bird',
+  pear: 'food', ball: 'food', banana: 'food', carrot: 'food',
+  aeroplane: 'ride', car: 'ride', bicycle: 'ride',
+  guitar: 'held', hammer: 'held', key: 'held',
+  umbrella: 'tall', house: 'tall', cactus: 'tall'
+};
+
+/** Every item, with the index of its pair and its shape family. */
+export const ITEMS = PAIRS.flatMap((pair, group) => pair.map(([emoji, name]) => ({ emoji, name, group, family: FAMILY_OF[pair[0][1]] })));
 
 const twinOf = (item) => ITEMS.find((it) => it.group === item.group && it.emoji !== item.emoji);
 
@@ -59,20 +76,24 @@ const ramp = (from, to, levelNo) => Math.round(from + (to - from) * clampN((leve
  *  turn, hide     — chance the shadow is turned / partly covered
  *  pairs          — chance a round is a two-shadow scene
  *  seconds        — per shadow
+ *  similar        — chance a single round's other choices come from the target's shape family; grows with the level
  */
 export const shadowConfig = (ageBand, difficulty = 1, levelNo = 1) => {
   const band = shadowBand(ageBand);
   const d = clampN(difficulty || 1, 1, 3);
   if (band === 'foundation') {
     const rounds = 5 + (d >= 3 ? 1 : 0);
-    return { band, rounds, pass: rounds - 2, choices: 3, twins: 0, turn: 0, hide: 0, pairs: 0, seconds: ramp(25, 18, levelNo) };
+    // Still no twins for the youngest, but same-family choices creep in from level 2.
+    return { band, rounds, pass: rounds - 2, choices: 3, twins: 0, turn: 0, hide: 0, pairs: 0, seconds: ramp(25, 18, levelNo), similar: clampN((levelNo - 1) * 0.1, 0, 0.8) };
   }
   if (band === 'developing') {
     const rounds = ramp(6, 8, levelNo);
+    const similar = clampN(0.2 + (levelNo - 1) * 0.12, 0, 1);
     return {
       band, rounds, pass: Math.ceil(rounds * 0.6),
       choices: clampN(ramp(4, 5, levelNo) + (d - 1), 4, 5),
-      twins: 0.4 + 0.15 * (d - 1),
+      similar,
+      twins: Math.max(0.4 + 0.15 * (d - 1), similar),
       turn: d === 1 ? 0.3 * clampN((levelNo - 1) / 29, 0, 1) : 0.3 + 0.1 * d,
       hide: d >= 3 ? 0.25 : 0,
       pairs: 0,
@@ -80,10 +101,12 @@ export const shadowConfig = (ageBand, difficulty = 1, levelNo = 1) => {
     };
   }
   const rounds = ramp(7, 9, levelNo);
+  const similar = clampN(0.5 + (levelNo - 1) * 0.15, 0, 1);
   return {
     band, rounds, pass: Math.ceil(rounds * 0.6),
     choices: clampN(5 + (d >= 2 ? 1 : 0), 5, 6),
-    twins: 0.6,
+    similar,
+    twins: Math.max(0.6, similar),
     turn: 0.4 + 0.1 * d,
     hide: 0.2 + 0.1 * d,
     pairs: 0.35 + 0.1 * d,
@@ -122,9 +145,16 @@ export const makeShadowRound = (rng, config) => {
   // Young players: no twin on the board, so every other choice is a different kind of thing.
   const blocked = new Set([...targets.map((t) => t.group), ...decoys.map((t) => t.group)]);
   const pool = ITEMS.filter((it) => !blocked.has(it.group));
+  // A look-alike round (more likely as the level rises): the target's shape family comes first, so the
+  // choices are all of a kind — four-legged animals against a four-legged shadow — and only the outline tells.
+  const alike = !isPair && rng() < (config.similar || 0);
+  const family = targets[0].family;
+  const ordered = alike
+    ? [...shuffle(rng, pool.filter((it) => it.family === family)), ...shuffle(rng, pool.filter((it) => it.family !== family))]
+    : shuffle(rng, pool);
   // One item per pair at most for fillers, so the fillers never twin each other on young boards.
   const fillers = [];
-  for (const it of shuffle(rng, pool)) {
+  for (const it of ordered) {
     if (decoys.length + targets.length + fillers.length >= n) break;
     if (fillers.some((f) => f.group === it.group)) continue;
     fillers.push(it);

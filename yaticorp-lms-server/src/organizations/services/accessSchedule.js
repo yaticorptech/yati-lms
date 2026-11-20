@@ -1,6 +1,6 @@
 /**
  * An organization's access hours (Dashboard → Access hours): the days and the
- * daily window when its students may use YATICORP. Outside them a student
+ * daily window when its students may use YATICORPX3. Outside them a student
  * can still sign in, but every student API answers 423 PLATFORM_CLOSED and
  * the app shows when the platform opens (the user's ask, 2026-10-26).
  *

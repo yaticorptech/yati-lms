@@ -54,7 +54,7 @@ export const TeamMaker = ({ competition: c, path, team = null, teams, hostName =
                     <p className="mb-2 text-xs text-slate-500">The first {c.playersPerSide === 1 ? 'player' : `${c.playersPerSide} players`} you pick play{c.playersPerSide === 1 ? 's' : ''} each match.</p>
                 )}
                 {!students ? (error ? null : <div className="h-24 animate-pulse rounded-xl bg-slate-100" />)
-                    : students.length === 0 ? <p className="text-sm text-slate-500">{hostName ? `${hostName} has` : 'Your college has'} no students on the LMS yet.</p> : (
+                    : students.length === 0 ? <p className="text-sm text-slate-500">{hostName ? `${hostName} has` : 'Your college has'} no students on YATICORPX3 yet.</p> : (
                         <ul className="grid max-h-72 gap-1.5 overflow-y-auto sm:grid-cols-2">
                             {shown.map((s) => {
                                 const at = picked.indexOf(s.id);

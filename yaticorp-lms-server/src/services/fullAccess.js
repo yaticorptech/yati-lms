@@ -1,5 +1,5 @@
 /**
- * The demo cards: accounts that see every part of the LMS, always.
+ * The demo cards: accounts that see every part of YATICORPX3, always.
  *
  * The account owner's rule (2026-10-08): these ten cards are used to show the
  * product, so nothing is hidden from them —

@@ -10,7 +10,7 @@ import { countConfig, makeCountLevel } from '../../data/bands/countCatch';
 const freshSeed = () => Math.floor(Math.random() * 4294967296);
 const NEXT_MS = 2000;
 const CATCH_Y = 84; // the basket's rim, in % of the sky's height
-const REACH = 11; // how far left/right of the basket's centre still catches, in %
+const REACH = 11; // the fallback catch reach, in % — the live one is measured from the basket as drawn
 const STEP = 9; // arrow keys / buttons move the basket this far
 
 /**
@@ -39,6 +39,14 @@ function Round({ progress, onExit }) {
   const [wrong, setWrong] = useState(0);
   const fieldRef = useRef(null);
   const basketRef = useRef(50);
+  // What lands on the basket is caught (2026-11-18 glitch fix): the reach is half the basket's drawn width (plus a
+  // little of the falling picture), measured, so the wider basket of the redesign catches what visibly lands on it.
+  const basketEl = useRef(null);
+  const reach = () => {
+    const f = fieldRef.current?.getBoundingClientRect();
+    const b = basketEl.current?.getBoundingClientRect();
+    return f?.width && b?.width ? ((b.width / 2 + 14) / f.width) * 100 : REACH;
+  };
   const timers = useRef([]);
 
   useEffect(() => {
@@ -76,7 +84,7 @@ function Round({ progress, onExit }) {
       if (gone.includes(it.id)) continue;
       const y = ((elapsed - it.t0) / config.fallMs) * 100 - 8;
       if (y < CATCH_Y) continue;
-      if (y < CATCH_Y + 6 && Math.abs(it.x - basketRef.current) <= REACH) {
+      if (y < CATCH_Y + 6 && Math.abs(it.x - basketRef.current) <= reach()) {
         newlyGone.push(it.id);
         if (it.target) newlyCaught.push(it.id); else wrongCatch = it.emoji;
       } else if (y >= CATCH_Y + 6) newlyGone.push(it.id);
@@ -164,12 +172,18 @@ function Round({ progress, onExit }) {
       {started && round && (
         <div className="mx-auto w-full max-w-xl select-none">
           {/* The sum */}
-          <div className="mb-3 flex items-center justify-center gap-3">
-            <div className="rounded-2xl bg-gradient-to-b from-indigo-600 to-violet-700 px-5 py-2.5 text-center text-white shadow-[0_10px_20px_-10px_rgba(79,70,229,0.9)]">
-              <p className="text-[0.65rem] font-black tracking-[0.16em] text-indigo-200 uppercase">Catch this many</p>
-              <p className="flex items-center gap-2 text-3xl font-black tabular-nums sm:text-4xl">
-                {round.sum} <span className="text-2xl" aria-hidden>{round.kind.emoji}</span>
-              </p>
+          {/* A scoreboard (2026-11-18 redesign): the sum to catch, and how many are in the basket. */}
+          <div className="mb-3 grid grid-cols-[1fr_auto] items-stretch gap-2">
+            <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 px-4 py-2.5 text-white shadow-[0_10px_22px_-10px_rgba(109,40,217,0.9)]">
+              <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-white/15 text-3xl ring-1 ring-white/25" aria-hidden>{round.kind.emoji}</span>
+              <span className="min-w-0">
+                <span className="block text-[0.62rem] font-black tracking-[0.16em] text-indigo-100 uppercase">Catch this many</span>
+                <span className="block text-3xl font-black tabular-nums sm:text-4xl">{round.sum}</span>
+              </span>
+            </div>
+            <div className="grid min-w-20 place-items-center rounded-2xl bg-white px-3 py-2 text-center shadow-[0_6px_16px_-10px_rgba(30,41,59,0.5)] ring-1 ring-slate-200">
+              <span className="text-[0.62rem] font-black tracking-[0.16em] text-slate-400 uppercase">In basket</span>
+              <span className="text-3xl font-black text-indigo-700 tabular-nums">{caught.length}</span>
             </div>
           </div>
 
@@ -178,12 +192,18 @@ function Round({ progress, onExit }) {
             ref={fieldRef}
             onPointerMove={onPointer}
             onPointerDown={onPointer}
-            className="relative h-80 touch-none overflow-hidden rounded-[1.75rem] bg-gradient-to-b from-sky-300 via-sky-100 to-lime-100 shadow-[inset_0_-10px_20px_rgba(0,0,0,0.06)] ring-1 ring-sky-200 sm:h-96"
+            className="cc-sky relative h-96 touch-none overflow-hidden rounded-[1.75rem] shadow-[0_14px_30px_-16px_rgba(14,116,144,0.6)] ring-4 ring-white sm:h-[26rem]"
             aria-label={`Falling things. Catch ${round.kind.many}.`}
           >
-            <span aria-hidden className="absolute top-3 left-5 text-3xl opacity-80">☁️</span>
-            <span aria-hidden className="absolute top-10 right-8 text-2xl opacity-70">☁️</span>
-            <span aria-hidden className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-b from-lime-300 to-green-500" />
+            {/* Sun, drifting clouds, far hills, the meadow. */}
+            <span aria-hidden className="absolute top-5 right-6 size-14 rounded-full bg-gradient-to-br from-yellow-200 to-amber-400 shadow-[0_0_40px_12px_rgba(253,224,71,0.55)]" />
+            <span aria-hidden className="cc-cloud absolute top-6 left-4 h-7 w-20 rounded-full bg-white/95 shadow-[14px_-8px_0_-2px_rgba(255,255,255,0.95),30px_0_0_-4px_rgba(255,255,255,0.9)]" />
+            <span aria-hidden className="cc-cloud absolute top-20 right-16 h-5 w-14 rounded-full bg-white/80 shadow-[10px_-6px_0_-2px_rgba(255,255,255,0.8)]" style={{ animationDelay: '-6s' }} />
+            <svg aria-hidden className="absolute inset-x-0 bottom-0 h-28 w-full" viewBox="0 0 400 112" preserveAspectRatio="none">
+              <path d="M0 60 C 70 30, 130 40, 200 58 S 330 30, 400 52 L400 112 L0 112 Z" fill="#a7e08a" />
+              <path d="M0 82 C 90 62, 170 70, 240 84 S 360 66, 400 78 L400 112 L0 112 Z" fill="#6cc04a" />
+              {[[40, 90], [120, 98], [300, 92], [360, 100]].map(([x, y]) => <g key={x} transform={`translate(${x} ${y})`}><circle r="4" fill="#fff" /><circle r="1.8" fill="#facc15" /></g>)}
+            </svg>
 
             {falling.map((it) => {
               const y = ((elapsed - it.t0) / config.fallMs) * 100 - 8;
@@ -197,8 +217,15 @@ function Round({ progress, onExit }) {
             {/* The basket */}
             <div className="pointer-events-none absolute -translate-x-1/2 transition-[left] duration-75 ease-out" style={{ left: `${basketX}%`, top: `${CATCH_Y}%` }}>
               <div className="relative">
-                <span className="absolute -top-7 left-1/2 grid h-7 min-w-7 -translate-x-1/2 place-items-center rounded-full bg-white px-2 text-sm font-black text-indigo-700 shadow ring-2 ring-indigo-200 tabular-nums">{caught.length}</span>
-                <span className="block h-11 w-24 rounded-b-[1.6rem] rounded-t-md bg-[repeating-linear-gradient(135deg,#d97706_0_6px,#b45309_6px_12px)] shadow-[0_8px_12px_-6px_rgba(120,53,15,0.8)] ring-2 ring-amber-800/40 sm:w-28" />
+                <span className="absolute -top-8 left-1/2 grid h-8 min-w-8 -translate-x-1/2 place-items-center rounded-full bg-gradient-to-b from-indigo-500 to-violet-600 px-2 text-sm font-black text-white shadow-md ring-2 ring-white tabular-nums">{caught.length}</span>
+                <svg ref={basketEl} viewBox="0 0 112 64" className="block h-14 w-28 drop-shadow-[0_8px_8px_rgba(120,53,15,0.45)] sm:w-32" aria-hidden>
+                  <path d="M22 18 C 22 -6, 90 -6, 90 18" fill="none" stroke="#92400e" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M8 22 L104 22 L94 58 Q 92 62 86 62 L26 62 Q 20 62 18 58 Z" fill="#d97706" />
+                  {[0, 1, 2, 3].map((k) => <path key={k} d={`M10 ${30 + k * 8} L102 ${30 + k * 8}`} stroke="#b45309" strokeWidth="2.4" />)}
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <path key={`v${k}`} d={`M${8 + k * 10.6} 22 L${12 + k * 9.6} 62`} stroke="#fbbf24" strokeWidth="1.6" opacity=".55" />)}
+                  <rect x="4" y="16" width="104" height="9" rx="4.5" fill="#b45309" />
+                  <rect x="4" y="16" width="104" height="3" rx="1.5" fill="#fbbf24" opacity=".6" />
+                </svg>
               </div>
             </div>
 
@@ -219,12 +246,12 @@ function Round({ progress, onExit }) {
 
           {/* Controls */}
           <div className="mt-3 flex items-center justify-between gap-3">
-            <button type="button" onClick={() => moveTo(basketRef.current - STEP)} aria-label="Move basket left" className="fp-press grid h-14 w-14 place-items-center rounded-2xl bg-white text-2xl font-black text-indigo-700 shadow-sm ring-1 ring-line-200">◀</button>
+            <button type="button" onClick={() => moveTo(basketRef.current - STEP)} aria-label="Move basket left" className="fp-press grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-b from-sky-400 to-blue-600 text-2xl font-black text-white shadow-[0_5px_0_#1e40af] active:translate-y-1 active:shadow-[0_1px_0_#1e40af]">◀</button>
             <button type="button" onClick={done} disabled={!!verdict}
-              className="fp-press min-h-14 flex-1 rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 text-lg font-black text-white shadow-[0_10px_20px_-10px_rgba(5,150,105,0.8)] disabled:opacity-50">
+              className="fp-press min-h-14 flex-1 rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 text-lg font-black text-white shadow-[0_5px_0_#047857] active:translate-y-1 active:shadow-[0_1px_0_#047857] disabled:opacity-50">
               Done ✓ <span className="text-sm opacity-80">({caught.length} {round.kind.emoji})</span>
             </button>
-            <button type="button" onClick={() => moveTo(basketRef.current + STEP)} aria-label="Move basket right" className="fp-press grid h-14 w-14 place-items-center rounded-2xl bg-white text-2xl font-black text-indigo-700 shadow-sm ring-1 ring-line-200">▶</button>
+            <button type="button" onClick={() => moveTo(basketRef.current + STEP)} aria-label="Move basket right" className="fp-press grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-b from-sky-400 to-blue-600 text-2xl font-black text-white shadow-[0_5px_0_#1e40af] active:translate-y-1 active:shadow-[0_1px_0_#1e40af]">▶</button>
           </div>
         </div>
       )}

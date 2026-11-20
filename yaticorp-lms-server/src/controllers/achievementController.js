@@ -3,7 +3,7 @@
  *              profile page. Upload goes buffer → storage → MongoDB; nothing
  *              touches disk.
  *
- * Storage is Bunny first — the CDN the LMS already keeps its course assets
+ * Storage is Bunny first — the CDN YATICORPX3 already keeps its course assets
  * on — and Cloudinary only when Bunny isn't configured. Cloudinary is where
  * profile pictures go, but the account behind it can be (and, on the test
  * environment, is) disabled, and a certificate that fails to upload is a
@@ -66,7 +66,7 @@ const thumbnailFor = (result, isPdf) => {
 /** One file kept where the student's certificates go: their Drive, else Bunny, else Cloudinary. */
 const keep = async (userId, toDrive, buffer, name, mimeType, isPdf, title, number) => {
     if (toDrive) {
-        const d = await storeInDrive(userId, buffer, { name, mimeType, description: `Certificate ${number}: ${title} — uploaded to YATICORP.` });
+        const d = await storeInDrive(userId, buffer, { name, mimeType, description: `Certificate ${number}: ${title} — uploaded to YATICORPX3.` });
         return { storage: 'drive', driveFileId: d.driveFileId, fileUrl: d.viewUrl, thumbnailUrl: d.previewUrl, objectPath: '' };
     }
     if (bunnyConfigured()) {
@@ -209,7 +209,7 @@ const createAchievement = (req, res) => {
             if (toDrive) {
                 // Their Drive, shared by link: the link opens it, Drive draws its picture (a PDF's first page too).
                 const d = await storeInDrive(req.user._id, req.file.buffer, {
-                    name: originalName, mimeType: isPdf ? 'application/pdf' : req.file.mimetype, description: `Certificate: ${title} — uploaded to YATICORP.`
+                    name: originalName, mimeType: isPdf ? 'application/pdf' : req.file.mimetype, description: `Certificate: ${title} — uploaded to YATICORPX3.`
                 });
                 stored = { storage: 'drive', driveFileId: d.driveFileId, fileUrl: d.viewUrl, thumbnailUrl: d.previewUrl, objectPath: '' };
             } else if (bunnyConfigured()) {

@@ -243,10 +243,10 @@ const getBadgePage = async (req, res) => {
     // Composed from the RAW values and escaped exactly once, at the point each
     // string is written into the page. Escaping first and composing after would
     // double-encode: an ampersand in a student's name became "&amp;amp;".
-    const pageTitle = `${badge.studentName} completed ${badge.phaseTitle} — YATICORP Career Path`;
+    const pageTitle = `${badge.studentName} completed ${badge.phaseTitle} — YATICORPX3 Career Path`;
     const description = badge.careerGoal
       ? `A Career Path milestone on the way to becoming a ${badge.careerGoal}.`
-      : 'A Career Path milestone at YATICORP.';
+      : 'A Career Path milestone at YATICORPX3.';
     const heading = `${badge.studentName} completed ${badge.phaseTitle}`;
     const name = escapeHtml(badge.studentName);
     const title = escapeHtml(badge.phaseTitle);
@@ -270,7 +270,7 @@ const getBadgePage = async (req, res) => {
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="${escapeHtml(shareUrl)}">
-<meta property="og:site_name" content="YATICORP">
+<meta property="og:site_name" content="YATICORPX3">
 
 <!-- Twitter/X reads its own set and ignores most of the above. -->
 <meta name="twitter:card" content="summary_large_image">
@@ -305,7 +305,7 @@ const getBadgePage = async (req, res) => {
     <h1>${name} completed ${title}</h1>
     <p>${escapeHtml(description)}<br>Awarded ${escapeHtml(issued)}.</p>
     <a class="cta" href="${escapeHtml(appBaseUrl())}">Start your own Career Path</a>
-    <footer>YATICORP · Career Path</footer>
+    <footer>YATICORPX3 · Career Path</footer>
   </main>
 </body>
 </html>`);

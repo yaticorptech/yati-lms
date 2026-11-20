@@ -53,16 +53,16 @@ const issueAdminPasswordReset = async (admin) => {
     await mailer.sendEmail({
         to: admin.email,
         toName: plainHeader(admin.name),
-        subject: 'Reset your YATICORP LMS organization password',
+        subject: 'Reset your YATICORPX3 organization password',
         htmlContent: `
             <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
                 <h2 style="color: #4f46e5; margin-bottom: 8px;">Password Reset Request</h2>
                 <p style="color: #475569;">Hi ${escapeHtml(admin.name)},</p>
-                <p style="color: #475569;">We received a request to reset the password your organization signs in to YATICORP LMS with. Click the button below to choose a new one.</p>
+                <p style="color: #475569;">We received a request to reset the password your organization signs in to YATICORPX3 with. Click the button below to choose a new one.</p>
                 <a href="${resetUrl}" style="display: inline-block; margin: 24px 0; padding: 14px 28px; background: #4f46e5; color: white; font-weight: bold; text-decoration: none; border-radius: 8px;">Reset My Password</a>
                 <p style="color: #94a3b8; font-size: 13px;">This link will expire in 1 hour and works once. If you did not ask for it, you can safely ignore this email — your password has not changed.</p>
                 <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-                <p style="color: #94a3b8; font-size: 12px;">YATICORP Learning Management System</p>
+                <p style="color: #94a3b8; font-size: 12px;">YATICORPX3 Learning Management System</p>
             </div>
         `
     });

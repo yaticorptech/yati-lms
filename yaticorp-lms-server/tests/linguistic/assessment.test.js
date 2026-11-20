@@ -37,7 +37,7 @@ const answersOf = (quiz) => Object.fromEntries(quiz.map((q) => [q.id, q.answer])
 describe('Beginner and Advanced, and the assessment between them', () => {
     test('two sections; Beginner ends with its assessment', async () => {
         const path = (await api('GET', '/path')).body;
-        assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional'], 'five sections (2026-11-14): Daily life and Work and the world added, Intermediate shown again');
+        assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional', 'everyday', 'services', 'workplace', 'opinions', 'society'], 'ten sections (Sections 6–10 added 2026-11-17; five since 2026-11-14): Daily life and Work and the world added, Intermediate shown again');
         const last = path.levels[0].units.at(-1).lessons.at(-1);
         assert.deepEqual([last.id, last.title, last.type, last.open], [String(gate._id), 'Beginner assessment', 'checkpoint', false], 'the very last stop of Beginner, shut until the lessons before it are done');
         assert.equal(path.levels.find((l) => l.level === 'advanced').units.flatMap((u) => u.lessons).some((x) => x.title === 'Advanced assessment'), false, 'none in Advanced (by skill: it has none, 2026-11-14)');
@@ -75,23 +75,32 @@ describe('Beginner and Advanced, and the assessment between them', () => {
         assert.equal((await api('GET', '/')).body.level, 'elementary', 'on to the next section: Daily life (2026-11-14)');
     });
 
-    test('Bhagyashree\'s account 240100045056 (2026-10-29, for testing): every section and unit open from the start; no one else', async () => {
+    // Since 2026-11-17 (the user: "lock the lessons of the cards not in the env file"): only a card in DEVICE_LIMIT_EXEMPT_CARDS;
+    // the testing card 240100045056 and the demo cards learn one lesson after another like everyone.
+    test('a card in the env file (DEVICE_LIMIT_EXEMPT_CARDS): every section and unit open from the start; no other card', async () => {
         const t = await makeUser('Ling Open All');
         const tApi = app.call(t.token);
+        const saved = process.env.DEVICE_LIMIT_EXEMPT_CARDS;
         try {
             assert.equal((await tApi('POST', '/level', { level: 'beginner' })).status, 200);
             const shut = (await tApi('GET', '/path')).body;
-            assert.deepEqual(shut.levels.map((l) => l.open), [true, false, false, false, false], 'an ordinary card: the sections after Beginner shut');
-            // The same student, as that card (written with spaces, as some are stored).
+            assert.deepEqual(shut.levels.map((l) => l.open), [true, false, false, false, false, false, false, false, false, false], 'an ordinary card: the sections after Beginner shut');
+            // Not in the env file: the testing card of before, and a demo card, stay shut.
+            process.env.DEVICE_LIMIT_EXEMPT_CARDS = '9999 0000 1111';
             svc.noteOpenAll({ _id: t.user._id, cardNumber: '2401 0004 5056' });
+            assert.equal(svc.opensAll({ userId: t.user._id }), false, 'the testing card 240100045056, not in the env file: shut');
+            // In the env file (written with spaces, as some are stored).
+            process.env.DEVICE_LIMIT_EXEMPT_CARDS = '9999 0000 1111';
+            svc.noteOpenAll({ _id: t.user._id, cardNumber: '999900001111' });
             const path = (await tApi('GET', '/path')).body;
-            assert.deepEqual(path.levels.map((l) => l.open), [true, true, true, true, true]);
+            assert.deepEqual(path.levels.map((l) => l.open), [true, true, true, true, true, true, true, true, true, true]);
             const lessons = path.levels.flatMap((l) => l.units.flatMap((u) => u.lessons)).filter((x) => !x.stop);
             assert.ok(lessons.every((x) => x.open), 'every unit\'s lessons, in both sections');
             const adv = lessons.find((x) => x.title !== 'Beginner assessment' && path.levels[1].units.some((u) => u.lessons.includes(x)));
             assert.equal((await tApi('GET', `/lessons/${adv.id}`)).status, 200, 'an Advanced lesson opens');
             assert.equal(svc.opensAll({ userId: s.user._id }), false, 'not for anyone else');
         } finally {
+            if (saved === undefined) delete process.env.DEVICE_LIMIT_EXEMPT_CARDS; else process.env.DEVICE_LIMIT_EXEMPT_CARDS = saved;
             await require('../../src/linguistic/models').LinguisticProgress.deleteMany({ userId: t.user._id });
             await require('../../src/models/User').deleteMany({ _id: t.user._id });
         }

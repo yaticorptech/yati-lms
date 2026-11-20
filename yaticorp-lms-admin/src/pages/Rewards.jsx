@@ -161,7 +161,7 @@ function Overview() {
         <div className="space-y-6">
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
                 <Stat icon={Wallet} label="Wallet liability" value={money(d.wallets.available + d.wallets.pending)} sub={`${money(d.wallets.pending)} on hold · ${num(d.wallets.count)} wallets`} tone="emerald" />
-                <Stat icon={ReceiptText} label="Spent in the LMS" value={money(d.wallets.spent)} sub="Courses and wallet-rule features" tone="amber" />
+                <Stat icon={ReceiptText} label="Spent in YATICORPX3" value={money(d.wallets.spent)} sub="Courses and wallet-rule features" tone="amber" />
                 <Stat icon={Coins} label="Reward points held" value={num(d.wallets.points)} sub="A score that unlocks badges — never wallet points" tone="rose" />
                 <Stat icon={Flame} label="Active streaks" value={num(d.activeStreaks)} sub={`${num(d.badgesUnlocked)} badges unlocked · ${num(d.xpLast7Days.xp)} XP this week`} tone="indigo" />
             </div>
@@ -762,7 +762,7 @@ function Badges() {
 
 // ── Wallets ─────────────────────────────────────────────────────────────────
 // What each student's wallet holds: the balance (and how much of it is the
-// spend-only starting credit), and what has been spent in the LMS. No XP:
+// spend-only starting credit), and what has been spent in YATICORPX3. No XP:
 // XP does not turn into wallet money (2026-10-26).
 function Wallets({ onOpenUser }) {
     const [q, setQ] = useState('');
@@ -775,7 +775,7 @@ function Wallets({ onOpenUser }) {
             {t && (
                 <div className="grid grid-cols-2 gap-3">
                     <Stat icon={Wallet} label="Wallet balances" value={money(t.available)} sub={`${money(t.startingCredit)} of it starting credit`} tone="emerald" />
-                    <Stat icon={ReceiptText} label="Spent in the LMS" value={money(t.spent)} sub="Courses and wallet-rule features" tone="rose" />
+                    <Stat icon={ReceiptText} label="Spent in YATICORPX3" value={money(t.spent)} sub="Courses and wallet-rule features" tone="rose" />
                 </div>
             )}
             <div className="relative max-w-md"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email or card number…" className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-sm shadow-sm" /><Search className="absolute left-3.5 top-3 text-slate-400" size={18} /></div>
@@ -984,7 +984,7 @@ function UserDrawer({ userId, onClose }) {
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                             <Stat icon={Coins} label="XP · level" value={`${num(d.user.xp)} · L${d.level.level}`} sub={`${num(d.level.remaining)} XP to level ${d.level.nextLevel}`} />
                             <Stat icon={Flame} label="Streak" value={num(d.streak?.current || 0)} sub={`longest ${num(d.streak?.longest || 0)} · best weekly rank ${d.streak?.bestWeeklyRank ? `#${d.streak.bestWeeklyRank}` : '—'}`} tone="amber" />
-                            <Stat icon={Wallet} label="Wallet" value={money(d.wallet?.available || 0, cur)} sub={`${money(d.wallet?.totalSpent || 0, cur)} spent in the LMS`} tone="emerald" />
+                            <Stat icon={Wallet} label="Wallet" value={money(d.wallet?.available || 0, cur)} sub={`${money(d.wallet?.totalSpent || 0, cur)} spent in YATICORPX3`} tone="emerald" />
                             <Stat icon={Gift} label="Reward points" value={num(d.wallet?.rewardPoints || 0)} sub={`${num(d.badges.length)} badges`} tone="rose" />
                         </div>
                         {!d.audit.ok && <Banner kind="error">This wallet does not reconcile with its ledger: stored {JSON.stringify(d.audit.stored)} vs computed {JSON.stringify(d.audit.computed)}.</Banner>}

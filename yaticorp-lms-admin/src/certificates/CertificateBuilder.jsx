@@ -1,6 +1,6 @@
 /**
  * The Certificate Builder (asked 2026-10-31): one page for both dashboards — the platform admin's Games &
- * Competitions (Yaticorp's branding by default) and an organization's Competition management (its own branding if it
+ * Competitions (YATICORPX3's branding by default) and an organization's Competition management (its own branding if it
  * wants, none forced). Pick the competition, a template from the gallery, the wording, the signatories and the
  * branding; the preview on the right changes as you type. Nobody's name is typed (2026-10-31, "when the competition
  * is over, whoever won — their name and place — and the student sees it"): Save, and once the results are out the
@@ -249,7 +249,7 @@ export default function CertificateBuilder({ side = 'platform' }) {
                     <Section icon={Building2} title="Branding">
                         <label className="mb-3 flex items-center gap-2.5 text-sm font-semibold text-slate-700">
                             <input type="checkbox" checked={design.branding.yaticorp} onChange={(e) => setBrand({ yaticorp: e.target.checked })} className="h-4 w-4 accent-indigo-600" data-cert-yaticorp />
-                            Use the Yaticorp logo{design.branding.logo ? ' (your uploaded logo is used instead)' : ''}
+                            Use the YATICORPX3 logo{design.branding.logo ? ' (your uploaded logo is used instead)' : ''}
                         </label>
                         <div className="grid gap-3 sm:grid-cols-2">
                             <label><span className={LABEL}>Event title (top left)</span><input value={design.branding.name} onChange={(e) => setBrand({ name: e.target.value })} maxLength={80} placeholder={defaults?.brandName || 'Inter College Competition'} className={INPUT} /></label>

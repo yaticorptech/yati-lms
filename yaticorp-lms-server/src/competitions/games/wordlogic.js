@@ -19,6 +19,7 @@ module.exports = makeEngine({
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 10, max: 60, fallback: 20 },
     revealMs: 5000,
+    quickReveal: true, // group play: the options coloured for a moment, no answer box, then on (2026-11-17)
     // Rising Brains (and rooms made before zones): the school-level set written here. Master Minds (./zones.js,
     // 2026-11-13): the harder synonyms, opposites and word roots of the word games' banks instead.
     pick: (count, rng, level, met, zone) => {

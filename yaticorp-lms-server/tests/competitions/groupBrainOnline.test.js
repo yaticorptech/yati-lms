@@ -102,9 +102,9 @@ describe('Play online', () => {
     });
 
     test('left a game the others still play: free to play another at once', async () => {
-        const t = (await p[0].call('POST', '/rooms/online', { game: 'deduction', players: 4, fee: 0 })).body.game;
-        await p[1].call('POST', '/rooms/online', { game: 'deduction', players: 4, fee: 0 });
-        await p[2].call('POST', '/rooms/online', { game: 'deduction', players: 4, fee: 0 });
+        const t = (await p[0].call('POST', '/rooms/online', { game: 'wordlogic', players: 4, fee: 0 })).body.game;
+        await p[1].call('POST', '/rooms/online', { game: 'wordlogic', players: 4, fee: 0 });
+        await p[2].call('POST', '/rooms/online', { game: 'wordlogic', players: 4, fee: 0 });
         await PlayGame.updateOne({ _id: t.id }, { $set: { joinDeadline: new Date(Date.now() - 1000) } });
         assert.equal((await p[0].call('GET', `/play/${t.id}`)).body.game.status, 'active');
         await p[0].call('POST', `/play/${t.id}/action`, { action: { type: 'resign' } });

@@ -22,7 +22,9 @@ const { Schema } = mongoose;
 const MODULES = ['vocabulary', 'grammar', 'reading', 'speaking', 'translation'];
 // Two sections added (2026-11-14, the user: "add more sections, six units in each … don't repeat"): Daily life
 // ('elementary') after Beginner and Work and the world ('professional') after Advanced — levels.js.
-const LEVELS = ['beginner', 'elementary', 'intermediate', 'advanced', 'professional'];
+// And five more after it (2026-11-17, the user: "add more sections — in the end they should be able to speak the language";
+// chose five, real-life speaking): Everyday talk, Getting things done, Talking at work, Sharing your views, The world around us.
+const LEVELS = ['beginner', 'elementary', 'intermediate', 'advanced', 'professional', 'everyday', 'services', 'workplace', 'opinions', 'society'];
 const DIRECTIONS = ['kn-en', 'en-kn'];
 
 const lessonSchema = new Schema({
@@ -73,6 +75,8 @@ const lessonProgressSchema = new Schema({
     lastScore: { type: Number, default: null },
     attempts: { type: Number, default: 0 },
     completedAt: { type: Date, default: null },
+    // Added behind the student (service.js `carryAdded`): counted as done, with no score of its own.
+    carried: { type: Boolean, default: undefined },
     updatedAt: { type: Date, default: Date.now }
 }, { _id: false });
 

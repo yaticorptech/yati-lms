@@ -67,14 +67,20 @@ function Round({ progress, onExit }) {
 
   const afterStudy = () => setPhase(order.twist ? 'twist' : 'cook');
 
+  // The time to memorise (2026-11-18 fix): one interval per recipe — it used to restart on every render, so on a busy
+  // screen it never ran out, the recipe never hid and nothing could be added to the pot.
+  const afterRef = useRef(afterStudy);
+  useEffect(() => { afterRef.current = afterStudy; });
   useEffect(() => {
     if (!started || phase !== 'study' || over) return undefined;
-    const t = setTimeout(() => {
-      if (left <= 1) afterStudy();
-      setLeft((n) => Math.max(0, n - 1));
-    }, 1000);
-    return () => clearTimeout(t);
-  });
+    const end = Date.now() + config.study * 1000;
+    const t = setInterval(() => {
+      const l = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      setLeft(l);
+      if (l === 0) { clearInterval(t); afterRef.current(); }
+    }, 250);
+    return () => clearInterval(t);
+  }, [started, phase, over, idx, config.study]);
 
   const add = (e) => { if (phase === 'cook') setPot((p) => [...p, e]); };
   const undo = () => setPot((p) => p.slice(0, -1));
@@ -94,7 +100,7 @@ function Round({ progress, onExit }) {
     }, RESULT_MS));
   };
 
-  const objective = `A customer's recipe shows for ${config.study} seconds, then hides. Cook it from memory: tap the ingredients into the pot — the right amounts${config.ordered ? ', in the right order' : ''} — then press Cook!${config.twist ? ' Watch for twist cards that change the recipe!' : ''} Cook ${config.pass} of ${orders.length} dishes perfectly.`;
+  const objective = `Each round remembers a different way: a whole recipe card, a cooking show with one ingredient at a time, or two tables ordering at once (then the waiter says whose to cook). It hides — cook it from memory: tap the ingredients into the pot — the right amounts${config.ordered ? ', in the right order' : ''} — then press Cook!${config.twist ? ' Watch for twist cards that change the recipe!' : ''} Cook ${config.pass} of ${orders.length} dishes perfectly.`;
 
   return (
     <GameShell
@@ -131,19 +137,51 @@ function Round({ progress, onExit }) {
             <span aria-hidden className="absolute -top-2 left-1/2 h-5 w-20 -translate-x-1/2 rotate-1 rounded-sm bg-rose-300/80" />
             {phase === 'study' && (
               <div className="text-center">
-                <p className="mb-2 text-xs font-black tracking-[0.16em] text-amber-800 uppercase">📝 Recipe · remember it!</p>
-                <RecipeLine recipe={order.shown} ordered={config.ordered} />
+                {order.style === 'tables' ? (
+                  <>
+                    <p className="mb-2 text-xs font-black tracking-[0.16em] text-amber-800 uppercase">🛎️ Two tables order · remember both!</p>
+                    <div className="grid gap-2">
+                      {order.tables.map((t, k) => (
+                        <div key={k} className="rounded-2xl bg-white/80 p-2 ring-1 ring-amber-200">
+                          <p className="mb-1 text-[11px] font-black text-amber-700">TABLE {k + 1}</p>
+                          <RecipeLine recipe={t} ordered={config.ordered} />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : order.style === 'flash' ? (
+                  <>
+                    <p className="mb-2 text-xs font-black tracking-[0.16em] text-amber-800 uppercase">📺 Cooking show · one at a time!</p>
+                    {(() => {
+                      const per = config.study / order.shown.length;
+                      const at = Math.min(order.shown.length - 1, Math.floor((config.study - left) / per));
+                      const [e, q] = order.shown[at];
+                      return (
+                        <div className="flex flex-col items-center">
+                          <span key={at} className="oo-pop grid h-24 w-28 place-items-center rounded-3xl bg-white text-4xl font-black text-slate-900 shadow-[0_6px_0_rgba(180,83,9,0.2)] ring-2 ring-amber-200">{q} {e}</span>
+                          <p className="mt-2 text-xs font-bold text-amber-700">Step {at + 1} of {order.shown.length}{config.ordered ? ' · the order matters' : ''}</p>
+                        </div>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-2 text-xs font-black tracking-[0.16em] text-amber-800 uppercase">📝 Recipe · remember it!</p>
+                    <RecipeLine recipe={order.shown} ordered={config.ordered} />
+                  </>
+                )}
                 {/* Time to study, running out; cooking starts when it is empty (2026-11-16, the user). */}
                 <div className="mx-auto mt-3 h-2.5 max-w-xs overflow-hidden rounded-full bg-amber-200/70" role="progressbar" aria-label="Time to remember" aria-valuemin={0} aria-valuemax={config.study} aria-valuenow={left}>
-                  <div key={idx} className={`h-full origin-left rounded-full ${left <= 2 ? 'bg-rose-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ animation: `chef-drain ${config.study}s linear forwards` }} />
+                  <div className={`h-full rounded-full transition-[width] duration-300 ease-linear ${left <= 2 ? 'bg-rose-500' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${(left / config.study) * 100}%` }} />
                 </div>
+                <button type="button" onClick={afterStudy} className="fp-press mt-3 rounded-full bg-amber-500 px-5 py-2 text-sm font-black text-white shadow-[0_3px_0_#b45309]">I've got it — start cooking ({left}s)</button>
               </div>
             )}
             {phase === 'twist' && (
               <div className="gs-rise text-center">
-                <p className="text-xs font-black tracking-[0.16em] text-rose-600 uppercase">⚡ Twist! The customer says…</p>
+                <p className="text-xs font-black tracking-[0.16em] text-rose-600 uppercase">{order.twist.kind === 'table' ? '🛎️ The waiter says…' : '⚡ Twist! The customer says…'}</p>
                 <p className="mt-1.5 text-xl font-black text-slate-900">“{order.twist.text}”</p>
-                <p className="mt-1 text-xs font-semibold text-slate-500">Change the recipe in your head.</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">{order.twist.kind === 'table' ? 'Which order was theirs? Cook it from memory.' : 'Change the recipe in your head.'}</p>
                 <button type="button" onClick={() => setPhase('cook')} className="fp-press mt-3 rounded-full bg-rose-500 px-5 py-2 text-sm font-black text-white shadow">OK, Chef!</button>
               </div>
             )}

@@ -289,7 +289,7 @@ const competitionFrom = (b = {}, current = null) => {
         title,
         description: text(pick('description'), 2000),
         instructions: text(pick('instructions'), 3000),
-        organizedBy: text(pick('organizedBy'), 140) || 'YATICORP',
+        organizedBy: text(pick('organizedBy'), 140) || 'YATICORPX3',
         bannerUrl,
         startsAt,
         registrationDeadline,
@@ -346,7 +346,7 @@ router.post('/', wrap(async (req, res) => {
     const fields = competitionFrom(req.body);
     await checkDesign(fields.certificates?.designId, org(req), fields.title);
     // A college's own contest: for its own students only.
-    if (org(req)) Object.assign(fields, { hostOrganizationId: org(req), eligibility: { ...fields.eligibility, organizationIds: [org(req)] }, organizedBy: fields.organizedBy === 'YATICORP' ? req.organization.name : fields.organizedBy });
+    if (org(req)) Object.assign(fields, { hostOrganizationId: org(req), eligibility: { ...fields.eligibility, organizationIds: [org(req)] }, organizedBy: fields.organizedBy === 'YATICORPX3' ? req.organization.name : fields.organizedBy });
     const c = await ArenaCompetition.create({ ...fields, createdBy: req.admin?._id || null });
     res.status(201).json({ competition: summary(c) });
 }));

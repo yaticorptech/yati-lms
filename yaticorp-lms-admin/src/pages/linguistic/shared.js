@@ -7,7 +7,9 @@ export const MODULES = [
 ];
 export const MODULE_LABEL = Object.fromEntries(MODULES);
 // And the sections added on 2026-11-14 (Daily life, Work and the world): their lessons are made by the server.
-export const LEVELS = [['beginner', 'Beginner'], ['elementary', 'Elementary'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced'], ['professional', 'Professional']];
+// Two parts only (2026-11-18, the user: "don't give Intermediate and Elementary"): Sections 1–3 Beginner, 4–10 Advanced.
+export const LEVELS = [['beginner', 'Beginner (Section 1)'], ['elementary', 'Beginner (Section 2)'], ['intermediate', 'Beginner (Section 3)'], ['advanced', 'Advanced (Section 4)'], ['professional', 'Advanced (Section 5)'],
+    ['everyday', 'Advanced (Section 6)'], ['services', 'Advanced (Section 7)'], ['workplace', 'Advanced (Section 8)'], ['opinions', 'Advanced (Section 9)'], ['society', 'Advanced (Section 10)']];
 export const LEVEL_LABEL = Object.fromEntries(LEVELS);
 export const DIRECTIONS = [['kn-en', 'Kannada → English'], ['en-kn', 'English → Kannada']];
 

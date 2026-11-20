@@ -71,7 +71,7 @@ export default function SupportDialog({ onClose, page = 'other', path, user, ton
     const [loading, setLoading] = useState(false);
     const [ref, setRef] = useState('');
     const cardRef = useRef(null);
-    // Who answers (2026-11-14): YATICORP support, or the student's own organization when they are in one.
+    // Who answers (2026-11-14): YATICORPX3 support, or the student's own organization when they are in one.
     const [org, setOrg] = useState(null);           // { name } of their organization
     const [to, setTo] = useState('platform');
     useEffect(() => {
@@ -327,7 +327,7 @@ export default function SupportDialog({ onClose, page = 'other', path, user, ton
                                 <fieldset>
                                     <legend className={`mb-1.5 block text-xs font-semibold ${t.label}`}>Send to</legend>
                                     <div className="grid grid-cols-2 gap-2">
-                                        {[['platform', 'YATICORP support', 'The app, your account, your card'], ['organization', org.name, 'Your institution: classes, admissions, staff']].map(([k, title, sub]) => (
+                                        {[['platform', 'YATICORPX3 support', 'The app, your account, your card'], ['organization', org.name, 'Your institution: classes, admissions, staff']].map(([k, title, sub]) => (
                                             <button key={k} type="button" aria-pressed={to === k} onClick={() => setTo(k)}
                                                 className={`min-w-0 rounded-xl border px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${to === k ? t.chipOn : t.chip}`}>
                                                 <span className="block truncate text-sm font-bold" title={title}>{title}</span>

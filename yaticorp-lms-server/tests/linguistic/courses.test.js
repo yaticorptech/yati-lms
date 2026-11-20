@@ -82,7 +82,8 @@ describe('courses', () => {
         assert.equal(path.levels.find((l) => l.level === 'advanced').open, false);
         assert.deepEqual(path.levels[0].units.map((u) => u.title), ['Letters', 'Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Time and days', 'My day', 'Level review'], 'the same units as English, the Kannada letters first (2026-10-31)');
         assert.deepEqual(path.levels[0].units[0].lessons.map((x) => x.title), ['All letters', 'Letters test', 'Letters: Vowels', 'Letters: Consonants 1', 'Letters: Consonants 2', 'Letters: ಕ ಖ with vowel signs', 'Letters: Joined letters 1: ಕ್ಕ ತ್ತ ಪ್ಪ', 'Letters: Joined letters 2: ಕ್ರ ಪ್ರ ತ್ರ'], 'the varnamala, first all on one page, then its test (2026-11-13), then the lessons — the joined letters too (2026-11-16)');
-        assert.deepEqual(path.levels[0].units[1].lessons.map((x) => x.stop || x.review || x.module), ['vocabulary', 'translation', 'chest', 'hear', 'practice', 'unit']);
+        // Family's More words and More sentences (2026-11-17: six lessons in Family too).
+        assert.deepEqual(path.levels[0].units[1].lessons.map((x) => x.stop || x.review || x.module), ['vocabulary', 'more', 'chest', 'translation', 'more', 'hear', 'practice', 'unit']);
         assert.ok(lessonsOf(path.levels[0]).some((x) => /write in Kannada/.test(x.title)));
     });
 
@@ -123,17 +124,25 @@ describe('courses', () => {
     });
 
     test('finishing Beginner: a Kannada certificate, and the English course untouched', async () => {
-        for (let guard = 0; guard < 60; guard++) {
+        for (let guard = 0; guard < 120; guard++) {
             const path = (await api('GET', '/path')).body;
             const next = lessonsOf(path.levels[0]).find((x) => x.open && x.status !== 'completed');
             if (!next) break;
             const r = await api('POST', `/lessons/${next.id}/quiz`, { answers: await answersFor(next.id, 'hi') });
             assert.equal(r.body.passed, true, `${next.title} passed`);
         }
+        // Two certificates only (2026-11-18): with Sections 2 and 3 finished too, the last lesson again earns the Beginner one.
+        const done = await svc.progressOf(hindi.user._id);
+        done.levelsCompleted.push(...['elementary', 'intermediate'].map((level) => ({ level, completedAt: new Date(), average: 90, course: 'kn' })));
+        await done.save();
+        const lastOne = lessonsOf((await api('GET', '/path')).body.levels[0]).filter((x) => x.status === 'completed').at(-1);
+        assert.equal((await api('POST', `/lessons/${lastOne.id}/quiz`, { answers: await answersFor(lastOne.id, 'hi') })).body.certificate?.level, 'beginner');
         const path = (await api('GET', '/path')).body;
         const beginner = path.levels.find((l) => l.level === 'beginner');
         assert.equal(beginner.complete, true);
-        assert.ok(beginner.certificate?.number.startsWith('YATI-KN-'), 'the certificate names the course');
+        // On the path at the end of Section 3 (Beginner's last); numbered in the student's one series (2026-11-11).
+        const third = path.levels.find((l) => l.level === 'intermediate');
+        assert.match(third.cert?.certificate?.number || '', /^YATI.+-\d{3,}$/, 'the Beginner certificate, at the end of Section 3');
         assert.equal(path.levels.find((l) => l.level === 'elementary').open, true, 'its assessment passed with the rest: the next section opens (Daily life, 2026-11-14)');
 
         const certs = (await api('GET', '/certificates')).body.certificates;
@@ -189,7 +198,8 @@ describe('courses', () => {
         const lessons = lessonsOf(path.levels[0]).filter((x) => x.module === 'translation');
         assert.ok(lessons.every((x) => !x.open), 'along the path: the unit\'s Words come first');
         await unlockIds(kannada.user, lessons.map((x) => x.id));
-        const write = lessons.find((x) => x.direction === 'kn-en'), read = lessons.find((x) => x.direction === 'en-kn');
+        // (A topic's own lessons: a unit's More sentences, 2026-11-18 in every course, mix reading and writing.)
+        const write = lessons.find((x) => x.direction === 'kn-en' && x.review !== 'more'), read = lessons.find((x) => x.direction === 'en-kn' && x.review !== 'more');
         assert.ok(write && read, 'both directions');
 
         const w = (await knApi('GET', `/lessons/${write.id}`)).body;
@@ -238,8 +248,8 @@ describe('courses', () => {
         assert.equal(early.status, 400, 'two of three sections done: not yet');
         assert.match(early.body.message, /Finish all its sections/);
         const again = await svc.progressOf(s.user._id);
-        // And the sections added on 2026-11-14.
-        again.levelsCompleted.push(...['elementary', 'advanced', 'professional'].map((level) => ({ level, completedAt: new Date(), average: 90, course: 'kn' })));
+        // And the sections added on 2026-11-14, and Sections 6–10 (2026-11-17).
+        again.levelsCompleted.push(...['elementary', 'advanced', 'professional', 'everyday', 'services', 'workplace', 'opinions', 'society'].map((level) => ({ level, completedAt: new Date(), average: 90, course: 'kn' })));
         await again.save();
         d = (await sApi('GET', '/')).body;
         assert.equal(d.courseDone, true, 'Kannada finished');

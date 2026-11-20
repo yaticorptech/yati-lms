@@ -8,6 +8,8 @@ const { isEnabled, invalidate } = require('../services/configService');
 const requireRewardsEnabled = async (req, res, next) => {
   try {
     if (await isEnabled()) return next();
+    // The demo cards see every section, Rewards too (services/fullAccess.js; owner, 2026-11-18: "give full access to all the demo cards").
+    if (await require('../../services/fullAccess').fullAccessFromRequest(req)) return next();
     return res.status(403).json({ code: 'REWARDS_LOCKED', message: 'Rewards are currently unavailable. Please check back later.' });
   } catch (error) {
     next(error);

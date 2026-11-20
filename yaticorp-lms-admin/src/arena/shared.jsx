@@ -200,7 +200,7 @@ export const QuestionForm = ({ question, round, onCancel, onSaved }) => {
 const blankContest = () => {
     const start = new Date(Date.now() + 3 * 86400e3); start.setHours(11, 0, 0, 0);
     return {
-        title: '', description: '', instructions: '', organizedBy: 'YATICORP', bannerUrl: '',
+        title: '', description: '', instructions: '', organizedBy: 'YATICORPX3', bannerUrl: '',
         startsAt: toLocalInput(start), registrationDeadline: toLocalInput(new Date(start.getTime() - 86400e3)), registrationOpensAt: '',
         maxParticipants: 500, playersPerCollege: 10, counts: { 1: 10, 2: 5, 3: 10 }, secondsPerQuestion: 20, pointsPerQuestion: 100,
         eligibility: { organizationIds: [], collegeStudentsOnly: true },

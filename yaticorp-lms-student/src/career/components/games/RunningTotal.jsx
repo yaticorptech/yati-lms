@@ -27,8 +27,9 @@ const LANE_TONE = { A: 'bg-sky-100 ring-sky-300 text-sky-800', B: 'bg-amber-100 
  * Arithmetic under memory load — you cannot write it down and the next number
  * arrives whether you are ready or not.
  */
-export default function RunningTotal({ onExit }) {
-  const progress = useGameProgress('running-total');
+/** Also Master Minds' copy (2026-11-19): `gameId` 'running-total-pro', the same game with Rising Brains' look. */
+export default function RunningTotal({ onExit, gameId = 'running-total' }) {
+  const progress = useGameProgress(gameId, gameId === 'running-total-pro' ? { bands: ['advanced'] } : {});
   return (
     <Round
       key={`${progress.level}-${progress.attempt}`}
@@ -43,6 +44,18 @@ function Dots({ n }) {
     <span className="mt-3 flex flex-wrap justify-center gap-2" aria-hidden="true">
       {Array.from({ length: n }, (_, i) => <span key={i} className="h-9 w-9 rounded-full bg-emerald-500 shadow-sm" />)}
     </span>
+  );
+}
+
+// Rising Brains (2026-11-19, the user): each number on a highlighted, shining card.
+const OP_CARD = { '+': 'from-emerald-500 via-teal-500 to-cyan-600', '−': 'from-rose-500 via-pink-500 to-fuchsia-600', '×': 'from-violet-500 via-purple-500 to-indigo-600', '÷': 'from-sky-500 via-blue-500 to-indigo-600' };
+function StepCard({ step, count, total }) {
+  return (
+    <div className={`rt-card animate-badge-burst relative mx-auto grid aspect-[5/4] w-full max-w-xs place-items-center overflow-hidden rounded-[2rem] bg-gradient-to-br text-white ${OP_CARD[step.op] || OP_CARD['+']}`}>
+      <span aria-hidden className="gs-shine pointer-events-none absolute inset-0" />
+      <span className="absolute top-3 rounded-full bg-white/20 px-3 py-1 text-xs font-black ring-1 ring-white/40">{step.lane ? `${LANE_NAME[step.lane]} · ` : ''}{count} of {total}</span>
+      <p className="relative text-7xl font-black tabular-nums drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)] sm:text-8xl">{step.op}{step.value}</p>
+    </div>
   );
 }
 
@@ -70,6 +83,8 @@ function Round({ progress, onExit }) {
   const [round, setRound] = useState(1);
   const [score, setScore] = useState(0);
   const [verdict, setVerdict] = useState(null);
+  const [picked, setPicked] = useState(null);
+  const smart = config.band === 'intermediate' || config.band === 'analytical' || config.band === 'advanced';
   const { busy, showWrong, toneOf } = useAnswerReveal();
 
   const playing = shown < stream.steps.length;
@@ -91,6 +106,7 @@ function Round({ progress, onExit }) {
 
   const answer = (value) => {
     if (verdict !== null || busy) return;
+    setPicked(value);
     if (value !== stream.total) {
       // The buzz and the pick red; the total stays green with its working until the student moves on.
       showWrong(value, stream.total);
@@ -105,14 +121,15 @@ function Round({ progress, onExit }) {
     setStream(runningStream(config));
     setShown(0);
     setVerdict(null);
+    setPicked(null);
     setRound((r) => r + 1);
   };
 
-  const asked = stream.ask ? `${LANE_NAME[stream.ask]} total?` : 'Total?';
+  const asked = stream.ask ? `${LANE_NAME[stream.ask]} total?` : smart ? 'What is the total now?' : 'Total?';
 
   return (
     <GameShell
-      title="Running Total"
+      title={progress.gameId === 'running-total-pro' ? 'Running Total Pro' : 'Running Total'}
       blurb={`Keep the total in your head. Get ${passMark} of ${config.rounds}.`}
       tone="bg-gradient-to-br from-emerald-500 to-teal-700"
       score={`${score}/${config.rounds}`}
@@ -156,9 +173,38 @@ function Round({ progress, onExit }) {
       }
     >
       {started && !done && (
-        <div className="mx-auto max-w-md text-center">
+        <div className={`mx-auto w-full max-w-md text-center ${smart ? 'flex flex-col justify-center max-sm:flex-1' : ''}`}>
           {playing ? (
-            <Step key={shown} step={stream.steps[shown]} dots={!!config.dots} />
+            smart ? <StepCard key={shown} step={stream.steps[shown]} count={shown + 1} total={stream.steps.length} /> : <Step key={shown} step={stream.steps[shown]} dots={!!config.dots} />
+          ) : smart ? (
+            <>
+              <div className="rt-card relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 px-4 py-6 text-white">
+                <span aria-hidden className="gs-shine pointer-events-none absolute inset-0" />
+                <p className="relative text-xs font-black tracking-[0.16em] text-white/80 uppercase">Round {round} of {config.rounds}</p>
+                <p className="relative mt-1 text-2xl font-black drop-shadow">{asked}</p>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                {stream.options.map((option, i) => {
+                  const state = verdict === null ? '' : option === stream.total ? 'vx-right gs-right' : option === picked ? 'vx-wrong gs-wrong' : 'vx-dim';
+                  return (
+                    <button key={option} type="button" onClick={() => answer(option)} disabled={verdict !== null || busy}
+                      className={`vx-opt fp-press min-h-20 text-3xl tabular-nums ${state}`}>
+                      <span className="vx-key">{'ABCD'[i]}</span>{fmt(option)}
+                    </button>
+                  );
+                })}
+              </div>
+              {verdict !== null && (
+                <p className={`mt-4 rounded-2xl px-3 py-2 text-sm font-bold ring-1 ring-inset ${verdict === 'right' ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-rose-50 text-rose-800 ring-rose-200'}`} role="status">
+                  {verdict === 'right' ? '✓ Correct!' : `It was ${fmt(stream.total)}.`} {stream.explain}
+                </p>
+              )}
+              {verdict !== null && (
+                <button type="button" onClick={nextRound} disabled={busy} className="vx-cta fp-press mt-4 min-h-12 w-full text-base disabled:opacity-60">
+                  {round === config.rounds ? 'See result →' : `Round ${round + 1} →`}
+                </button>
+              )}
+            </>
           ) : (
             <>
               <p className="text-2xl font-black text-ink-900">{asked}</p>

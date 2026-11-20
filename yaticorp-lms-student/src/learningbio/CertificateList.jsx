@@ -1,4 +1,4 @@
-/** Certificates the LMS issued, and ones the student uploaded, as cards. */
+/** Certificates YATICORPX3 issued, and ones the student uploaded, as cards. */
 import { Award, ExternalLink, BadgeCheck } from 'lucide-react';
 import { fmtDate } from './api';
 import { Empty } from './ui';

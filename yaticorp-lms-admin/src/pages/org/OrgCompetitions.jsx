@@ -73,7 +73,7 @@ const TeamForm = ({ competition: c, team, students, onSaved, onCancel }) => {
                         {gone.map((p) => <button key={p.userId} type="button" onClick={() => toggle(p.userId)} className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 font-semibold ring-1 ring-amber-200 hover:bg-amber-100">{p.name} <X size={13} /></button>)}
                     </p>
                 )}
-                {students.length === 0 ? <p className="text-sm text-slate-500">Your college has no students on the LMS yet.</p> : (
+                {students.length === 0 ? <p className="text-sm text-slate-500">Your college has no students on YATICORPX3 yet.</p> : (
                     <ul className="grid max-h-72 gap-1.5 overflow-y-auto sm:grid-cols-2">
                         {shown.map((s) => {
                             const on = picked.has(s.id);

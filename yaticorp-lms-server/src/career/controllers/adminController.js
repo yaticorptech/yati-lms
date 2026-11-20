@@ -10,8 +10,8 @@
  * exactly which career they want is the clearest signal available about which
  * course to build next, and until now it sat in a collection nobody could read.
  *
- * Guarded by the LMS's own `protectAdmin`, and living inside the career module
- * rather than in adminRoutes, so the dependency still points career → LMS and
+ * Guarded by YATICORPX3's own `protectAdmin`, and living inside the career module
+ * rather than in adminRoutes, so the dependency still points career → YATICORPX3 and
  * never the reverse. See services/lmsContext.js for the same rule applied the
  * other way round.
  */

@@ -97,8 +97,8 @@ const loginAdmin = async (req, res) => {
                     return res.status(401).json({
                         code: 'TEACHER_ACCOUNT',
                         message: teacher.cardNumber
-                            ? 'This is a teacher account. Sign in on the LMS: choose Teacher, then use your card.'
-                            : 'This is a teacher account. Sign in on the LMS with your mobile number and password.'
+                            ? 'This is a teacher account. Sign in on YATICORPX3: choose Teacher, then use your card.'
+                            : 'This is a teacher account. Sign in on YATICORPX3 with your mobile number and password.'
                     });
                 }
             }

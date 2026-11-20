@@ -1,4 +1,5 @@
 import { COACH as COACH_SPLITS } from './coach/splits.js';
+import { COACH as COACH_M, QUOTE as QUOTE_M } from './coach/m.js';
 import { COACH as COACH_D } from './coach/d.js';
 import { COACH as COACH_H } from './coach/h.js';
 import { COACH as COACH_G } from './coach/g.js';
@@ -13,6 +14,8 @@ import { COACH as COACH_A } from './coach/a.js';
  * starts a level without knowing what to do.
  */
 export const GAME_COACH = {
+  get 'chess-master'() { return GAME_COACH['chess-challenge']; }, // Chess Master plays as Chess (2026-11-17)
+  ...COACH_M,
   ...COACH_SPLITS,
   ...COACH_D,
   ...COACH_H,
@@ -184,8 +187,8 @@ export const GAME_COACH = {
     tip: 'Look at the edges — ears, tails and handles give it away.'
   },
   'treasure-path': {
-    steps: ['Find the treasure on the map.', 'Line up arrow cards to make a path.', 'Press Go and watch your explorer walk.'],
-    tip: 'Trace the path with your finger before you add cards.'
+    steps: ['Find the gems 💎 and the locked chest 🔐 on the map.', 'Line up arrow cards: visit every gem, then the chest.', 'Press Go — with all the gems the chest opens 💰.'],
+    tip: 'Plan which gem to get first — the shortest trip earns 3 stars.'
   },
   'clue-chain': {
     steps: ['One crown in every row, column and coloured garden.', 'No two crowns may touch — not even corner to corner.', 'Tap once for ✕ (a note), twice for a crown.'],
@@ -199,22 +202,10 @@ export const GAME_COACH = {
     steps: ['Choose your colour, then tap a piece and a marked square.', 'Protect your king — when it is in check, it glows red.', 'Checkmate the black king to win.'],
     tip: 'Bring out your knights and bishops early, and castle to keep your king safe.'
   },
-  'probability-lab': {
-    steps: ['Read the situation.', 'Think about all the ways it can happen.', 'Make your choice, then run the experiment to see the odds play out.'],
-    tip: 'Favourable outcomes over all outcomes — then check if anything changes after each draw.'
-  },
-  'algorithm-builder': {
-    steps: ['See what the machine must do.', 'Put instruction blocks in order.', 'Run it — fewer blocks earn more stars.'],
-    tip: 'Spot what repeats and put it inside a loop.'
-  },
   // New 2026-11-12: two logic games and one maths game, so every category has at least five.
   'picture-logic': {
-    steps: ['Look at the small coloured picture.', 'Pick a crayon on the right.', 'Tap a part of the big picture to colour it.'],
+    steps: ['Look at the coloured scene — a garden, a beach, a farm — for 7 seconds.', 'It hides: pick a crayon on the right.', 'Tap each part to colour it from memory. Stuck? Peek twice.'],
     tip: 'Use one crayon for all its parts, then pick the next one.'
-  },
-  'tower-shift': {
-    steps: ['Tap a tower to lift its top ring.', 'Tap another tower to drop it — never on a smaller ring.', 'Move all the rings to the right tower.'],
-    tip: 'Move the smallest ring every other turn, always the same way round.'
   },
   'number-forge': {
     steps: ['A target and a few number tiles appear.', 'Tap a tile, a sign, then a tile to join them.', 'Make the target before the bar runs out.'],
@@ -241,6 +232,8 @@ export const GAME_COACH = {
  * promise anything the level cannot deliver.
  */
 export const GAME_QUOTE = {
+  get 'chess-master'() { return GAME_QUOTE['chess-challenge']; },
+  ...QUOTE_M,
   'shape-matrix': { lead: "You're", hot: 'closer', rest: 'than you think!', line: 'Every correct answer builds your skills and brings you one step closer to your goals.', cheer: "Keep going, you've got this!" },
   'colour-match': { lead: 'Trust your', hot: 'eyes,', rest: 'not the word.', line: 'Fast, focused looking is a skill — and it sharpens a little every round.', cheer: 'Colour first, words second.' },
   'math-sprint': { lead: 'Quick maths,', hot: 'quicker', rest: 'you.', line: 'Speed comes from practice, and practice is exactly what this is.', cheer: 'One sum at a time.' },
@@ -268,10 +261,7 @@ export const GAME_QUOTE = {
   'logic-detective': { lead: 'Only one', hot: 'answer', rest: 'fits every clue.', line: 'Ruling things out is how detectives, doctors and engineers find the truth.', cheer: 'Cross out first, then decide.' },
   'word-ladder': { lead: 'One', hot: 'letter', rest: 'at a time!', line: 'Small changes, one step at a time, can take you all the way to the top.', cheer: 'Climb to the goal!' },
   'chess-challenge': { lead: 'Think', hot: 'ahead.', rest: 'Checkmate!', line: 'Planning a few moves ahead is how every big problem gets solved.', cheer: 'Check every capture before you move.' },
-  'probability-lab': { lead: 'Chance is', hot: 'maths,', rest: 'not luck.', line: 'Thinking in probabilities makes every decision a better one.', cheer: 'Count the outcomes, then decide.' },
-  'algorithm-builder': { lead: 'Fewer', hot: 'steps,', rest: 'same result.', line: 'Every app you use is a list of steps someone made efficient.', cheer: 'Find the pattern, then loop it.' },
   'picture-logic': { lead: 'Pick a crayon,', hot: 'colour', rest: 'it in!', line: 'Careful looking is the first step of every puzzle.', cheer: 'One crayon at a time!' },
-  'tower-shift': { lead: 'Big moves need', hot: 'small', rest: 'steps first.', line: 'Breaking a big job into smaller ones is how every project gets done.', cheer: 'Smallest ring, same direction.' },
   'number-forge': { lead: 'Forge the', hot: 'number.', rest: 'Any way works.', line: 'Seeing many routes to one answer is what makes maths fast.', cheer: 'Think from the target back.' },
   'speed-sort': { lead: 'Sort it', hot: 'fast,', rest: 'sort it right.', line: "Quick categorising is a thinking skill you'll use daily.", cheer: 'Decide the rule, then fly.' },
   'tic-tac-toe': { lead: 'Three in a', hot: 'row.', rest: 'Outthink it.', line: 'Even a small game teaches you to plan two moves ahead.', cheer: 'Take the centre when you can.' },
@@ -306,8 +296,16 @@ const FALLBACK_QUOTES = [
 export const quoteFor = (gameId, level = 1) =>
   GAME_QUOTE[gameId] || FALLBACK_QUOTES[(Math.max(1, level) - 1) % FALLBACK_QUOTES.length];
 
-export const coachFor = (gameId) =>
-  GAME_COACH[gameId] || {
+/** Young Thinkers play some games differently (2026-11-18): Treasure Path is a riddle hunt on an ancient map. */
+export const YOUNG_COACH = {
+  'treasure-path': {
+    steps: ['Look at the ancient map — the explorer starts at the camp ⛺.', 'At each place, read the riddle and tap the answer.', 'Right answers walk the explorer on to the treasure ❌ 💰.'],
+    tip: 'Read the riddle twice — the answer is hiding in the words.'
+  }
+};
+
+export const coachFor = (gameId, young = false) =>
+  (young && YOUNG_COACH[gameId]) || GAME_COACH[gameId] || {
     steps: ['Read the objective above.', 'Press Start when you are ready.', 'Stars come with a better run.'],
     tip: 'Take your time on the first level.'
   };

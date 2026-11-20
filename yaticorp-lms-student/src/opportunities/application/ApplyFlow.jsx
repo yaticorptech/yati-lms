@@ -165,7 +165,7 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
     const { status, guardian, job, steps } = app;
     const needsGuardian = status === 'needs-guardian';
     const waiting = status === 'awaiting-guardian';
-    // The parent has answered; the wait has moved to the LMS. Nothing on this
+    // The parent has answered; the wait has moved to YATICORPX3. Nothing on this
     // screen is for the parent any more, so the resend and reminder go away.
     const withAdmin = status === 'awaiting-admin';
     const approved = status === 'approved' || status === 'continued';

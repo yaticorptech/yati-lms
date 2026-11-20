@@ -60,7 +60,7 @@ const RegisterStudents = ({ c, entries, onSaved }) => {
     return (
         <Section icon={Users} title="Register your students" aside={<span className="text-xs text-slate-500">{chosen.size} of up to {c.playersPerCollege}</span>}>
             <p className="mb-3 text-sm text-slate-600">Pick the students who will take part. Registration closes {fmtDateTime(c.registrationDeadline)}.</p>
-            {students == null ? <Loader2 className="animate-spin text-slate-400" /> : students.length === 0 ? <p className="text-sm text-slate-500">Your college has no students on the LMS yet.</p> : (<>
+            {students == null ? <Loader2 className="animate-spin text-slate-400" /> : students.length === 0 ? <p className="text-sm text-slate-500">Your college has no students on YATICORPX3 yet.</p> : (<>
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search students" className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm sm:w-72" />
                 <ul className="grid max-h-72 gap-1.5 overflow-y-auto sm:grid-cols-2" data-register-students>
                     {shown.map((s) => {

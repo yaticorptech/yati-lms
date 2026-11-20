@@ -200,7 +200,7 @@ router.put('/me/schedule', async (req, res) => {
         await Organization.updateOne({ _id: req.organization._id }, { $set: { accessSchedule: schedule } });
         accessSchedule.forget(req.organization._id);
         await require('./models/OrgAuditLog').record({ orgId: req.organization._id, admin: req.admin, action: 'access-hours', req, details: schedule });
-        res.json({ ...scheduleAnswer(schedule), message: schedule.enabled ? `Saved. Students can use YATICORP ${accessSchedule.describe(schedule)}.` : 'Saved. Students can use YATICORP at any time.' });
+        res.json({ ...scheduleAnswer(schedule), message: schedule.enabled ? `Saved. Students can use YATICORPX3 ${accessSchedule.describe(schedule)}.` : 'Saved. Students can use YATICORPX3 at any time.' });
     } catch (error) {
         console.error('[org] access hours failed:', error.message);
         res.status(500).json({ message: 'The access hours could not be saved just now.' });
@@ -221,6 +221,8 @@ router.put('/me/requests/:requestId', orgCtrl.decideRequest);
 // Its teachers: added with a card, or asking to join from the teacher
 // dashboard — see src/teacher/orgAdmin.js.
 router.use('/me/teachers', require('../teacher/orgAdmin'));
+// Announcements to the parents of its students (2026-11-19, src/parent/announcements.js); an admin's, not staff's.
+router.use('/me/parent-announcements', require('../parent/announcements').orgAdmin);
 // NCC and NSS: members, activities to approve, events and attendance (src/nccnss/).
 router.use('/me/nccnss', require('../nccnss/orgAdmin'));
 // Its courses and their sections, who teaches each and what (Teachers →
@@ -255,7 +257,7 @@ router.get('/me/course-access', orgCourse.getCourseAccess);
     router.get('/me/tickets', listTickets(orgTickets));
     router.post('/me/tickets/:id/reopen', reopenTicket(orgTickets));
 }
-// Its students' requests (2026-11-14): tickets a student sent to this organization rather than to YATICORP.
+// Its students' requests (2026-11-14): tickets a student sent to this organization rather than to YATICORPX3.
 // GET /me/student-tickets?status=, POST /me/student-tickets/:id { reply?, status? }.
 router.get('/me/student-tickets', async (req, res) => {
     try {

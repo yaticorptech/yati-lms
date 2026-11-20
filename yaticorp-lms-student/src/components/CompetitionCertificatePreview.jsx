@@ -96,7 +96,7 @@ export default function CompetitionCertificatePreview({ certificate, number }) {
             <span className={`${centred} line-clamp-2 font-bold`} style={line(y(338, 298), 16, { color: INK, fontFamily: SANS })}>{c.name} — {c.gameLabel}</span>
             <span className={centred} style={line(PAGE_H - 120, 11, { color: '#64748b', fontFamily: SANS })}>Organized by {c.organizedBy}{when ? `  ·  ${when}` : ''}</span>
             <span aria-hidden="true" className="absolute" style={{ left: pct(PAGE_W / 2 - 110, PAGE_W), width: pct(220, PAGE_W), top: pct(PAGE_H - 86, PAGE_H), borderTop: `${size(1)} solid #cbd5e1` }} />
-            <span className={centred} style={line(PAGE_H - 80, 10, { color: '#475569', fontFamily: SANS })}>YATICORP LMS · Games &amp; Competitions</span>
+            <span className={centred} style={line(PAGE_H - 80, 10, { color: '#475569', fontFamily: SANS })}>YATICORPX3 · Games &amp; Competitions</span>
         </div>
     );
 }

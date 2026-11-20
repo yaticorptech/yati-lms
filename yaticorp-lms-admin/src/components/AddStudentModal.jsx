@@ -2,7 +2,7 @@
  * An organization adds a student. Two ways, one choice at the top:
  *   - Enter card details: one student, in the same two steps as adding a
  *     teacher: the card (its 12-digit number or QR code, typed), then the
- *     student's details. The card must have been verified by YATICORP; the
+ *     student's details. The card must have been verified by YATICORPX3; the
  *     server checks it again, claims it, and makes the student the
  *     organization's member at once. A mistake comes back as a 400 naming
  *     the field, and shows under it.

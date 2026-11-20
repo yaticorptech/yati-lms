@@ -24,7 +24,7 @@ const { SHOWN: LEVELS } = require('./levels');
 const { getConfig } = require('./config');
 const { gradeQuestion, checkTranslation, normalize } = require('./check');
 const { lessonQuiz, reviewQuiz, hearQuiz, unitQuiz, beforeQuiz, sentenceQuestion, questionById, questionFor, shuffle, seeded } = require('./vocabQuiz');
-const { checkWriting, sentencesOf } = require('./writingCheck');
+const { checkWriting, sentencesOf, wordCount } = require('./writingCheck');
 const writeGuide = require('./writeGuide');
 const placementQuestions = require('./content/placement');
 const { dayKey, startOfDay } = require('../rewards/config/constants');
@@ -52,7 +52,33 @@ const forStudent = (lessons, progress) => { const skip = courseOf(progress) === 
 /** Every lesson of the course the student is on, each titled as in its unit (parts.js). */
 // A Letters lesson no longer taught (ಗ ಘ … ರ ಲ, taken out 2026-11-14) is left out, though its stub is in the database.
 // A unit's new "Phrases" in English for a language they are not written in (more.js `usable`) is left out too.
-const allLessonsFor = async (progress) => forStudent(await publishedLessons(courseOf(progress)), progress).filter((l) => LEVELS.includes(l.level) && l.review !== 'entry' && alphabet.inUse(l) && require('./more').usable(l, languageOf(progress))).map((l) => ({ ...l, title: parts.titleOf(l) }));
+const allLessonsFor = async (progress) => {
+    const list = forStudent(await publishedLessons(courseOf(progress)), progress).filter((l) => LEVELS.includes(l.level) && l.review !== 'entry' && alphabet.inUse(l) && require('./more').usable(l, languageOf(progress))).map((l) => ({ ...l, title: parts.titleOf(l) }));
+    carryAdded(progress, list);
+    return list;
+};
+/*
+ * A lesson added behind a student (2026-11-19, the user: lessons added to Beginner after a student had finished it showed
+ * as not done — "Beginner is not completed", the unit's chest shut, the path back at Section 1): one added after the
+ * student had already finished a lesson after it on the path counts as done for them — `carried`, with no score of its
+ * own, left out of the averages. They can still take it.
+ */
+const carryAdded = (progress, lessons) => {
+    if (!progress?.lessons) return;
+    const walk = LEVELS.flatMap((lv) => pathOrder(lessons.filter((l) => l.level === lv)));
+    const entries = new Map(progress.lessons.map((e) => [idOf(e.lessonId), e]));
+    let earliest = null; // the earliest the student finished a lesson after this place
+    for (let j = walk.length - 1; j >= 0; j--) {
+        const l = walk[j], e = entries.get(idOf(l._id));
+        const added = l.createdAt ? new Date(l.createdAt) : null;
+        if (!e && added && earliest && earliest < added) {
+            progress.lessons.push({ lessonId: l._id, module: l.module, level: l.level, status: 'completed', step: 'done', completedAt: added, carried: true });
+            continue;
+        }
+        const done = e && e.status === 'completed' && e.completedAt && !e.carried ? new Date(e.completedAt) : null;
+        if (done && (!earliest || done < earliest)) earliest = done;
+    }
+};
 /** The lessons of the student's roadmap: every one, or the main ones when their plan is short (`planOf`). */
 const lessonsFor = async (progress) => { const all = await allLessonsFor(progress); return planOf(progress)?.tier === 'main' ? all.filter((l) => !isExtra(l)) : all; };
 /** A second unit's English lesson (parts.js): the seeded lesson it is cut from, in the student's language, as the stub. */
@@ -66,12 +92,96 @@ const ownPart = (doc, lang) => {
  * in their language — cut to its unit's share of the topic's words or
  * sentences (parts.js).
  */
-const serveOwn = (doc, progress) => {
-    const lang = languageOf(progress);
+const serveRaw = (doc, lang) => {
     // A unit's new lessons (more.js, 2026-11-14): their own words and sentences only.
     const out = doc?.review === 'more' ? require('./more').build(doc, lang) : doc?.review === 'letters' || doc?.review === 'lettersExam' ? alphabet.build(doc, lang) : doc?.review === 'talk' ? talks.build(doc, lang) : doc?.review === 'comic' ? comics.build(doc, lang) : doc?.review ? reviews.build(doc, lang) : doc?.course ? build(doc, lang) : doc?.part ? ownPart(doc, lang) : localize(doc, lang);
     return withQuizTopUp(withSees(withSpells(withPictures(withChats(withHears(withBlanks(withWords(parts.cut(out, doc), doc, lang), doc, lang), doc, lang), doc, lang), doc, lang), doc, lang), doc, lang), doc, lang);
 };
+const serveOwn = (doc, progress) => {
+    const lang = languageOf(progress);
+    // Nothing its unit asked before it (2026-11-18, unitPlan.js); its explanations in the student's own language, in the
+    // English course (2026-11-18, explain.js).
+    return require('./explain').inLanguage(noRepeats(serveRaw(doc, lang), doc, lang), doc, lang);
+};
+
+/*
+ * No question twice in a unit (2026-11-18, the user: "don't repeat the questions in the same unit"): its lessons in
+ * path order (unitPlan.js, from the lessons as seeded — the same each time a lesson is shown and checked), each asking
+ * nothing an earlier one asked: what was filled in from the unit's sentences and the questions made from its own
+ * (heard, filled in…) are left out, and its quiz filled up to ten again from what is left.
+ */
+const questionKey = (q) => {
+    const sq = (x) => require('./hears').squash(String(x || ''));
+    // (A sentence to fill in is another question with another word missing.)
+    const answer = q?.type === 'blanks' && q?.answers?.length ? q.answers.join(' ') : q?.answer || (q?.answers || []).join(' ') || q?.word;
+    return `${q?.type || q?.kind || ''}|${sq(q?.say || q?.model || q?.source || q?.sentence || q?.prompt)}|${sq(answer)}`;
+};
+const UNIT_PLANS = new Map();
+// The section's test first (its assessment, fixed): the practice before it asks other questions, not its.
+const FIRST = ['assessment'];
+// Reviews whose questions are drawn from the unit's or the section's (a question asked before is left out, another put in).
+const DRAWN = ['words', 'sentences', 'unit', 'hear', 'listen', 'checkpoint'];
+/**
+ * `doc`'s place in its unit's plan, for a student speaking `lang` — { before: what the lessons before it ask as their
+ * own, avoid: what its quiz is not filled up with } — or null. Two rounds, the lessons in turn (the section's assessment
+ * first): each lesson's own questions (its quiz, its fill in the blanks and sentences to hear), none asked by one before
+ * it — chosen again or left out; then what fills each quiz up to ten, none of all those, nor what one before it was
+ * filled with. So a lesson's own questions are never taken by another's filling.
+ */
+const unitPlanOf = (doc, lang) => {
+    const peers = require('./unitPlan').peersOf(doc, lang);
+    if (!peers || peers.length < 2) return null;
+    const key = `${doc.course || 'en'}|${lang}|${peers[0].seedKey}|${peers.length}|${require('./unitPlan').idsVersion()}`;
+    let plan = UNIT_PLANS.get(key);
+    if (!plan) {
+        plan = new Map();
+        const order = [...FIRST.flatMap((r) => peers.filter((p) => p.review === r)), ...peers.filter((p) => !FIRST.includes(p.review))];
+        const own = new Map(), claimed = new Set();
+        for (const p of order) {
+            const before = new Set(claimed);
+            let o = null;
+            try { const raw = serveRaw(p, lang); o = raw && ownOnly(raw, p, lang, before); } catch { o = null; }
+            own.set(p.seedKey, o);
+            for (const q of (o ? quizOf(o.out) : [])) claimed.add(questionKey(q));
+            plan.set(p.seedKey, { before, avoid: null });
+        }
+        const filled = new Set();
+        for (const p of order) {
+            const avoid = new Set([...claimed, ...filled]);
+            plan.get(p.seedKey).avoid = avoid;
+            const o = own.get(p.seedKey);
+            let t = null;
+            try { t = o && withQuizTopUp(o.out, p, lang, avoid, o.hadQuiz); } catch { t = null; }
+            for (const q of (t?.topUp || [])) filled.add(questionKey(q));
+        }
+        UNIT_PLANS.set(key, plan);
+    }
+    return plan.get(doc.seedKey) || null;
+};
+/** A lesson's own questions without those in `before` (its fill in the blanks and sentences to hear chosen again); unfilled. */
+const ownOnly = (lesson, doc, lang, before) => {
+    const hadQuiz = quizOf(lesson).length > 0;
+    let out = { ...lesson };
+    delete out.topUp;
+    if (before?.size) {
+        const keep = (q) => !before.has(questionKey(q));
+        if ((out.blanks || []).some((q) => !keep(q))) { const rest = { ...out }; delete rest.blanks; out = withBlanks(rest, doc, lang, before); }
+        if ((out.hears || []).some((q) => !keep(q)) || out.blanks !== lesson.blanks) { const rest = { ...out }; delete rest.hears; out = withHears(rest, doc, lang, before); }
+        if ((out.pictures || []).some((q) => !keep(q))) { const rest = { ...out }; delete rest.pictures; out = withPictures(rest, doc, lang, before); }
+        for (const k of Object.keys(MOVED)) if (Array.isArray(out[k])) out[k] = out[k].filter(keep);
+        if (DRAWN.includes(doc?.review) && Array.isArray(out.quiz)) out.quiz = out.quiz.filter(keep);
+        // A review of words draws its questions as it is shown (quizBuilt): those left out there.
+        if (DRAWN.includes(doc?.review) && out.module === 'vocabulary') out.notAsk = before;
+    }
+    return { out, hadQuiz };
+};
+/** A lesson as its unit's plan has it: its own questions, none asked before it; filled up to ten with none asked anywhere else. */
+const unrepeat = (lesson, doc, lang, plan) => {
+    if (!lesson || !plan) return lesson;
+    const { out, hadQuiz } = ownOnly(lesson, doc, lang, plan.before);
+    return withQuizTopUp(out, doc, lang, plan.avoid, hadQuiz);
+};
+const noRepeats = (lesson, doc, lang) => unrepeat(lesson, doc, lang, unitPlanOf(doc, lang));
 
 /**
  * Ten questions in a quiz at least (2026-11-16, the user: "add the quiz questions, at least 5", then the same day "at
@@ -82,18 +192,23 @@ const serveOwn = (doc, progress) => {
  * again (alphabet.js); a lesson with no quiz (to speak, to write) and a test are left so.
  */
 const QUIZ_LEAST = 10;
+// A made-up question's own name, from its sentence or word (2026-11-17, the user: a sentence heard was marked against
+// another one — "At the bus stop…" checked as "Kavya ties her long hair…", the story's sentences numbered again while the
+// page was open): the same text, the same name, wherever it sits; a page still open can never be marked against another.
+const textKey = (t) => { let h = 2166136261; for (const c of String(t).normalize('NFC')) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619) >>> 0; } return h.toString(36); };
 const NO_TOP_UP = ['entry', 'assessment', 'placement', 'lettersExam'];
-const withQuizTopUp = (out, doc, helper) => {
+const withQuizTopUp = (out, doc, helper, taken = null, hadQuiz = false) => {
     if (!out || NO_TOP_UP.includes(out.review)) return out;
     const have = quizOf(out);
-    if (!have.length || have.length >= QUIZ_LEAST) return out;
+    // (A quiz whose questions were all asked before it in its unit is filled again: `hadQuiz`.)
+    if ((!have.length && !hadQuiz) || have.length >= QUIZ_LEAST) return out;
     const blanks = require('./blanks');
     const units = require('./units');
     const { hearOne, squash } = require('./hears');
     const { questionFor, askAt } = require('./vocabQuiz');
     const locale = out.course ? (out.target || out.course) : 'en';
     const sayLang = out.course ? out.targetLocale || locale : 'en-IN';
-    const lines = (text) => String(text || '').split(/(?<=[.!?।])\s+/).map((x) => x.trim()).filter(Boolean);
+    const lines = (text) => String(text || '').split(/(?<=[.!?।]["”’']?)\s+/).map((x) => x.trim()).filter(Boolean);
     // Its own sentences.
     const own = out.module === 'translation'
         ? blanks.sentencesOf([...(out.items || []), ...(out.quiz || [])], out.direction)
@@ -121,21 +236,41 @@ const withQuizTopUp = (out, doc, helper) => {
     const pool = blanks.poolOf(unitWords.map((w) => blanks.first(w.word)).filter(Boolean), [...own, ...unitSentences], locale);
     const key = doc?.seedKey || idOf(doc?._id);
     const extra = [];
+    // Not one its unit asked before it (2026-11-18, `noRepeats`).
+    const free = (q) => !!q && !(taken && taken.has(questionKey(q)));
+    const add = (q) => { if (!free(q)) return false; extra.push(q); return true; };
     const room = () => have.length + extra.length < QUIZ_LEAST;
     const fresh = (x) => !used.has(squash(x.learnt)) && !asked.has(squash(x.learnt));
-    const hear = (list, tag) => { for (const x of list) { if (!room()) return; if (!fresh(x)) continue; const q = hearOne({ id: `top~hear~${tag}${x.id}`, learnt: x.learnt, helper: x.helper, locale, sayLang, pool, seed: `${key}:top:${tag}${x.id}` }); if (q) { extra.push(q); used.add(squash(x.learnt)); } } };
-    const fill = (list, tag, anyway = false) => { for (const x of list) { if (!room()) return; if (used.has(squash(x.learnt)) || (!anyway && asked.has(squash(x.learnt)))) continue; const q = blanks.blankOne({ id: `top~blank~${tag}${x.id}`, learnt: x.learnt, helper: x.helper, locale, prefer: [], pool, seed: `${key}:top:${tag}${x.id}`, most: 1 }); if (q) { extra.push(q); used.add(squash(x.learnt)); } } };
-    hear(own, '');
-    hear(unitSentences, 'u');
+    const hear = (list, tag) => { for (const x of list) { if (!room()) return; if (!fresh(x)) continue; const q = hearOne({ id: `top~hear~${textKey(x.learnt)}`, learnt: x.learnt, helper: x.helper, locale, sayLang, pool, seed: `${key}:top:${textKey(x.learnt)}` }); if (add(q)) used.add(squash(x.learnt)); } };
+    const fill = (list, tag, anyway = false) => { for (const x of list) { if (!room()) return; if (used.has(squash(x.learnt)) || (!anyway && asked.has(squash(x.learnt)))) continue; const q = blanks.blankOne({ id: `top~blank~${textKey(x.learnt)}`, learnt: x.learnt, helper: x.helper, locale, prefer: [], pool, seed: `${key}:top:${textKey(x.learnt)}`, most: 1 }); if (add(q)) used.add(squash(x.learnt)); } };
     // A Listening lesson (a unit's, a section's) is all by ear (variety.test.js): nothing to fill in or read.
-    if (['hear', 'listen'].includes(out.review)) return extra.length ? { ...out, topUp: extra } : out;
+    const listening = ['hear', 'listen'].includes(out.review);
+    // Taking turns (2026-11-17, the user, of seven "Tap what you hear" one after another in a story's quiz: "why will it
+    // not move on — it is stuck"): a sentence heard, the next with one word to fill in, and so on; a Listening lesson's
+    // all heard.
+    const turns = (list, tag) => {
+        for (const x of list) {
+            if (!room()) return;
+            if (!fresh(x)) continue;
+            const heard = listening || extra.length % 2 === 0;
+            const make = (h) => (h
+                ? hearOne({ id: `top~hear~${textKey(x.learnt)}`, learnt: x.learnt, helper: x.helper, locale, sayLang, pool, seed: `${key}:top:${textKey(x.learnt)}` })
+                : blanks.blankOne({ id: `top~blank~${textKey(x.learnt)}`, learnt: x.learnt, helper: x.helper, locale, prefer: [], pool, seed: `${key}:top:${textKey(x.learnt)}`, most: 1 }));
+            const a = make(heard);
+            const q = free(a) ? a : !listening ? make(!heard) : null;
+            if (add(q)) used.add(squash(x.learnt));
+        }
+    };
+    turns(own, '');
+    turns(unitSentences, 'u');
+    if (listening) return extra.length ? { ...out, topUp: extra } : out;
     fill(unitSentences, 'u');
     fill(own, '', true);
     // A sentence heard above, one word of it to fill in.
     for (const x of [...own, ...unitSentences]) {
         if (!room()) break;
-        const q = blanks.blankOne({ id: `top~fill~${x.id}${unitSentences.includes(x) ? 'u' : ''}`, learnt: x.learnt, helper: x.helper, locale, prefer: [], pool, seed: `${key}:top:fill:${x.id}`, most: 1 });
-        if (q && !extra.some((e) => e.id === q.id || e.answer === q.answer && e.type === 'blanks')) extra.push(q);
+        const q = blanks.blankOne({ id: `top~fill~${textKey(x.learnt)}`, learnt: x.learnt, helper: x.helper, locale, prefer: [], pool, seed: `${key}:top:fill:${textKey(x.learnt)}`, most: 1 });
+        if (q && !extra.some((e) => e.id === q.id || e.answer === q.answer && e.type === 'blanks')) add(q);
     }
     // A new unit's words lesson with no sentences in the language learnt (a Kannada course's unit of words and an English
     // story): each of its words one way more, one it does not ask yet — the unit has no Listening or review to ask it so.
@@ -144,7 +279,7 @@ const withQuizTopUp = (out, doc, helper) => {
         for (let i = 0; i < words.length && room(); i++) {
             const not = [...have, ...extra].filter((q) => q.answer === words[i].word || q.answer === words[i].kannada || q.word === words[i].word).map((q) => q.kind).filter(Boolean);
             const q = askAt(words, i, 'review', `${key}:top:way`, not);
-            if (q && !not.includes(q.kind)) extra.push({ ...q, id: `top~way~${i}` });
+            if (q && !not.includes(q.kind)) add({ ...q, id: `top~way~${textKey(words[i].word)}` });
         }
     }
     // Last, in a lesson not about words: its unit's words, what each means (a Words lesson, its Listening and its unit
@@ -152,7 +287,21 @@ const withQuizTopUp = (out, doc, helper) => {
     if (out.module !== 'vocabulary' && unitWords.length >= 4) {
         for (let i = 0; i < unitWords.length && room(); i++) {
             const q = questionFor(unitWords, i, 'meaning', `${key}:top`);
-            if (q) extra.push({ ...q, id: `top~word~${i}` });
+            if (q) add({ ...q, id: `top~word~${textKey(unitWords[i].word)}` });
+        }
+    }
+    // Still short, its unit's sentences all asked before it (2026-11-18, no question twice in a unit): the words — its
+    // own, then its unit's — each a way not asked yet in the unit.
+    if (taken && room()) {
+        const mine = new Set([...have, ...extra].map(questionKey));
+        const list = [...(out.words || []).filter((w) => w.word && w.kannada), ...unitWords];
+        for (const kind of ['meaning', 'word', 'listen', 'hearMeaning', 'spell', 'blank']) {
+            for (let i = 0; i < list.length && room(); i++) {
+                let q = null;
+                try { q = questionFor(list, i, kind, `${key}:top:${kind}`); } catch { q = null; }
+                if (!q || mine.has(questionKey(q))) continue;
+                if (add({ ...q, id: `top~${kind}~${textKey(list[i].word)}` })) mine.add(questionKey(q));
+            }
         }
     }
     return extra.length ? { ...out, topUp: extra } : out;
@@ -164,7 +313,24 @@ const withQuizTopUp = (out, doc, helper) => {
  * missing — the translation lesson its unit's words first, two to a long sentence; the Words lesson its own words, one
  * to a sentence, only sentences with one of them.
  */
-const withBlanks = (out, doc, helper) => {
+/**
+ * Without the questions its unit asked before it (2026-11-18, `noRepeats`): the sentences those were made from left out,
+ * and chosen again from the others — so a lesson keeps its own fill in the blanks and sentences to hear.
+ */
+const freeOf = (taken, build, sentences, prefix) => {
+    const banned = new Set();
+    let left = sentences, list = build(left, banned);
+    for (let n = 0; taken && n < 8 && list.some((q) => taken.has(questionKey(q))); n++) {
+        const bad = list.filter((q) => taken.has(questionKey(q)));
+        // Another word of the same sentence to fill in first (a blank's answer not chosen again), then other sentences.
+        const answers = bad.map((q) => (q.answers || []).join(' ') || q.answer).filter(Boolean).map((a) => String(a).toLowerCase());
+        if (n % 2 === 0 && answers.some((a) => !banned.has(a))) answers.forEach((a) => banned.add(a));
+        else { const ids = new Set(bad.map((q) => String(q.id).replace(prefix, ''))); left = left.filter((x) => !ids.has(x.id)); }
+        list = build(left, banned);
+    }
+    return taken ? list.filter((q) => !taken.has(questionKey(q))) : list;
+};
+const withBlanks = (out, doc, helper, taken = null) => {
     if (!out || out.review || !['translation', 'vocabulary'].includes(out.module) || !parts.sourceOf(doc)) return out;
     const blanks = require('./blanks');
     const units = require('./units');
@@ -186,13 +352,22 @@ const withBlanks = (out, doc, helper) => {
     });
     if (out.module === 'translation') {
         const sentences = blanks.sentencesOf(out.items, out.direction);
-        const list = blanks.blanksFor({ key, sentences, prefer: unitWords, pool: blanks.poolOf(unitWords, sentences, locale), locale });
+        const pool = blanks.poolOf(unitWords, sentences, locale);
+        let list = freeOf(taken, (left, banned) => blanks.blanksFor({ key, sentences: left, prefer: unitWords, pool, locale, avoid: [...banned] }), sentences, /^blank~/);
+        // Its own sentences all filled in before it in its unit (2026-11-18): its topic's other sentences.
+        if (!list.length && taken) {
+            const topic = units.topicSentencesOf(doc, helper);
+            const more = blanks.sentencesOf(topic?.items, topic?.direction).map((x) => ({ ...x, id: `t${x.id}` }));
+            list = freeOf(taken, (left, banned) => blanks.blanksFor({ key, sentences: left, prefer: unitWords, pool, locale, avoid: [...banned] }), more, /^blank~/);
+            if (list.length) return { ...out, blanks: meant(list, topic?.items) };
+        }
         return list.length ? { ...out, blanks: meant(list, out.items) } : out;
     }
     const unit = units.unitSentencesOf(doc, helper);
     const sentences = blanks.sentencesOf(unit?.items, unit?.direction);
     const mine = (out.words || []).map((w) => blanks.first(w.word)).filter(Boolean);
-    const list = blanks.blanksFor({ key, sentences, prefer: mine, pool: blanks.poolOf(unitWords, sentences, locale), locale, need: true, most: 1 });
+    const pool = blanks.poolOf(unitWords, sentences, locale);
+    const list = freeOf(taken, (left, banned) => blanks.blanksFor({ key, sentences: left, prefer: mine, pool, locale, need: !banned.size, most: 1, avoid: [...banned] }), sentences, /^blank~/);
     return list.length ? { ...out, blanks: meant(list, unit?.items) } : out;
 };
 
@@ -200,7 +375,7 @@ const withBlanks = (out, doc, helper) => {
  * Tap what you hear (2026-11-06, hears.js): one of the unit's sentences in the language learnt, heard and built from
  * tiles — in every translation lesson and Words lesson, every language; not one its fill in the blanks asks.
  */
-const withHears = (out, doc, helper) => {
+const withHears = (out, doc, helper, taken = null) => {
     if (!out || out.review || !['translation', 'vocabulary'].includes(out.module) || !parts.sourceOf(doc)) return out;
     const blanks = require('./blanks');
     const units = require('./units');
@@ -211,7 +386,13 @@ const withHears = (out, doc, helper) => {
     const not = (out.blanks || []).map((q) => String(q.id).replace(/^blank~/, ''));
     const { hearsFor, saysFor } = require('./hears');
     const key = doc.seedKey || idOf(doc._id);
-    const list = hearsFor({ key, sentences, pool: blanks.poolOf(unitWords, sentences, locale), locale, sayLang, not });
+    const pool = blanks.poolOf(unitWords, sentences, locale);
+    let list = freeOf(taken, (left) => hearsFor({ key, sentences: left, pool, locale, sayLang, not }), sentences, /^hear~/);
+    if (!list.length && taken) {
+        const own = (out.module === 'translation' ? [] : (out.words || []).map((w, i) => ({ id: `e${i + 1}`, learnt: w.sentence || w.example, helper: '' }))).filter((x) => x.learnt);
+        const more = [...own, ...blanks.sentencesOf(units.topicSentencesOf(doc, helper)?.items, units.topicSentencesOf(doc, helper)?.direction).map((x) => ({ ...x, id: `t${x.id}` }))];
+        list = freeOf(taken, (left) => hearsFor({ key, sentences: left, pool, locale, sayLang, not }), more, /^hear~/);
+    }
     // And one to say (2026-11-06, "say this sentence"): not the one heard, nor the one filled in, where there is another.
     const sayits = saysFor({ key, sentences, locale, sayLang, not: [...not, ...list.map((q) => String(q.id).replace(/^hear~/, ''))] });
     return { ...out, ...(list.length ? { hears: list } : {}), ...(sayits.length ? { sayits } : {}) };
@@ -238,16 +419,25 @@ const withChats = (out, doc, helper) => {
  * picture — its meaning asked in the student's language, three picture cards in the language learnt — in every
  * translation and Words lesson whose unit has one, every language.
  */
-const withPictures = (out, doc, helper) => {
+const withPictures = (out, doc, helper, taken = null) => {
     if (!out || out.review || !['translation', 'vocabulary'].includes(out.module)) return out;
     const src = parts.sourceOf(doc);
     if (!src) return out;
     const unit = require('./units').unitWordsOf(doc, helper);
     if (!unit?.words?.length) return out;
-    const q = require('./pictureAsk').pictureFor({
-        key: doc.seedKey || idOf(doc._id), words: unit.words, module: out.module, course: doc.course || null, helper,
+    const make = (words) => require('./pictureAsk').pictureFor({
+        key: doc.seedKey || idOf(doc._id), words, module: out.module, course: doc.course || null, helper,
         level: src.level, sayLang: out.course ? out.targetLocale || out.target : 'en-IN'
     });
+    let words = unit.words, q = make(words);
+    // Its unit asked this picture before it (2026-11-18): another word's.
+    const sq = require('./hears').squash;
+    for (let n = 0; taken && q && taken.has(questionKey(q)) && n < 8; n++) {
+        const en = String(q.id).replace(/^pic~/, '');
+        words = words.filter((w) => sq(String((w.course ? w.en : w.word) || '')) !== en);
+        q = words.length ? make(words) : null;
+    }
+    if (q && taken && taken.has(questionKey(q))) q = null;
     return q ? { ...out, pictures: [q] } : out;
 };
 
@@ -364,7 +554,8 @@ const courseDone = (progress, course = courseOf(progress)) => LEGACY_SHOWN.every
  * Bhagyashree's two accounts (2026-10-28, user: "I am working on that"): they change the language they learn at any
  * time, finished or not. By card number, so it holds whichever database the server uses.
  */
-const FREE_COURSE_CARDS = new Set(['240100045056', '240100019423']);
+// Akanksha's card (240100019664) added 2026-11-18: every language open, nothing locked.
+const FREE_COURSE_CARDS = new Set(['240100045056', '240100019423', '240100019664']);
 // The developer cards (DEVICE_LIMIT_EXEMPT_CARDS in .env) too (2026-11-05): they switch language any time.
 const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(user?.cardNumber))
     || require('../services/deviceGuard').isExemptCard(user?.cardNumber)
@@ -376,11 +567,12 @@ const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(
  * number, so it holds whichever database the server uses; the routes note the student on each request
  * (`noteOpenAll`), as `access` has only the progress record.
  */
-const OPEN_ALL_CARDS = new Set(['240100045056']);
 const openAllUsers = new Set();
-// The demo cards (services/fullAccess.js) open everything too (owner, 2026-11-04).
-// And the developer cards (DEVICE_LIMIT_EXEMPT_CARDS in .env, 2026-11-05): every level and lesson open.
-const noteOpenAll = (user) => { if (user?._id && (OPEN_ALL_CARDS.has(normaliseCardNumber(user.cardNumber)) || require('../services/deviceGuard').isExemptCard(user.cardNumber) || require('../services/fullAccess').hasFullAccess(user))) openAllUsers.add(String(user._id)); };
+// Only the cards in the env file (DEVICE_LIMIT_EXEMPT_CARDS, 2026-11-05): every level and lesson open. Every other card —
+// the demo cards and the testing card 240100045056 too, open since 2026-10-29 / 11-04 — learns one lesson after another,
+// the next opening when the one before is done (2026-11-17, the user: "lock the lessons of the cards not in the env file;
+// when they complete a lesson, open the next"). To keep a card open, put it in DEVICE_LIMIT_EXEMPT_CARDS.
+const noteOpenAll = (user) => { if (user?._id && require('../services/deviceGuard').isExemptCard(user.cardNumber)) openAllUsers.add(String(user._id)); };
 const opensAll = (progress) => openAllUsers.has(String(progress?.userId));
 
 /**
@@ -594,13 +786,78 @@ const movedOf = (lesson) => [...(['translation', 'vocabulary'].includes(lesson?.
 /** What a quiz question takes as right (tools and tests): a sentence to fill, its words in order; a translation, its model; else its answer. */
 const rightAnswerOf = (lesson, q) => (q.type === 'blanks' ? (q.answers || []).join(' ') : ['hear', 'chat', 'picture', 'letters', 'seeword', 'mcq'].includes(q.type) ? q.answer : lesson.module === 'translation' ? q.model : (q.answer ?? q.model));
 const quizOf = (lesson) => [...quizBuilt(lesson).map((q) => (q?.kind === 'sentence' && !q.optionsSay ? { ...q, optionsSay: lesson.targetLocale || 'en-IN' } : q)), ...movedOf(lesson)];
+/**
+ * A unit's "More words" quiz (2026-11-17, the user, of "Listen, choose its meaning" again and again: "don't repeat the same
+ * question — give different questions"): each new word asked twice, two different ways, taken from eight — what it means,
+ * which word means it, heard and picked, heard and its meaning picked, its picture among others, the picture for it,
+ * spelt from its letters, written — no way more than twice, never the same way twice running. It had been four ways,
+ * "what does it mean" four times. Each id "top~mw~…": the quiz's own (a mistake is found again in it).
+ */
+const MORE_WAYS = ['meaning', 'listen', 'picture', 'word', 'hearMeaning', 'letters', 'see', 'spell'];
+const moreWordsQuiz = (lesson) => {
+    const words = lesson.words || [];
+    const key = lesson.seedKey || idOf(lesson._id);
+    const pics = require('./pictureAsk');
+    const sayLang = lesson.course ? lesson.targetLocale || lesson.target : 'en-IN';
+    const one = (w, k) => ({ key: `${key}:mw:${k}`, words: [w], module: 'vocabulary', course: lesson.course || null, helper: lesson.language, level: lesson.level, sayLang });
+    const ask = (i, way) => {
+        const w = words[i];
+        const q = way === 'picture' ? pics.pictureFor(one(w, i)) : way === 'see' ? pics.seeFor(one(w, i)) : way === 'letters' ? pics.spellFor(one(w, i))
+            : questionFor(words, i, way, `${key}:mw`);
+        return q ? { ...q, id: `top~mw~${way}~${textKey(w.word)}`, way } : null;
+    };
+    const used = Object.fromEntries(MORE_WAYS.map((w) => [w, 0]));
+    const rounds = [[], []];
+    for (const r of [0, 1]) {
+        words.forEach((_, i) => {
+            const mine = rounds[0].find((q) => q.word === i)?.way;
+            // The least used way that fits this word, from the word's own turn of the ways; not its other question's.
+            const order = MORE_WAYS.map((_, k) => MORE_WAYS[(i * 2 + r * 3 + k) % MORE_WAYS.length]).filter((w) => w !== mine)
+                .sort((a, b) => used[a] - used[b]);
+            for (const way of order) {
+                if (used[way] >= 2 && order.some((w) => used[w] < 2)) continue;
+                const q = ask(i, way);
+                if (q) { used[way] += 1; rounds[r].push({ ...q, word: i }); break; }
+            }
+        });
+    }
+    // Each round in its own order; never one way twice running.
+    const out = [];
+    for (const [r, list] of rounds.entries()) {
+        const left = shuffle(list, seeded(`${key}:mw:order:${r}`));
+        while (left.length) {
+            const prev = out.at(-1);
+            let k = left.findIndex((q) => q.way !== prev?.way && q.word !== prev?.word);
+            if (k === -1) k = left.findIndex((q) => q.way !== prev?.way);
+            out.push(...left.splice(k === -1 ? 0 : k, 1));
+        }
+    }
+    // Any one way still twice running (the end of a round): swapped with another that fits both places.
+    const fits = (list, i) => (i <= 0 || list[i].way !== list[i - 1].way) && (i >= list.length - 1 || list[i].way !== list[i + 1].way);
+    for (let i = 1; i < out.length; i++) {
+        if (out[i].way !== out[i - 1].way) continue;
+        for (let j = 0; j < out.length; j++) {
+            if (j === i || j === i - 1) continue;
+            [out[i], out[j]] = [out[j], out[i]];
+            if (fits(out, i) && fits(out, j)) break;
+            [out[i], out[j]] = [out[j], out[i]];
+        }
+    }
+    return out.map(({ word, way, ...q }) => q);
+};
+
+// Without what its unit asked before it (`notAsk`, 2026-11-18: no question twice in a unit).
 const quizBuilt = (lesson) => {
+    const qs = quizDrawn(lesson);
+    return lesson?.notAsk?.size ? qs.filter((q) => !lesson.notAsk.has(questionKey(q))) : qs;
+};
+const quizDrawn = (lesson) => {
     if (lesson.module !== 'vocabulary') return lesson.quiz || [];
     // A level's word review asks ten of its words; its listening review, eight, by sound.
     const seed = idOf(lesson._id);
     if (lesson.review === 'words') return reviewQuiz(lesson.words, seed, 10, 'review');
     // A unit's "More words" (more.js, 2026-11-14): each new word asked twice, two ways.
-    if (lesson.review === 'more') return [...lessonQuiz(lesson.words, seed), ...hearQuiz(lesson.words, seed)];
+    if (lesson.review === 'more') return moreWordsQuiz(lesson);
     if (lesson.review === 'listen') return reviewQuiz(lesson.words, seed, 8, 'hear');
     // A unit's Listening and its review ask each word in a way its lessons before did not (vocabQuiz.js, 2026-10-24);
     // the review also asks two words of the unit before and the unit's sentences (reviews.js).
@@ -742,7 +999,8 @@ const publicLesson = (lesson, entry, config) => {
             ...(writeGuide.teaches(lesson, t) ? { asks: writeGuide.publicAsks(t, lesson.language || 'en', seed) } : {}) }));
         // …and before them, how an email, a letter or a paragraph is written: once a lesson for each kind it asks.
         const kinds = [...new Set((lesson.writing || []).filter((t) => writeGuide.teaches(lesson, t)).map((t) => t.type))];
-        if (kinds.length) out.writeGuides = Object.fromEntries(kinds.map((k) => [k, writeGuide.guideOf(k, lesson.language || 'en')]));
+        // Each with its unit's own example (2026-11-19: not the same paragraph in every unit), by its first task of that kind.
+        if (kinds.length) out.writeGuides = Object.fromEntries(kinds.map((k) => [k, writeGuide.guideOf(k, lesson.language || 'en', (lesson.writing || []).find((t) => t.type === k))]));
     }
     // The checklist ticks itself from what is said (2026-10-28): the checks, for the page to run as the student speaks.
     if (lesson.module === 'speaking') out.speaking = { ...(lesson.speaking || {}), checks: speakChecks.checksFor(lesson), need: speakChecks.needed((lesson.speaking?.checklist || []).length) };
@@ -757,6 +1015,17 @@ const publicLesson = (lesson, entry, config) => {
         ? [...(lesson.quiz || []).map((it) => { const bank = bankFor(it, lesson); return { id: it.id, kind: it.kind, topic: it.topic, source: it.source, type: 'translation', bank, ...way(it), ...said(it, bank) }; }),
             ...movedOf(lesson).map((q) => withSays(sounds, publicQuestion(q, seed)))]
         : quizOf(lesson).map((q) => withSays(sounds, publicQuestion(q, seed, fillAnswers)));
+    // Every word card with its meaning, shown when it is tapped (2026-11-19, the user, of "Tap what you hear" cards:
+    // "where is the meaning of this card word"): a sentence heard, words put in order, a jumbled sentence to write — in
+    // the student's language, English learnt; else in English. (A translation's and a blank's cards had theirs.)
+    const who = { learnt: lesson.course ? lesson.target : 'en', helper: lesson.language || 'kn' };
+    const meaningLang = lesson.course ? 'en' : who.helper;
+    const withCards = (q) => {
+        if (!q?.words?.length || q.wordMeanings || !['hear', 'rearrange', 'jumbled'].includes(q.type)) return q;
+        const m = tileMeanings(who, q.words);
+        return m ? { ...q, wordMeanings: m, meaningLang } : q;
+    };
+    for (const k of ['quiz', 'practice', 'hears', 'writing']) if (Array.isArray(out[k])) out[k] = out[k].map(withCards);
     return out;
 };
 
@@ -837,6 +1106,27 @@ const numberCertificates = async (userId, progress) => {
     return progress;
 };
 
+/*
+ * Two certificates only (2026-11-18, the user: "only two certificates, Beginner and Advanced; don't give any other in
+ * language learning"): Beginner once Sections 1–3 are finished, Advanced once Sections 4–10 are — each section of the
+ * part that has lessons in the course. Kept under the level 'beginner' / 'advanced'; one earned before stays as it was.
+ */
+const CERT_PARTS = { beginner: ['beginner', 'elementary', 'intermediate'], advanced: ['advanced', 'professional', 'everyday', 'services', 'workplace', 'opinions', 'society'] };
+const partOf = (level) => Object.keys(CERT_PARTS).find((k) => CERT_PARTS[k].includes(level)) || null;
+/** A part's sections with lessons in the course (`lessons`). */
+const partLevels = (part, lessons) => CERT_PARTS[part].filter((l) => lessons.some((x) => x.level === l));
+/** A part's certificate, earned and not hidden: { number, issuedAt }, or null. */
+const partCert = (progress, part) => {
+    const c = progress.certificates.find((x) => x.level === part && inCourse(x, courseOf(progress)));
+    return c && !c.hiddenAt ? { number: c.number, issuedAt: c.issuedAt } : null;
+};
+/** On the last section of a part: its certificate's place — { part, label, complete, certificate } — else null. */
+const certAt = (progress, lessons, level, complete) => {
+    const part = partOf(level), ls = part ? partLevels(part, lessons) : [];
+    if (!ls.length || ls[ls.length - 1] !== level) return null;
+    return { part, label: LEVEL_LABEL[part], sections: ls.map((l) => LEVELS.indexOf(l) + 1), complete: ls.every(complete), certificate: partCert(progress, part) };
+};
+
 /**
  * After a lesson is passed: is its level now complete, and does it earn the
  * certificate? Every lesson of the level done, and the average best score at
@@ -847,16 +1137,35 @@ const numberCertificates = async (userId, progress) => {
 const checkLevel = async (user, progress, level, lessons, config) => {
     const at = lessons.filter((l) => l.level === level);
     if (!at.length || !at.every((l) => isDone(progress, l._id))) return { events: [], certificate: null };
-    const scores = at.map((l) => lessonEntry(progress, l._id)?.bestScore || 0);
+    // (A lesson counted as done for them, added behind them, has no score: left out.)
+    const scored = at.filter((l) => !lessonEntry(progress, l._id)?.carried);
+    const scores = (scored.length ? scored : at).map((l) => lessonEntry(progress, l._id)?.bestScore || 0);
     const average = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
     const course = courseOf(progress);
     if (!progress.levelsCompleted.some((x) => x.level === level && inCourse(x, course))) progress.levelsCompleted.push({ level, completedAt: new Date(), average, course });
-    if (average < config.certificateMinAverage || progress.certificates.some((c) => c.level === level && inCourse(c, course))) return { events: [], certificate: null, average };
-    const certificate = { level, number: '', issuedAt: new Date(), average, course };
-    certificate.number = (await seriesNumber(user._id, certificate).catch(() => null)) || certificateNumber(user, level, course);
+    if (average < config.certificateMinAverage) return { events: [], certificate: null, average };
+    // The section's XP, as before (once: the same activity again is not paid).
+    const { events } = await pay(user._id, 'linguistic_level', course === 'en' ? `level:${level}` : `level:${course}:${level}`, { level, course });
+    // The certificate: only when this finishes its part (Beginner, Advanced), with the part's average high enough.
+    const part = partOf(level);
+    if (!part || progress.certificates.some((c) => c.level === part && inCourse(c, course))) return { events, certificate: null, average };
+    const levels = partLevels(part, lessons);
+    const finished = (l) => l === level || progress.levelsCompleted.some((x) => x.level === l && inCourse(x, course));
+    if (!levels.every(finished)) return { events, certificate: null, average };
+    // Each section's average by its lessons: its best scores, or the average it was finished with.
+    const parts = levels.map((l) => {
+        const xs = lessons.filter((x) => x.level === l);
+        const live = xs.every((x) => isDone(progress, x._id));
+        const own = xs.filter((x) => !lessonEntry(progress, x._id)?.carried);
+        const a = live ? (own.length ? own.reduce((n, x) => n + (lessonEntry(progress, x._id)?.bestScore || 0), 0) / own.length : 100) : progress.levelsCompleted.find((x) => x.level === l && inCourse(x, course))?.average || 0;
+        return [a, xs.length];
+    });
+    const partAverage = Math.round(parts.reduce((n, [a, k]) => n + a * k, 0) / Math.max(1, parts.reduce((n, [, k]) => n + k, 0)));
+    if (partAverage < config.certificateMinAverage) return { events, certificate: null, average };
+    const certificate = { level: part, number: '', issuedAt: new Date(), average: partAverage, course };
+    certificate.number = (await seriesNumber(user._id, certificate).catch(() => null)) || certificateNumber(user, part, course);
     progress.certificates.push(certificate);
-    const paid = await pay(user._id, 'linguistic_level', course === 'en' ? `level:${level}` : `level:${course}:${level}`, { level, course });
-    return { events: paid.events, certificate, average };
+    return { events, certificate, average };
 };
 
 /* ── Grading ──────────────────────────────────────────────────────────── */
@@ -1109,9 +1418,25 @@ const submit = async (user, lesson, fields, status = 'pending') => {
 };
 
 /** The grammar of a piece of written English, sentence by sentence (talkCheck.js `checkWritten`): each one corrected, with the reason. */
-const grammarOf = (text) => {
+// A letter's or an email's layout, not a sentence (2026-11-18, the user's letter that could not go on: "To:", "The
+// Principal,", "[College Name]," were each told to end with a full stop): its address lines, "Dear Sir,", "Yours
+// faithfully,", the date, "Subject: …", a name — a line ending with a comma or a colon, one with a heading word and a
+// colon, or a short one without a full stop.
+const LAYOUT_HEAD = /^(to|from|date|subject|sub|ref|reference|respected|dear|yours|sincerely|regards|warm regards|best regards|kind regards|thank you|thanks|thanking you|with regards|place|name|class|roll no|cc|bcc)\b/i;
+const layoutLine = (line) => {
+    const l = String(line || '').trim();
+    if (!l) return true;
+    const n = wordCount(l);
+    if (/^\[[^\]]*\][.,:]?$/.test(l)) return true;
+    if (/[,:;]$/.test(l) && n <= 8) return true;
+    if (LAYOUT_HEAD.test(l) && (/^[^.!?]*:/.test(l) || n <= 4)) return true;
+    return n <= 5 && !/[.!?]["'”’)\]]*$/.test(l);
+};
+const grammarOf = (text, type = null) => {
     // A new line ends a sentence too (2026-10-27: two lines, one without its full stop, were read as one).
-    const sentences = String(text || '').split(/\n+/).flatMap((line) => sentencesOf(line.replace(/\s+/g, ' ').trim())).map(checkWritten);
+    const lines = String(text || '').split(/\n+/);
+    const kept = ['letter', 'email'].includes(type) ? lines.filter((line) => !layoutLine(line)) : lines;
+    const sentences = kept.flatMap((line) => sentencesOf(line.replace(/\s+/g, ' ').trim())).map(checkWritten);
     return { sentences, clean: sentences.filter((s) => !s.mistakes.length).length, total: sentences.length };
 };
 
@@ -1125,7 +1450,7 @@ const submitWriting = async (user, lesson, taskId, answer) => {
         result = { correct: g.correct, findings: [], model: task.model || task.answer };
     } else {
         const w = checkWriting(text, task);
-        const g = grammarOf(text);
+        const g = grammarOf(text, task.type);
         // A spelling slip put right in the sentences: "no common spelling mistakes" would say otherwise.
         if (g.sentences.some((x) => x.mistakes.some((m) => /^Spelling:/.test(m.why)))) w.findings = w.findings.filter((f) => !/No common spelling mistakes/.test(f.text));
         if (task.type === 'sentence') result = { correct: w.ok && g.clean === g.total, findings: w.findings, model: task.model, words: w.words, ...g };
@@ -1260,12 +1585,19 @@ const ACHIEVEMENTS = [
     { key: 'streak_3', emoji: '🔥', title: 'Three-Day Streak', description: 'Practise English three days in a row.', value: (s) => s.longest, target: 3 },
     { key: 'streak_7', emoji: '⚡', title: 'Week of English', description: 'Practise English seven days in a row.', value: (s) => s.longest, target: 7 },
     { key: 'reviser', emoji: '🧠', title: 'Mistake Fixer', description: 'Fix 10 mistakes in revision.', value: (s) => s.fixed, target: 10 },
-    { key: 'level_beginner', emoji: '🥉', title: 'Beginner Complete', description: 'Finish every Beginner lesson.', value: (s) => (s.levels.includes('beginner') ? 1 : 0), target: 1 },
+    // Beginner is Sections 1–3, Advanced Sections 4–10 (2026-11-18, the user: "Beginner is not completed till Section 3's end").
+    { key: 'level_beginner', emoji: '🥉', title: 'Beginner Complete', description: 'Finish every lesson of Sections 1 to 3.', value: (s) => (s.parts?.beginner ? 1 : 0), target: 1 },
     // And the sections added on 2026-11-14.
     { key: 'level_elementary', emoji: '🏅', title: 'Daily Life Complete', description: 'Finish every Daily life lesson.', value: (s) => (s.levels.includes('elementary') ? 1 : 0), target: 1 },
-    { key: 'level_intermediate', emoji: '🥈', title: 'Intermediate Complete', description: 'Finish every Intermediate lesson.', value: (s) => (s.levels.includes('intermediate') ? 1 : 0), target: 1 },
-    { key: 'level_advanced', emoji: '🏆', title: 'Advanced Complete', description: 'Finish every Advanced lesson.', value: (s) => (s.levels.includes('advanced') ? 1 : 0), target: 1 },
-    { key: 'level_professional', emoji: '👑', title: 'Work and the World Complete', description: 'Finish every Work and the world lesson.', value: (s) => (s.levels.includes('professional') ? 1 : 0), target: 1 }
+    { key: 'level_intermediate', emoji: '🥈', title: 'Section 3 Complete', description: 'Finish every Section 3 lesson.', value: (s) => (s.levels.includes('intermediate') ? 1 : 0), target: 1 },
+    { key: 'level_advanced', emoji: '🏆', title: 'Advanced Complete', description: 'Finish every lesson of Sections 4 to 10.', value: (s) => (s.parts?.advanced ? 1 : 0), target: 1 },
+    { key: 'level_professional', emoji: '👑', title: 'Work and the World Complete', description: 'Finish every Work and the world lesson.', value: (s) => (s.levels.includes('professional') ? 1 : 0), target: 1 },
+    // Sections 6–10 (2026-11-17).
+    { key: 'level_everyday', emoji: '💬', title: 'Everyday Talk Complete', description: 'Finish every Everyday talk lesson.', value: (s) => (s.levels.includes('everyday') ? 1 : 0), target: 1 },
+    { key: 'level_services', emoji: '🛠️', title: 'Getting Things Done Complete', description: 'Finish every Getting things done lesson.', value: (s) => (s.levels.includes('services') ? 1 : 0), target: 1 },
+    { key: 'level_workplace', emoji: '💼', title: 'Talking at Work Complete', description: 'Finish every Talking at work lesson.', value: (s) => (s.levels.includes('workplace') ? 1 : 0), target: 1 },
+    { key: 'level_opinions', emoji: '🗣️', title: 'Sharing Your Views Complete', description: 'Finish every Sharing your views lesson.', value: (s) => (s.levels.includes('opinions') ? 1 : 0), target: 1 },
+    { key: 'level_society', emoji: '🌏', title: 'The World Around Us Complete', description: 'Finish every The world around us lesson.', value: (s) => (s.levels.includes('society') ? 1 : 0), target: 1 }
 ];
 
 const dashboard = async (user) => {
@@ -1300,6 +1632,8 @@ const dashboard = async (user) => {
         translated: translated[0]?.n || 0, longest: streak.longest, fixed: progress.mistakes.filter((m) => m.resolvedAt).length,
         levels: progress.levelsCompleted.filter((x) => inCourse(x, courseOf(progress))).map((x) => x.level)
     };
+    // Each part done (Beginner: Sections 1–3; Advanced: 4–10) — every section of it the course has (2026-11-18).
+    stats.parts = Object.fromEntries(Object.keys(CERT_PARTS).map((p) => { const ls = partLevels(p, lessons); return [p, ls.length > 0 && ls.every((l) => stats.levels.includes(l))]; }));
     const timeline = await timelineOf(progress, lessons, progress.dailyGoal || DEFAULT_GOAL);
     const resumeLesson = progress.lastLessonId && lessons.find((l) => idOf(l._id) === idOf(progress.lastLessonId));
     const resumeEntry = resumeLesson && lessonEntry(progress, resumeLesson._id);
@@ -1312,9 +1646,14 @@ const dashboard = async (user) => {
         ...(changesCourseFreely(user) ? { freeCourse: true } : {}),
         levels: LEVELS.map((l) => {
             const at = lessons.filter((x) => x.level === l);
-            const cert = progress.certificates.find((c) => c.level === l && inCourse(c, courseOf(progress)));
-            return { level: l, label: LEVEL_LABEL[l], total: at.length, completed: at.filter(done).length, passingScore: config.passingScore[l], complete: stats.levels.includes(l), certificate: cert && !cert.hiddenAt ? { number: cert.number, issuedAt: cert.issuedAt } : null };
+            const cert = certAt(progress, lessons, l, (x) => stats.levels.includes(x));
+            return { level: l, label: LEVEL_LABEL[l], total: at.length, completed: at.filter(done).length, passingScore: config.passingScore[l], complete: stats.levels.includes(l), certificate: cert?.certificate || null };
         }),
+        // The two certificates (2026-11-18): Beginner (Sections 1–3) and Advanced (Sections 4–10).
+        certs: Object.keys(CERT_PARTS).map((part) => {
+            const ls = partLevels(part, lessons), at = lessons.filter((x) => ls.includes(x.level));
+            return { level: part, label: LEVEL_LABEL[part], sections: ls.map((l) => LEVELS.indexOf(l) + 1), total: at.length, completed: at.filter(done).length, complete: ls.length > 0 && ls.every((l) => stats.levels.includes(l)), certificate: partCert(progress, part) };
+        }).filter((c) => c.sections.length),
         modules,
         overall: { total: lessons.length, completed: completedLessons.length, percent: lessons.length ? Math.round((completedLessons.length / lessons.length) * 100) : 0 },
         quizAverage: avg(completedLessons.map(best).filter((x) => x !== null && x !== undefined)),
@@ -1476,12 +1815,13 @@ const pathView = async (user) => {
             });
         // The Letters unit is Section 1, Unit 1 again (2026-11-13), counted with the section.
         const all = units.flatMap((u) => u.lessons.filter((x) => !x.stop));
-        const cert = progress.certificates.find((c) => c.level === l && inCourse(c, courseOf(progress)));
+        const finished = (x) => progress.levelsCompleted.some((c) => c.level === x && inCourse(c, courseOf(progress)));
+        // Its part's certificate, at the end of the part's last section only (2026-11-18: Beginner and Advanced, no other).
+        const cert = certAt(progress, lessons, l, finished);
         return {
             level: l, label: LEVEL_LABEL[l], passingScore: config.passingScore[l], open: levelOpen[MODULES[0]][l], jump: jumpFor(l, li),
             total: all.length, completed: all.filter((x) => x.status === 'completed').length,
-            complete: progress.levelsCompleted.some((x) => x.level === l && inCourse(x, courseOf(progress))),
-            certificate: cert && !cert.hiddenAt ? { number: cert.number, issuedAt: cert.issuedAt } : null, units
+            complete: finished(l), certificate: cert?.certificate || null, cert, units
         };
     });
     const order = (from) => levels.slice(from).flatMap((s) => s.units.flatMap((u) => u.lessons.filter((x) => !x.stop)));
@@ -1527,11 +1867,15 @@ const withStops = (unit, progress) => {
  * lessons taught, so they add nothing; grammar, reading, speaking and talks are not in the notes (not asked).
  */
 const compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null && v !== ''));
+// Every lesson that teaches something (2026-11-18, the user: "what the student learns comes to the notes"): the topic
+// lessons, More words / sentences / stories / conversations (`more`, Sections 6–10 too), grammar, stories and
+// conversations — not the tests and reviews, which only ask again what was taught.
 const noteOf = (doc, progress) => {
-    if (doc.review && !['letters', 'comic'].includes(doc.review)) return null;
+    if (doc.review && !['letters', 'comic', 'more'].includes(doc.review)) return null;
     const l = serveOwn(doc, progress);
     if (!l) return null;
-    const head = { id: idOf(doc._id), title: doc.title };
+    // (A grammar lesson's title in the student's language, 2026-11-18.)
+    const head = { id: idOf(doc._id), title: (doc.module === 'grammar' && l.title) || doc.title };
     if (doc.review === 'comic') return l.comic ? { ...head, story: compact({ title: l.comic.title, moral: l.comic.moral, moralLabel: l.comic.moralLabel, locale: l.comic.locale }) } : null;
     if (doc.review === 'letters') {
         return { ...head, letters: (l.words || []).map((w) => compact({ letter: w.word, sound: w.kannada, speak: w.speak, word: w.for, pic: w.pic, wordSound: w.forSound, sentence: w.sentence, sentenceSound: w.sentenceSound, sentenceEn: w.sentenceEn, locale: w.locale })) };
@@ -1543,12 +1887,24 @@ const noteOf = (doc, progress) => {
     if (doc.module === 'translation') {
         const sounds = soundsIn(l);
         // 'en-kn' is always "the language learnt → the student's": the sentence learnt is the one read, else the one written.
-        const sentences = (l.items || []).filter((it) => !it.open && it.source && it.model).map((it) => {
+        // (A `more` lesson's sentences are in its quiz too: all of them.)
+        const all = [...(l.items || []), ...(doc.review === 'more' ? (l.quiz || []).filter((q) => q.kind === 'sentence') : [])];
+        const sentences = all.filter((it) => !it.open && it.source && it.model).map((it) => {
             const reads = (it.direction || l.direction) === 'en-kn', text = reads ? it.source : it.model;
             return compact({ text, say: sounds ? sayOf(sounds, text) : null, meaning: reads ? it.model : it.source, en: it.en && it.en !== text ? it.en : null });
         });
         return { ...head, sentences, ...(l.targetLocale ? { locale: l.targetLocale } : {}) };
     }
+    const learn = l.learn || {};
+    const locale = l.targetLocale || learn.dialogue?.locale;
+    // A story read: its title and its text.
+    if (learn.passage?.text) return { ...head, story: compact({ title: learn.passage.title || doc.title, text: learn.passage.text, locale }) };
+    // A conversation: its lines (each with its meaning where it has one), and its useful phrases.
+    if (learn.dialogue?.lines?.length) {
+        return { ...head, talk: compact({ scenario: learn.dialogue.scenario, locale, lines: learn.dialogue.lines.map((x) => compact({ speaker: x.speaker, text: x.text, meaning: x.meaning || x.en })), phrases: (learn.phrases || []).length ? learn.phrases : null }) };
+    }
+    // A grammar lesson: the rule, its points and its examples.
+    if (doc.module === 'grammar' && (learn.intro || learn.points?.length)) return { ...head, rule: compact({ intro: learn.intro, points: (learn.points || []).length ? learn.points : null, examples: (learn.examples || []).length ? learn.examples : null }) };
     return null;
 };
 const notesOf = async (user) => {
@@ -1558,7 +1914,7 @@ const notesOf = async (user) => {
     const levels = LEVELS.map((level) => ({
         level, label: LEVEL_LABEL[level],
         units: unitsOf(lessons.filter((x) => x.level === level))
-            .map((u) => ({ id: unitIdOf(u, level), number: u.index, title: u.title, lessons: u.lessons.filter(done).map((x) => noteOf(x, progress)).filter((n) => n && (n.story || n.letters?.length || n.words?.length || n.sentences?.length)) }))
+            .map((u) => ({ id: unitIdOf(u, level), number: u.index, title: u.title, lessons: u.lessons.filter(done).map((x) => noteOf(x, progress)).filter((n) => n && (n.story || n.talk || n.rule || n.letters?.length || n.words?.length || n.sentences?.length)) }))
             .filter((u) => u.lessons.length)
     })).filter((x) => x.units.length);
     return { ...languageView(progress), ...courseView(progress), levels };
@@ -1608,7 +1964,10 @@ const startOf = (progress) => { const j = jumpOf(progress); return j?.status ===
 const autoDaysOf = (progress) => AUTO_DAYS[startOf(progress)] || AUTO_DAYS.beginner;
 
 /** The lessons from a level on, in path order (units.js): the roadmap's order. */
-const walkFrom = (lessons, level) => LEVELS.slice(lvl(level || 'beginner')).flatMap((l) => pathOrder(lessons.filter((x) => x.level === l)));
+// The plan covers Sections 1–5 as before; Sections 6–10 (2026-11-17, real-life speaking) follow at the student's own pace,
+// so the 90 days, the tiers and the lessons a day stay as they were.
+const PLAN_LEVELS = ['beginner', 'elementary', 'intermediate', 'advanced', 'professional'];
+const walkFrom = (lessons, level) => LEVELS.slice(lvl(level || 'beginner')).filter((l) => PLAN_LEVELS.includes(l)).flatMap((l) => pathOrder(lessons.filter((x) => x.level === l)));
 /** What a plan of `days` would hold, with `left` of every lesson still to do and `leftMain` of the main ones. */
 const planFor = (days, left, leftMain) => {
     const tier = left / days <= FULL_PER_DAY ? 'full' : 'main';
@@ -1851,7 +2210,9 @@ const openCourses = () => {
     return set === 'all' ? null : set.split(',').map((x) => x.trim()).filter(Boolean);
 };
 const allCoursesUsers = new Set();
-const noteAllCourses = (user) => { if (user?._id && require('../services/deviceGuard').isExemptCard(user.cardNumber)) allCoursesUsers.add(String(user._id)); };
+// Plus Akanksha's card (2026-11-18): every language may be chosen.
+const ALL_COURSE_CARDS = new Set(['240100019664']);
+const noteAllCourses = (user) => { if (user?._id && (ALL_COURSE_CARDS.has(normaliseCardNumber(user.cardNumber)) || require('../services/deviceGuard').isExemptCard(user.cardNumber))) allCoursesUsers.add(String(user._id)); };
 /*
  * The demo cards (services/fullAccess.js; 2026-11-19, the owner: "English to Kannada is already downloaded — play our
  * TTS voice only; the other languages locked, working on it"). The voices of English and Kannada are the ones made
@@ -1999,7 +2360,7 @@ const moduleView = async (user, module) => {
 
 module.exports = {
     numberCertificates,
-    MODULE_LABEL, LEVEL_LABEL, publishedLessons, progressOf, access, currentLevel, publicLesson, touchLesson, noteMistake, saveAttempt, pay,
+    MODULE_LABEL, LEVEL_LABEL, grammarOf, publishedLessons, progressOf, access, currentLevel, publicLesson, touchLesson, noteMistake, saveAttempt, pay,
     checkPractice, submitQuiz, submitTalk, submitWriting, saveSpeaking, placementPublic, submitPlacement, placementLevel, dailyQuestions, rebuildDaily,
     noteOpenAll, noteAllCourses, noteDemo, presetDemo, opensAll, startJump, jumpOf, entryAllowed, startUnitJump, unitJumpAllowed, rightAnswerOf, dashboard, moduleView, pathView, notesOf, withAnswerSay, setKnows, withSays, soundsIn, openChest, openMistakes, setPlan, autoPlan, AUTO_DAYS, roadmapView, planChoices, PLAN_DAYS, forStudent, lessonsFor, serve, setCourse, courseView, placedLevel, inCourse, checkQuizAnswer, bankFor, bankWords, setLanguage, chooseLevel, setGoal, setAbout, GOALS, REASONS, languageView, localize, languageOf, findQuestion, judge, streakOf, pointsOf, lessonEntry, isDone, publicQuestion, quizOf, certificateNumber, checkLevel
 };

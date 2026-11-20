@@ -132,7 +132,7 @@ router.get('/audit', async (req, res) => {
         res.json({
             rows: rows.map((r) => ({
                 _id: r._id, at: r.at, who: r.adminName || 'Someone', adminId: r.adminId,
-                // Anyone not one of this organization's accounts is YATICORP's (a superadmin).
+                // Anyone not one of this organization's accounts is YATICORPX3's (a superadmin).
                 platform: !own.has(String(r.adminId)),
                 action: r.action === 'view-mode-write' ? 'Made a change in this dashboard' : r.action,
                 method: r.method, path: r.path

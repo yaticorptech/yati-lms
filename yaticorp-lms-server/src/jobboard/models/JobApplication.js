@@ -8,7 +8,7 @@
  * through a link, which is why the decision is recorded here rather than being
  * typed in by an operator.
  *
- * A guardian's yes is not the end of it. It moves the application to the LMS,
+ * A guardian's yes is not the end of it. It moves the application to YATICORPX3,
  * which signs it off separately — two answers, in that order, never the one
  * standing in for the other.
  *
@@ -29,10 +29,10 @@ const STATUSES = [
     'ready',              // old enough; nothing to wait for
     'needs-guardian',     // under age, the request has not been sent yet
     'awaiting-guardian',  // sent, waiting on the guardian
-    'awaiting-admin',     // the guardian agreed; the LMS has still to sign it off
-    'approved',           // both the guardian and the LMS agreed
+    'awaiting-admin',     // the guardian agreed; YATICORPX3 has still to sign it off
+    'approved',           // both the guardian and YATICORPX3 agreed
     'declined',           // the guardian said no
-    'rejected',           // the guardian agreed, the LMS did not
+    'rejected',           // the guardian agreed, YATICORPX3 did not
     'continued'           // the student has taken it on from here
 ];
 
@@ -90,7 +90,7 @@ const schema = new mongoose.Schema({
     declineReason: { type: String, default: '' },
     continuedAt: { type: Date, default: null },
 
-    // The LMS's own sign-off, which only ever happens after the guardian's.
+    // YATICORPX3's own sign-off, which only ever happens after the guardian's.
     // Kept apart from the guardian's fields above so the record always says
     // which of the two answered, and when.
     adminDecidedAt: { type: Date, default: null },

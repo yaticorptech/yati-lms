@@ -15,9 +15,9 @@ export default function Terms() {
     <LegalShell
       title="Terms of Service"
       updated={filled(COMPANY.effectiveDate)}
-      intro={`These terms are the agreement between you and ${COMPANY.legalName} for using YATICORP Learning. By signing in with an activation card, you accept them. If you are under 18, a parent, guardian or your school must accept them on your behalf.`}
+      intro={`These terms are the agreement between you and ${COMPANY.legalName} for using YATICORPX3 Learning. By signing in with an activation card, you accept them. If you are under 18, a parent, guardian or your school must accept them on your behalf.`}
     >
-      <Section id="who" title="Who can use YATICORP">
+      <Section id="who" title="Who can use YATICORPX3">
         <p>
           Access is by an activation card issued to you or to your institution. You may not share your card,
           your password or your account with anyone else, and you are responsible for what happens under your
@@ -130,7 +130,7 @@ export default function Terms() {
       <Section id="changes" title="Changes to these terms">
         <p>
           We may update these terms. The date at the top shows when they last changed, and continuing to use
-          YATICORP after a change means you accept the updated terms.
+          YATICORPX3 after a change means you accept the updated terms.
         </p>
       </Section>
     </LegalShell>

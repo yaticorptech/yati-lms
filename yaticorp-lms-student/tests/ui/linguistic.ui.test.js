@@ -38,6 +38,11 @@ const DASH = {
         { level: 'intermediate', label: 'Intermediate', total: 1, completed: 0, passingScore: 70, complete: false, certificate: null },
         { level: 'advanced', label: 'Advanced', total: 0, completed: 0, passingScore: 75, complete: false, certificate: null }
     ],
+    // The two certificates (2026-11-18): Beginner (Sections 1–3) and Advanced (Sections 4–10).
+    certs: [
+        { level: 'beginner', label: 'Beginner', sections: [1, 2, 3], total: 5, completed: 2, complete: false, certificate: null },
+        { level: 'advanced', label: 'Advanced', sections: [4, 5, 6, 7, 8, 9, 10], total: 0, completed: 0, complete: false, certificate: null }
+    ],
     modules: [], overall: { total: 5, completed: 2, percent: 40 }, quizAverage: 90, points: 340, streak: { current: 3, longest: 5, today: true },
     achievements: [{ key: 'first_lesson', emoji: '🌱', title: 'Off to a Start', description: 'Complete your first lesson.', earned: true, current: 1, target: 1 }, { key: 'translator', emoji: '🔁', title: 'Translator', description: 'Translate 10 items correctly.', earned: false, current: 4, target: 10 }],
     resume: null, daily: { done: false, score: null, total: 5 }, mistakes: 4, pendingReviews: 1, today: { xp: 30, lessons: 1 }, certificateMinAverage: 70,
@@ -415,14 +420,14 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.deepEqual(errors, []);
         assert.equal(result.__error, undefined, result.__error);
         // The tabs became the four doors (2026-10-29, 94d3d01; their own tests: "the dashboard doors on a …"), none lit on the dashboard.
-        assert.deepEqual([result.doors, result.lit], [['learn', 'writing', 'practice', 'badges'], 0], 'the four doors, none lit');
+        assert.deepEqual([result.doors, result.lit], [['learn', 'writing', 'practice', 'badges', 'ielts'], 0], 'the five doors (IELTS since 2026-11-17), none lit');
         assert.equal(result.href, '/linguistic?lesson=r4', 'Continue opens the path at that lesson');
         assert.deepEqual(result.stats, ['340', true], 'the language, level, streak and XP bar, on the dashboard');
         assert.equal(result.side, 2, 'the roadmap and daily quests, on the dashboard');
         // The row of three icons (continue, level, mistakes) went 2026-10-29: Continue in the greeting, the course and the mistakes in cards.
         assert.deepEqual([result.course, result.mistakes], [true, '4'], 'the course card and the mistakes box');
         assert.deepEqual([result.road, result.cheer], [['1:today', '8:ahead', '15:ahead', '22:ahead', '30:ahead'], 'orange'], 'the roadmap\'s road: day 3 of 30, past Day 1; one lesson behind, "Catch up!" (2026-10-27)');
-        assert.deepEqual([result.welcome, result.tiles, result.removed, result.levels], [true, 0, [], DASH.levels.length], 'no number tiles, roadmap or week (taken off)');
+        assert.deepEqual([result.welcome, result.tiles, result.removed, result.levels], [true, 0, [], DASH.certs.length], 'no number tiles, roadmap or week (taken off); the two certificates (2026-11-18)');
         assert.match(result.cont, /Articles: a, an and the|Continue/);
         // The greeting and its picture since the 2026-10-29 redesign: the course named, the scene with the mascot.
         assert.equal(result.message, 'Let’s continue your English learning journey!', 'only the greeting, no other text');
@@ -430,7 +435,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.equal(result.skills, 2);
         assert.ok(result.skillIcons.every(([art, href]) => art && href.startsWith('/linguistic')), 'each skill an icon that opens it (2026-10-29)');
         assert.equal(result.skillRow, 2, 'the skills a list, one under the other ("Your skills", since the 2026-10-29 redesign)');
-        assert.ok(result.levelIcons >= DASH.levels.length, 'a medal for each level');
+        assert.ok(result.levelIcons >= DASH.certs.length, 'a medal for each certificate');
         assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
     });
 
@@ -499,7 +504,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.deepEqual([result.tabs, result.card], [[], 'g1'], 'the path, without the tabs (2026-10-27), at that lesson');
     });
 
-    test('inside pages: a click on the empty page opens the dashboard; not on a banner, nor a click that only closes the START card (2026-10-26)', async () => {
+    test('inside pages: a click on the empty page stays on the page (2026-11-19, was: opened the dashboard); a click outside the START card closes it', async () => {
         const { result, errors } = await screen({ entry: app('/linguistic?lesson=g1'), api: apiModule(SHELL_API), styles: true, script: `
             await sleep(1200);
             const tap = async (el) => { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); el.click(); await sleep(500); };
@@ -516,7 +521,7 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.equal(result.card, true);
         assert.deepEqual(result.closing, { card: false, dashboard: false }, 'the first click only closes the START card');
         assert.equal(result.banner, false, 'a click on a unit banner stays');
-        assert.equal(result.after, true, 'a click on the empty page opens the dashboard');
+        assert.equal(result.after, false, 'a click on the empty page stays (2026-11-19)');
     });
 
     test('straight to Advanced (2026-10-31): under the locked section, the Advanced entry test; it opens; tried and not passed, it says they learn from Beginner', async () => {
@@ -1268,6 +1273,37 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
         assert.equal(result.plain, 11);
     });
 
+    // 2026-11-17, the user: "in Hindi (my language) no voice is heard" — on a laptop with no Hindi voice.
+    for (const [name, voices, expect] of [
+        ['a Marathi voice reads it', [{ lang: 'en-IN', name: 'English' }, { lang: 'mr-IN', name: 'Marathi' }], 'device'],
+        ['no Devanagari voice: the server\'s voice is asked', [{ lang: 'en-IN', name: 'English' }], 'server']
+    ]) {
+        test(`a Hindi choice tapped on a device with no Hindi voice: ${name}`, async () => {
+            const LESSON = { id: 'hv', module: 'grammar', moduleLabel: 'Grammar Practice', level: 'beginner', title: 'Body', direction: null, passingScore: 60, language: 'hi', languageName: 'Hindi',
+                learn: { intro: 'Body.' }, quiz: [], progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 },
+                practice: [{ id: 'g1', type: 'mcq', prompt: '"nose" का अर्थ क्या है?', options: ['नाक', 'कान', 'आँख'] }] };
+            const { result, errors } = await screen({ entry: app('/linguistic/grammar/hv'), api: apiModule({ '/linguistic/lessons/hv': LESSON, ...SHELL_API }), styles: true, device: DEVICES.galaxyA55, script: `
+                ${DRIVE}
+                Object.defineProperty(window.speechSynthesis, 'getVoices', { configurable: true, value: () => ${JSON.stringify(voices)} });
+                window.speechSynthesis.dispatchEvent?.(new Event('voiceschanged'));
+                window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
+                window.__spoken = [];
+                window.speechSynthesis.speak = (u) => window.__spoken.push([u.text, u.lang]);
+                await sleep(1000);
+                for (let i = 0; i < 4 && !$('[data-question="g1"]'); i++) await press();
+                const before = window.__calls.length;
+                $$('[role="radio"]').find((b) => text(b).includes('नाक'))?.click(); await sleep(600);
+                return { spoken: window.__spoken, tts: window.__calls.slice(before).filter((c) => c[0] === 'GET' && String(c[1]).includes('/tts')).map((c) => c[2]) };` });
+            assert.deepEqual(errors, []);
+            assert.equal(result.__error, undefined, result.__error);
+            if (expect === 'device') assert.deepEqual(result.spoken, [['नाक', 'mr-IN']], 'read by the Marathi voice, as it is written');
+            else {
+                assert.deepEqual(result.spoken, [], 'not handed to an English voice');
+                assert.equal(result.tts[0]?.lang, 'hi', `the server's Hindi voice asked for it (${JSON.stringify(result.tts)})`);
+            }
+        });
+    }
+
     // 2026-11-14, the user's picture of a golden chest: "make the gift the same".
     test('the treasure chest on the path is drawn as a chest (shut, opened once collected, grey while locked); tapped, it offers to open', async () => {
         const chest = (id, status, open) => ({ id, stop: 'chest', type: 'chest', title: 'Treasure chest', summary: '', open, status, bestScore: null, attempts: 0 });
@@ -1719,7 +1755,9 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
     });
 
-    test('the user\'s two pictures (2026-11-06): a Japanese tile tapped shows its English and stays, tapped again goes in; the Spanish blanks\' words and tiles the same — the box never in the way of CHECK', async () => {
+    // One tap since 2026-11-17 (the user: "a single tap — it goes and sits in the blank space and gives the meaning"; it was
+    // tap for the meaning, tap again to place, 2026-11-06).
+    test('a Japanese tile tapped once: into the answer, its English shown at it there; the Spanish blanks\' tiles the same — the box never in the way of CHECK', async () => {
         const course = { course: 'ja', target: 'ja', targetName: 'Japanese', targetLocale: 'ja-JP', language: 'en', languageName: 'English' };
         const JA = { id: 'tj', module: 'translation', moduleLabel: 'Translation Practice', level: 'beginner', title: 'At college', direction: 'kn-en', passingScore: 60, ...course,
             learn: { intro: 'Translate.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 },
@@ -1739,14 +1777,11 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             await press(); await sleep(300);
             const tile = (w) => $$('[data-tiles] button').find((b) => b.textContent.startsWith(w) && !b.classList.contains('invisible'));
             const out = { closed: !$('[data-hint-box]') };
-            const t = tile('この'), r = t.getBoundingClientRect(); t.click(); await sleep(200);
+            const t0 = tile('この'), r = t0.getBoundingClientRect(); t0.click(); await sleep(250);
             const b = $('[data-hint-box]').getBoundingClientRect();
-            out.kono = { rows: $$('[data-hint-meaning]').map(text), lang: $('[data-hint-box]').getAttribute('lang'), placed: $$('[data-placed] button').length, stays: !!tile('この'), blue: tile('この').getAttribute('aria-pressed'), at: b.top >= r.bottom && b.left <= r.right && b.right >= r.left };
-            tile('課は').click(); await sleep(200);
-            out.ka = { rows: $$('[data-hint-meaning]').map(text), boxes: $$('[data-hint-box]').length, placed: $$('[data-placed] button').length };
-            tile('課は').click(); await sleep(200);
-            out.ka2 = { placed: $$('[data-placed] button').map((x) => x.textContent), closed: !$('[data-hint-box]') };
-            tile('この').click(); await sleep(150); tile('この').click(); await sleep(200);
+            out.kono = { rows: $$('[data-hint-meaning]').map(text), lang: $('[data-hint-box]').getAttribute('lang'), placed: $$('[data-placed] button').map((x) => x.textContent), stays: !!tile('この'), at: b.top >= r.bottom && b.left <= r.right && b.right >= r.left };
+            tile('課は').click(); await sleep(250);
+            out.ka = { rows: $$('[data-hint-meaning]').map(text), boxes: $$('[data-hint-box]').length, placed: $$('[data-placed] button').map((x) => x.textContent) };
             $$('[data-placed] button')[0].click(); await sleep(200);
             out.back = { closed: !$('[data-hint-box]'), placed: $$('[data-placed] button').length };
             tile('簡単です').click(); await sleep(200);
@@ -1757,9 +1792,8 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.deepEqual(ja.errors, []);
         assert.equal(ja.result.__error, undefined, ja.result.__error);
         assert.equal(ja.result.closed, true);
-        assert.deepEqual(ja.result.kono, { rows: ['this'], lang: 'en', placed: 0, stays: true, blue: 'true', at: true }, 'この tapped: "this" under it, and it stays (marked)');
-        assert.deepEqual(ja.result.ka, { rows: ['lesson'], boxes: 1, placed: 0 }, 'another tile: its meaning, one box, still nothing placed');
-        assert.deepEqual(ja.result.ka2, { placed: ['課はka-wa'], closed: true }, 'tapped again: into the answer, the box gone');
+        assert.deepEqual(ja.result.kono, { rows: ['this'], lang: 'en', placed: ['このkono'], stays: false, at: true }, 'この tapped once: into the answer, "this" under the tile tapped, as before');
+        assert.deepEqual(ja.result.ka, { rows: ['lesson'], boxes: 1, placed: ['このkono', '課はka-wa'] }, 'another tile: in too, its meaning in the one box');
         assert.deepEqual(ja.result.back, { closed: true, placed: 1 }, 'a tile taken back: the box goes');
         assert.equal(ja.result.through, true, 'the box lets taps through (CHECK under it still works)');
         assert.ok(ja.result.wide <= 1, `nothing wider than the phone (${ja.result.wide}px)`);
@@ -1772,18 +1806,15 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             $$('[data-blanks] [data-hint-word]').find((b) => b.textContent === 'lunes').click(); await sleep(200);
             out.lunes = $$('[data-hint-meaning]').map(text);
             const reunion = () => $$('[data-tiles] button').find((b) => b.textContent === 'reunión');
-            reunion().click(); await sleep(200);
+            reunion().click(); await sleep(250);
             out.tile = { rows: $$('[data-hint-meaning]').map(text), box0: text($('[data-blank="0"]')) };
-            reunion().click(); await sleep(200);
-            out.again = { box0: text($('[data-blank="0"]')), closed: !$('[data-hint-box]') };
             return out;` });
         assert.deepEqual(es.errors, []);
         assert.equal(es.result.__error, undefined, es.result.__error);
         assert.deepEqual(es.result.marked, ['La', 'se', 'ha', 'al', 'lunes'], 'the sentence\'s words marked to tap');
         assert.equal(es.result.sentence, 'La se ha al lunes.');
         assert.deepEqual(es.result.lunes, ['Monday'], '"lunes" tapped: Monday');
-        assert.deepEqual(es.result.tile, { rows: ['meeting'], box0: '' }, 'a tile tapped: its meaning; the box still empty (2026-11-06, "only show the meaning")');
-        assert.deepEqual(es.result.again, { box0: 'reunión', closed: true }, 'tapped again: into the first box');
+        assert.deepEqual(es.result.tile, { rows: ['meeting'], box0: 'reunión' }, 'a tile tapped once: into the first box, its meaning shown (2026-11-17)');
     });
 
     test('an Arabic story\'s question (2026-11-06, "how will they understand this language?"): the question tapped, its English; a choice tapped is chosen and shows its English right under it', async () => {
@@ -2465,7 +2496,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.equal(result.hindiChosen, 'true', 'Hindi can');
     });
 
-    test('jump here?: under an open unit, the shut one after it — "Up next", its name, "Jump here?"; one further on, its name and its last try; tapped, its test opens', async () => {
+    test('no "Up next … Jump here?" card on the path (2026-11-17, the user: "remove this, keep it the same as before"): a shut unit shows its grey banner only', async () => {
         const N = 'new';
         const jumpPath = { ...PATH, current: 'a1', levels: [{ ...PATH.levels[0], open: true, units: [
             { id: 'beginner-1', index: 1, kind: 'topic', title: 'Family', open: true, lessons: ['a1', 'a2'].map((id, i) => lesson(id, `Lesson ${i + 1}`, { status: N })) },
@@ -2478,26 +2509,11 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         const post = `(url, body) => url.endsWith('/jump-unit') ? { unit: body.unit, lesson: 'ra', module: 'vocabulary' } : { step: body.step }`;
         const { result, errors } = await screen({ entry: app('/linguistic'), api: apiModule({ '/linguistic/lessons/ra': REVIEW, ...SHELL_API, '/linguistic/path': jumpPath }, post), styles: true, device: DEVICES.galaxyA55, script: `
             await sleep(1500);
-            const card = (id) => $('[data-jump-unit="' + id + '"]');
-            const look = (id) => card(id) && { upNext: !!card(id).querySelector('[data-jump-up-next]'), text: text(card(id)).replace(/\\s+/g, ' ').trim(), button: text(card(id).querySelector('[data-jump-here]')) };
-            const out = { open: !!card('beginner-1'), b: look('beginner-2'), c: look('beginner-3') };
-            // The card sits under the open unit's last lesson, above the shut unit's banner.
-            const lastOpen = $$('[data-unit="beginner-1"] [data-node]').pop();
-            out.order = lastOpen.getBoundingClientRect().bottom <= card('beginner-2').getBoundingClientRect().top;
-            card('beginner-2').querySelector('[data-jump-here]').click(); await sleep(1500);
-            out.sent = window.__calls.filter((c) => c[0] === 'POST' && c[1].endsWith('/jump-unit')).map((c) => c[2]);
-            out.opened = { path: !!$('[data-unit]'), session: !!$('[data-lingo-session]') };
-            out.wide = (() => { ${WIDE} })();
-            return out;` });
+            return { cards: $$('[data-jump-unit]').length, buttons: $$('[data-jump-here]').length, shut: $$('[data-unit][data-open="false"]').length };` });
         assert.deepEqual(errors, []);
         assert.equal(result.__error, undefined, result.__error);
-        assert.equal(result.open, false, 'no card on an open unit');
-        assert.deepEqual(result.b, { upNext: true, text: 'UP NEXT Food and drink JUMP HERE?', button: 'JUMP HERE?' }, 'the next unit: Up next, its name, Jump here? (in capitals, as the picture)');
-        assert.deepEqual(result.c, { upNext: false, text: 'School and friends Last try: 40% JUMP HERE?', button: 'JUMP HERE?' }, 'one further on: its name and its last try');
-        assert.equal(result.order, true, 'under the open unit');
-        assert.deepEqual(result.sent, [{ unit: 'beginner-2' }], 'its test asked for');
-        assert.deepEqual(result.opened, { path: false, session: true }, 'the test opens');
-        assert.ok(result.wide <= 1, `inside the phone (${result.wide}px)`);
+        assert.deepEqual([result.cards, result.buttons], [0, 0], 'no Up next card, no Jump here? button');
+        assert.ok(result.shut >= 2, `the shut units still there, with their grey banners (${result.shut})`);
     });
 
     test('a lesson of a unit done, back on the path: the very next lesson of that unit, its START card open — not an earlier one left undone, not another unit', async () => {
@@ -2573,8 +2589,8 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.deepEqual(errors, []);
         assert.equal(result.__error, undefined, result.__error);
         assert.deepEqual(result.practice, { quests: false, daily: '/linguistic/daily', mistakes: '4', placement: 'none', wide: 0 });
-        assert.deepEqual(result.badges, { list: ['first_lesson:true', 'translator:false'], levels: 3,
-            gems: ['hex:green', 'hex:purple'], levelGems: ['hex', 'hex', 'hex'], wide: 0 }, 'each badge in its own colours, on a card of its colour (2026-10-27)');
+        assert.deepEqual(result.badges, { list: ['first_lesson:true', 'translator:false'], levels: 2,
+            gems: ['hex:green', 'hex:purple'], levelGems: ['hex', 'hex'], wide: 0 }, 'each badge in its own colours, on a card of its colour (2026-10-27); two certificates only (2026-11-18)');
         assert.match(result.writing, /Nothing yet/);
         assert.equal(result.open, 'writing');
     });
@@ -2721,6 +2737,38 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.equal(result.how, 'ನೀವು ಯಾವುದರ ಬಗ್ಗೆ ಬರೆಯುತ್ತಿದ್ದೀರಿ ಎಂದು ಹೇಳುವುದನ್ನು ಆರಿಸಿ.', 'and how to choose, under the question');
         assert.deepEqual(result.checks, [['writeguide', 'w2~subject', 'Subject: Follow-up on internship application'], ['writeguide', 'w2~greeting', 'Dear Ms Rao,']], 'each answer checked by the server');
         assert.ok(result.write, 'then the email to write');
+    });
+
+    // 2026-11-19, the user: "you give the job interview, then jump to the email without asking about the interview".
+    test('a story: its questions straight after it, then how an email is written and the email', async () => {
+        const GUIDE = { type: 'email', title: 'ಇಮೇಲ್ ಬರೆಯುವುದು ಹೇಗೆ', intro: 'ಭಾಗಗಳು.', parts: [{ name: 'Subject', say: 'ವಿಷಯ.', example: 'Subject: Thank you' }],
+            phrasesTitle: 'ಪದಗಳು', phrases: ['Kind regards,'], exampleTitle: 'ಉದಾಹರಣೆ', example: 'Subject: Thank you\n\nDear Sir,', next: 'ಮುಂದೆ' };
+        const STORY = {
+            id: 'st', module: 'reading', moduleLabel: 'Reading and Writing', level: 'intermediate', title: 'Asha\'s Interview', summary: '', direction: null, passingScore: 60, language: 'kn',
+            learn: { intro: 'Read the story.', passage: { title: 'Asha\'s Interview', text: 'Asha had her first job interview at a bank.' } },
+            progress: { status: 'new', step: 'learn', bestScore: null, attempts: 0 }, writeGuides: { email: GUIDE },
+            writing: [{ id: 'w2', type: 'email', prompt: 'Write an email to the bank manager.', minWords: 20, checklist: [] }],
+            quiz: [{ id: 'q1', type: 'mcq', prompt: 'Where was the interview?', options: ['At a bank', 'At a school'] }, { id: 'q2', type: 'mcq', prompt: 'Whose interview?', options: ['Asha', 'Ravi'] }]
+        };
+        const RIGHT = { q1: 'At a bank', q2: 'Asha' };
+        const post = `(url, body) => url.endsWith('/check') ? { correct: true, answer: (${JSON.stringify(RIGHT)})[body.id], explanation: '', events: [] } : null`;
+        const { result, errors } = await screen({ entry: app('/linguistic/reading/st'), api: apiModule({ '/linguistic/lessons/st': STORY }, post), styles: true, device: DEVICES.galaxyA55, budget: 30000, script: `
+            ${DRIVE}
+            await sleep(1000);
+            const where = () => $('[data-question]') ? $('[data-question]').dataset.question : $('[data-write-guide]') ? 'guide' : $('[data-writing]') ? 'write' : $('[data-passage]') ? 'story' : null;
+            const seen = [];
+            for (let i = 0; i < 14 && where() !== 'write'; i++) {
+                const at = where();
+                if (at && seen.at(-1) !== at) seen.push(at);
+                if (at && /^q/.test(at)) { $$('[data-question] button[role="radio"]').find((b) => b.innerText.includes((${JSON.stringify(RIGHT)})[at]))?.click(); await sleep(120); }
+                await press();
+            }
+            if (where() && seen.at(-1) !== where()) seen.push(where());
+            return { seen };
+        ` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.deepEqual(result.seen, ['story', 'q1', 'q2', 'guide', 'write'], 'the story, its questions, then the email');
     });
 
     // 2026-11-07, the user, of "I said what time I wake up" under the box: "why did you put this?"; chose: it ticks itself.

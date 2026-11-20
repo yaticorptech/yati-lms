@@ -2,7 +2,7 @@
  * @description Student job board — skill-ranked listings, plus the skill gap
  *              between where the student is and the role they want.
  *
- * Ported from the standalone CareerCompass app and redrawn in the LMS's own
+ * Ported from the standalone CareerCompass app and redrawn in YATICORPX3's own
  * card style. The server is unchanged from the original: it ranks on skills,
  * role fit, job type and distance, ingesting fresh listings when the stored
  * index is stale for the place being searched.
@@ -492,7 +492,7 @@ export default function Jobs() {
         if (data) setData(null);
     };
 
-    /* Mount: fill in what the LMS already knows, then search on it.
+    /* Mount: fill in what YATICORPX3 already knows, then search on it.
        Three sources are settled before the one-time search runs: the inbound
        URL (a shared link keeps exactly what it carries), the student's Career
        Path profile (goal + progressed skills, when the link brought neither),
@@ -513,7 +513,7 @@ export default function Jobs() {
             // the FORM in a vacuum: a link that names skills or a role is
             // someone's deliberate search, not a blank slate. Resume skills
             // come first in the merge: they are evidence the student put in
-            // writing, where roadmap progress is the LMS's own bookkeeping.
+            // writing, where roadmap progress is YATICORPX3's own bookkeeping.
             const [fromCareer, resumeRes, learnedNow, demo] = await Promise.all([
                 careerPrefill().catch(() => null),
                 jobsApi.resumeGet().catch(() => ({ profile: null })),
@@ -550,7 +550,7 @@ export default function Jobs() {
                 // resume, Career Path (already opened out — "HTML5 / CSS3" →
                 // HTML, CSS) and the courses, taken in turn so each is
                 // represented, up to 30. Everyone else, as before: resume
-                // first, then what this LMS taught them, then Career Path
+                // first, then what this YATICORPX3 taught them, then Career Path
                 // practice, the first 15.
                 const skills = demo
                     ? interleaveSkills([
@@ -692,7 +692,7 @@ export default function Jobs() {
         search(patch);
     };
 
-    /* Skills the LMS knows the student has earned that are not in the box —
+    /* Skills YATICORPX3 knows the student has earned that are not in the box —
        offered as one tap rather than added behind their back. */
     const missingLearned = useMemo(
         () => (learned ? learned.skills.filter((s) => !form.skills.some((f) => f.toLowerCase() === s.toLowerCase())).slice(0, 12) : []),

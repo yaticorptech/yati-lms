@@ -104,7 +104,7 @@ describe('what SMTP is told', () => {
         try {
             await load().sendEmail({ to: 'devaki@example.com', toName: 'Devaki', subject: 'Permission needed', htmlContent: '<p>hi</p>' });
             assert.equal(seen.mail.from.address, 'lms@example.com');
-            assert.equal(seen.mail.from.name, 'YATICORP LMS');
+            assert.equal(seen.mail.from.name, 'YATICORPX3');
             assert.deepEqual(seen.mail.to, { name: 'Devaki', address: 'devaki@example.com' });
             assert.equal(seen.mail.subject, 'Permission needed');
         } finally { restore(); }
@@ -190,7 +190,7 @@ describe('a real send, through a real socket', () => {
         process.env.SMTP_PORT = String(port);
         process.env.SMTP_USER = 'lms@school.edu';
         process.env.SMTP_PASS = 'a-password';
-        process.env.SMTP_FROM_NAME = 'YATICORP LMS';
+        process.env.SMTP_FROM_NAME = 'YATICORPX3';
 
         const mailer = load();
         try {

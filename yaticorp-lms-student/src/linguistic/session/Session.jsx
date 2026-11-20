@@ -164,6 +164,7 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
     const tally = useRef({ right: 0, wrong: 0, xp: 0, xpBy: {}, praise: 0 });
     const started = useRef(0);
     const primaryRef = useRef(() => {});
+    const floatRef = useRef(null);
     useEffect(() => { started.current = Date.now(); }, []);
 
     const step = queue[index];
@@ -213,6 +214,8 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
     // also, then go to the review"); it says the hearts ran out. (Before, the quiz ended at the last heart.)
     const advance = () => {
         if (index >= lastIndex) return finish(hearts === 0);
+        // Out of hearts at the end of a story's quiz: the result now, not its writing first (2026-11-19).
+        if (hearts === 0 && step.part === 'quiz' && queue[index + 1]?.afterQuiz) return finish(true);
         return goTo(index + 1);
     };
 
@@ -304,6 +307,30 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
     };
     useEffect(() => { primaryRef.current = primary; });
 
+    // The corner character never over a button, a choice or the answer (2026-11-19, phones: on a small or sideways screen
+    // it covered the options, CONTINUE and "Read the story again"): hidden while it would be, there again where it is clear.
+    useEffect(() => {
+        const box = floatRef.current;
+        if (!box) return undefined;
+        const frame = box.closest('[data-lingo-session]') || document;
+        const area = frame.querySelector('[data-answer-area]');
+        const place = () => {
+            const r = box.getBoundingClientRect();
+            const hit = [...frame.querySelectorAll('button, textarea, input, [data-option], [data-auto-next], [data-correction-box], [data-model-box]')].some((el) => {
+                if (box.contains(el)) return false;
+                const b = el.getBoundingClientRect();
+                return b.width > 0 && b.height > 0 && b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top;
+            });
+            box.style.visibility = hit ? 'hidden' : '';
+        };
+        place();
+        // Again once the answer box has slid in and the character has popped up to its size.
+        const late = setTimeout(place, 350);
+        area?.addEventListener('scroll', place, { passive: true });
+        window.addEventListener('resize', place);
+        return () => { clearTimeout(late); area?.removeEventListener('scroll', place); window.removeEventListener('resize', place); };
+    }, [mood, index, retry, sheet, ending]);
+
     // A wrong answer with one right answer (2026-11-05, "don't make them press Continue"): the right answer stays for
     // 3 seconds — longer for a long one or a "Why" (6 at most) — a bar running out in place of CONTINUE, then the same
     // question again by itself (the 27 Oct rule). Paused while the quit question is open.
@@ -370,7 +397,8 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
                 </button>
             </header>
 
-            <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-answer-area>
+            {/* Never wider than the phone (2026-11-19): the answer box slides in from the side, the wrong answer shakes. */}
+            <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain" data-answer-area>
                 {/* A picture story's page is wider (2026-10-31): two panels to a row. */}
                 <div className={`mx-auto w-full ${step.kind === 'comic' ? 'max-w-[1000px]' : 'max-w-[600px]'} px-4 pb-8 pt-4 sm:pt-8`}>
                     <div className="mb-3 flex min-h-7 flex-wrap items-center gap-2">
@@ -438,7 +466,7 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
             {/* The character for a screen with none of its own (2026-11-06): in the corner, thumbs up or sad, as the answer went
                 (hidden where the screen has its own: the class, in the app's main styles). */}
             {mood && !ending && (
-                <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 z-[95] sm:left-8 [[data-lingo-session]:has([data-answer-area]_[data-mood-mascot])_&]:hidden" data-float-mascot data-mood={mood} aria-hidden="true">
+                <div ref={floatRef} className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 z-[95] sm:left-8 [[data-lingo-session]:has([data-answer-area]_[data-mood-mascot])_&]:hidden" data-float-mascot data-mood={mood} aria-hidden="true">
                     <MoodMascot pose={mood === 'right' ? 'thumbs-up' : 'sad'} className="h-20 w-20 drop-shadow-lg sm:h-28 sm:w-28" />
                 </div>
             )}

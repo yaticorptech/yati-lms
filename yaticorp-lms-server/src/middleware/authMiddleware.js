@@ -118,7 +118,7 @@ const protectUser = async (req, res, next) => {
                 if (!OPEN_WHEN_CLOSED.some((p) => path.startsWith(p))) {
                     const access = await require('../organizations/services/accessSchedule').studentAccess(req.user);
                     if (!access.open) {
-                        return res.status(423).json({ code: 'PLATFORM_CLOSED', message: `${access.organization} opens YATICORP for its students ${access.hours}.`, opensAt: access.opensAt, hours: access.hours, organization: access.organization });
+                        return res.status(423).json({ code: 'PLATFORM_CLOSED', message: `${access.organization} opens YATICORPX3 for its students ${access.hours}.`, opensAt: access.opensAt, hours: access.hours, organization: access.organization });
                     }
                 }
             }

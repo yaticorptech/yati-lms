@@ -24,12 +24,14 @@ const isOneOf = (w, words) => words.some((u) => { const a = low(w), b = low(u); 
 const fits = (t) => t.word && [...t.text].length >= 2 && !STOP.has(low(t.text)) && !/^\d+$/.test(t.text);
 
 /** One sentence with blanks — `most` of them, the `prefer` words first — or null when it has too few words. */
-const blankOne = ({ id, learnt, helper, locale, prefer, pool, seed, most = 2 }) => {
+// `avoid`: words not to leave out (2026-11-18: a unit asked this sentence with that word missing already).
+const blankOne = ({ id, learnt, helper, locale, prefer, pool, seed, most = 2, avoid = [] }) => {
     const toks = tokensOf(learnt, locale);
     const words = toks.map((t, i) => (t.word ? i : -1)).filter((i) => i >= 0);
     if (words.length < 2) return null;
-    const theirs = words.filter((i) => fits(toks[i]) && isOneOf(toks[i].text, prefer));
-    const rest = words.filter((i) => fits(toks[i]) && !theirs.includes(i)).sort((a, b) => [...toks[b].text].length - [...toks[a].text].length);
+    const free = (i) => fits(toks[i]) && !avoid.includes(low(toks[i].text));
+    const theirs = words.filter((i) => free(i) && isOneOf(toks[i].text, prefer));
+    const rest = words.filter((i) => free(i) && !theirs.includes(i)).sort((a, b) => [...toks[b].text].length - [...toks[a].text].length);
     const picked = [...theirs, ...rest].slice(0, words.length >= 5 ? most : 1).sort((a, b) => a - b);
     if (!picked.length) return null;
     // The sentence as it is written, its spaces kept, a blank (null) for each missing word.
@@ -56,7 +58,7 @@ const poolOf = (unitWords, sentences, locale) => [...unitWords, ...sentences.fla
  * A lesson's blanks (at most `count`): `sentences` its sentences ({ id, learnt, helper }), `prefer` the words it is
  * about, `need` true to keep only sentences with one of them (a Words lesson), `most` blanks to a sentence.
  */
-const blanksFor = ({ key, sentences, prefer, pool, locale, need = false, most = 2, count = 2 }) => {
+const blanksFor = ({ key, sentences, prefer, pool, locale, need = false, most = 2, count = 2, avoid = [] }) => {
     const ranked = shuffle(sentences, seeded(`${key}:blanks`))
         .map((s) => ({ s, has: tokensOf(s.learnt, locale).some((t) => t.word && isOneOf(t.text, prefer)) }))
         .filter((x) => !need || x.has)
@@ -64,7 +66,7 @@ const blanksFor = ({ key, sentences, prefer, pool, locale, need = false, most = 
     const out = [];
     for (const { s } of ranked) {
         if (out.length >= count) break;
-        const q = blankOne({ id: `blank~${s.id}`, learnt: s.learnt, helper: s.helper, locale, prefer, pool: pool.filter((w) => w !== s.learnt), seed: `${key}:${s.id}`, most });
+        const q = blankOne({ id: `blank~${s.id}`, learnt: s.learnt, helper: s.helper, locale, prefer, pool: pool.filter((w) => w !== s.learnt), seed: `${key}:${s.id}`, most, avoid });
         if (q) out.push(q);
     }
     return out;

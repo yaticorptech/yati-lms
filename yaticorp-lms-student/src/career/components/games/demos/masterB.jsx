@@ -61,7 +61,6 @@ const quiz = (data, render, phases, { layout = 'grid', mono = false, small = fal
 });
 
 const eyebrow = 'text-xs font-black tracking-[0.14em] uppercase';
-const signed = (v) => (v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0');
 
 // ---- Verbal: Synonyms & Antonyms, Idiom Sense --------------------------------------------------------------------
 const SYN = [
@@ -126,16 +125,6 @@ const BAGS = [
   { colour: 'red', bags: [[3, 1], [5, 3], [6, 4]], frac: ['3/4 = 75%', '5/8 ≈ 63%', '6/10 = 60%'], right: 0 },
   { colour: 'blue', bags: [[2, 2], [4, 3], [1, 3]], frac: ['2/4 = 50%', '3/7 ≈ 43%', '3/4 = 75%'], right: 2 }
 ];
-function bag(red, blue) {
-  const list = [];
-  for (let r = red, b = blue; r + b > 0;) { if (r) { list.push('#e11d48'); r -= 1; } if (b) { list.push('#2563eb'); b -= 1; } }
-  return (
-    <svg viewBox="0 0 100 100" className="h-14 w-14" aria-hidden>
-      <path d="M36 8 h28 l-5 12 c22 5 33 25 33 48 c0 20 -15 30 -42 30 s-42 -10 -42 -30 c0 -23 11 -43 33 -48 z" fill="#f1f5f9" stroke="#94a3b8" strokeWidth="2.5" />
-      {list.map((c, i) => <circle key={i} cx={29 + (i % 4) * 14} cy={84 - Math.floor(i / 4) * 14} r="6" fill={c} />)}
-    </svg>
-  );
-}
 
 // ---- Statistical Inference plots ----------------------------------------------------------------------------------
 function dots({ rows, lo, hi, mark }) {
@@ -199,11 +188,6 @@ const BONDS = [
 ];
 
 // ---- Master Minds verbal boards -------------------------------------------------------------------------------------
-const SEMANTIC = [
-  { before: 'After the marathon she was ', vague: 'tired', after: '.', shelf: ['sleepy', 'exhausted', 'bored'], best: 1, gap: [76, 23], why: ['“after the marathon”', '“she was”'] },
-  { before: 'The witness ', vague: 'said', after: ' firmly that he was innocent.', shelf: ['insisted', 'whispered', 'guessed'], best: 0, gap: [40, 23], why: ['“firmly”', '“the witness”'] },
-  { before: 'The ', vague: 'big', after: ' palace had over 700 rooms.', shelf: ['heavy', 'tall', 'vast'], best: 2, gap: [18, 23], why: ['“over 700 rooms”', '“the palace”'] }
-];
 const ROLE = { p: ['Premise', 'bg-sky-50 text-sky-800 ring-sky-300'], c: ['Conclusion', 'bg-violet-100 text-violet-800 ring-violet-400'] };
 const ARG = [
   { lines: [['Breakfast eaters score higher on tests.', 'p'], ['Our school’s scores are low.', 'p'], ['So we should serve free breakfast.', 'c']], kind: 'weaken', opts: ['Breakfast is the most popular meal.', 'Breakfast eaters also sleep more, and sleep explains it.'], right: 1 },
@@ -215,7 +199,6 @@ const PARA = [
   { s: ['Gandhi returned to India in 1915.', 'He soon led peasant protests.', 'These made him a national figure.', 'Finally, he led the Salt March.'], start: [3, 1, 0, 2], moves: [[0, 2], [2, 3]] },
   { s: ['Plastic is cheap and durable.', 'Yet it lasts for centuries.', 'As a result, oceans fill with waste.', 'So many countries now ban bags.'], start: [0, 3, 1, 2], moves: [[1, 2], [2, 3]] }
 ];
-const swap = (list, [a, b]) => list.map((v, i) => (i === a ? list[b] : i === b ? list[a] : v));
 const NUANCE = [
   { idea: 'rain', ends: ['Weakest', 'Strongest'], words: ['drizzle', 'shower', 'downpour', 'deluge'], tray: [2, 0, 3, 1], place: [0, 3, 1, 2] },
   { idea: 'anger', ends: ['Weakest', 'Strongest'], words: ['irked', 'annoyed', 'angry', 'furious'], tray: [3, 1, 0, 2], place: [3, 0, 2, 1] },
@@ -240,118 +223,6 @@ export const DEMOS = {
   'idiom-sense': quiz(IDIOM, (d) => (
     <><p className={`${eyebrow} text-pink-600`}>What does this mean?</p><p className="mt-1 text-xl font-black text-[#1b2456]">“{d.phrase}”</p></>
   ), ['Read the phrase', 'Not the literal one', 'Correct!'], { small: true }),
-
-  'semantic-precision': {
-    frames: 7,
-    draw: (f, ex) => {
-      const d = SEMANTIC[ex]; const placed = f >= 3; const held = f === 1 || f === 2;
-      const word = (
-        <span className={`mx-0.5 rounded-md px-1 font-bold ${placed ? 'bg-emerald-100 text-emerald-800' : f === 2 ? 'border-2 border-dashed border-indigo-400 bg-indigo-100 text-indigo-700' : 'border-2 border-dashed border-amber-300 bg-amber-50 text-amber-800 underline decoration-amber-400 decoration-wavy'}`}>{placed ? d.shelf[d.best] : d.vague}</span>
-      );
-      return {
-        body: (
-          <div className="flex h-full flex-col gap-2 px-3 pt-8 pb-3">
-            <div className="rounded-xl bg-white p-2 text-sm leading-relaxed text-[#1b2456] ring-1 ring-[#e4e1f5]">{d.before}{word}{d.after}</div>
-            <div className="flex flex-1 flex-col rounded-xl bg-white p-2 ring-1 ring-[#e4e1f5]">
-              <p className="mb-1.5 text-xs font-bold tracking-[0.12em] text-slate-500 uppercase">{f >= 4 ? `Why “${d.shelf[d.best]}”?` : 'Word shelf'}</p>
-              {f >= 4 ? (
-                <div className="mt-auto grid grid-cols-2 gap-1.5">{d.why.map((w, i) => <span key={w} className={`grid min-h-9 place-items-center rounded-lg px-1 text-center text-xs font-bold ${f >= 5 && i === 0 ? OPT.ok : f === 4 && i === 0 ? OPT.hold : OPT.idle}`}>{w}</span>)}</div>
-              ) : (
-                <div className="mt-auto grid grid-cols-3 gap-1.5">{d.shelf.map((w, i) => <span key={w} className={`grid min-h-9 place-items-center rounded-lg text-sm font-semibold ${i === d.best && (held || placed) ? (placed ? OPT.dim : OPT.hold) : OPT.idle}`}>{w}</span>)}</div>
-              )}
-            </div>
-          </div>
-        ),
-        hand: f === 1 ? [19 + d.best * 31, 83, true] : f === 2 ? [...d.gap, true] : f === 4 ? [27, 83, true] : REST,
-        step: f === 0 ? 0 : f < 5 ? 1 : 2,
-        phase: ['Spot the vague word', 'Pick the precise word', 'Drop it on the gap', 'Right word', 'Now: which words decide it?', 'Precise, and why', 'Precise, and why'][f]
-      };
-    }
-  },
-
-  'argument-analyzer': {
-    frames: 8,
-    draw: (f, ex) => {
-      const d = ARG[ex];
-      if (f >= 5) {
-        return {
-          body: (
-            <div className="flex h-full flex-col gap-1.5 px-3 pt-8 pb-3">
-              <p className="text-xs font-bold text-[#1b2456]">Which would most <span className={d.kind === 'weaken' ? 'text-rose-600' : 'text-emerald-600'}>{d.kind.toUpperCase()}</span> it? <span className="font-semibold text-slate-500">“{d.lines.find((l) => l[1] === 'c')[0]}”</span></p>
-              <div className="grid flex-1 grid-rows-2 gap-1.5">{d.opts.map((o, i) => (
-                <div key={o} className={`flex items-center gap-2 rounded-xl px-2 text-xs font-semibold ${i === d.right ? (f >= 6 ? OPT.ok : OPT.idle) : f >= 6 ? OPT.dim : OPT.idle}`}><span className="font-black opacity-60">{'AB'[i]}</span>{o}</div>))}</div>
-            </div>
-          ),
-          hand: f === 5 ? [50, 50 + d.right * 31, true] : REST,
-          step: f === 5 ? 1 : 2,
-          phase: f === 5 ? 'Find the weak point' : d.kind === 'weaken' ? 'Weak point found' : 'Strongest support'
-        };
-      }
-      return {
-        body: (
-          <div className="grid h-full grid-rows-3 gap-1.5 px-3 pt-8 pb-3">{d.lines.map(([text, role], i) => {
-            const tag = f > i ? ROLE[role] : null;
-            return (
-              <div key={text} className="flex items-center gap-2 rounded-xl bg-[#f7f6fd] px-2">
-                <p className="min-w-0 flex-1 text-xs leading-snug text-[#1b2456]">{text}</p>
-                <span className={`grid h-8 w-[5.6rem] shrink-0 place-items-center rounded-lg text-xs font-bold ring-2 ring-inset ${tag ? tag[1] : 'bg-white text-slate-400 ring-[#d9d4f3]'} ${f === 4 ? 'outline-2 outline-offset-1 outline-emerald-500' : ''}`}>{tag ? tag[0] : 'Tap to tag'}</span>
-              </div>
-            );
-          })}</div>
-        ),
-        hand: f >= 1 && f <= 3 ? [80, 27 + (f - 1) * 27.5, true] : REST,
-        step: f === 0 ? 0 : 1,
-        phase: f === 0 ? 'Read the argument' : f < 4 ? 'Tag each line' : 'Tags all right'
-      };
-    }
-  },
-
-  'verbal-architect': {
-    frames: 7,
-    draw: (f, ex) => {
-      const d = PARA[ex];
-      const order = f < 2 ? d.start : f < 4 ? swap(d.start, d.moves[0]) : swap(swap(d.start, d.moves[0]), d.moves[1]);
-      const held = f === 1 ? d.moves[0][0] : f === 3 ? d.moves[1][0] : null;
-      const tapAt = [null, d.moves[0][0], d.moves[0][1], d.moves[1][0], d.moves[1][1]][f];
-      return {
-        body: (
-          <div className="grid h-full grid-rows-4 gap-1 px-3 pt-8 pb-2">{order.map((s, pos) => (
-            <div key={s} className={`flex items-center gap-2 rounded-xl px-2 ring-2 ring-inset transition-colors duration-300 ${f >= 5 ? 'bg-emerald-50 ring-emerald-400' : held === pos ? 'bg-indigo-50 ring-indigo-500' : 'bg-[#f7f6fd] ring-transparent'}`}>
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white text-xs font-black text-slate-500 ring-1 ring-[#e4e1f5]">{pos + 1}</span>
-              <span className="text-xs leading-snug font-semibold text-[#1b2456]">{d.s[s]}</span>
-            </div>))}</div>
-        ),
-        hand: tapAt === null || tapAt === undefined ? REST : [60, 24 + tapAt * 21, true],
-        step: f === 0 ? 0 : f < 5 ? 1 : 2,
-        phase: f === 0 ? 'Jumbled paragraph' : f < 5 ? (held !== null ? 'Pick a sentence' : 'Tap where it goes') : 'Logical order!'
-      };
-    }
-  },
-
-  'nuance-navigator': {
-    frames: 8,
-    draw: (f, ex) => {
-      const d = NUANCE[ex];
-      const placed = d.place.slice(0, Math.min(4, f));
-      return {
-        body: (
-          <div className="flex h-full flex-col gap-2 px-3 pt-8 pb-3">
-            <div className="rounded-xl bg-white p-2 ring-1 ring-[#e4e1f5]">
-              <div className="mb-1 flex justify-between text-xs font-bold text-slate-500"><span>{d.ends[0]}</span><span className="text-[#1b2456]">{d.idea}</span><span>{d.ends[1]}</span></div>
-              <div className="grid grid-cols-4 gap-1.5">{d.words.map((w, i) => (
-                <span key={w} className={`grid h-10 place-items-center rounded-lg px-0.5 text-center text-xs leading-tight font-bold ${placed.includes(i) ? (f >= 5 ? OPT.ok : 'bg-white text-[#1b2456] ring-2 ring-indigo-300') : 'border-2 border-dashed border-[#d9d4f3] bg-[#f7f6fd] text-slate-400'}`}>{placed.includes(i) ? w : ''}</span>))}</div>
-              <div className="mt-1.5 h-1 rounded-full bg-gradient-to-r from-sky-300 via-violet-300 to-rose-400" />
-            </div>
-            <div className="grid flex-1 grid-cols-4 items-center gap-1.5 rounded-xl bg-white p-2 ring-1 ring-[#e4e1f5]">{d.tray.map((w) => (
-              <span key={w} className={`grid h-9 place-items-center rounded-lg text-center text-xs leading-tight font-semibold ${placed.includes(w) ? 'opacity-0' : OPT.idle}`}>{d.words[w]}</span>))}</div>
-          </div>
-        ),
-        hand: f >= 1 && f <= 4 ? [SLOT_X[d.place[f - 1]], 37, true] : REST,
-        step: f === 0 ? 0 : f < 5 ? 1 : 2,
-        phase: f === 0 ? `${d.ends[0]} → ${d.ends[1].toLowerCase()}` : f < 5 ? 'Place each word' : 'Every word on its mark'
-      };
-    }
-  },
 
   'word-relation-matrix': {
     frames: 7,
@@ -414,101 +285,6 @@ export const DEMOS = {
         hand: [REST, [tx(d.a), 50, true], [15.5 + d.op1 * 23, 72, true], [tx(d.b), 50, true], [tx(d.a), 50, true], [15.5 + d.op2 * 23, 72, true], [tx(d.c), 50, true], REST][f],
         step: f === 0 ? 0 : f < 6 ? 1 : 2,
         phase: f === 0 ? 'Make the target' : f < 6 ? 'Tile, sign, tile' : 'Forged!'
-      };
-    }
-  },
-
-  'probability-lab': {
-    frames: 6,
-    draw: (f, ex) => {
-      const d = BAGS[ex]; const locked = f >= 3; const picked = f >= 1 ? d.right : null;
-      return {
-        body: (
-          <div className="flex h-full flex-col gap-1.5 px-3 pt-8 pb-2">
-            <p className="text-center text-xs font-bold text-[#1b2456]">Best chance of drawing {d.colour}?</p>
-            <div className="grid flex-1 grid-cols-3 gap-2">{d.bags.map(([r, b], i) => (
-              <div key={i} className={`flex min-w-0 flex-col items-center justify-center rounded-xl ring-2 ring-inset ${locked ? (i === d.right ? 'bg-emerald-50 ring-emerald-500' : 'bg-white ring-slate-200') : picked === i ? 'bg-fuchsia-50 ring-fuchsia-600' : 'bg-white ring-slate-200'}`}>
-                <span className="text-xs font-black text-[#1b2456]">Bag {'ABC'[i]}</span>
-                {bag(r, b)}
-                <span className="text-xs font-bold text-slate-600 tabular-nums">{locked ? d.frac[i] : `${r} red · ${b} blue`}</span>
-              </div>))}</div>
-            <div className="flex justify-center"><span className={`rounded-xl px-4 py-1.5 text-xs font-black text-white ${locked ? 'bg-emerald-600' : 'bg-slate-900'}`}>{locked ? 'Best bag!' : 'Lock in answer'}</span></div>
-          </div>
-        ),
-        hand: f === 1 ? [18.5 + d.right * 31.5, 50, true] : f === 2 ? [50, 90, true] : REST,
-        step: f === 0 ? 0 : f < 3 ? 1 : 2,
-        phase: f === 0 ? 'Read the situation' : f < 3 ? 'Weigh the chances' : 'Exact odds shown'
-      };
-    }
-  },
-
-  'quantitative-arena': quiz(QC.map((q) => ({ ...q, opts: QC_OPTS })), (d) => (
-    <div className="w-full">
-      <p className="text-xs font-bold text-slate-600">{d.cond ? <>Condition: <span className="font-black text-[#1b2456]">{d.cond}</span></> : 'Compare the two quantities.'}</p>
-      <div className="mt-1.5 grid grid-cols-2 gap-2">{[['Quantity A', d.a], ['Quantity B', d.b]].map(([k, v]) => (
-        <div key={k} className="rounded-xl bg-white py-1 ring-1 ring-slate-200"><p className="text-xs font-bold tracking-wider text-slate-500 uppercase">{k}</p><p className="font-serif text-xl font-bold text-[#1b2456]">{v}</p></div>))}</div>
-    </div>
-  ), ['Compare A and B', 'Test some values', 'Correct!'], { small: true, showScore: false }),
-
-  'numerical-optimization': {
-    frames: 7,
-    draw: (f, ex) => {
-      const d = PACK[ex];
-      const inBag = d.taps.slice(0, Math.min(5, f)).reduce((s, i) => (s.includes(i) ? s.filter((x) => x !== i) : [...s, i]), []);
-      const w = inBag.reduce((s, i) => s + d.items[i][1], 0); const v = inBag.reduce((s, i) => s + d.items[i][2], 0);
-      const over = w > d.cap; const best = f >= 6;
-      return {
-        body: (
-          <div className="flex h-full flex-col gap-2 px-3 pt-8 pb-3">
-            <div className="rounded-xl bg-slate-50 p-2 ring-1 ring-slate-200">
-              <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className={`h-full rounded-full transition-[width] duration-500 ${over ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, (w / d.cap) * 100)}%` }} /></div>
-              <p className={`mt-1 text-xs font-black tabular-nums ${over ? 'text-rose-600' : 'text-[#1b2456]'}`}>The bag: {w} / {d.cap} kg · value {v}{best ? ' · best possible' : ''}</p>
-            </div>
-            <div className="grid flex-1 grid-cols-2 grid-rows-2 gap-1.5">{d.items.map(([name, kg, val], i) => (
-              <div key={name} className={`flex flex-col justify-center rounded-xl px-2 ring-2 ring-inset ${inBag.includes(i) ? 'bg-emerald-600 text-white ring-emerald-600' : 'bg-white text-[#1b2456] ring-slate-200'}`}>
-                <span className="text-sm font-black">{name}</span><span className="text-xs font-bold tabular-nums opacity-80">{kg} kg · value {val}</span>
-              </div>))}</div>
-          </div>
-        ),
-        hand: f >= 1 && f <= 5 ? [27 + (d.taps[f - 1] % 2) * 46, 54 + Math.floor(d.taps[f - 1] / 2) * 28, true] : REST,
-        step: f === 0 ? 0 : f < 6 ? 1 : 2,
-        phase: f === 0 ? `Capacity ${d.cap} kg` : over ? 'Over the limit' : f < 6 ? 'Most value that fits' : 'Optimum found!'
-      };
-    }
-  },
-
-  'statistical-inference': quiz(STATS, (d) => (
-    <div className="flex h-full w-full flex-col gap-1">
-      <div className="min-h-0 flex-1 rounded-xl bg-slate-50 p-1 ring-1 ring-slate-200">{d.plot}</div>
-      <p className="text-xs font-bold text-[#1b2456]">{d.ask}</p>
-    </div>
-  ), ['Read the data', 'Reason it out', 'Correct!'], { layout: 'row3', showScore: false }),
-
-  'decision-theory-arena': {
-    frames: 6,
-    draw: (f, ex) => {
-      const d = DECIDE[ex]; const locked = f >= 3; const chosen = f >= 1 ? d.right : null;
-      return {
-        body: (
-          <div className="relative h-full px-3 pt-8">
-            <span className={`absolute top-1.5 right-1.5 z-20 rounded-full px-2 py-0.5 text-xs font-black tabular-nums ${locked ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{locked ? d.after : 100} credits</span>
-            <p className="truncate text-xs font-bold text-amber-800">{d.cautious ? 'Cautious: best worst case' : 'Risk-neutral: highest expected return'}</p>
-            <div className="mt-1 grid grid-cols-[1.4fr_1fr_1fr_0.9fr] gap-1 text-xs">
-              <span className="self-end font-bold text-slate-500">Plan</span>
-              {d.states.map(([s, p]) => <span key={s} className="grid h-8 place-items-center rounded-md bg-slate-100 leading-tight font-black text-slate-800">{s}{!d.cautious && <span className="font-bold text-slate-500">{p}%</span>}</span>)}
-              <span className="self-end text-center font-black text-slate-700">{locked ? (d.cautious ? 'Worst' : 'EV') : ''}</span>
-              {d.plans.flatMap((plan, i) => [
-                <span key={plan} className={`grid h-7 place-items-center rounded-md font-bold ${locked ? (i === d.right ? OPT.ok : OPT.dim) : chosen === i ? 'bg-amber-50 text-[#1b2456] ring-2 ring-amber-500' : OPT.idle}`}>{plan}</span>,
-                ...d.pay[i].map((v, j) => <span key={`${plan}${j}`} className={`grid h-7 place-items-center rounded-md font-black tabular-nums ${v >= 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}>{signed(v)}</span>),
-                <span key={`${plan}s`} className="grid h-7 place-items-center font-black text-[#1b2456] tabular-nums">{locked ? signed(d.score[i]) : ''}</span>
-              ])}
-            </div>
-            <div className="absolute inset-x-0 bottom-2 flex justify-center"><span className={`rounded-xl px-4 py-1.5 text-xs font-black text-white ${locked ? 'bg-emerald-600' : 'bg-slate-900'}`}>{locked ? 'Best decision' : 'Commit 100 credits'}</span></div>
-          </div>
-        ),
-        hand: f === 1 ? [20, 46 + d.right * 14, true] : f === 2 ? [50, 90, true] : REST,
-        step: f === 0 ? 0 : f < 3 ? 1 : 2,
-        phase: f === 0 ? 'Read the payoffs' : f < 3 ? (d.cautious ? 'Best worst case' : 'Highest expected value') : 'Bankroll grows'
       };
     }
   },

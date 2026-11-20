@@ -1,7 +1,7 @@
 /**
  * The job board's view of the database connection.
  *
- * The LMS owns the connection — src/config/db.js opens it once at startup and
+ * The YATICORPX3 owns the connection — src/config/db.js opens it once at startup and
  * every module shares it. This file exists so the ported CareerCompass code can
  * keep asking the two questions it was written to ask:
  *
@@ -18,7 +18,7 @@ const isConnected = () => mongoose.connection.readyState === 1;
 /**
  * Open a connection for a standalone script.
  *
- * Uses the LMS's own MONGO_URI — the job board's collections live in the same
+ * Uses YATICORPX3's own MONGO_URI — the job board's collections live in the same
  * database as everything else, prefixed jobboard_*, so that a deployment has
  * one database to back up and one connection string to rotate.
  */

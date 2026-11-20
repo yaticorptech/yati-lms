@@ -7,7 +7,7 @@
  * engine's own state — scores are never taken from a browser. Then:
  *
  *   chess rating   Elo (K 32) for both players, on the profile
- *   XP             from the settings, through the LMS's XP ledger (keyed by
+ *   XP             from the settings, through YATICORPX3's XP ledger (keyed by
  *                  game and player, so it can never be paid twice) — held
  *                  instead when the result is flagged, until an admin looks
  *   flags          answers faster than a person can, a Sudoku solved too

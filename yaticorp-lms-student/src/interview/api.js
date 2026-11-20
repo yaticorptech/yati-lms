@@ -1,4 +1,4 @@
-/** Interview Ready — the calls, on the LMS's axios client. */
+/** Interview Ready — the calls, on YATICORPX3's axios client. */
 import client from '../utils/api';
 
 const unwrap = (err) => {

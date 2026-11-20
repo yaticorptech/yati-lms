@@ -20,9 +20,9 @@ export default defineConfig(({ mode }) => ({
             registerType: 'autoUpdate',
             includeAssets: ['assets/favicon.ico', 'assets/apple-touch-icon.png', 'assets/YATICORP.png'],
             manifest: {
-              name: 'YATICORP Admin',
-              short_name: 'YATICORP Admin',
-              description: 'YATICORP Learning Management System — Admin',
+              name: 'YATICORPX3 Admin',
+              short_name: 'YATICORPX3 Admin',
+              description: 'YATICORPX3 Learning Management System — Admin',
               start_url: '/',
               scope: '/',
               display: 'standalone',

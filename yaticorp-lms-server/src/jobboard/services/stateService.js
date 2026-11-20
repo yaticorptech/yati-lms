@@ -3,7 +3,7 @@
  *
  * The standalone app kept its ingest cooldowns in Maps, which worked because
  * there was exactly one process and it never redeployed mid-day. Neither is
- * true of a hosted LMS: an in-memory cooldown resets on every deploy, and on a
+ * true of a hosted YATICORPX3: an in-memory cooldown resets on every deploy, and on a
  * two-instance host each instance re-ingests independently — both failure
  * modes spend metered provider calls to re-fetch what was just fetched.
  *
