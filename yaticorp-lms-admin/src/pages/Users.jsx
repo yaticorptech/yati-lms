@@ -15,9 +15,10 @@ import { stopReader } from '../utils/qrReader';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import Select from '../components/Select';
 import { useAuth } from '../context/AuthContext';
+import { studentAppUrl } from '../utils/studentUrl';
 
 /** The student app, where "Dashboard" opens a student's own view. */
-const STUDENT_APP = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5173';
+const STUDENT_APP = studentAppUrl('http://localhost:5173');
 
 // The same four actions on the table row and on the phone card.
 const UserActions = ({ user, onManage, onEdit, onToggle, onDelete, onOpenDashboard }) => (

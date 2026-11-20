@@ -30,8 +30,9 @@ import { QuizPanel, HackathonPanel } from '../competitions/ChallengePanel';
 import { ORDINAL, fmtDateTime, toLocalInput, errorOf, bannerUploader, competitionBadge, deleteQuestion } from '../competitions/constants';
 import { DateTimeInput } from '../components/DateTimeInput';
 import useGoBack from '../hooks/useGoBack';
+import { studentAppUrl } from '../utils/studentUrl';
 
-const STUDENT_PORTAL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
+const STUDENT_PORTAL = studentAppUrl('http://localhost:5174');
 
 /** One match: its teams, time, and what the admin may do with it. */
 const AdminMatch = ({ match, onCall, busy = false }) => {

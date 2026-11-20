@@ -94,7 +94,7 @@ router.get('/', async (req, res) => {
             // Each teacher with what they can open; organization-dashboard-only sign-ins listed after.
             teachers: rows.map((r, i) => {
                 const panel = staff.find((a) => String(a.staffTeacherId) === String(r._id));
-                return { ...r, summary: summaries[i], research: Boolean(r.cardNumber), features: { scouts: r.scouts !== false, mentor360: Boolean(r.mentor360) }, leads: leads(r._id), teaches: teaches[String(r._id)] || [], orgAccess: Boolean(panel), panelEmail: panel?.email || '' };
+                return { ...r, summary: summaries[i], research: Boolean(r.cardNumber || r.demoCard), features: { scouts: r.scouts !== false, mentor360: Boolean(r.mentor360) }, leads: leads(r._id), teaches: teaches[String(r._id)] || [], orgAccess: Boolean(panel), panelEmail: panel?.email || '' };
             }),
             staff: staff.filter((a) => !a.staffTeacherId && (!q || `${a.name} ${a.email}`.toLowerCase().includes(q))),
             pendingRequests: await countPending(req.organization._id),

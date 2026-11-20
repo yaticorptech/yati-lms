@@ -139,7 +139,7 @@ export default function Onboarding({ dash, onDone }) {
     const [saved] = useState(readStart);
     const [course, setCourse] = useState(saved.course || dash.course?.code || 'en');
     const [from, setFrom] = useState(saved.from || (dash.languageChosen ? dash.language?.code : null));
-    const device = deviceLanguage(languages.map((l) => l.code));
+    const device = deviceLanguage(languages.filter((l) => !l.locked).map((l) => l.code));
     const known = device ? [...languages.filter((l) => l.code === device), ...languages.filter((l) => l.code !== device)] : languages;
     const [findCourse, setFindCourse] = useState('');
     const [findLanguage, setFindLanguage] = useState('');
@@ -231,11 +231,13 @@ export default function Onboarding({ dash, onDone }) {
                                     // Locked (2026-11-13: only English, Kannada and Hindi, but for the developer cards): shown, not chosen.
                                     const shut = !!c.locked;
                                     return (
-                                        <button key={c.code} type="button" onClick={() => !shut && setCourse(c.code)} aria-pressed={on} disabled={shut} aria-label={shut ? `${c.name}: locked` : undefined} data-course={c.code} data-locked={shut || undefined}
+                                        <button key={c.code} type="button" onClick={() => !shut && setCourse(c.code)} aria-pressed={on} disabled={shut} aria-label={shut ? `${c.name}: ${c.soon ? 'working on it' : 'locked'}` : undefined} data-course={c.code} data-locked={shut || undefined}
                                             className={`lingo-tile relative flex min-h-[7.5rem] flex-col items-center justify-center gap-2 px-2 py-3 text-center ${shut ? 'cursor-not-allowed opacity-50 grayscale' : ''}`} style={on ? { borderColor: '#84D8FF', background: COLORS.blue.light } : undefined}>
                                             {shut && <Lock size={16} strokeWidth={2.6} className="absolute right-2 top-2 text-[#AFAFAF]" aria-hidden="true" />}
                                             <span className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-black text-white" style={{ background: on ? COLORS.blue.face : COLORS.green.face }} lang={c.code}>{c.code === 'en' ? 'En' : langOf(c.code).mark}</span>
                                             <span className="w-full truncate text-[15px] font-extrabold text-[#3c3c3c]">{c.name}</span>
+                                            {/* A demo card (2026-11-19): locked because it is being worked on. */}
+                                            {shut && c.soon && <span className="-mt-1 text-[11px] font-extrabold uppercase tracking-wide text-[#777]">Working on it</span>}
                                         </button>
                                     );
                                 })}
@@ -265,11 +267,11 @@ export default function Onboarding({ dash, onDone }) {
                             <SearchBox value={findLanguage} onChange={setFindLanguage} label="Search your languages" />
                             <div className="grid gap-2">
                                 {known.filter((l) => matches(findLanguage, l.name, l.native)).map((l) => (
-                                    <Choice key={l.code} on={from === l.code} onClick={() => setFrom(l.code)} disabled={course !== 'en' && l.code === course} attr={{ 'data-language': l.code }}>
+                                    <Choice key={l.code} on={from === l.code} onClick={() => setFrom(l.code)} disabled={(course !== 'en' && l.code === course) || !!l.locked} attr={{ 'data-language': l.code, ...(l.locked ? { 'data-locked': true } : {}) }}>
                                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-black text-white" style={{ background: from === l.code ? COLORS.blue.face : '#AFAFAF' }} lang={l.code}>{langOf(l.code).mark}</span>
                                         <span className="min-w-0">
                                             <span className="block text-[17px] font-extrabold text-[#3c3c3c]" lang={l.code} dir="auto">{l.native}</span>
-                                            <span className="block text-sm font-semibold text-[#777]">{l.name}{l.code === device ? ' · your device’s language' : ''}{course !== 'en' && l.code === course ? ' · the language you are learning' : ''}</span>
+                                            <span className="block text-sm font-semibold text-[#777]">{l.name}{l.code === device ? ' · your device’s language' : ''}{course !== 'en' && l.code === course ? ' · the language you are learning' : ''}{l.locked ? ' · working on it' : ''}</span>
                                         </span>
                                     </Choice>
                                 ))}

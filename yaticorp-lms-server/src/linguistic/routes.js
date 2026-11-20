@@ -54,10 +54,15 @@ const router = express.Router();
 const idOf = (x) => String(x?._id ?? x);
 const bad = (res, message, status = 400) => res.status(status).json({ message });
 
+// IELTS mock tests (2026-11-17): their own content and records, ahead of the lessons' seeding.
+router.use('/ielts', require('./ielts/routes'));
 router.use(async (_req, _res, next) => { await ensureSeeded(); next(); });
 // The account allowed every section and unit, for testing (service.js `noteOpenAll`, 2026-10-29).
 // And the developer cards that may learn every language (DEVICE_LIMIT_EXEMPT_CARDS, service.js `noteAllCourses`, 2026-11-13).
-router.use((req, _res, next) => { svc.noteOpenAll(req.user); svc.noteAllCourses(req.user); next(); });
+router.use((req, _res, next) => { svc.noteOpenAll(req.user); svc.noteAllCourses(req.user); svc.noteDemo(req.user); next(); });
+// A demo card opening the section for the first time starts as an English speaker learning Kannada (service.js
+// `presetDemo`, 2026-11-19). Asked on the section's home only; never in the way of the page.
+router.get('/', async (req, _res, next) => { try { await svc.presetDemo(req.user); } catch (e) { console.error('[linguistic] demo preset failed:', e.message); } next(); });
 
 /** A published lesson the student may open — in their own language — or a reply saying why not. */
 /** A lesson of the student's own course, open or not (the audio pack ahead): 404 for any other. */
@@ -89,12 +94,20 @@ const openLesson = async (req, res) => {
 };
 
 router.get('/', async (req, res, next) => {
-    try { res.json({ student: { firstName: String(req.user.name || '').split(' ')[0] }, ...(await svc.dashboard(req.user)) }); } catch (err) { next(err); }
+    try {
+        const body = await svc.dashboard(req.user);
+        // The revision of the course's recorded letters (tts/store.js letterRev): the app asks for them afresh when it changes.
+        const lang = body?.course?.code;
+        res.json({ student: { firstName: String(req.user.name || '').split(' ')[0] }, ...body, ...(lang ? { letterVoice: { lang, rev: require('../tts/store').letterRev(lang) } } : {}) });
+    } catch (err) { next(err); }
 });
 
 // Every letter of the course's language on one page (alphabet.js, 2026-10-31).
 router.get('/letters', async (req, res, next) => {
-    try { res.json(require('./alphabet').chartOf(courseOf(await svc.progressOf(req.user._id)))); } catch (err) { next(err); }
+    try {
+        const course = courseOf(await svc.progressOf(req.user._id));
+        res.json({ ...require('./alphabet').chartOf(course), letterVoice: { lang: course, rev: require('../tts/store').letterRev(course) } });
+    } catch (err) { next(err); }
 });
 
 router.get('/placement', async (req, res, next) => {

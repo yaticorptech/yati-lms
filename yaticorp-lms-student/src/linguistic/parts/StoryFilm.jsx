@@ -80,11 +80,6 @@ const loadManifest = (dir) => {
 
 /* ── Voices ───────────────────────────────────────────────────────────── */
 const VOICE = { narrator: { rate: 0.94, pitch: 1 }, arjun: { rate: 1, pitch: 1.08 }, ravi: { rate: 0.86, pitch: 0.78 }, interviewer: { rate: 0.95, pitch: 0.9 } };
-const voiceFor = (locale) => {
-    const all = typeof window !== 'undefined' && window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-    const lang = (locale || 'en-IN').toLowerCase();
-    return all.find((v) => v.lang.toLowerCase() === lang) || all.find((v) => v.lang.toLowerCase().startsWith(lang.split('-')[0])) || null;
-};
 
 /** The whole script, to read: each scene, who says what. */
 export function FilmScript({ film }) {
@@ -155,16 +150,8 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
     const sayLine = (key, text, who, onWord, onEnd) => {
         let ended = false;
         const end = () => { if (ended) return; ended = true; onEnd(); };
-        const device = () => {
-            if (!canSpeak) { later(1400 + text.length * 62, end); return; }
-            const u = new SpeechSynthesisUtterance(text);
-            const v = voiceFor(film.locale); if (v) u.voice = v;
-            u.lang = film.locale || 'en-IN'; Object.assign(u, VOICE[who] || VOICE.narrator);
-            u.onboundary = (e) => { if (typeof e.charIndex === 'number') onWord?.(e.charIndex); };
-            u.onend = end; u.onerror = end;
-            window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
-            later(1400 + text.length * 62 + 9000, end);    // a voice that never says it has ended
-        };
+        // No device voice (2026-11-17, TTS only): with no clip, the line is shown long enough to read.
+        const device = () => { later(1400 + text.length * 62, end); };
         // The recording when there is one, so the film plays line after line with nothing to wait for. English was
         // recorded again with Kokoro (2026-11-13, scripts/storyFilmKokoro.mjs: each person in their own voice, and
         // "résumé", "certificates" said right); Hindi and Kannada keep their Indic Parler recordings.
@@ -198,7 +185,7 @@ export default function StoryFilm({ film, onFinish, sound = true }) {
 
     const scene = scenes[si];
     const line = scene?.lines[li];
-    const canSpeak = typeof window !== 'undefined' && !!window.speechSynthesis;
+    const canSpeak = true; // the TTS voice needs nothing on the device
 
     // Music on while the film plays (and the lesson's sound is on); the rain in the rainy scenes.
     useEffect(() => {

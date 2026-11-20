@@ -26,8 +26,9 @@ import BulkTeachersModal from '../components/teachers/BulkTeachersModal';
 import TeacherDetailModal from '../components/teachers/TeacherDetailModal';
 import { TeacherStatus, TeacherSummary, Field } from '../components/teachers/TeacherBits';
 import { refusal, fmtDay, strongPassword, assignable } from '../components/teachers/teacherUtils';
+import { studentAppUrl } from '../utils/studentUrl';
 
-const STUDENT_APP = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5173';
+const STUDENT_APP = studentAppUrl('http://localhost:5173');
 
 const STATUS_TABS = [['all', 'All'], ['active', 'Active'], ['pending', 'Waiting'], ['inactive', 'Blocked']];
 const PAGE_SIZE = 50;

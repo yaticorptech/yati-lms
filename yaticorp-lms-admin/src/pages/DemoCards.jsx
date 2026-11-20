@@ -1,11 +1,12 @@
 /**
  * Demo cards (super admin): the presentation cards. Scan a card (or type its number) to make it
- * one — its scan at the student sign-in then opens the dashboard with no password, and it sees
- * every section. Reset gives a card a brand-new, empty account for the next presentation.
- * Server: src/routes/demoCardRoutes.js.
+ * one — its scan at the student sign-in then offers every dashboard with no password: student
+ * (every section unlocked), teacher, and the shared demo organisation; parents is yet to be built.
+ * Reset gives a card a brand-new, empty account (and teacher) for the next presentation.
+ * Server: src/routes/demoCardRoutes.js, src/services/demoDashboards.js.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Presentation, ScanLine, Keyboard, RotateCcw, Trash2, Loader2, CheckCircle2, AlertCircle, Sparkles, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Presentation, ScanLine, Keyboard, RotateCcw, Trash2, Loader2, CheckCircle2, AlertCircle, Sparkles, ShieldCheck, ChevronLeft, ChevronRight, GraduationCap, Building2, HeartHandshake } from 'lucide-react';
 import api from '../utils/api';
 import { useQrReader } from '../utils/qrReader';
 
@@ -13,6 +14,14 @@ const READER_ID = 'demo-card-reader';
 const PER_PAGE = 10;
 const fmt = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const spaced = (n) => String(n).replace(/(.{4})(?=.)/g, '$1 ');
+// The dashboards a demo card's scan offers (server: services/demoDashboards.js DASHBOARDS).
+const DASHBOARD_ABOUT = {
+    student: { Icon: GraduationCap, tone: 'bg-indigo-50 text-indigo-700 ring-indigo-100', text: 'Every section unlocked. One account per card.' },
+    teacher: { Icon: Presentation, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100', text: 'Research, 360, clubs and units. One demo teacher per card, made on first open.' },
+    organization: { Icon: Building2, tone: 'bg-amber-50 text-amber-800 ring-amber-100', text: 'One demo organisation, shared by every demo card. Every demo student and teacher belongs to it.' },
+    parent: { Icon: HeartHandshake, tone: 'bg-slate-100 text-slate-500 ring-slate-200', text: 'Listed on the scan as coming soon.' }
+};
+const DASHBOARDS = [{ id: 'student', label: 'Student', ready: true }, { id: 'teacher', label: 'Teacher', ready: true }, { id: 'organization', label: 'Organisation', ready: true }, { id: 'parent', label: 'Parents', ready: false }];
 
 /** The camera, reading one card at a time. */
 function Scanner({ onRead, busy }) {
@@ -31,6 +40,8 @@ function Scanner({ onRead, busy }) {
 
 export default function DemoCards() {
     const [cards, setCards] = useState(null);
+    const [dashboards, setDashboards] = useState(DASHBOARDS);
+    const [organization, setOrganization] = useState(null);
     const [mode, setMode] = useState('camera');
     const [code, setCode] = useState('');
     const [busy, setBusy] = useState('');
@@ -42,7 +53,11 @@ export default function DemoCards() {
     // A list that shrank (a card removed) keeps the page inside it.
     useEffect(() => { if (page > pages - 1) setPage(pages - 1); }, [page, pages]);
 
-    const load = useCallback(() => api.get('/admin/demo-cards').then((r) => setCards(r.data.cards)).catch(() => setCards([])), []);
+    const load = useCallback(() => api.get('/admin/demo-cards').then((r) => {
+        setCards(r.data.cards);
+        if (Array.isArray(r.data.dashboards) && r.data.dashboards.length) setDashboards(r.data.dashboards.filter((d) => DASHBOARD_ABOUT[d.id]));
+        setOrganization(r.data.organization || null);
+    }).catch(() => setCards([])), []);
     useEffect(() => { load(); }, [load]);
 
     const act = async (key, call) => {
@@ -72,7 +87,7 @@ export default function DemoCards() {
         lastRead.current = { code: v, at: Date.now() }; act('add', () => api.post('/admin/demo-cards', { code: v })).then(() => setCode(''));
     };
     const reset = (c) => {
-        if (!window.confirm(`Reset ${c.account?.name || spaced(c.cardNumber)}?\n\nEverything this card has done — courses, progress, Career Path, XP, wallet, certificates, interviews, devices — is deleted. It opens as a brand-new card. This cannot be undone.`)) return;
+        if (!window.confirm(`Reset ${c.account?.name || spaced(c.cardNumber)}?\n\nEverything this card has done — courses, progress, Career Path, XP, wallet, certificates, interviews, devices — is deleted, and so is its demo teacher's work. It opens as a brand-new card. This cannot be undone.`)) return;
         act(`reset:${c.cardNumber}`, () => api.post(`/admin/demo-cards/${c.cardNumber}/reset`));
     };
     const remove = (c) => {
@@ -89,9 +104,31 @@ export default function DemoCards() {
                     <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/30"><Presentation size={24} /></span>
                     <div className="min-w-0 flex-1">
                         <h1 className="text-2xl font-black text-slate-900">Demo cards</h1>
-                        <p className="mt-1 max-w-2xl text-sm text-slate-600">Cards for presentations. Scanning one at the student sign-in opens its dashboard <span className="font-bold">with no password</span>, with every section unlocked. Typing its number still asks for the password. Reset gives a card a brand-new, empty account.</p>
+                        <p className="mt-1 max-w-2xl text-sm text-slate-600">Cards for presentations. Scanning one at the student sign-in offers <span className="font-bold">every dashboard, with no password</span>, and the bar at the top of each dashboard switches to the others. Typing its number still asks for the password. Reset gives a card a brand-new, empty account.</p>
                     </div>
                 </div>
+                {/* What a scan opens */}
+                <ul className="relative mt-6 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    {dashboards.map((d) => {
+                        const { Icon, tone, text } = DASHBOARD_ABOUT[d.id];
+                        return (
+                            <li key={d.id} className={`flex items-start gap-3 rounded-2xl bg-white/80 p-3.5 ring-1 ring-slate-200/80 ${d.ready === false ? 'opacity-70' : ''}`}>
+                                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ${tone}`}><Icon size={17} /></span>
+                                <div className="min-w-0">
+                                    <p className="flex flex-wrap items-center gap-1.5 text-sm font-black text-slate-900">
+                                        {d.label}
+                                        {d.ready === false && <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">Soon</span>}
+                                    </p>
+                                    <p className="mt-0.5 text-xs leading-snug text-slate-500">
+                                        {d.id === 'organization' && organization
+                                            ? <>{organization.name} <span className="font-mono">@{organization.orgCode}</span> · {organization.students} student{organization.students === 1 ? '' : 's'} · {organization.teachers} teacher{organization.teachers === 1 ? '' : 's'}</>
+                                            : text}
+                                    </p>
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
@@ -145,6 +182,9 @@ export default function DemoCards() {
                                         </p>
                                         <p className="text-xs text-slate-500">
                                             {c.account ? <>{c.account.name} · Level {c.account.level} · {c.account.xp} XP · last active {fmt(c.account.lastActiveDate)}</> : 'No account yet — made on the first scan or reset'}
+                                        </p>
+                                        <p className="mt-0.5 text-xs text-slate-500">
+                                            {c.teacher ? <><span className="font-semibold text-emerald-700">{c.teacher.name}</span> · teacher dashboard last opened {fmt(c.teacher.lastLoginAt)}</> : 'Teacher dashboard not opened yet'}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">

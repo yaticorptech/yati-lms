@@ -1852,7 +1852,21 @@ const openCourses = () => {
 };
 const allCoursesUsers = new Set();
 const noteAllCourses = (user) => { if (user?._id && require('../services/deviceGuard').isExemptCard(user.cardNumber)) allCoursesUsers.add(String(user._id)); };
+/*
+ * The demo cards (services/fullAccess.js; 2026-11-19, the owner: "English to Kannada is already downloaded — play our
+ * TTS voice only; the other languages locked, working on it"). The voices of English and Kannada are the ones made
+ * and kept, so a presentation never waits for a voice: for a demo card only those two can be spoken or learnt, in
+ * either direction; every other language is shown, locked, as being worked on (`soon`). A new demo account starts as
+ * an English speaker learning Kannada (presetDemo). DEMO_LINGO_LANGS ("en,kn": the language spoken, then the one
+ * learnt, then any others left open) changes it. Noted on each request, as `noteOpenAll` is.
+ */
+const demoLangs = () => String(process.env.DEMO_LINGO_LANGS || 'en,kn').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+const demoUsers = new Set();
+const noteDemo = (user) => { if (user?._id && require('../services/fullAccess').hasFullAccess(user)) demoUsers.add(String(user._id)); };
+const isDemo = (progress) => demoUsers.has(String(progress?.userId));
+const WORKING_ON_IT = (name) => `${name} is being worked on. English and Kannada are ready.`;
 const courseLocked = (progress, code) => {
+    if (isDemo(progress)) return !demoLangs().includes(code);
     const open = openCourses();
     return !!open && !open.includes(code) && code !== courseOf(progress) && !allCoursesUsers.has(String(progress?.userId));
 };
@@ -1863,7 +1877,7 @@ const courseView = (progress) => ({
     course: { ...courseInfo(courseOf(progress)), full: courseOf(progress) === 'en' },
     // Finished (2026-10-28): every section of the course done — the next language can be chosen.
     courseDone: courseDone(progress),
-    courses: courses().map((c) => ({ ...c, begun: c.code === 'en' ? !!progress.placement?.level : !!progress.courseStart?.[c.code], done: courseDone(progress, c.code), ...(courseLocked(progress, c.code) ? { locked: true } : {}) }))
+    courses: courses().map((c) => ({ ...c, begun: c.code === 'en' ? !!progress.placement?.level : !!progress.courseStart?.[c.code], done: courseDone(progress, c.code), ...(courseLocked(progress, c.code) ? { locked: true, ...(isDemo(progress) ? { soon: true } : {}) } : {}) }))
 });
 
 /**
@@ -1876,8 +1890,8 @@ const setCourse = async (user, course, start) => {
     if (!courseCodes().includes(course)) return { error: 'That course is not available.' };
     const progress = await progressOf(user._id);
     // Locked (2026-11-13): English, Kannada and Hindi only, except for the developer cards.
-    noteAllCourses(user);
-    if (courseLocked(progress, course)) return { error: `${courseInfo(course).name} is not open yet. You can learn English, Kannada or Hindi.` };
+    noteAllCourses(user); noteDemo(user);
+    if (courseLocked(progress, course)) return { error: isDemo(progress) ? WORKING_ON_IT(courseInfo(course).name) : `${courseInfo(course).name} is not open yet. You can learn English, Kannada or Hindi.` };
     if (course !== 'en' && course === languageOf(progress)) return { error: 'That is the language you speak. Choose another to learn.' };
     if (start != null && !LEVELS.includes(start)) return { error: 'Choose Beginner, Intermediate or Advanced.' };
     // One language at a time (2026-10-27, user): once the student has started a course, they keep it — until they
@@ -1916,16 +1930,46 @@ const setKnows = async (user, body = {}) => {
 };
 
 /** The student's language, whether they chose it, and every language there is. */
-const languageView = (progress) => ({ language: infoOf(languageOf(progress)), languageChosen: !!progress.language, languages: languages() });
+// For a demo card, every language but its own two is shown locked, as being worked on (demoLangs above).
+const languageView = (progress) => ({
+    language: infoOf(languageOf(progress)), languageChosen: !!progress.language,
+    languages: isDemo(progress) ? languages().map((l) => (demoLangs().includes(l.code) ? l : { ...l, locked: true, soon: true })) : languages()
+});
 
 /** Choose the language meanings and translations are shown in. */
 const setLanguage = async (user, code) => {
     if (!languages().some((l) => l.code === code)) return null;
     const progress = await progressOf(user._id);
+    noteDemo(user);
+    if (isDemo(progress) && !demoLangs().includes(code)) return { error: WORKING_ON_IT(infoOf(code).name) };
     if (code === progress.course) return { error: `You are learning ${courseInfo(code).name}. Choose another language, or change your course first.` };
     progress.language = code;
     await progress.save();
     return languageView(progress);
+};
+
+/**
+ * A demo card that has not begun (2026-11-19): an English speaker learning Kannada — the first two of demoLangs —
+ * so a presentation opens on the course whose voices are ready, with nothing to choose first. Only what is not set
+ * yet: a language already chosen, or a course already started, is left alone (and comes back after a reset).
+ */
+const presetDemo = async (user) => {
+    if (!user?._id || !require('../services/fullAccess').hasFullAccess(user)) return;
+    const [speak, learn] = demoLangs();
+    const progress = await progressOf(user._id);
+    let changed = false;
+    if (speak && !progress.language && languages().some((l) => l.code === speak) && speak !== progress.course) { progress.language = speak; changed = true; }
+    if (learn && !placedLevel(progress) && courseOf(progress) !== learn && courseCodes().includes(learn) && (learn === 'en' || learn !== languageOf(progress))) {
+        progress.course = learn === 'en' ? null : learn;
+        if (learn !== 'en' && !progress.courseStart?.[learn]) {
+            progress.courseStart = { ...(progress.courseStart || {}), [learn]: 'beginner' };
+            progress.markModified('courseStart');
+        }
+        await retier(progress);
+        await carryPlan(progress);
+        changed = true;
+    }
+    if (changed) await progress.save();
 };
 
 /** Today so far: XP earned here and lessons completed, for the daily quests. */
@@ -1957,5 +2001,5 @@ module.exports = {
     numberCertificates,
     MODULE_LABEL, LEVEL_LABEL, publishedLessons, progressOf, access, currentLevel, publicLesson, touchLesson, noteMistake, saveAttempt, pay,
     checkPractice, submitQuiz, submitTalk, submitWriting, saveSpeaking, placementPublic, submitPlacement, placementLevel, dailyQuestions, rebuildDaily,
-    noteOpenAll, noteAllCourses, opensAll, startJump, jumpOf, entryAllowed, startUnitJump, unitJumpAllowed, rightAnswerOf, dashboard, moduleView, pathView, notesOf, withAnswerSay, setKnows, withSays, soundsIn, openChest, openMistakes, setPlan, autoPlan, AUTO_DAYS, roadmapView, planChoices, PLAN_DAYS, forStudent, lessonsFor, serve, setCourse, courseView, placedLevel, inCourse, checkQuizAnswer, bankFor, bankWords, setLanguage, chooseLevel, setGoal, setAbout, GOALS, REASONS, languageView, localize, languageOf, findQuestion, judge, streakOf, pointsOf, lessonEntry, isDone, publicQuestion, quizOf, certificateNumber, checkLevel
+    noteOpenAll, noteAllCourses, noteDemo, presetDemo, opensAll, startJump, jumpOf, entryAllowed, startUnitJump, unitJumpAllowed, rightAnswerOf, dashboard, moduleView, pathView, notesOf, withAnswerSay, setKnows, withSays, soundsIn, openChest, openMistakes, setPlan, autoPlan, AUTO_DAYS, roadmapView, planChoices, PLAN_DAYS, forStudent, lessonsFor, serve, setCourse, courseView, placedLevel, inCourse, checkQuizAnswer, bankFor, bankWords, setLanguage, chooseLevel, setGoal, setAbout, GOALS, REASONS, languageView, localize, languageOf, findQuestion, judge, streakOf, pointsOf, lessonEntry, isDone, publicQuestion, quizOf, certificateNumber, checkLevel
 };

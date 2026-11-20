@@ -33,6 +33,21 @@ const moov = (...codecs) => box('moov', box('mvhd', Buffer.alloc(100)),
     ...codecs.map((c) => box('trak', box('mdia', box('minf', box('stbl', box('stsd', Buffer.alloc(8), box(c, Buffer.alloc(78)))))))));
 const mdat = (bytes) => box('mdat', Buffer.alloc(bytes, 7));
 
+/** An avc1 track of the given size whose avcC declares the given H.264 profile. */
+const avcMoov = (profile, w = 1920, h = 1080) => {
+    const entry = Buffer.alloc(78); entry.writeUInt16BE(w, 24); entry.writeUInt16BE(h, 26);
+    return box('moov', box('trak', box('stsd', Buffer.alloc(8), box('avc1', entry, box('avcC', Buffer.from([1, profile, 0, 40]))))));
+};
+
+describe('H.264 that phones cannot play', () => {
+    test('8-bit High 1080p passes; High 10, 4:2:2 and larger than 4K are refused', () => {
+        assert.equal(unplayableReason(write('ok.mp4', Buffer.concat([ftyp('isom'), avcMoov(100), mdat(64)])), 'ok.mp4'), null);
+        assert.match(unplayableReason(write('h10.mp4', Buffer.concat([ftyp('isom'), avcMoov(110), mdat(64)])), 'h10.mp4'), /High 10.*phones/);
+        assert.match(unplayableReason(write('422.mp4', Buffer.concat([ftyp('isom'), avcMoov(122), mdat(64)])), '422.mp4'), /4:2:2/);
+        assert.match(unplayableReason(write('8k.mp4', Buffer.concat([ftyp('isom'), avcMoov(100, 7680, 4320), mdat(64)])), '8k.mp4'), /7680×4320/);
+    });
+});
+
 describe('MP4 and MOV', () => {
     test('an iPhone or Mac HEVC recording is refused, with the codec named and what to do', () => {
         // QuickTime writes the index after the media, as a screen recording does.
@@ -71,9 +86,10 @@ describe('MP4 and MOV', () => {
 describe('other containers', () => {
     const mkv = (...ids) => Buffer.concat([Buffer.from('1a45dfa3', 'hex'), Buffer.alloc(64), ...ids.map((id) => Buffer.from(`\u0000${id}\u0000`, 'latin1')), Buffer.alloc(200)]);
 
-    test('Matroska: HEVC is refused, H.264 is not', () => {
+    test('Matroska: HEVC is refused by name; any other MKV/WebM is refused as iPhones cannot play it', () => {
         assert.match(unplayableReason(write('h.mkv', mkv('V_MPEGH/ISO/HEVC', 'A_AAC')), 'h.mkv'), /HEVC/);
-        assert.equal(unplayableReason(write('a.mkv', mkv('V_MPEG4/ISO/AVC', 'A_AAC')), 'a.mkv'), null);
+        assert.match(unplayableReason(write('a.mkv', mkv('V_MPEG4/ISO/AVC', 'A_AAC')), 'a.mkv'), /iPhones/);
+        assert.match(unplayableReason(write('v.webm', mkv('V_VP9', 'A_OPUS')), 'v.webm'), /iPhones/);
     });
 
     test('AVI, WMV, FLV and MPEG streams are refused as containers', () => {
