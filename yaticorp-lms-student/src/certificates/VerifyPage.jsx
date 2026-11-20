@@ -80,11 +80,11 @@ export default function VerifyPage() {
 
     return (
         <main className="flex min-h-[100dvh] flex-col bg-[#f6f4ef] text-slate-900">
-            {/* The top bar, white as on the student dashboard (2026-11-11): the brand, and a way back to the LMS */}
+            {/* The top bar, white as on the student dashboard (2026-11-11): the brand, and a way back to YATICORPX3 */}
             <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
                 <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-                    <Link to="/login" className="flex min-w-0 items-center gap-2.5" aria-label="YATICORP">
-                        <img src="/assets/YATICORP-dark.png" alt="YATICORP" className="h-8 w-auto" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    <Link to="/login" className="flex min-w-0 items-center gap-2.5" aria-label="YATICORPX3">
+                        <img src="/assets/YATICORP-dark.png" alt="YATICORPX3" className="h-8 w-auto" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                     </Link>
                     <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700"><ShieldCheck size={14} className="text-emerald-600" aria-hidden="true" /><span className="sm:hidden">Verification</span><span className="hidden sm:inline">Certificate verification</span></span>
                 </div>
@@ -137,7 +137,7 @@ export default function VerifyPage() {
                         {d && !d.found && (
                             <Note tone="rose" icon={d.badFormat ? FileQuestion : ShieldX}
                                 title={d.badFormat ? 'That is not a certificate number' : 'No certificate has this number'}
-                                text={d.badFormat ? 'A number looks like YATI240100019664-001: YATI, the 12-digit card number, a hyphen and three digits.' : 'Check the number on the certificate or in the AI passport, digit by digit. A certificate that is not found here was not issued by YATICORP.'} />
+                                text={d.badFormat ? 'A number looks like YATI240100019664-001: YATI, the 12-digit card number, a hyphen and three digits.' : 'Check the number on the certificate or in the AI passport, digit by digit. A certificate that is not found here was not issued by YATICORPX3.'} />
                         )}
                         {d?.found && (
                             <>
@@ -217,8 +217,8 @@ function Verdict({ d }) {
                         {self ? 'Uploaded certificate' : valid ? 'Verified' : 'Revoked'}
                     </p>
                     <p className="mt-0.5 text-sm text-slate-600">
-                        {self ? 'The student uploaded this certificate to their YATICORP profile, where it is registered under this number.'
-                            : valid ? 'This certificate was issued through YATICORP.' : 'This certificate was issued but is no longer valid.'}
+                        {self ? 'The student uploaded this certificate to their YATICORPX3 profile, where it is registered under this number.'
+                            : valid ? 'This certificate was issued through YATICORPX3.' : 'This certificate was issued but is no longer valid.'}
                     </p>
                 </div>
             </div>
@@ -251,11 +251,11 @@ function Verdict({ d }) {
     );
 }
 
-/** A round seal round the shield: "VERIFIED · YATICORP ·" running round it, in the verdict's colour. */
+/** A round seal round the shield: "VERIFIED · YATICORPX3 ·" running round it, in the verdict's colour. */
 function Seal({ tone }) {
     const c = { emerald: ['#047857', '#d1fae5'], rose: ['#be123c', '#ffe4e6'], indigo: ['#4338ca', '#e0e7ff'] }[tone];
     const Icon = tone === 'emerald' ? ShieldCheck : tone === 'rose' ? ShieldX : Upload;
-    const words = tone === 'emerald' ? 'VERIFIED • YATICORP • VERIFIED • YATICORP • ' : tone === 'rose' ? 'REVOKED • YATICORP • REVOKED • YATICORP • ' : 'UPLOADED • YATICORP • UPLOADED • YATICORP • ';
+    const words = tone === 'emerald' ? 'VERIFIED • YATICORPX3 • VERIFIED • YATICORPX3 • ' : tone === 'rose' ? 'REVOKED • YATICORPX3 • REVOKED • YATICORPX3 • ' : 'UPLOADED • YATICORPX3 • UPLOADED • YATICORPX3 • ';
     return (
         <span className="relative flex h-16 w-16 shrink-0 items-center justify-center" aria-hidden="true">
             <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full">
@@ -306,7 +306,7 @@ function CertificateImage({ number, d }) {
                     ? <img src={d.imageUrl} alt={`Certificate ${d.number}, uploaded by ${d.name}: ${d.title}`} className="mx-auto max-h-[75vh] w-auto max-w-full rounded-2xl shadow-xl ring-1 ring-slate-200" referrerPolicy="no-referrer" />
                     : <NumberFrame on number={d.number}><img src={d.imageUrl} alt={`Certificate uploaded by ${d.name}: ${d.title}`} className="mx-auto max-h-[70vh] w-auto max-w-full rounded-md object-contain ring-1 ring-slate-300" referrerPolicy="no-referrer" /></NumberFrame>}
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
-                    <p className="text-xs text-slate-500">Uploaded by the student to their YATICORP profile.</p>
+                    <p className="text-xs text-slate-500">Uploaded by the student to their YATICORPX3 profile.</p>
                     {d.fileUrl && <a href={d.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Open the file</a>}
                 </div>
             </aside>
@@ -339,7 +339,7 @@ function CertificateImage({ number, d }) {
                 </NumberFrame>
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
-                <p className="text-xs text-slate-500">{d.selfUploaded ? 'Uploaded by the student to their YATICORP profile.' : 'Drawn from YATICORP’s own record of this certificate.'}</p>
+                <p className="text-xs text-slate-500">{d.selfUploaded ? 'Uploaded by the student to their YATICORPX3 profile.' : 'Drawn from YATICORPX3’s own record of this certificate.'}</p>
                 <button type="button" onClick={download} disabled={!img.pdf || !here} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f1b2d] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1c2c45] disabled:opacity-50">
                     <Download size={14} aria-hidden="true" />Download PDF
                 </button>

@@ -277,6 +277,8 @@ export const saidRight = (heard, sentence, locale = 'en') => {
     }
     const left = [...got];
     const missed = want.filter((w) => { const k = left.indexOf(w); if (k === -1) return true; left.splice(k, 1); return false; });
-    // Every word that carries the meaning heard ("a dog and a cat" is not "a dog and a rabbit"); a small one (a, the) may slip.
-    return missed.every((w) => [...w].length < 3) && missed.length <= Math.max(1, Math.floor(want.length / 5)) && got.length <= want.length + 3;
+    // One word wrong is fine in a sentence of three words or more (2026-11-18, the user: "if one word is wrong that is
+    // fine, don't mark it as wrong" — "seis" heard as "6"); beyond it, only small words (a, the) may slip.
+    const big = missed.filter((w) => [...w].length >= 3).length;
+    return big <= (want.length >= 3 ? 1 : 0) && missed.length <= Math.max(1, Math.floor(want.length / 5)) && got.length <= want.length + 3;
 };

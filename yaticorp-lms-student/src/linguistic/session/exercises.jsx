@@ -1587,7 +1587,13 @@ export function PairsStep({ step, done, onDone }) {
     const [misses, setMisses] = useState([]);
     const flash = useRef(null);
     useEffect(() => () => clearTimeout(flash.current), []);
-    usePrefetch(words.filter((w) => !w.audio).map((w) => [w.speak || w.word, w.locale || step.targetLocale || 'en-IN']), [step]);
+    // The right side's words made ready too (2026-11-18, the user: "right side voice is not coming": a Punjabi picture
+    // word, "🐄 ਗਾਂ", was only asked for when tapped, and the AI voice takes a while to make it).
+    const meaningSaid = (w) => String(w.kannada || '').replace(/[^\p{L}\p{M}\p{N}\s'’-]/gu, ' ').trim();
+    usePrefetch([
+        ...words.filter((w) => !w.audio).map((w) => [w.speak || w.word, w.locale || step.targetLocale || 'en-IN']),
+        ...words.map(meaningSaid).filter(Boolean).map((said) => [said, tileVoice(said, step.language || 'kn')])
+    ], [step]);
 
     const tap = (side, i) => {
         if (done || matched.includes(i)) return;
@@ -1595,7 +1601,7 @@ export function PairsStep({ step, done, onDone }) {
         // Both sides are read (2026-11-16, "pronounce the left side word also"), each in the language of its own letters.
         if (side === 'en' && (words[i].audio || soundOn())) { const said = words[i].speak || words[i].word; play(words[i].audio, said, words[i].locale || tileVoice(said, step.target && step.target !== 'en' ? step.target : 'en'), { any: true }); }
         // Its meaning heard too, in the student's language (2026-11-06, "the voice for all tile words"; a letter's picture left out).
-        if (side === 'kn' && soundOn()) { const said = String(words[i].kannada || '').replace(/[^\p{L}\p{M}\p{N}\s'’-]/gu, ' ').trim(); if (said) play(null, said, tileVoice(said, step.language || 'kn'), { any: true }); }
+        if (side === 'kn' && soundOn()) { const said = meaningSaid(words[i]); if (said) play(null, said, tileVoice(said, step.language || 'kn'), { any: true }); }
         if (!pick || pick.side === side) { setPick({ side, i }); return; }
         const en = side === 'en' ? i : pick.i;
         const kn = side === 'kn' ? i : pick.i;

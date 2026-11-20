@@ -7,7 +7,7 @@ const { INTEREST_IDS } = require("../data/opportunityVocab");
  * interested in.
  *
  * The date of birth is the one field the safety rules cannot do without.
- * The LMS's own User record carries no age, so it is asked for here and the
+ * YATICORPX3's own User record carries no age, so it is asked for here and the
  * age is derived on every request — never stored, so it cannot go stale.
  */
 const guardianSchema = new mongoose.Schema(
@@ -17,7 +17,7 @@ const guardianSchema = new mongoose.Schema(
     status: { type: String, enum: ["not-required", "none", "pending", "approved", "rejected"], default: "none" },
     guardianName: { type: String, default: "" },
     // Where the job permission request is sent. Email rather than SMS: the
-    // LMS already has a mail sender configured, and a link in a message the
+    // YATICORPX3 already has a mail sender configured, and a link in a message the
     // parent can read on any device beats one they cannot receive at all.
     email: { type: String, default: "" },
     // The parent's mobile, +91XXXXXXXXXX, asked for on the details form.

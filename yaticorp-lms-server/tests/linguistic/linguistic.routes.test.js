@@ -401,10 +401,19 @@ describe('a whole level: completion and its certificate', () => {
             for (const l of todo) last = await raviApi('POST', `/lessons/${l.id}/quiz`, { answers: await rightAnswers(l.id) });
         }
         assert.equal(beginner.length, 61, 'six lessons in each of its ten units (2026-11-14) and the letters test (2026-11-12): the Letters unit, the eight topic units, the level review with its assessment');
-        assert.equal(last.body.certificate?.level, 'beginner', 'the last lesson completes the level');
-        const d = (await raviApi('GET', '/')).body;
+        assert.equal(last.body.certificate, null, 'the Beginner certificate waits for Daily life and Explorer too (2026-11-17)');
+        let d = (await raviApi('GET', '/')).body;
         assert.equal(d.level, 'elementary', 'the assessment passed with the rest: on to the next section, Daily life (2026-11-14)');
-        assert.equal(d.levels[0].complete, true); assert.match(d.levels[0].certificate.number, /^YATI.+-\d{3,}$/, 'in the student\'s one series of certificates (2026-11-11)');
+        assert.equal(d.levels[0].complete, true); assert.equal(d.levels[0].certificate, null);
+        // Daily life and Explorer done (all but Daily life's last lesson, set here: passing each through the API takes
+        // minutes); passing that last one finishes the Beginner group and earns its one certificate, before Advanced.
+        const rest = (await svc.publishedLessons()).filter((l) => ['elementary', 'intermediate'].includes(l.level));
+        const lastDaily = rest.filter((l) => l.level === 'elementary').sort((a, b) => (a.order || 0) - (b.order || 0)).pop();
+        await LinguisticProgress.updateOne({ userId: ravi.user._id }, { $push: { lessons: { $each: rest.filter((l) => String(l._id) !== String(lastDaily._id)).map((l) => ({ lessonId: l._id, module: l.module, level: l.level, status: 'completed', step: 'done', bestScore: 90, completedAt: new Date() })) } } });
+        last = await raviApi('POST', `/lessons/${lastDaily._id}/quiz`, { answers: await rightAnswers(String(lastDaily._id)) });
+        assert.equal(last.body.certificate?.level, 'beginner', 'the last Beginner-group lesson earns the Beginner certificate');
+        d = (await raviApi('GET', '/')).body;
+        assert.match(d.levels[0].certificate.number, /^YATI.+-\d{3,}$/, 'in the student\'s one series of certificates (2026-11-11)');
         assert.equal(d.achievements.find((a) => a.key === 'level_beginner').earned, true);
         const certs = (await raviApi('GET', '/certificates')).body.certificates;
         assert.deepEqual(certs.map((c) => c.level), ['beginner']);
@@ -473,10 +482,10 @@ describe('administrators', () => {
     test('progress: every student, with their level and results', async () => {
         const list = (await adminApi('GET', `/admin/students?search=${encodeURIComponent('Ling Ravi')}`)).body;
         assert.equal(list.students.length, 1);
-        assert.deepEqual([list.students[0].level, list.students[0].completed, list.students[0].certificates], ['elementary', 61, ['beginner']]);
+        assert.deepEqual([list.students[0].completed > 61, list.students[0].certificates], [true, ['beginner']], 'the Beginner group finished (2026-11-17)');
         const one = (await adminApi('GET', `/admin/students/${ravi.user._id}`)).body;
         assert.ok(one.attempts.some((a) => a.kind === 'quiz' && a.passed));
-        assert.ok(one.lessons.filter((l) => l.status === 'completed').length === 61);
+        assert.ok(one.lessons.filter((l) => l.status === 'completed').length > 61);
     });
     test('reviews: writing sent before 2026-10-26 waits; a score and comment reach the student, with points at the passing score; writing checked in a lesson never shows', async () => {
         // Since 2026-10-26 nothing new is sent to a teacher: these stand for writing sent before then.

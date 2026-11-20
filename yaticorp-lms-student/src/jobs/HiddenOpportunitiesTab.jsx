@@ -63,7 +63,7 @@ const rolesNear = (roles, target, skills) => {
 
 export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location = '', targetRole = '' }) {
     const [roles, setRoles] = useState(null);
-    // Everything the student can show for: their resume, and what the LMS
+    // Everything the student can show for: their resume, and what YATICORPX3
     // taught them. A course finished here opens roles too.
     const [learned, setLearned] = useState(null);
     useEffect(() => { learnerSkills().then(setLearned); }, [profile?.parsedAt]);

@@ -714,7 +714,7 @@ ${studentContext(goal)}
 ${courseContext ? `
 ${courseContext}
 Where a stage of the roadmap is covered by one of these courses, say so in that
-stage's steps by name — "Work through YATICORP's <title>" — instead of naming an
+stage's steps by name — "Work through YATICORPX3's <title>" — instead of naming an
 outside platform. Do not stretch: a stage nothing here covers should still point
 wherever genuinely serves the student best.
 ` : ''}
@@ -935,7 +935,7 @@ JSON Schema (Strict):
 {
   "colleges": [{ "stage": "Which education stage this is for, e.g. 'Class 11-12 (PU)' / 'Undergraduate (B.Tech)' / 'Postgraduate (M.Tech)'", "name": "Name", "location": "Location", "programs": "Programs", "why": "Why recommend", "requirements": "Reqs", "fees": "Fees", "link": "URL" }],
   "internships": [{ "stage": "When the user can realistically do this, e.g. 'Class 11-12' / 'Undergraduate Year 2-3' / 'Postgraduate'", "title": "Internship / programme name", "organisation": "Company or organisation", "mode": "Remote / On-site / Hybrid", "duration": "e.g. 8 weeks", "eligibility": "Who can apply", "stipend": "Paid or unpaid, and typical amount", "whenToApply": "Typical application window", "link": "URL" }],
-  "yaticorpCourses": [{ "courseId": "The id in square brackets from the YATICORP list above - copy it EXACTLY", "title": "The course title, copied exactly", "why": "One sentence on what this course gives them for their goal", "when": "Now / After finishing X / Before applying for internships" }],
+  "yaticorpCourses": [{ "courseId": "The id in square brackets from the YATICORPX3 list above - copy it EXACTLY", "title": "The course title, copied exactly", "why": "One sentence on what this course gives them for their goal", "when": "Now / After finishing X / Before applying for internships" }],
   "courses": [{ "title": "Title", "provider": "Provider", "duration": "Duration", "difficulty": "Level", "skills": "Skills", "pricing": "Free/Paid", "link": "URL" }],
   "certifications": [{ "title": "Title", "provider": "Provider", "description": "Desc", "link": "URL" }],
   "books": [{ "title": "Title", "author": "Author", "description": "Desc", "why": "Why useful" }],
@@ -947,12 +947,12 @@ JSON Schema (Strict):
   "careerTips": [{ "title": "Tip Title", "description": "Tip Desc" }]
 }
 
-"yaticorpCourses" is for courses from the YATICORP list above and NOTHING else.
+"yaticorpCourses" is for courses from the YATICORPX3 list above and NOTHING else.
 Never invent a course or an id for it: every entry must copy a title and id given
-above verbatim. Return an empty array if no YATICORP course genuinely fits, and
+above verbatim. Return an empty array if no YATICORPX3 course genuinely fits, and
 never pad it. Put outside platforms (Coursera, Udemy, NPTEL and the like) in
 "courses" instead, and leave out of "courses" anything already covered by a
-YATICORP course you listed - the student should not be sent to pay for something
+YATICORPX3 course you listed - the student should not be sent to pay for something
 they can already open.
 
 If a category is completely inapplicable (e.g., certifications for a 10 year old), return an empty array for that key. Do NOT use markdown code blocks, just raw JSON.
@@ -1144,10 +1144,10 @@ const buildMentorContext = (goal, roadmap, tasks = [], skills = [], events = [],
 
   // The courses they actually own. Until this was added the mentor could be
   // asked "what should I learn next?" by a student sitting on a half-finished
-  // YATICORP course and would answer with a YouTube channel, because a course
+  // YATICORPX3 course and would answer with a YouTube channel, because a course
   // they had already paid for was the one thing it could not see.
   if (courses.length) {
-    lines.push('- Their YATICORP courses right now:');
+    lines.push('- Their YATICORPX3 courses right now:');
     for (const c of courses) {
       const state = c.progress >= 100 ? 'finished'
         : c.started ? `${c.progress}% done`
@@ -1180,7 +1180,7 @@ const generateMentorResponse = async (user, goal, roadmap, tasks, skills, chatHi
   });
 
   const systemInstruction = `
-You are an experienced AI Career Mentor for YATICORP's "Career Path" section.
+You are an experienced AI Career Mentor for YATICORPX3's "Career Path" section.
 Do NOT give generic advice. Base all your answers strictly on the user's context provided below.
 
 You are talking to a student. They are often young, usually anxious about their

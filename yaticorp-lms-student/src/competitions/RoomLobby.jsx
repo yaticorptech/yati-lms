@@ -14,7 +14,7 @@ import Portal from '../components/Portal';
  * Redesigned 2026-11-03: a game stage in depth — the game's picture tilted on
  * a glowing floor, the code as raised gold keys, seats as lifted cards — and
  * the invitation shared as a picture card (inviteCard.js) to WhatsApp,
- * Instagram or email, "Powered by YATICORP".
+ * Instagram or email, "Powered by YATICORPX3".
  *
  * The server decides everything: who may start, when, and who may join.
  * Start stays disabled here, with the reason, until it would be allowed.
@@ -117,7 +117,7 @@ function ShareSheet({ game, info, sizeText, onClose }) {
         setNote('Invitation copied: paste it in an Instagram chat (Save the card to send it too).');
     };
     const gmail = () => {
-        window.open(`https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(`Join my ${label} room — code ${game.code}`)}&body=${encodeURIComponent(`${text}\n\nPowered by YATICORP`)}`, '_blank', 'noopener');
+        window.open(`https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(`Join my ${label} room — code ${game.code}`)}&body=${encodeURIComponent(`${text}\n\nPowered by YATICORPX3`)}`, '_blank', 'noopener');
         setNote('Gmail opened with the invitation.');
     };
     const more = async () => {

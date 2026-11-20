@@ -120,7 +120,7 @@ router.post('/', requireDriveFor, chargeWallet('upload_resume'), xpOnSuccess('re
             const keepFile = async () => {
                 if (!(await usesDrive(userId))) return {};
                 const before = await ResumeProfile.findOne({ userId }).select('driveFileId').lean();
-                const d = await storeInDrive(userId, req.file.buffer, { name: filename, mimeType: mime, description: 'The resume you uploaded to YATICORP.' });
+                const d = await storeInDrive(userId, req.file.buffer, { name: filename, mimeType: mime, description: 'The resume you uploaded to YATICORPX3.' });
                 if (before?.driveFileId && before.driveFileId !== d.driveFileId) removeFile(userId, before.driveFileId);
                 return { fileUrl: d.viewUrl, driveFileId: d.driveFileId, objectPath: '' };
             };

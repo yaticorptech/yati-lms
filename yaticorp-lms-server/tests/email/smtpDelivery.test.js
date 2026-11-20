@@ -68,7 +68,7 @@ describe('the guardian request over SMTP', () => {
         process.env.SMTP_PORT = String(port);
         process.env.SMTP_USER = 'lms@example.com';
         process.env.SMTP_PASS = 'an-app-password';
-        process.env.SMTP_FROM_NAME = 'YATICORP LMS';
+        process.env.SMTP_FROM_NAME = 'YATICORPX3';
         delete require.cache[require.resolve('../../src/utils/emailService')];
         const mailer = require('../../src/utils/emailService');
         assert.equal(mailer.provider(), 'smtp');

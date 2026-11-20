@@ -120,7 +120,7 @@ export default function GoogleConsentDialog() {
           )}
           <p className="mt-3 flex items-start gap-2 rounded-xl bg-emerald-50/70 px-3 py-2.5 text-[13px] leading-snug text-slate-600 ring-1 ring-emerald-100">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-            <span>Files go into one folder, <span className="font-semibold text-slate-800">{state.folderName || 'YATICORP Learning'}</span>. We only see what this site puts there; the rest of your Google account stays private. Disconnect any time.</span>
+            <span>Files go into one folder, <span className="font-semibold text-slate-800">{state.folderName || 'YATICORPX3 Learning'}</span>. We only see what this site puts there; the rest of your Google account stays private. Disconnect any time.</span>
           </p>
         </div>
 

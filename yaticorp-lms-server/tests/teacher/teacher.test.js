@@ -396,7 +396,7 @@ describe('the dashboard features', () => {
         assert.ok(check.body.score > 40, `score ${check.body.score}`);
         assert.equal(check.body.ownScore, 0);
         assert.ok(check.body.matches.length >= 1);
-        assert.ok(check.body.sources.every((s) => s.label === 'Another document on YATICORP'), 'no title or author of someone else\'s work');
+        assert.ok(check.body.sources.every((s) => s.label === 'Another document on YATICORPX3'), 'no title or author of someone else\'s work');
         assert.ok(!JSON.stringify(check.body.sources).includes('Peer tutoring and mathematics anxiety'));
 
         const piece = await me('POST', '/api/teacher/writing', { title: 'Conference abstract' });

@@ -5,7 +5,7 @@
  * five of the student's Career Path skills are each at 25% or more. It used to
  * be a quarter of the way through their enrolled courses. A short list of
  * accounts is exempt — the people building and demonstrating the product
- * (both Bhagyashree accounts and Yaticorp), who carry the flag below.
+ * (both Bhagyashree accounts and YATICORPX3), who carry the flag below.
  *
  * This lives on the server, keyed to the account, for two reasons the previous
  * arrangement got wrong. It was a build-time flag (VITE_JOBS_GATE_BYPASS) baked
@@ -17,7 +17,7 @@
  * in .env is a convenience on top of it: a comma-separated list matched,
  * case-insensitively, against the account's name, email or card number:
  *
- *   JOBS_ALWAYS_OPEN=Yaticorp,Bhagyashree
+ *   JOBS_ALWAYS_OPEN=YATICORPX3,Bhagyashree
  *   JOBS_ALWAYS_OPEN=yati@example.com,YC-1029
  *
  * Unset or empty means nobody is exempt, which is the right default for

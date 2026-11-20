@@ -1,5 +1,5 @@
 /**
- * Rewards administration. Guarded by the LMS admin middleware; mounted ahead
+ * Rewards administration. Guarded by YATICORPX3 admin middleware; mounted ahead
  * of the student feature gate so locking the section never blinds the admin.
  */
 const express = require('express');

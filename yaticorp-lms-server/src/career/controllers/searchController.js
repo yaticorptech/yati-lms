@@ -1,10 +1,10 @@
 /**
  * @description Search across the student's own Career Path material.
  *
- * A separate endpoint rather than an extension of the LMS `searchContent`, on
+ * A separate endpoint rather than an extension of YATICORPX3 `searchContent`, on
  * purpose. The rule this port has followed throughout is that Career Path may
- * read the LMS and never the other way round — see services/lmsContext.js. Had
- * the LMS search reached into career_* collections, that would be the first
+ * read YATICORPX3 and never the other way round — see services/lmsContext.js. Had
+ * YATICORPX3 search reached into career_* collections, that would be the first
  * edge pointing back, and the two halves would stop being separable. The
  * sidebar calls both endpoints and merges the results instead.
  *

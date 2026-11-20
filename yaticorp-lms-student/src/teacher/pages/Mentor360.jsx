@@ -477,7 +477,7 @@ export default function Mentor360() {
                         <div role="status" className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-xl">
                             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-teal-50 text-teal-600"><Lock size={22} aria-hidden="true" /></span>
                             <h2 className="mt-3 text-lg font-bold text-slate-800">{data.title || 'Student Ranking'} is locked</h2>
-                            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{data.title || 'Student Ranking'} is not unlocked for {data.organization.name} yet. Ask your organization to have the YATICORP team unlock it. The classes you teach stay in your profile meanwhile.</p>
+                            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{data.title || 'Student Ranking'} is not unlocked for {data.organization.name} yet. Ask your organization to have the YATICORPX3 team unlock it. The classes you teach stay in your profile meanwhile.</p>
                         </div>
                     </div>
                 </div>

@@ -193,7 +193,7 @@ export default function OverallAnalytics() {
                             <Figure label="Badges unlocked" value={num(rw.badges)} sub="all time" />
                             <Figure label="Streaks running" value={num(rw.streaks)} sub="two days or more" />
                             <Figure label="Wallet balances" value={money(rw.walletAvailable)} sub="held by students now" />
-                            <Figure label="Spent in the LMS" value={money(rw.walletSpent)} sub="courses and features" />
+                            <Figure label="Spent in YATICORPX3" value={money(rw.walletSpent)} sub="courses and features" />
                             <Figure label="Feature charges" value={money(rw.charges30)} sub="in 30 days" />
                             <Figure label="Wallet recharges" value={money(rw.recharged)} sub="added by admins" />
                         </div>

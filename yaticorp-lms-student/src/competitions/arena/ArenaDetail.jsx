@@ -165,7 +165,7 @@ export default function ArenaDetail() {
                 <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-800 ring-1 ring-slate-200">🧠 Quiz Arena</span>
                 <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-800 ring-1 ring-slate-200">Inter-College</span>
             </div>
-            <GameHero game="quizarena" bannerUrl={c.bannerUrl} title={c.title} subtitle={`Organized by ${c.organizedBy || 'YATICORP'}`} description={c.description}
+            <GameHero game="quizarena" bannerUrl={c.bannerUrl} title={c.title} subtitle={`Organized by ${c.organizedBy || 'YATICORPX3'}`} description={c.description}
                 meta={[[CalendarClock, fmt(c.startsAt)], [Timer, `${c.questions} questions · about ${duration(c.durationMs)}`], [Users, `${c.registeredCount} entered`]]} />
 
             {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}

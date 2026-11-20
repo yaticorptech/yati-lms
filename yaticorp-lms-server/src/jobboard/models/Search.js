@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
  * skills" and "popular roles" endpoints, and gives a student their own
  * recent-search list.
  *
- * Inside the LMS the caller is always signed in, so searches are keyed on the
+ * Inside YATICORPX3 the caller is always signed in, so searches are keyed on the
  * real user rather than the client-generated sessionId the standalone app used.
  * That matters for history: a guessable id in a query string would have let one
  * student read another's searches.

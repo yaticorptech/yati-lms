@@ -107,3 +107,29 @@ input[type="password"]::-webkit-textfield-decoration-container {
 
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .animate-rise { animation: none; } }
+
+/* Light pages (2026-11-19, the user: "make all drop downs white"): the browser draws its own lists — select menus,
+   date pickers — light too, even when the computer is set to dark mode. */
+:root { color-scheme: light; }
+
+/* White drop-down lists (2026-11-19, the user: "white"): on a Mac the browser's own select menu follows the system's dark
+   mode whatever the page says; browsers that let the page draw it (appearance: base-select) draw it white here. The box
+   keeps its own look and chevron — only the list that opens is the page's. Others keep their usual menu. */
+@supports (appearance: base-select) {
+    /* The chosen option sits in the middle of the box, as before (base-select lays it out at the top). */
+    select:not([multiple]):not([size]) { appearance: base-select; display: inline-flex; align-items: center; line-height: 1.25; }
+    select:not([multiple]):not([size]) > button { display: flex; align-items: center; width: 100%; }
+    select:not([multiple]):not([size])::picker-icon { display: none; }
+    select:not([multiple]):not([size])::picker(select) {
+        appearance: base-select;
+        background: #fff; color: #0f172a;
+        border: 1px solid #e2e8f0; border-radius: 12px;
+        box-shadow: 0 12px 32px -12px rgb(15 23 42 / 0.25);
+        padding: 4px; margin-top: 4px; max-height: 18rem;
+    }
+    select:not([multiple]):not([size]) option { padding: 8px 12px; border-radius: 8px; color: #0f172a; background: #fff; }
+    select:not([multiple]):not([size]) option:hover, select:not([multiple]):not([size]) option:focus-visible { background: #f1f5f9; }
+    select:not([multiple]):not([size]) option:checked { background: #eef2ff; font-weight: 600; }
+    select:not([multiple]):not([size]) option:disabled { color: #94a3b8; }
+    select:not([multiple]):not([size]) option::checkmark { display: none; }
+}

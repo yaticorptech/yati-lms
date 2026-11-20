@@ -1,10 +1,10 @@
 /**
- * @description What Career Path knows about the student's actual LMS courses.
+ * @description What Career Path knows about the student's actual YATICORPX3 courses.
  *
  * The port arrived blind: the roadmap, the recommendations and the mentor all
  * advised students to go and learn on LeetCode and HackerRank while those same
- * students were sitting on a shelf of YATICORP courses nobody mentioned. This
- * module is the one place the career section reads the course side of the LMS,
+ * students were sitting on a shelf of YATICORPX3 courses nobody mentioned. This
+ * module is the one place the career section reads the course side of YATICORPX3,
  * so that stays deliberate and reviewable rather than spreading through a dozen
  * controllers.
  *
@@ -30,7 +30,7 @@ const MAX_LESSONS_MATCHED = 2500;
  *
  * Mirrors getMyCourses in userCourseController: a Bundle enrolment grants every
  * course inside it, and only published courses count. Kept in step with that
- * deliberately — a student being recommended a course the LMS will not let them
+ * deliberately — a student being recommended a course YATICORPX3 will not let them
  * open is worse than not recommending anything.
  */
 const enrolledCourseIds = async (userId) => {
@@ -267,7 +267,7 @@ const buildCourseContext = ({ enrolled = [], catalogue = [] }) => {
 
   const lines = [];
   if (enrolled.length) {
-    lines.push('COURSES THIS STUDENT IS ALREADY ENROLLED IN AT YATICORP:');
+    lines.push('COURSES THIS STUDENT IS ALREADY ENROLLED IN AT YATICORPX3:');
     for (const c of enrolled) {
       const state = c.progress >= 100 ? 'finished'
         : c.started ? `${c.progress}% through`
@@ -276,13 +276,13 @@ const buildCourseContext = ({ enrolled = [], catalogue = [] }) => {
     }
   }
   if (catalogue.length) {
-    lines.push('OTHER YATICORP COURSES AVAILABLE:');
+    lines.push('OTHER YATICORPX3 COURSES AVAILABLE:');
     for (const c of catalogue) {
       lines.push(`  - [${c.courseId}] "${c.title}"`);
     }
   }
   lines.push(
-    'Prefer these over any outside platform. When a YATICORP course covers what',
+    'Prefer these over any outside platform. When a YATICORPX3 course covers what',
     'the student needs, name it exactly as written above and cite its id in',
     'square brackets. Only send them elsewhere for something no course here covers.'
   );
@@ -297,7 +297,7 @@ const getStudentCourseContext = async (userId) => {
   } catch (error) {
     // Course context is an enhancement, not a dependency. Losing it degrades
     // the advice; failing the request would lose the student their roadmap.
-    console.error('[career] Could not load LMS course context:', error.message);
+    console.error('[career] Could not load YATICORPX3 course context:', error.message);
     return { enrolled: [], catalogue: [], prompt: '' };
   }
 };

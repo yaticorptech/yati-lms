@@ -1,9 +1,9 @@
 /**
  * @description A certificate or award the student uploaded themselves — from
  *              a school, a competition, another platform. Sits in the profile
- *              frame beside the certificates the LMS issues for its courses.
+ *              frame beside the certificates YATICORPX3 issues for its courses.
  *
- * The file lives on Bunny storage (the LMS's CDN, where course assets go),
+ * The file lives on Bunny storage (YATICORPX3's CDN, where course assets go),
  * or on Cloudinary when Bunny isn't configured. `storage` + `objectPath` /
  * `publicId` are kept so a delete here also deletes the asset there, rather
  * than leaving an orphan the student can no longer reach.

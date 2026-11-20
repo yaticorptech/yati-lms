@@ -20,8 +20,8 @@ import Portal from '../components/Portal';
 
 const SafetyNotes = ({ rules }) => (
     <ul className="space-y-1.5 text-[13px] leading-relaxed text-slate-600 sm:space-y-2 sm:text-sm">
-        {rules?.verifiedOnly && <li>Only jobs from organisations the LMS has verified are shown to you.</li>}
-        {!rules?.exposeContact && <li>Organisations never see your contact details, and you never see theirs. When you mark interest, the LMS passes it on{rules?.guardianApproval ? ' and copies your guardian' : ''}.</li>}
+        {rules?.verifiedOnly && <li>Only jobs from organisations YATICORPX3 has verified are shown to you.</li>}
+        {!rules?.exposeContact && <li>Organisations never see your contact details, and you never see theirs. When you mark interest, YATICORPX3 passes it on{rules?.guardianApproval ? ' and copies your guardian' : ''}.</li>}
         {rules?.guardianApproval
             ? <li>For students under {rules.guardianAge || 18}: applying for a job emails your parent or guardian the job's details. They answer, then your school signs it off. Nothing is arranged until both have.</li>
             // Said to everyone, not only to the students it applies to (the
@@ -29,7 +29,7 @@ const SafetyNotes = ({ rules }) => (
             : <li>For students under {rules?.guardianAge || 18}: a parent or guardian has to agree before they take a job. Applying emails the parent the job's details; they answer, then the school signs it off. You are {rules?.guardianAge || 18} or over, so you can apply straight away.</li>}
         <li>Your date of birth is used only to decide which jobs you may see. It is never shown to an organisation.</li>
         <li>Your dates, interests and ♡ / ✕ choices stay in your account and only shape your own recommendations. You can edit or clear them any time.</li>
-        <li>Anything that looks unsafe, asks for money, or asks to talk outside the LMS — use <strong>Report</strong> on the listing. Reports go to the LMS team.</li>
+        <li>Anything that looks unsafe, asks for money, or asks to talk outside YATICORPX3 — use <strong>Report</strong> on the listing. Reports go to the YATICORPX3 team.</li>
     </ul>
 );
 
@@ -80,7 +80,7 @@ export default function GuardianBanner({ rules }) {
                                             ? `Because you're under ${under}, a parent or guardian has to agree before you take a job. Browse and mark interest freely — when you apply for one, we ask them for permission for that job, and they get an email with the details and answer it themselves.`
                                             : rules.band === 'explore'
                                                 ? 'Until then, explore skills and career paths.'
-                                                : `Students under ${under} need a parent or guardian to agree before they take a job. Report anything that looks off — the LMS team reviews every report.`}
+                                                : `Students under ${under} need a parent or guardian to agree before they take a job. Report anything that looks off — the YATICORPX3 team reviews every report.`}
                                     </p>
                                 </div>
                                 <button type="button" onClick={() => setOpen(false)} aria-label="Close"

@@ -4,7 +4,7 @@
  *
  * Reporting with one exception: the lock in the header, which opens or closes
  * the section to students — the same arrangement as the Career Path page.
- * What students search for is the clearest demand signal the LMS gets: a role
+ * What students search for is the clearest demand signal YATICORPX3 gets: a role
  * that keeps appearing here and matches no course in the catalogue is a
  * course waiting to be built.
  *

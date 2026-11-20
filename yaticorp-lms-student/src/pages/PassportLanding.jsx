@@ -108,7 +108,7 @@ export default function PassportLanding() {
             <span aria-hidden className="pointer-events-none absolute -top-40 right-1/4 -z-10 h-[28rem] w-[34rem] rounded-full bg-violet-600/25 blur-[130px]" />
             <span aria-hidden className="pointer-events-none absolute -bottom-48 -left-32 -z-10 h-[26rem] w-[26rem] rounded-full bg-amber-500/15 blur-[130px]" />
             <main className="w-full max-w-sm rounded-[28px] bg-[#232740] p-6 shadow-[0_40px_90px_-40px_rgba(0,0,0,0.8)] ring-1 ring-white/[0.08] sm:p-7">
-                <img src="/assets/YATICORP.png" alt="YATICORP" className="mx-auto mb-5 h-7 w-auto object-contain" />
+                <img src="/assets/YATICORP.png" alt="YATICORPX3" className="mx-auto mb-5 h-7 w-auto object-contain" />
                 <Steps at={step} />
 
                 {/* ── Done ── */}

@@ -50,7 +50,7 @@ const guardianMail = (application, link, { note = '' } = {}) => {
     Pressing a button records your answer straight away. Simply opening this email changes nothing.
   </p>
   ${note ? '' : `<p style="margin:0 0 8px;font-size:13px;line-height:1.6;color:#64748b">
-    Only you can answer this. Nobody at the school or the LMS can approve it for you.
+    Only you can answer this. Nobody at the school or YATICORPX3 can approve it for you.
   </p>`}
   <p style="margin:0;font-size:12px;color:#94a3b8;word-break:break-all">If the buttons do not work, open: ${link}</p>
 </div>`;

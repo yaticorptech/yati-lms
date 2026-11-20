@@ -85,7 +85,7 @@ const loginUser = async (req, res) => {
         // No one signs in by email here (2026-10-31): students and teachers use a card or mobile number.
         if (k.kind === 'email') return res.status(401).json({ code: 'USE_CARD_OR_PHONE', message: 'Sign in with your card number or mobile number, not your email.' });
 
-        if (k.kind === 'phone' || (k.kind === 'card-or-phone' && !(await findUserByCardNumber(k.value)) && !(await require('../teacher/auth').findTeacherByCard(k.value)))) {
+        if (k.kind === 'phone' || (k.kind === 'card-or-phone' && !(await findUserByCardNumber(k.value)) && !(await require('../teacher/auth').findTeacherByCard(k.value)) && !(await require('../parent/auth').findParentByCard(k.value)))) {
             const found = await byPhone(User, k.digits, password);
             if (found.account) return admit(req, res, found.account);
             if (found.shared) return res.status(409).json({ code: 'PHONE_SHARED', message: SHARED_PHONE });
@@ -94,6 +94,11 @@ const loginUser = async (req, res) => {
             const teacher = await byPhone(require('../teacher/models').Teacher, k.digits, password);
             if (teacher.account || teacher.shared) return res.status(401).json({ code: 'TEACHER_ACCOUNT', message: 'This is a teacher account.' });
             if (teacher.pending && !found.wrongPassword) return res.status(401).json({ code: 'PASSWORD_NOT_SET', message: PASSWORD_NOT_SET });
+            // A parent's mobile number (2026-11-19), often the child's too: the app tries the parent sign-in, which says
+            // "wrong password" itself if that is not it either.
+            if (k.digits.length >= 10 && await require('../models/Card').exists({ 'parent.password': { $exists: true }, 'parent.phone': { $regex: `${k.digits.slice(-10).split('').join('\\D*')}$` } })) {
+                return res.status(401).json({ code: 'PARENT_ACCOUNT', message: 'This is a parent account.' });
+            }
             if (found.wrongPassword || teacher.wrongPassword) return res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });
             // A 12-digit entry may be either (2026-11-16: an unknown card was told "mobile number").
             return res.status(401).json({ code: 'NO_ACCOUNT', message: k.kind === 'card-or-phone'
@@ -109,6 +114,9 @@ const loginUser = async (req, res) => {
         } else if (!user && await require('../teacher/auth').findTeacherByCard(cardNumber)) {
             // A teacher's card: the app signs in on the teacher side.
             res.status(401).json({ code: 'TEACHER_CARD', message: 'This card is registered to a teacher account.' });
+        } else if (!user && await require('../parent/auth').findParentByCard(cardNumber)) {
+            // A parent's card (2026-11-19): the app signs in on the parent side.
+            res.status(401).json({ code: 'PARENT_CARD', message: 'This card is registered to a parent account.' });
         } else if (user) {
             // The card is right: say it is the password, so they reset it rather than re-scan.
             res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });

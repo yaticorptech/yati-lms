@@ -2,7 +2,7 @@
  * The student's Learning Bio: what the AI wrote, what the student wrote
  * over it, their interests and their privacy choice. Everything else on the
  * bio page — courses, skills, certificates, projects, achievements — is
- * read live from the LMS each time, never copied here, so it can never go
+ * read live from YATICORPX3 each time, never copied here, so it can never go
  * stale or disagree with the rest of the app.
  *
  * `dataHash` is a fingerprint of the learning data the current AI bio was
@@ -44,7 +44,7 @@ const schema = new mongoose.Schema({
         removed: { type: [String], default: [] }
     },
 
-    // Whether the bio is theirs alone, shown on the LMS profile, or reachable
+    // Whether the bio is theirs alone, shown on YATICORPX3 profile, or reachable
     // by a share link.
     visibility: { type: String, enum: ['private', 'profile', 'shareable'], default: 'private' },
     shareCode: { type: String, default: '', index: true },

@@ -1,5 +1,5 @@
 /**
- * The picture of a certificate the LMS issued: the same design the PDF is
+ * The picture of a certificate YATICORPX3 issued: the same design the PDF is
  * printed on (public/certificates/cert_template.jpg, a lighter copy of the
  * server's public/assets/cert_template.jpg), with the student's name, the
  * course, the certificate number and the dates written where the PDF writes

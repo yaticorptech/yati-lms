@@ -67,7 +67,7 @@ const notify = async (organization) => {
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                     <h2 style="color: #4F46E5;">Registration received</h2>
                     <p>Hi <strong>${greetName}</strong>,</p>
-                    <p>Thank you for registering <strong>${name}</strong> with YATICORP LMS.
+                    <p>Thank you for registering <strong>${name}</strong> with YATICORPX3.
                        Our administrator will review your request and you will hear from us once a
                        decision has been made.</p>
                     <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">

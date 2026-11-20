@@ -103,6 +103,17 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
+    // The class (Organization.campus.classes, 2026-11-19) the student is in at their organization: chosen when they
+    // ask to join, set when the organization approves; each class's number of students counts these.
+    orgClassId: {
+        type: mongoose.Schema.Types.ObjectId,
+        default: null
+    },
+    // Their class when they left or were removed: joining that organization again fills it in (joinSuggest.js).
+    lastOrgClass: {
+        type: new mongoose.Schema({ organizationId: mongoose.Schema.Types.ObjectId, name: String, section: String }, { _id: false }),
+        default: undefined
+    },
 
     // ─── Career Path (FuturePath) ────────────────────────────────────────────
     // The AI career-roadmap section keeps its own collections (career_*), but

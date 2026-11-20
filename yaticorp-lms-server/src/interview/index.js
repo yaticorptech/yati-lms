@@ -400,7 +400,7 @@ router.post('/sessions/:id/finish', async (req, res, next) => {
         const report = await ai.evaluate({ session, context, userId: req.user._id, delivery: comms.describe(communication) });
         report.communication = communication;
 
-        // The plan's skills → the LMS course that teaches them, where one exists.
+        // The plan's skills → YATICORPX3 course that teaches them, where one exists.
         const skills = report.plan.map((p) => p.skill).filter(Boolean);
         const matches = skills.length ? await coursesForSkills(skills) : [];
         report.plan = report.plan.map((p) => {

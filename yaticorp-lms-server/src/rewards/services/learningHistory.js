@@ -1,7 +1,7 @@
 /**
  * How many lessons, passed quizzes and finished courses a student has, from
  * both records of it: the rewards activity ledger and the course progress the
- * LMS itself keeps.
+ * YATICORPX3 itself keeps.
  *
  * Until 2026-10-14 the ledger was only written while Rewards was switched on,
  * so anything learned while it was off is missing from it for good. Progress

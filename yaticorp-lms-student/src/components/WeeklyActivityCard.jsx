@@ -8,7 +8,7 @@ import useCountUp from '../hooks/useCountUp';
  *
  * The streak panel is the one Career Path's Overview shows (StreakPanel): the
  * run of days, the last seven as dated tiles, and the week's quests. What the
- * student has finished on the LMS side — courses and certificates, which the
+ * student has finished on YATICORPX3 side — courses and certificates, which the
  * old weekly card counted and nothing else on the Dashboard does — sits inside
  * the same card, under the streak number. It once had a violet card of its
  * own beside this one; two cards for one week of activity was one too many.

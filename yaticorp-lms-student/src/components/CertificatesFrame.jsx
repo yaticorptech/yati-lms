@@ -1,7 +1,7 @@
 /**
  * @description "My Certificates" on the profile — the frame the student's
  *              achievements sit in. Three sources, one wall: certificates the
- *              LMS issues when a course hits 100%, the ones Games &
+ *              YATICORPX3 issues when a course hits 100%, the ones Games &
  *              Competitions gives once a competition the student played in is
  *              over, and ones the student uploads from anywhere else (school,
  *              another platform). The newest sits in the big frame at the top; the
@@ -35,17 +35,17 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'nume
 const merge = (certificates, achievements, competitions = [], holder = '', groupBrain = []) => [
     ...groupBrain.filter((c) => c.status === 'valid').map((c) => ({
         id: `groupbrain-${c.certId}`, source: 'groupbrain', raw: c, holder,
-        title: `${c.rank ? `${['', '1st', '2nd', '3rd'][c.rank] || `${c.rank}th`} place · ` : ''}${c.title}`, issuer: `YATICORP · ${c.eventName}`,
+        title: `${c.rank ? `${['', '1st', '2nd', '3rd'][c.rank] || `${c.rank}th`} place · ` : ''}${c.title}`, issuer: `YATICORPX3 · ${c.eventName}`,
         date: c.issuedAt, added: c.issuedAt, number: c.certId, thumbnailUrl: '', fileType: 'pdf'
     })),
     ...certificates.map((c) => ({
         id: `course-${c._id}`, source: 'course', raw: c, holder,
-        title: c.courseId?.title || 'Course certificate', issuer: 'YATICORP',
+        title: c.courseId?.title || 'Course certificate', issuer: 'YATICORPX3',
         date: c.issuedAt || c.createdAt, added: c.createdAt || c.issuedAt, number: c.certificateNumber, thumbnailUrl: '', fileType: 'pdf'
     })),
     ...competitions.map((c) => ({
         id: `competition-${c.competitionId || `arena-${c.arenaId}`}`, source: 'competition', raw: c,
-        title: `${c.title} · ${c.name}`, issuer: 'YATICORP · Games & Competitions',
+        title: `${c.title} · ${c.name}`, issuer: 'YATICORPX3 · Games & Competitions',
         date: c.completedAt, added: c.completedAt, number: c.number || '', thumbnailUrl: '', fileType: 'pdf'
     })),
     ...achievements.map((a) => ({
@@ -56,7 +56,7 @@ const merge = (certificates, achievements, competitions = [], holder = '', group
 ].sort((a, b) => new Date(b.added || 0) - new Date(a.added || 0));
 
 /**
- * A certificate the student uploaded, in YATICORP's frame with its number on
+ * A certificate the student uploaded, in YATICORPX3's frame with its number on
  * the frame's foot (2026-10-31) — as the View popup shows it.
  */
 const UploadedFrame = ({ src, title, number, framed = false }) => (framed
@@ -112,7 +112,7 @@ const useFrameSize = () => {
 };
 
 /* A certificate in a frame: matted, bevelled, with a ribbon when it is one
-   the LMS issued. One the LMS issued shows the certificate itself; images
+   YATICORPX3 issued. One YATICORPX3 issued shows the certificate itself; images
    and PDF pictures render inside; anything else gets the seal. */
 const Framed = ({ item, large = false }) => (
     <div className={`relative rounded-2xl bg-gradient-to-br from-amber-100 via-amber-50 to-amber-200 p-1.5 shadow-md ${large ? 'sm:p-3' : ''}`}>
@@ -147,7 +147,7 @@ const Framed = ({ item, large = false }) => (
     </div>
 );
 
-const DRIVE_REASON = 'Certificates you upload are kept in your own Google Drive, in the YATICORP Learning folder.';
+const DRIVE_REASON = 'Certificates you upload are kept in your own Google Drive, in the YATICORPX3 Learning folder.';
 
 const UploadDialog = ({ onClose, onDone }) => {
     const [file, setFile] = useState(null);
@@ -345,7 +345,7 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
     };
 
     /* Delete, for every kind. An upload is gone for good. A certificate the
-       LMS issued only leaves the profile: a course's stays valid under its own
+       YATICORPX3 issued only leaves the profile: a course's stays valid under its own
        number, and downloading it again from the course puts it back (see
        hiddenAt on the server's Certificate); a competition's stays in Games &
        Competitions, and downloading it there puts it back. */
@@ -412,7 +412,7 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                 ? (await api.get(`/user/achievements/${item.id}/file`, { responseType: 'blob' })).data
                 : await fetch(item.fileUrl).then((r) => { if (!r.ok) throw new Error('fetch'); return r.blob(); });
             const name = String(item.title || 'Certificate').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || 'Certificate';
-            // A picture comes down in YATICORP's frame, its number on it; a PDF as it was uploaded.
+            // A picture comes down in YATICORPX3's frame, its number on it; a PDF as it was uploaded.
             const framed = item.fileType !== 'pdf' && !item.raw?.framed ? await framedPicture(blob, numberOf(item)).catch(() => null) : null;
             if (framed) await downloadWithDrive(framed, `${name}_${numberOf(item) || 'certificate'}.png`, { title: item.title, reason: DRIVE_REASON });
             else await downloadWithDrive(blob, `${name}.${item.fileType === 'pdf' ? 'pdf' : (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')}`, { title: item.title, reason: DRIVE_REASON });
@@ -642,7 +642,7 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
                                 <button type="button" onClick={() => setShowAbout(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
                             </div>
                             <div className="grid gap-4 p-5 sm:grid-cols-2">
-                                <Feature icon={BadgeCheck} tone="bg-gradient-to-br from-emerald-400 to-green-600" title="Verified by YATICORP">Certificates the LMS issues carry a verification ribbon and their own certificate number.</Feature>
+                                <Feature icon={BadgeCheck} tone="bg-gradient-to-br from-emerald-400 to-green-600" title="Verified by YATICORPX3">Certificates YATICORPX3 issues carry a verification ribbon and their own certificate number.</Feature>
                                 <Feature icon={Award} tone="bg-gradient-to-br from-violet-500 to-indigo-600" title="Earned Automatically">Finish every lesson in a course and its certificate appears here on its own.</Feature>
                                 <Feature icon={Upload} tone="bg-gradient-to-br from-sky-400 to-blue-600" title="Add Your Own">Certificates from school, competitions or other platforms can be uploaded so everything sits in one frame.</Feature>
                                 <Feature icon={Briefcase} tone="bg-gradient-to-br from-amber-400 to-orange-500" title="Counts Towards Jobs">What you have earned feeds your ATS resume and the jobs matched to your skills.</Feature>

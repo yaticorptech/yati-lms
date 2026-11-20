@@ -35,7 +35,7 @@ const scopeUserIds = async (scope, me) => {
 
 /**
  * Every ranked user for a window, sorted. Returns [{userId, xp}] — the whole
- * list, so the caller can find any position. Fine at LMS scale; a paged
+ * list, so the caller can find any position. Fine at YATICORPX3 scale; a paged
  * variant would replace this if the student count grows past tens of thousands.
  *
  * `offset` -1 is the period that just closed: the payout job ranks it with

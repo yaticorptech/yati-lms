@@ -44,7 +44,8 @@ export const readSigninAs = () => {
 /** Signed in or registered: keep the session and open the teacher dashboard (a full load, as for students). */
 export const enterTeacher = (data) => {
     forgetStudent();
-    try { localStorage.removeItem(TEACHER_ADMIN_VIEW); } catch { /* storage off */ }
+    // And a parent's sign-in on this device (parent/parentSession.js), one person per browser.
+    try { localStorage.removeItem(TEACHER_ADMIN_VIEW); localStorage.removeItem('parentToken'); localStorage.removeItem('parentData'); } catch { /* storage off */ }
     localStorage.setItem(TEACHER_TOKEN, data.token);
     const { token: _token, ...rest } = data;
     localStorage.setItem(TEACHER_DATA, JSON.stringify(rest));

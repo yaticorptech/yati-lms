@@ -13,7 +13,7 @@
  *   SMTP_PORT       optional, 587
  *   SMTP_SECURE     optional, "true" forces TLS; otherwise true only on 465
  *   SMTP_FROM       optional, defaults to SMTP_USER
- *   SMTP_FROM_NAME  optional, defaults to "YATICORP LMS"
+ *   SMTP_FROM_NAME  optional, defaults to "YATICORPX3"
  *
  * Brevo (fallback):
  *   BREVO_API_KEY       from Brevo → Settings → API Keys, and *enabled* there
@@ -31,22 +31,22 @@ const dns = require('node:dns').promises;
  * Why an address should not be written to, or '' when it may be.
  *
  * A message to an address that does not exist is not refused by the sending
- * server: it goes, and the failure comes back later as a bounce to the LMS's
+ * server: it goes, and the failure comes back later as a bounce to YATICORPX3's
  * own mailbox, where nobody is looking. The student was told "Email sent".
  * The checks that can be made before sending are made here: the domain must
  * run a mail server (a typo like gmial.com does not), and the address must
- * not be the student's own or the LMS's own mailbox, neither of which is a
+ * not be the student's own or YATICORPX3's own mailbox, neither of which is a
  * parent. Whether the mailbox itself exists cannot be known in advance.
  *
  * When the lookup itself fails — no network — the address is allowed through:
- * a DNS outage must not stop every request in the LMS.
+ * a DNS outage must not stop every request in YATICORPX3.
  */
 const recipientProblem = async (email, { own = '' } = {}) => {
     const address = String(email || '').trim().toLowerCase();
     const ours = [process.env.SMTP_FROM, process.env.SMTP_USER, process.env.BREVO_SENDER_EMAIL, process.env.ADMIN_EMAIL]
         .map((a) => String(a || '').trim().toLowerCase()).filter(Boolean);
     if (own && address === String(own).trim().toLowerCase()) return "That is your own email address. Enter your parent or guardian's.";
-    if (ours.includes(address)) return "That is the LMS's own mailbox, not a parent's. Enter your parent or guardian's address.";
+    if (ours.includes(address)) return "That is YATICORPX3's own mailbox, not a parent's. Enter your parent or guardian's address.";
     const domain = address.split('@')[1];
     if (!domain) return 'Enter a valid email address.';
     try {
@@ -58,7 +58,7 @@ const recipientProblem = async (email, { own = '' } = {}) => {
     return '';
 };
 
-const FROM_NAME = () => process.env.SMTP_FROM_NAME || 'YATICORP LMS';
+const FROM_NAME = () => process.env.SMTP_FROM_NAME || 'YATICORPX3';
 
 /** Which way out is available, or null when none is. */
 const provider = () => {

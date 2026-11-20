@@ -5,7 +5,7 @@
  * The rule lives on the server (GET /user/jobs-access, services/jobsAccess):
  * at least five Career Path skills, each at 25% or more — the account owner's
  * rule, 2026-10-02 — or an account exempt from it (both Bhagyashree accounts
- * and Yaticorp). This hook is the single place the student app asks, so the
+ * and YATICORPX3). This hook is the single place the student app asks, so the
  * gate, the locked page and the Career Path job tile can never disagree.
  *
  * A failed request opens nothing. It used to open the section, which made the

@@ -298,7 +298,7 @@ const addUser = async (req, res) => {
             const loginUrl = process.env.VITE_STUDENT_URL || 'http://localhost:5173';
             const emailHtml = `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                    <h2 style="color: #4F46E5;">Welcome to YATICORP LMS!</h2>
+                    <h2 style="color: #4F46E5;">Welcome to YATICORPX3!</h2>
                     <p>Hi <strong>${user.name}</strong>,</p>
                     <p>An administrator has created an account for you. Welcome aboard!</p>
                     <p>Here are your login details:</p>
@@ -322,7 +322,7 @@ const addUser = async (req, res) => {
             await sendEmail({
                 to: user.email,
                 toName: user.name,
-                subject: 'Welcome to YATICORP LMS! Your Account Details',
+                subject: 'Welcome to YATICORPX3! Your Account Details',
                 htmlContent: emailHtml,
             });
         } catch (emailErr) {
@@ -619,7 +619,7 @@ const bulkAddUsers = async (req, res) => {
                     const loginUrl = process.env.VITE_STUDENT_URL || 'http://localhost:5173';
                     const emailHtml = `
                         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                            <h2 style="color: #4F46E5;">Welcome to YATICORP LMS!</h2>
+                            <h2 style="color: #4F46E5;">Welcome to YATICORPX3!</h2>
                             <p>Hi <strong>${user.name}</strong>,</p>
                             <p>An administrator has created an account for you via bulk upload. Welcome aboard!</p>
                             <p>Here are your login details:</p>
@@ -643,7 +643,7 @@ const bulkAddUsers = async (req, res) => {
                     await sendEmail({
                         to: user.email,
                         toName: user.name,
-                        subject: 'Welcome to YATICORP LMS! Your Account Details',
+                        subject: 'Welcome to YATICORPX3! Your Account Details',
                         htmlContent: emailHtml,
                     });
                 } catch (emailErr) {

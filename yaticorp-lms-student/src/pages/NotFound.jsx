@@ -57,7 +57,7 @@ const NotFound = () => {
 
                 {/* Footer Insight */}
                 <div className="mt-16 pt-8 border-t border-slate-200 flex items-center justify-center gap-6 opacity-40 grayscale">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">YATICORP LMS</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">YATICORPX3</span>
                     <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Student Portal</span>
                 </div>

@@ -130,7 +130,7 @@ const clientRules = (band) => band && ({
 
 /**
  * One job as this student may see it. Contact details leave the document
- * only for adults; everyone else expresses interest through the LMS and the
+ * only for adults; everyone else expresses interest through YATICORPX3 and the
  * organisation reaches the guardian, not the child.
  */
 const publicView = (opp, band) => {

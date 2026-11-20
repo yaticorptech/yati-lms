@@ -1,10 +1,10 @@
 /**
- * A part-time vacancy from Google Jobs, built to sit beside the LMS's own
+ * A part-time vacancy from Google Jobs, built to sit beside YATICORPX3's own
  * local job cards without looking like a different species: same frame, same
  * icon square, same facts row, same "matches" line.
  *
  * What it cannot have, it does not pretend to have. A vacancy is open until
- * it is filled, so there is no date strip and no ♡ — the LMS has nothing to
+ * it is filled, so there is no date strip and no ♡ — YATICORPX3 has nothing to
  * remember about a listing it does not own. The date line says so plainly,
  * and the button goes where the work is.
  */

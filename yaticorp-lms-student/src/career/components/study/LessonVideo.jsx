@@ -11,15 +11,20 @@ import { useMascot } from '../../mascot/useMascot';
  * position, which is what lets the task finish itself instead of asking the
  * student to confirm they watched it.
  *
- * Mirrors the 90% threshold the server uses. The server is still the authority
+ * Mirrors the 70% threshold the server uses (90% until 2026-11-20; the user then asked for 50%, then 70%). The server is still the authority
  * — it records the gate and decides completion — this only reports.
  */
-const WATCHED_FRACTION = 0.9;
+const WATCHED_FRACTION = 0.7;
 const POLL_MS = 1000;
 // The largest jump between two polls that still counts as watching. One poll
 // at normal speed moves about a second, at 2x about two; anything bigger is a
 // seek, and dragging the bar to the end must not pass the watch gate.
 const MAX_STEP_SECONDS = 2.5;
+// A tap to skip counts as watched (2026-11-20, the user: "allow them to tap and skip, not drag and skip"): YouTube's
+// double-tap jumps 10 seconds on a phone (taps in a row add up: +20, +30 before the next poll), an arrow key 5 on a
+// laptop — so a step forward up to this much, in one poll, counts its seconds; a drag of the bar moves much further
+// and still does not. (12 seconds until the same day: "for tap and skip the bar is not moving".)
+const TAP_SKIP_SECONDS = 32;
 
 let apiPromise = null;
 
@@ -112,6 +117,38 @@ export default function LessonVideo({ video, watched, onWatched, onProgress, ini
     reportedRef.current = !!watched;
   }, [watched]);
 
+  // Full screen turns a phone sideways (2026-11-20, the user: "if the user clicks this, rotate the video and show only the
+  // video, so the student can reach the settings and captions like on desktop"). YouTube's own ⤢ is inside its frame, so
+  // the page cannot change that button — but it is told when the video goes full screen, and then asks the phone to turn
+  // to landscape, where YouTube shows its gear (speed, quality) and captions as on a laptop. Leaving full screen lets the
+  // phone turn back. Browsers that cannot lock the orientation (iPhone Safari) simply keep their own full screen.
+  useEffect(() => {
+    const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+    if (!touch) return undefined;
+    const ours = () => {
+      const el = document.fullscreenElement || document.webkitFullscreenElement;
+      const frame = frameRef.current;
+      return Boolean(el && frame && (el === frame || frame.contains(el) || el.contains(frame)));
+    };
+    let locked = false;
+    const onChange = () => {
+      const orientation = window.screen?.orientation;
+      if (ours()) {
+        orientation?.lock?.('landscape').then(() => { locked = true; }).catch(() => {});
+      } else if (locked) {
+        locked = false;
+        try { orientation?.unlock?.(); } catch { /* the phone turns back by itself */ }
+      }
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.removeEventListener('webkitfullscreenchange', onChange);
+      if (locked) { try { window.screen?.orientation?.unlock?.(); } catch { /* nothing to undo */ } }
+    };
+  }, []);
+
   // The server turned a "watched" report down: count on and report again.
   useEffect(() => {
     if (watchRejected) reportedRef.current = false;
@@ -157,7 +194,7 @@ export default function LessonVideo({ video, watched, onWatched, onProgress, ini
       lastTimeRef.current = current;
       lastWallRef.current = now;
       const rate = player.getPlaybackRate?.() || 1;
-      const allowed = Math.max(MAX_STEP_SECONDS, wallSeconds * rate + 1);
+      const allowed = Math.max(MAX_STEP_SECONDS, TAP_SKIP_SECONDS, wallSeconds * rate + 1);
       if (last !== null && current > last && current - last <= allowed) {
         for (let s = Math.floor(last); s < Math.ceil(current); s += 1) secondsSeenRef.current.add(s);
       }

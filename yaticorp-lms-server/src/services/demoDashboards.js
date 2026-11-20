@@ -34,10 +34,10 @@ const { normaliseCardNumber } = require('../utils/cardNumber');
 // The built-in demo organisation, used only when the chosen one is not in this database.
 const DEMO_ORG_CODE = 'demo_institute';
 const DEMO_ORG_EMAIL = 'demo.institute@demo.yaticorp.in';
-const DEMO_ORG_NAME = 'YATICORP Demo Institute';
+const DEMO_ORG_NAME = 'YATICORPX3 Demo Institute';
 const BUILT_IN_DETAILS = {
     contactPerson: 'Demo Administrator', phone: '0000000000', website: 'https://www.yaticorp.com',
-    address: 'YATICORP Demo Campus, Mangaluru, Karnataka', state: 'Karnataka', expectedStudents: 500
+    address: 'YATICORPX3 Demo Campus, Mangaluru, Karnataka', state: 'Karnataka', expectedStudents: 500
 };
 /** The organisation the demo accounts belong to, by its ID. */
 const chosenOrgCode = () => String(process.env.DEMO_ORG_CODE || 'swastika_national_school').trim();
@@ -62,6 +62,11 @@ const chosenOrganization = () => Organization.findOne({ orgCode: chosenOrgCode()
 /** The built-in demo organisation, made on first use with every detail filled in. */
 const builtInOrganization = async () => {
     let organization = await Organization.findOne({ orgCode: DEMO_ORG_CODE });
+    // One made under the old name takes the new one (2026-11-20, the brand is YATICORPX3).
+    if (organization && organization.name === 'YATICORP Demo Institute') {
+        await Organization.updateOne({ _id: organization._id }, { $set: { name: DEMO_ORG_NAME, address: BUILT_IN_DETAILS.address } });
+        organization.name = DEMO_ORG_NAME;
+    }
     if (!organization) {
         try {
             organization = await Organization.create({

@@ -708,7 +708,7 @@ router.post("/recommend", async (req, res, next) => {
         for (const s of j.skills ?? []) demand.set(s, (demand.get(s) ?? 0) + 1);
       }
       gap = analyzeGap(roleName, skills, demand);
-      // The LMS's own answer to the gap: which published courses teach the
+      // YATICORPX3's own answer to the gap: which published courses teach the
       // skills this student is missing. Decoration only — an empty list just
       // means the card has no course links, never a failed search.
       gap.teach = await coursesForSkills([...(gap.learn ?? []), ...(gap.nice ?? [])]);
@@ -897,7 +897,7 @@ router.get("/:id", async (req, res, next) => {
  * Refresh the index from all global sources.
  *
  * Not a route on this router any more. Ingestion spends real money — JSearch
- * and Adzuna are metered — so inside the LMS it belongs to an administrator,
+ * and Adzuna are metered — so inside YATICORPX3 it belongs to an administrator,
  * and admin routes have to be mounted ahead of the student guard. It stamps
  * the same jobboard_state key the lazy-ingest path reads, so a manual refresh
  * satisfies that cooldown too and the next student search does not

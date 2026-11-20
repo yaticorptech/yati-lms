@@ -2,7 +2,7 @@
  * @description Axios instance for the Career Path (FuturePath) API.
  *
  * Same host and same session as the rest of the student panel — the token is
- * the LMS `studentToken`, because Career Path has no login of its own. The only
+ * YATICORPX3 `studentToken`, because Career Path has no login of its own. The only
  * difference from ../../utils/api is the `/career` prefix, which is where the
  * ported FuturePath routes are mounted on the server. That prefix is why this
  * is a separate instance rather than a shared one: every ported page and
@@ -30,7 +30,7 @@ api.interceptors.response.use(flagAiExhausted);
  * The section was switched off while the student had it open. The gate in
  * App.jsx only reads the setting once, at start-up, so without this every
  * screen would keep rendering and show each refused call as a load error.
- * A full navigation rather than a router push: it reloads the LMS settings,
+ * A full navigation rather than a router push: it reloads YATICORPX3 settings,
  * which hides the Career Path tab and lets CareerGate turn the URL away. The
  * flag stops a page's parallel calls from each starting their own reload.
  */
@@ -69,7 +69,7 @@ api.interceptors.request.use((config) => {
  * shows it at once instead of refetching everything behind the loader.
  *
  * Correctness comes from clearing, not from the timer: any save — here or
- * through the main LMS client — and any progress change wipes the whole cache,
+ * through the main YATICORPX3 client — and any progress change wipes the whole cache,
  * so the next read after a change always goes to the server. The TTL only
  * bounds how long a page can lag behind a change made somewhere else (another
  * tab, the server itself). Keyed by token so a different student never sees

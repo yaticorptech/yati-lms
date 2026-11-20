@@ -1,4 +1,4 @@
-/** Linguistic Ability — the calls, on the LMS's axios client (as interview/api.js). */
+/** Linguistic Ability — the calls, on YATICORPX3's axios client (as interview/api.js). */
 import client from '../utils/api';
 import { noteLetterVoice } from './letterVoice';
 import { askIfDriveRequired } from '../integrations/google/driveGate';

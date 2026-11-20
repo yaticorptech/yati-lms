@@ -84,7 +84,7 @@ const OrgDashboard = () => {
         try {
             await navigator.share({
                 title: organization.name,
-                text: `Join ${organization.name} on YatiCorp LMS with Organization ID ${organization.orgCode}`
+                text: `Join ${organization.name} on YATICORPX3 with Organization ID ${organization.orgCode}`
             });
         } catch { /* dismissed — nothing to do */ }
     };

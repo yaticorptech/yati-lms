@@ -90,7 +90,7 @@ const startPayment = async ({ user, kind, competitionId, amount, title, onPaid }
     });
     return {
         paid: false, keyId: id, orderId: order.orderId, amount: Math.round(amount * 100), currency: 'INR',
-        name: 'YATICORP Competitions', description: `Entry fee: ${title}`.slice(0, 250),
+        name: 'YATICORPX3 Competitions', description: `Entry fee: ${title}`.slice(0, 250),
         prefill: { name: user.name || '', email: user.email || '', contact: user.phone || '' }
     };
 };
