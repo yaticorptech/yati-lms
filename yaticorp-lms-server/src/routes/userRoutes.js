@@ -56,6 +56,15 @@ router.post('/progress/update', protectUser, updateProgress);
 router.get('/bundles', protectUser, getBundles);
 router.get('/bundles/:id', protectUser, getBundleContent);
 
+// A demo card signed in without its switch pass (number and password, or a browser that lost it):
+// a fresh pass, so the Switch dashboard bar still shows (services/demoDashboards.js).
+router.get('/demo-pass', protectUser, async (req, res) => {
+    if (!require('../services/fullAccess').hasFullAccess(req.user)) return res.status(404).json({ message: 'Not a demo card.' });
+    const dashboards = require('../services/demoDashboards');
+    await dashboards.linkStudent(req.user);
+    res.json({ demoSwitch: dashboards.switchPass(req.user.cardNumber) });
+});
+
 // 360: my program, section and mentor, once my organization opens it (src/three60).
 router.use('/360', protectUser, require('../three60').student);
 

@@ -123,6 +123,34 @@ const ensureOrganization = async () => {
 };
 
 /**
+ * Every section a demo student can be given, opened on each scan (2026-11-20): Student Ranking (the
+ * organisation's 360 unlocked and on, and the card's demo teacher tracking them) and Institution
+ * (admitted, studying, in the demo department). Each step only fills what is missing; never throws.
+ */
+const openEverything = async (organization, user) => {
+    const User = require('../models/User');
+    try {
+        if (!organization.three60?.allowed || !organization.three60?.enabled) {
+            await Organization.updateOne({ _id: organization._id }, { $set: { 'three60.allowed': true, 'three60.enabled': true } });
+        }
+        if (user.cardNumber) {
+            const teacher = await ensureTeacher(user.cardNumber);
+            if (teacher) await Teacher.updateOne({ _id: teacher._id }, { $set: { mentor360: true }, $addToSet: { students360: user._id } });
+        }
+    } catch (error) { console.error('[demo-cards] could not open Student Ranking:', error.message); }
+    try {
+        const campus = require('../campus/core');
+        const { campus: c } = await campus.loadCampus(organization._id);
+        const dept = c.departments[0];
+        if (dept) {
+            const placed = await campus.placeMember(organization._id, dept, user._id, { semester: 1, section: (dept.sections || [])[0] || '' });
+            // Accepted earlier but never admitted: admit now.
+            if (!placed) await User.updateOne({ _id: user._id, organizationId: organization._id, 'campus.status': 'accepted' }, { $set: { 'campus.status': 'studying', 'campus.admittedAt': new Date() } });
+        }
+    } catch (error) { console.error('[demo-cards] could not open Institution:', error.message); }
+};
+
+/**
  * A demo student belongs to the demo organisation: brought in when it has none, or is still in
  * the built-in one while another is chosen. One a presenter moved to some other organisation is
  * left there. Never throws: the sign-in stands either way.
@@ -131,12 +159,12 @@ const linkStudent = async (user) => {
     try {
         if (!user?._id) return null;
         const { organization } = await ensureOrganization();
-        if (String(user.organizationId || '') === String(organization._id)) return organization;
+        if (String(user.organizationId || '') === String(organization._id)) { await openEverything(organization, user); return organization; }
         const builtIn = organization.orgCode === DEMO_ORG_CODE ? null : await Organization.findOne({ orgCode: DEMO_ORG_CODE }).select('_id').lean();
         const from = [null, ...(builtIn ? [builtIn._id] : [])];
         const User = require('../models/User');
         const joined = await User.updateOne({ _id: user._id, organizationId: { $in: from } }, { $set: { organizationId: organization._id, organizationJoinedAt: new Date() } });
-        if (joined.modifiedCount) { user.organizationId = organization._id; return organization; }
+        if (joined.modifiedCount) { user.organizationId = organization._id; await openEverything(organization, user); return organization; }
         return null;
     } catch (error) {
         console.error('[demo-cards] could not link the student to the demo organisation:', error.message);
