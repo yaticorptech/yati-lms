@@ -13,7 +13,7 @@
  */
 import { linguisticApi } from './api';
 import { aiVoiceOn, downloadClips } from './meta';
-import { chartPack, lettersPackId, markPack, needsPack, speechOf } from './audioPacks';
+import { chartPack, lettersPackId, markPack, missingPack as needsPack, speechOf } from './audioPacks';
 
 const DAY = 'lingo-bg-audio-day';
 const rest = (ms) => new Promise((r) => setTimeout(r, ms));
