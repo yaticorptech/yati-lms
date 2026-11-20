@@ -1041,7 +1041,7 @@ const StudentLayout = () => {
                 field) lands below it rather than behind it. */}
             <main ref={mainRef} className="flex-1 overflow-auto overscroll-y-contain scroll-pt-16 bg-slate-50 sidebar:pt-0 pt-16 relative">
                 {/* A demo (presentation) card: says so, and changes to its teacher or organisation dashboard. */}
-                <DemoBar as="student" name={user?.name} className="sidebar:px-8" />
+                <DemoBar as="student" name={user?.name} demoCard={user?.demoCard} className="sidebar:px-8" />
                 {/* A superadmin working in this student's dashboard: everything
                     they do counts as the student's own, so it is said plainly,
                     with the way out beside it. */}

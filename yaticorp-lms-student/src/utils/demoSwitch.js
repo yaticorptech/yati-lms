@@ -22,6 +22,7 @@ export const readDemo = (as) => {
  * password too), or by its switch pass. Its compulsory prompts (a photo in uniform, the passport bonus) are left out.
  */
 export const isDemoCard = (user) => Boolean(user?.demoCard) || Boolean(readDemo('student'));
+export const rememberDemo = (token, as) => remember(token, as);
 const remember = (token, as) => { try { localStorage.setItem(DEMO_KEY, JSON.stringify({ token, as })); } catch { /* storage off: no switch bar */ } };
 
 /** A student's sign-in, as AuthContext's enterApp does it (this also runs outside the student's own pages). */
