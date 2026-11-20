@@ -59,7 +59,7 @@ export default function ReportDialog({ opp, onClose }) {
                     <div className="p-6 text-center">
                         <CheckCircle2 size={36} className="mx-auto mb-3 text-emerald-500" aria-hidden="true" />
                         <p className="font-bold text-slate-800">Thanks — we'll look into it.</p>
-                        <p className="mt-1 text-sm text-slate-500">The report goes to the LMS team, not to the organisation. We'll hide the listing while it is reviewed if needed.</p>
+                        <p className="mt-1 text-sm text-slate-500">The report goes to the YATICORPX3 team, not to the organisation. We'll hide the listing while it is reviewed if needed.</p>
                         <button type="button" onClick={onClose} className="mt-4 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Done</button>
                     </div>
                 ) : (

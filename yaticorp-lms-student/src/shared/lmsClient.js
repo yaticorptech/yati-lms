@@ -9,7 +9,7 @@ import { getCourseServices } from './api/courseService';
 import { getAuthServices } from './api/authService';
 
 /**
- * The Unified LMS Client.
+ * The Unified YATICORPX3 Client.
  * This is the "One Client API" that keeps Web and Mobile perfectly in sync.
  * All business logic and API calls are centralized here.
  */

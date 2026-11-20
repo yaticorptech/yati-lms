@@ -81,10 +81,10 @@ const jobSnapshot = (opp) => ({
     location: [opp.location?.area, opp.location?.city].filter(Boolean).join(', '),
     pay: opp.compensation?.label || '',
     safety: [
-        opp.organization?.verified ? 'The organisation has been verified by the LMS.' : '',
+        opp.organization?.verified ? 'The organisation has been verified by YATICORPX3.' : '',
         opp.safetyNotes || '',
-        'The LMS passes on interest. The organisation never receives your contact details.',
-        'Report anything that looks unsafe, asks for money, or asks to talk outside the LMS.'
+        'The YATICORPX3 passes on interest. The organisation never receives your contact details.',
+        'Report anything that looks unsafe, asks for money, or asks to talk outside YATICORPX3.'
     ].filter(Boolean)
 });
 

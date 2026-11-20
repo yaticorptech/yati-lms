@@ -67,7 +67,7 @@ const audienceGuide = {
     professional: 'The learner is a WORKING PROFESSIONAL. Emphasise skills, certifications, projects and professional development.'
 };
 
-const prompt = (d, interests) => `Write a Learning Bio for a student of an online learning platform (YATICORP LMS), from the JSON below and NOTHING else.
+const prompt = (d, interests) => `Write a Learning Bio for a student of an online learning platform (YATICORPX3), from the JSON below and NOTHING else.
 
 ${audienceGuide[d.audience]}
 
@@ -85,7 +85,7 @@ Hard rules:
     1. who I am as a learner and how I learn — mention "online courses" only if completedCourses or ongoingCourses is non-empty, "assessments" only if assessments.passed is above zero, "hands-on projects" only if projects is non-empty, "certifications" only if certificates is non-empty; if experience or resumeHeadline is present, say what I do; weave in the interests. The resume-sourced skills count as much as course skills.
     2. begins "Right now, I'm focusing on" — name at most FOUR skills, chosen for relevance to the learning goal and interests (roadmap skills before resume skills), written exactly as they appear in the data (keep capitalisation), and the learning goal if present.
     3. a closing line about attitude and growth; it may name the strongest (Advanced) skills, nothing else new.
-- NO numbers of any kind: no counts, percentages, scores, dates or streaks. No emojis, hashtags, bullet points, asterisks or quotes. Do not name the platform (no "YATICORP", no "LMS").
+- NO numbers of any kind: no counts, percentages, scores, dates or streaks. No emojis, hashtags, bullet points, asterisks or quotes. Do not name the platform (no "YATICORPX3", no "LMS").
 - "short": the first paragraph only (max 35 words). "headline": at most 8 words.
 
 Answer ONLY with JSON: {"headline": string, "short": string, "bio": string}

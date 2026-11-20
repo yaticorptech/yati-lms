@@ -118,7 +118,7 @@ describe('an inter-college chess competition, start to finish', () => {
         assert.ok([401, 403].includes((await colleges[0].call('POST', '/admin', body)).status), 'a college admin is refused');
         assert.ok([401, 403].includes((await outsider('POST', '/admin', body)).status), 'a student is refused');
         const r = await boss('POST', '/admin', {
-            ...body, open: true, rules: 'Be fair.', participationXp: 10, organizedBy: 'YATICORP',
+            ...body, open: true, rules: 'Be fair.', participationXp: 10, organizedBy: 'YATICORPX3',
             prizes: [{ place: 1, title: 'Champions', xp: 100, rewardPoints: 50 }, { place: 2, xp: 50 }, { place: 3, xp: 20 }]
         });
         assert.equal(r.status, 201, JSON.stringify(r.body));
@@ -597,7 +597,7 @@ describe('an organization hosting its own competition (Carrom doubles, from befo
         const kept = await boss('GET', `/admin/${compId}`);
         assert.equal(kept.status, 200);
         assert.equal(kept.body.competition.status, 'registration', 'still open');
-        assert.equal((await boss('PUT', `/admin/${compId}`, { name: `Host Chess Open ${STAMP} (run by YATICORP)` })).status, 200);
+        assert.equal((await boss('PUT', `/admin/${compId}`, { name: `Host Chess Open ${STAMP} (run by YATICORPX3)` })).status, 200);
     });
 
     test('drawn, its teams are fixed; it stays off the inter-college leaderboard', async () => {

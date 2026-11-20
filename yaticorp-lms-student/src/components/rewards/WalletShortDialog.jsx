@@ -1,5 +1,5 @@
 /**
- * "Not enough in your wallet", for every priced thing in the LMS at once.
+ * "Not enough in your wallet", for every priced thing in YATICORPX3 at once.
  *
  * The API clients announce a 402 (see utils/walletCharge); this listens and
  * says what it costs and what is in the wallet. XP does not turn into wallet
@@ -54,7 +54,7 @@ export default function WalletShortDialog() {
                     )}
                     <p className="mt-4 flex items-start gap-2 rounded-2xl bg-slate-50 p-3.5 text-left text-xs leading-relaxed text-slate-600 ring-1 ring-slate-100">
                         <Info size={15} className="mt-0.5 shrink-0 text-slate-400" aria-hidden />
-                        Your wallet holds your starting credit and anything an administrator adds. Ask your institution or YATICORP support if you need more.
+                        Your wallet holds your starting credit and anything an administrator adds. Ask your institution or YATICORPX3 support if you need more.
                     </p>
                     <div className="mt-5">
                         <button type="button" onClick={() => setShort(null)} className="w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">OK</button>

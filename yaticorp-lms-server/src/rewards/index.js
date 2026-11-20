@@ -3,7 +3,7 @@
  *
  * Every model registers as Reward* over a rewards_* collection, following the
  * Career* / career_* and JobBoard* / jobboard_* discipline, so generic names like
- * Badge and Wallet cannot collide with anything the LMS adds later.
+ * Badge and Wallet cannot collide with anything YATICORPX3 adds later.
  *
  * The admin half is mounted first, ahead of the feature gate, so an
  * administrator who locks the section can still see and pay out what is in

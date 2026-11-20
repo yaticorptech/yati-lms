@@ -55,7 +55,7 @@ const describeCard = async (card, organizationId) => {
         if (holder.organizationId && await Organization.exists({ _id: holder.organizationId })) return { cardNumber, result: 'member_elsewhere', addable: false, message: `${holder.name} belongs to another organization.` };
         return { cardNumber, result: 'student', addable: true, student: holder, message: `${holder.name} joins your organization.` };
     }
-    if (!isVerified(card)) return { cardNumber, result: 'not_verified', addable: false, message: 'Not verified by YATICORP yet.' };
+    if (!isVerified(card)) return { cardNumber, result: 'not_verified', addable: false, message: 'Not verified by YATICORPX3 yet.' };
     if (ours(card.organizationId)) return { cardNumber, result: 'linked', addable: false, message: 'Already linked to your organization.' };
     if (card.organizationId) return { cardNumber, result: 'linked_elsewhere', addable: false, message: 'Linked to another organization.' };
     return { cardNumber, result: 'ready', addable: true, message: 'Whoever registers with it joins your organization.' };

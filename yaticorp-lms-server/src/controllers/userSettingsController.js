@@ -16,15 +16,14 @@ const getUserSettings = async (req, res) => {
         }
 
         // The demo cards see every section, whatever is switched off for
-        // everyone else (services/fullAccess.js). Rewards is the points engine
-        // itself rather than a section, so it follows the site-wide switch.
+        // everyone else (services/fullAccess.js) — Rewards included since 2026-11-18.
         const all = hasFullAccess(req.user);
         // Return only the settings safe/relevant for students
         res.json({
             isCreditSystemEnabled: all || settings.isCreditSystemEnabled,
             isCareerPathEnabled: all || settings.isCareerPathEnabled,
             isJobsEnabled: all || settings.isJobsEnabled,
-            isRewardsEnabled: settings.isRewardsEnabled !== false,
+            isRewardsEnabled: all || settings.isRewardsEnabled !== false,
             isLinguisticEnabled: all || settings.isLinguisticEnabled !== false,
             isGlobalQuizEnabled: all || settings.globalQuiz?.enabled !== false
         });

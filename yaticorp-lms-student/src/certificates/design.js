@@ -7,7 +7,7 @@ import './templates.shared.js';
 
 export const CT = globalThis.CERTIFICATE_TEMPLATES;
 
-/** The server's `issued` (competitions/routes/student.js issuedView) → the canvas's pictures; Yaticorp's logo from here. */
+/** The server's `issued` (competitions/routes/student.js issuedView) → the canvas's pictures; YATICORPX3's logo from here. */
 export const imagesOfIssued = (issued) => {
     const logo = issued.images?.logo === 'yaticorp' ? '/assets/certificates/yaticorp-logo.png' : issued.images?.logo;
     return { ...issued.images, logo };

@@ -5,7 +5,7 @@
  * the job, through their own link — there is nothing on this panel that records
  * that answer, so an operator asked to "just approve it for the parent" still
  * has nothing to press. What this panel holds is the step after: once a parent
- * has agreed, the LMS signs the application off, and only then do the buttons
+ * has agreed, YATICORPX3 signs the application off, and only then do the buttons
  * on a row appear.
  */
 import { useEffect, useState } from 'react';

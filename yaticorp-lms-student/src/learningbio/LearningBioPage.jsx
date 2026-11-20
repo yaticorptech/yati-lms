@@ -1,7 +1,7 @@
 /**
  * The full My Learning Bio page: About Me, Learning Journey, Skills,
  * Courses, Certificates, Projects, Achievements, Interests — every section
- * read live from the LMS, the bio written from the same data.
+ * read live from YATICORPX3, the bio written from the same data.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -99,7 +99,7 @@ export default function LearningBioPage() {
                         <div className="min-w-0">
                             <p className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.16em] text-white/90 ring-1 ring-white/25"><Sparkles size={11} /> My Learning Bio</p>
                             <h1 className="mt-1.5 text-2xl font-black leading-tight drop-shadow-sm sm:text-3xl">{data.user.name}</h1>
-                            <p className="mt-0.5 text-sm font-semibold text-white/90">{bio.headline || (data.learningGoal ? `Aspiring ${data.learningGoal}` : 'Learner on YATICORP LMS')}</p>
+                            <p className="mt-0.5 text-sm font-semibold text-white/90">{bio.headline || (data.learningGoal ? `Aspiring ${data.learningGoal}` : 'Learner on YATICORPX3')}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-4 rounded-2xl bg-white/15 p-4 ring-1 ring-white/25 backdrop-blur">

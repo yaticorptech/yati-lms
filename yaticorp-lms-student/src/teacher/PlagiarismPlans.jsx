@@ -1,6 +1,6 @@
 /**
  * The plagiarism check's plans (2026-11-04), as one slim strip. Free is the
- * check this page runs: against writing on YATICORP and the papers the
+ * check this page runs: against writing on YATICORPX3 and the papers the
  * teacher uploaded, with citation flags and a PDF report, on our own server,
  * so it costs nothing per check. Pro needs an outside checking service
  * (internet and journal coverage) and is shown as coming soon: no button,
@@ -8,7 +8,7 @@
  */
 import { Check, Sparkles, Globe2, ShieldCheck } from 'lucide-react';
 
-const FREE = ['YATICORP writing', 'Your uploaded papers', 'Open research papers', 'Wikipedia', 'Citation flags', 'PDF report'];
+const FREE = ['YATICORPX3 writing', 'Your uploaded papers', 'Open research papers', 'Wikipedia', 'Citation flags', 'PDF report'];
 
 export default function PlagiarismPlans() {
     return (

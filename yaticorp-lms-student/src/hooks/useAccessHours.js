@@ -1,5 +1,5 @@
 /**
- * Access hours: whether the student's organization has YATICORP open now
+ * Access hours: whether the student's organization has YATICORPX3 open now
  * (its Dashboard → Access hours; server: organizations/services/accessSchedule.js).
  *
  * Asks the server once, then re-asks every 20 seconds while the app is in

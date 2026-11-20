@@ -26,5 +26,13 @@ const SHOWN = ALL.filter((l) => !HIDDEN.includes(l));
 const nextShown = (level) => (SHOWN.includes(level) ? SHOWN[SHOWN.indexOf(level) + 1] || null : null);
 /** The pass mark of a section's assessment, in per cent (2026-10-29: 80, chosen by the user; then 50, "consider score 50%"). */
 const ASSESSMENT_PASS = 50;
+/*
+ * One certificate per group (2026-11-17, the user: "the certificate will be given of beginner after completing beginner
+ * lessons, before advanced starts"): Beginner covers Rookie, Daily life and Explorer; Advanced covers Achiever and Work
+ * and the world. The certificate is stored under the group's first section.
+ */
+const CERT_GROUPS = { beginner: ['beginner', 'elementary', 'intermediate'], advanced: ['advanced', 'professional'] };
+/** The group head (the certificate's level) of a section. */
+const certHeadOf = (level) => Object.keys(CERT_GROUPS).find((h) => CERT_GROUPS[h].includes(level)) || level;
 
-module.exports = { ALL, HIDDEN, SHOWN, nextShown, ASSESSMENT_PASS, CONTENT_LEVELS, LEVEL_LABEL, LEGACY_CUTOFF, LEGACY_SHOWN };
+module.exports = { ALL, HIDDEN, SHOWN, nextShown, ASSESSMENT_PASS, CONTENT_LEVELS, LEVEL_LABEL, LEGACY_CUTOFF, LEGACY_SHOWN, CERT_GROUPS, certHeadOf };

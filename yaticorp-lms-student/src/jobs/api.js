@@ -1,13 +1,13 @@
 /**
- * The Jobs section's calls, on the LMS's own axios client.
+ * The Jobs section's calls, on YATICORPX3's own axios client.
  *
- * The standalone app used bare fetch against a relative /api. Inside the LMS
+ * The standalone app used bare fetch against a relative /api. Inside YATICORPX3
  * every request has to carry the student's bearer token, which the shared
  * client already attaches — so this is a thin layer over it rather than a
  * second HTTP stack.
  *
  * Errors are re-thrown carrying the server's own message. The ported routes
- * answer {error}; the rest of the LMS answers {message}; both are checked so a
+ * answer {error}; the rest of YATICORPX3 answers {message}; both are checked so a
  * failure reads as a sentence rather than "Request failed".
  */
 import client from '../utils/api';
@@ -51,7 +51,7 @@ export const jobsApi = {
  * What Career Path already knows about this student, in the job form's shape.
  *
  * The two sections answer the same question — "what do I need to become X?" —
- * so the student should never have to re-type an answer the LMS is holding.
+ * so the student should never have to re-type an answer YATICORPX3 is holding.
  * The goal supplies the target role. Skills are filtered to the ones actually
  * progressed: prefilling every roadmap skill would claim knowledge the student
  * is still working towards, and the gap card would then congratulate them on
@@ -69,13 +69,13 @@ export const jobsApi = {
  * or the requests failing. The caller treats that as a non-event.
  */
 /**
- * Everything the LMS knows the student can do, in one list.
+ * Everything YATICORPX3 knows the student can do, in one list.
  *
  * Three sources, and the reason all three belong here: the resume is what
  * they say about themselves, Career Path is what they have been practising,
- * and the courses are what this LMS actually taught them — a student who
+ * and the courses are what this YATICORPX3 actually taught them — a student who
  * finished the React course has React whether or not their resume mentions
- * it, and a job search that ignores that is ignoring the point of the LMS.
+ * it, and a job search that ignores that is ignoring the point of YATICORPX3.
  *
  * The ATS resume builder already merges the three and remembers where each
  * skill came from, so this reads its answer rather than inventing a second

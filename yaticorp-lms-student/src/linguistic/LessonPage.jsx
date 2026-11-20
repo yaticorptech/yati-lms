@@ -16,7 +16,7 @@ import { COLORS, levelOf, backToPath, rememberLesson, setVoiceCourse } from './m
 import { Chunky, Loading, Problem } from './ui';
 import Session, { SessionFrame } from './session/Session';
 import { Finish, XpParts } from './session/Finish';
-import { buildLesson, heartsFor, clock, xpIn, xpBy } from './session/logic';
+import { buildLesson, clock, xpIn, xpBy } from './session/logic';
 import { tr, trf } from './say';
 import AudioPack, { needsPack } from './AudioPack';
 import { startBackgroundAudio, focusLesson } from './audioDownloader';
@@ -188,7 +188,8 @@ function LessonPage() {
 
     return (
         <SessionFrame label={lesson.title}>
-            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={endSession}
+            {/* No hearts (2026-11-17, "this heart calculation is not needed"): the quiz is marked by its score at the end. */}
+            <Session key={run.n} steps={runSteps} hearts={null} check={check} onComplete={complete} onQuit={endSession}
                 onEnterPart={(part) => { if (part === 'practice' || part === 'quiz') linguisticApi.step(id, part).catch(() => {}); }}
                 label={lesson.title} />
         </SessionFrame>

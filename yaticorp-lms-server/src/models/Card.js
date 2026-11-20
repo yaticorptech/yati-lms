@@ -57,7 +57,27 @@ const cardSchema = new mongoose.Schema({
     // A presentation (demo) card an administrator scanned in (Admin → Demo cards): its scan opens
     // the student dashboard with no password, and it sees everything (services/fullAccess.js).
     demo: { type: Boolean, default: false, index: true },
-    demoAddedAt: { type: Date, default: null }
+    demoAddedAt: { type: Date, default: null },
+    // A parent's account (2026-11-19, src/parent): kept on the parent's own card, not in a collection of its
+    // own (the database is at its collection limit). The card is 'used', like a student's or a teacher's.
+    // `children`: the students whose activity the parent sees, added by their card numbers.
+    parent: {
+        type: new mongoose.Schema({
+            name: { type: String, trim: true },
+            phone: { type: String, trim: true, default: '' },
+            email: { type: String, trim: true, lowercase: true, default: '' },
+            password: { type: String },
+            passwordChangedAt: { type: Date, default: null },
+            createdAt: { type: Date, default: Date.now },
+            lastLoginAt: { type: Date, default: null },
+            loginCount: { type: Number, default: 0 },
+            active: { type: Boolean, default: true },
+            children: [{ _id: false, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, addedAt: { type: Date, default: Date.now } }]
+        }, { _id: false }),
+        default: undefined
+    }
 }, { timestamps: true });
+
+cardSchema.index({ 'parent.children.userId': 1 }, { sparse: true });
 
 module.exports = mongoose.model('Card', cardSchema);

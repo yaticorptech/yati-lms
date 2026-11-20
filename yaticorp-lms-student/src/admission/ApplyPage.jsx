@@ -1,7 +1,7 @@
 /**
  * A college's public admission form (2026-11-16): /apply/<orgCode>, the link the college shares.
  * New students applying for the 1st year fill their full admission form here — no sign-in. It
- * carries the college's own name and logo; YATICORP appears only small at the foot.
+ * carries the college's own name and logo; YATICORPX3 appears only small at the foot.
  * The application waits in the college's Campus → Admissions → Applications.
  * Server: GET|POST /api/organizations/apply/:orgCode (src/campus/apply.js).
  */
@@ -65,7 +65,7 @@ const Section = ({ n, title, sub, children }) => (
 const PoweredBy = () => (
     <footer className="flex items-center justify-center gap-2 py-8 text-[11px] font-medium text-stone-400">
         <span>Powered by</span>
-        <img src="/assets/YATICORP-dark.png" alt="YATICORP" className="h-4 w-auto opacity-70" onError={(e) => { e.currentTarget.replaceWith(Object.assign(document.createElement('span'), { textContent: 'YATICORP', className: 'font-bold tracking-wide text-stone-500' })); }} />
+        <img src="/assets/YATICORP-dark.png" alt="YATICORPX3" className="h-4 w-auto opacity-70" onError={(e) => { e.currentTarget.replaceWith(Object.assign(document.createElement('span'), { textContent: 'YATICORPX3', className: 'font-bold tracking-wide text-stone-500' })); }} />
     </footer>
 );
 
@@ -102,7 +102,7 @@ const Answer = ({ q, value, onChange, invalid }) => {
     return <input type={q.type === 'number' ? 'number' : q.type === 'date' ? 'date' : 'text'} value={value} onChange={(e) => onChange(e.target.value)} maxLength={300} className={INPUT} aria-invalid={invalid} inputMode={q.type === 'number' ? 'decimal' : undefined} />;
 };
 
-/** Loading: the college's logo when this device has seen it before, else a plain spinner — never YATICORP's. */
+/** Loading: the college's logo when this device has seen it before, else a plain spinner — never YATICORPX3's. */
 export const ApplyLoading = ({ orgCode }) => {
     let logo = null;
     try { logo = orgCode ? localStorage.getItem(`apply-logo:${String(orgCode).toLowerCase()}`) : null; } catch { /* storage unavailable */ }
@@ -257,7 +257,7 @@ export default function ApplyPage() {
                             <p className="mx-auto mt-2 max-w-md text-[15px] leading-relaxed text-stone-600">{sent} {T.done}</p>
                             <p className="mt-2 text-sm text-stone-500"><b className="text-stone-800">{form.email}</b> · <b className="text-stone-800">{form.phone}</b></p>
                             <ol className="mx-auto mt-8 grid max-w-xl gap-3 text-left text-sm sm:grid-cols-3">
-                                {['The office checks your application', 'You get your YATICORP AI card', 'You are admitted and can sign in'].map((t, i) => (
+                                {['The office checks your application', 'You get your YATICORPX3 AI card', 'You are admitted and can sign in'].map((t, i) => (
                                     <li key={t} className="rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200"><span className="font-mono text-xs text-stone-400">0{i + 1}</span><p className="mt-1 font-semibold text-stone-800">{t}</p></li>
                                 ))}
                             </ol>

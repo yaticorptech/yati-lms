@@ -152,7 +152,7 @@
 
     /**
      * The college, centred (2026-10-31, "the college name and logo should be in the centre"): its logo — uploaded, or
-     * Yaticorp's while that is ticked — with its name under it, centred on `cx` in the design's free space at the top.
+     * YATICORPX3's while that is ticked — with its name under it, centred on `cx` in the design's free space at the top.
      */
     const collegeTop = (d, o) => {
         const out = [];

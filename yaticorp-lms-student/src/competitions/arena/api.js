@@ -1,4 +1,4 @@
-/** Quiz Arena — the calls (server: competitions/arena/student.js), on the LMS's axios client. */
+/** Quiz Arena — the calls (server: competitions/arena/student.js), on YATICORPX3's axios client. */
 import client from '../../utils/api';
 
 const unwrap = (err) => {

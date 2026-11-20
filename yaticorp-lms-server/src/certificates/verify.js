@@ -155,7 +155,7 @@ const groupBrain = async (certId) => {
     if (!info.found) return null;
     const rank = info.rank ? `${['', '1st', '2nd', '3rd'][info.rank] || `${info.rank}th`} place · ` : '';
     return {
-        info: { kind: 'groupbrain', number: info.certId, name: info.name, title: `${rank}${info.title}`, line: [info.eventName, info.line].filter(Boolean).join(' · '), issuedBy: 'YATICORP · Group Brain', issuedAt: info.issuedAt, valid: info.valid, revokedAt: info.revokedAt, revokedReason: info.revokedReason },
+        info: { kind: 'groupbrain', number: info.certId, name: info.name, title: `${rank}${info.title}`, line: [info.eventName, info.line].filter(Boolean).join(' · '), issuedBy: 'YATICORPX3 · Group Brain', issuedAt: info.issuedAt, valid: info.valid, revokedAt: info.revokedAt, revokedReason: info.revokedReason },
         pdf: async (res) => {
             const { GroupBrainCertificate } = require('../competitions/groupbrain/models');
             const cert = await GroupBrainCertificate.findOne({ certId: info.certId }).lean();
@@ -180,7 +180,7 @@ const competition = async (user, id, number) => {
         const playerName = team.players.find((x) => String(x.userId) === String(user._id))?.name || user.name;
         const place = team.place || null;
         return {
-            info: { kind: 'competition', number, name: playerName, title: place ? `${['', '1st', '2nd', '3rd'][place] || `${place}th`} place` : 'Certificate of Participation', line: [comp.name, team.collegeName].filter(Boolean).join(' · '), issuedBy: 'YATICORP · Games & Competitions', issuedAt: comp.completedAt, valid: true },
+            info: { kind: 'competition', number, name: playerName, title: place ? `${['', '1st', '2nd', '3rd'][place] || `${place}th`} place` : 'Certificate of Participation', line: [comp.name, team.collegeName].filter(Boolean).join(' · '), issuedBy: 'YATICORPX3 · Games & Competitions', issuedAt: comp.completedAt, valid: true },
             pdf: async (res) => { cert.draw(res, { competition: comp, team, playerName, place, number }); return true; }
         };
     }
@@ -194,7 +194,7 @@ const competition = async (user, id, number) => {
     const max = (c.paper?.length || 0) * (c.pointsPerQuestion || 0);
     const ord = { 1: '1st', 2: '2nd', 3: '3rd' }[award.place];
     return {
-        info: { kind: 'competition', number, name: e.name || user.name, title: award.place ? `${ord} place · Quiz Arena` : 'Certificate of Participation · Quiz Arena', line: [c.title, college].filter(Boolean).join(' · '), issuedBy: 'YATICORP · Games & Competitions', issuedAt: c.resultsPublishedAt, valid: true },
+        info: { kind: 'competition', number, name: e.name || user.name, title: award.place ? `${ord} place · Quiz Arena` : 'Certificate of Participation · Quiz Arena', line: [c.title, college].filter(Boolean).join(' · '), issuedBy: 'YATICORPX3 · Games & Competitions', issuedAt: c.resultsPublishedAt, valid: true },
         pdf: async (res) => {
             cert.draw(res, {
                 number,

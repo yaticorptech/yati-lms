@@ -56,6 +56,8 @@ const NAV = [
     // No Audit log here since 2026-10-30: changes are still recorded, for the platform's admins.
     // Students' help requests sent to the organization (2026-11-14).
     { to: '/organization/student-requests', label: 'Student requests', short: 'Requests', icon: LifeBuoy },
+    // Announcements to the parents of its students (2026-11-19, src/pages/org/OrgParentAnnouncements.jsx).
+    { to: '/organization/parent-announcements', label: 'Parent announcements', short: 'Parents', icon: Megaphone },
     { to: '/organization/users', label: 'Users', short: 'Users', icon: UserCog },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
@@ -104,7 +106,7 @@ const CampusMenu = ({ isActive, pathname, counts }) => {
     );
 };
 
-const STAFF_HIDDEN = ['/organization/teachers', '/organization/360-activities', '/organization/users', '/organization/settings'];
+const STAFF_HIDDEN = ['/organization/teachers', '/organization/360-activities', '/organization/users', '/organization/settings', '/organization/parent-announcements'];
 const RESEARCH = { to: '/organization/research', label: 'Research', short: 'Research', icon: FlaskConical };
 // No requests badge for them either: they have no Requests tab to act on it.
 // A Bharat Scouts & Guides office has one user and its own menu: its notices

@@ -3,9 +3,9 @@
  * @description Who is using Career Path.
  *
  * The standalone FuturePath owned its own session: it signed the student in,
- * kept a `token` in localStorage and fetched /auth/profile. Inside the LMS the
+ * kept a `token` in localStorage and fetched /auth/profile. Inside YATICORPX3 the
  * student is already signed in before this section is ever reachable, so this
- * provider is an adapter — it takes the LMS session and re-exposes it under the
+ * provider is an adapter — it takes YATICORPX3 session and re-exposes it under the
  * shape every ported page expects (`{ user, loading }`, with `user.name`,
  * `user.email`, `user.xp`, `user.level`).
  *
@@ -30,8 +30,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   // The XP and level last seen, to tell a real change from a routine re-read.
   const seen = useRef(null);
-  // The LMS session, read through a ref so `refresh` keeps one identity: the
-  // LMS re-reads its user on every 'yati:progress-changed', and a refresh
+  // The YATICORPX3 session, read through a ref so `refresh` keeps one identity: the
+  // YATICORPX3 re-reads its user on every 'yati:progress-changed', and a refresh
   // rebuilt on each new user object re-ran the mount read below every time.
   const lmsUserRef = useRef(lmsUser);
   useEffect(() => {

@@ -10,10 +10,25 @@
  * Edit Profile opens as a popup from pages/Profile.jsx; the details stay put behind it.
  */
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
-import { User, Phone, Landmark, Mail, ChartNoAxesColumnIncreasing, Pencil, Camera, Loader2, Crown, Copy, Check, IdCard } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { User, Phone, Landmark, Mail, BookOpenCheck, Pencil, Camera, Loader2, Crown, Copy, Check, IdCard } from 'lucide-react';
 import OrganizationButton from '../organization/OrganizationButton';
 import ProfileImage from './ProfileImage';
+import api from '../utils/api';
+
+/** The AI Passport linked to this student's card, or null (2026-11-20: shown on the profile once linked, read-only).
+ *  Read again when a scan links one (PassportClaim fires yati:progress-changed). */
+const useLinkedPassport = () => {
+    const [code, setCode] = useState(null);
+    useEffect(() => {
+        let live = true;
+        const load = () => api.get('/user/passport').then((r) => { if (live) setCode(r.data?.linked && r.data.code ? r.data.code : null); }).catch(() => {});
+        load();
+        window.addEventListener('yati:progress-changed', load);
+        return () => { live = false; window.removeEventListener('yati:progress-changed', load); };
+    }, []);
+    return code;
+};
 
 // Each detail's icon colours. Written out in full: Tailwind cannot see a class
 // name assembled at runtime.
@@ -77,6 +92,7 @@ const CopyId = ({ value, what = 'your User ID' }) => {
 
 export default function PersonalInfoCard({ user, level, levelTo, editing, onEdit, onViewPhoto, onChangePhoto, uploadingPhoto }) {
     const photo = user?.profilePicture;
+    const passport = useLinkedPassport();
     const initials = (user?.name || '').trim().split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 
     return (
@@ -146,11 +162,11 @@ export default function PersonalInfoCard({ user, level, levelTo, editing, onEdit
                         <Tile icon={<Mail strokeWidth={2.2} />} tone="pink" label="Email">{user?.email ? breakable(user.email) : 'Not added yet'}</Tile>
                         {/* The same control as before, drawn as a value: it still opens the popup for linking an organization. */}
                         <Tile icon={<Landmark strokeWidth={2.2} />} tone="amber" label="Organization / college" opens><OrganizationButton variant="plain" /></Tile>
-                        {/* Their YATICORP card number, as printed on the card — what they sign in with
+                        {/* Their YATICORPX3 card number, as printed on the card — what they sign in with
                             (in place of the QR code number, 2026-10-31). */}
                         <Tile icon={<IdCard strokeWidth={2.2} />} tone="violet" label="ID" action={<CopyId value={user?.cardNumber} />}><span className="font-mono tracking-wider">{user?.cardNumber ? spaced(user.cardNumber) : '—'}</span></Tile>
-                        <Tile icon={<ChartNoAxesColumnIncreasing strokeWidth={2.6} />} tone="chart" label="Level"
-                            control={levelTo ? <Link to={levelTo} aria-label="Level: open Career Path" className={STRETCH} /> : undefined}>Level {level}</Tile>
+                        {/* The AI Passport number in place of Level (2026-11-20): only once a passport is linked, never editable. */}
+                        {passport && <Tile icon={<BookOpenCheck strokeWidth={2.2} />} tone="chart" label="AI Passport" action={<CopyId value={passport} what="your AI Passport number" />}><span className="font-mono tracking-wider">{passport}</span></Tile>}
                     </dl>
                 )}
             </div>

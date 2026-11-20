@@ -31,7 +31,7 @@ const draw = (res, { name, level, number, issuedAt, average, courseName = 'Engli
     doc.lineWidth(1.5).strokeColor(VIOLET).rect(40, 40, W - 80, H - 80).stroke();
 
     const center = (text, y, font, size, color, opts = {}) => doc.font(font).fontSize(size).fillColor(color).text(text, 60, y, { width: W - 120, align: 'center', ...opts });
-    center('YATICORP LMS', 78, 'Helvetica-Bold', 14, MUTED, { characterSpacing: 4 });
+    center('YATICORPX3', 78, 'Helvetica-Bold', 14, MUTED, { characterSpacing: 4 });
     center('Certificate of Achievement', 108, 'Helvetica-Bold', 38, INDIGO);
     center(`Language Learning · ${courseName}`, 160, 'Helvetica', 16, VIOLET, { characterSpacing: 1 });
     center('This is to certify that', 214, 'Times-Italic', 18, INK);

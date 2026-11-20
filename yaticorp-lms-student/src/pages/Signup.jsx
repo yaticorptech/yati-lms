@@ -8,8 +8,10 @@ import api from '../utils/api';
 import SupportDialog from '../components/SupportDialog';
 import { AuthContext } from '../context/AuthContext';
 import teacherApi, { enterTeacher, hasTeacherSession } from '../teacher/teacherSession';
-import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Loader2, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock, GraduationCap, ShieldCheck, Sparkles, Gift, BookMarked } from 'lucide-react';
+import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Loader2, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock, GraduationCap, ShieldCheck, Sparkles, Gift, BookMarked, HeartHandshake } from 'lucide-react';
 import AuthBrandPanel from '../components/AuthBrandPanel';
+import ParentRegister from '../parent/ParentRegister';
+import { hasParentSession } from '../parent/parentSession';
 import { cleanPassport, getPendingPassport, setPendingPassport, clearPendingPassport } from '../components/rewards/passportPending';
 
 // Password strength validator
@@ -132,13 +134,16 @@ const Signup = () => {
        institution instead of an Organization ID, take any email address, and
        the account opened is a teacher's (src/teacher on the server). */
     const asTeacher = searchParams.get('as') === 'teacher';
+    // A parent (2026-11-19): the third choice, after Teacher — their own card's form (parent/ParentRegister.jsx).
+    const asParent = searchParams.get('as') === 'parent';
+    const role = asParent ? 'parent' : asTeacher ? 'teacher' : 'student';
     const swapped = Boolean(useLocation().state?.authSwapFrom);
     const loginLink = asTeacher ? '/login?as=teacher' : next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`;
     // The Student / Teacher switch (2026-10-30), as on the sign-in page. It is
     // the same ?as=teacher the links use; what is already typed stays.
     const chooseRole = (role) => {
         const params = new URLSearchParams(searchParams);
-        if (role === 'teacher') params.set('as', 'teacher'); else params.delete('as');
+        if (role === 'teacher' || role === 'parent') params.set('as', role); else params.delete('as');
         setSearchParams(params, { replace: true });
         setError(null); setFieldErrors({}); setCardUsed(false);
         setOrgMode(false); setOrgResult(null); setOrgPick(null); setOrgStage('phone');
@@ -558,6 +563,7 @@ const Signup = () => {
     // Signed in already (a second tab, the back button): nothing to sign up for.
     if (user) return <Navigate to={next} replace />;
     if (hasTeacherSession()) return <Navigate to="/teacher" replace />;
+    if (hasParentSession()) return <Navigate to="/parent" replace />;
     if (pendingApproval) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#232840] via-[#1f2336] to-[#272240] p-4 text-slate-100">
@@ -598,10 +604,12 @@ const Signup = () => {
             <div className={`${swapped ? 'auth-swap-in auth-swap-register' : 'lg-rise'} grid w-full max-w-[30rem] overflow-hidden rounded-[28px] bg-[#232740] shadow-[0_40px_90px_-40px_rgba(0,0,0,0.8)] ring-1 ring-white/[0.08] lg:max-w-[62rem] lg:grid-cols-[1fr_1.05fr]`}>
 
                 {/* ── Left: brand panel (desktop) ─────────────────────── */}
-                <AuthBrandPanel eyebrow={asTeacher ? 'For teachers' : 'Get started'}
-                    title={asTeacher ? 'Bring your classroom online in minutes.' : 'One card. Every lesson, wherever you are.'}
-                    text={asTeacher ? 'Register your card or the mobile number your organization added you with, and your classes are ready.' : 'Register the AI card you were given, set a password, and start learning right away.'}
-                    points={asTeacher
+                <AuthBrandPanel eyebrow={asParent ? 'For parents' : asTeacher ? 'For teachers' : 'Get started'}
+                    title={asParent ? 'See everything your child learns.' : asTeacher ? 'Bring your classroom online in minutes.' : 'One card. Every lesson, wherever you are.'}
+                    text={asParent ? 'Register your own card, add your child’s card number, and follow their courses, attendance, marks and more.' : asTeacher ? 'Register your card or the mobile number your organization added you with, and your classes are ready.' : 'Register the AI card you were given, set a password, and start learning right away.'}
+                    points={asParent
+                        ? [[HeartHandshake, 'Every child on one dashboard'], [ShieldCheck, 'You only look: nothing in their account changes'], [Sparkles, 'Their activity, day by day']]
+                        : asTeacher
                         ? [[BookOpenCheck, 'Your classes and students in one place'], [GraduationCap, 'Follow every student’s progress'], [Sparkles, 'AI help built into every lesson']]
                         : [[ScanLine, 'Scan your card to register'], [ShieldCheck, 'Protected on up to two devices'], [Sparkles, 'AI help built into every lesson']]} />
                 {/* ── Right: the sign-up form ─────────────────────────────────── */}
@@ -609,18 +617,18 @@ const Signup = () => {
                     <div className="mx-auto max-w-md">
                         {(
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
-                            <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-5 h-8 w-auto object-contain lg:hidden" />
+                            <img src="/assets/YATICORP.png" alt="YATICORPX3" className="mb-5 h-8 w-auto object-contain lg:hidden" />
                             <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-indigo-300">Welcome to LearnHub</p>
-                            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-400/30">{asTeacher ? <BookOpenCheck size={20} /> : <UserPlus size={20} />}</span>
-                            <h2 className="mt-4 text-2xl font-bold tracking-tight text-white">{asTeacher ? 'Register your teacher card' : 'Create your account'}</h2>
-                            <p className="mt-1.5 text-sm text-slate-400">{orgMode && asTeacher ? ORG_HINT[orgStage] : stepHint}</p>
+                            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-400/30">{asParent ? <HeartHandshake size={20} /> : asTeacher ? <BookOpenCheck size={20} /> : <UserPlus size={20} />}</span>
+                            <h2 className="mt-4 text-2xl font-bold tracking-tight text-white">{asParent ? 'Register your parent card' : asTeacher ? 'Register your teacher card' : 'Create your account'}</h2>
+                            <p className="mt-1.5 text-sm text-slate-400">{asParent ? 'Use your own card. Then add your child’s card number and follow their learning.' : orgMode && asTeacher ? ORG_HINT[orgStage] : stepHint}</p>
                             {/* Student or teacher, as one switch, under the heading (2026-10-30). */}
-                            <div role="radiogroup" aria-label="Signing up as" className="mt-5 grid w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/15 p-1">
-                                {[['student', 'Student', GraduationCap], ['teacher', 'Teacher', BookOpenCheck]].map(([id, label, Icon]) => {
-                                    const on = (id === 'teacher') === asTeacher;
+                            <div role="radiogroup" aria-label="Signing up as" className="mt-5 grid w-full grid-cols-3 overflow-hidden rounded-xl border border-white/10 bg-black/15 p-1">
+                                {[['student', 'Student', GraduationCap], ['teacher', 'Teacher', BookOpenCheck], ['parent', 'Parent', HeartHandshake]].map(([id, label, Icon]) => {
+                                    const on = id === role;
                                     return (
                                         <button key={id} type="button" role="radio" aria-checked={on} onClick={() => chooseRole(id)}
-                                            className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-all ${on ? (id === 'teacher' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') : 'text-slate-400 hover:text-white'}`}>
+                                            className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-all ${on ? (id === 'teacher' ? 'bg-emerald-600 text-white shadow-sm' : id === 'parent' ? 'bg-teal-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') : 'text-slate-400 hover:text-white'}`}>
                                             <Icon size={15} aria-hidden="true" /> {label}
                                         </button>
                                     );
@@ -631,7 +639,9 @@ const Signup = () => {
                         )}
 
                         {/* Step 1: card QR */}
-                        {step === 1 && (
+                        {asParent && <ParentRegister />}
+
+                        {!asParent && step === 1 && (
                             <form className="lg-rise mt-6 space-y-5" onSubmit={orgMode && asTeacher ? orgSubmit : handleValidateQR} style={{ animationDelay: '0.2s' }}>
                                 {/* A teacher signs up with an AI card, or with the mobile number
                                     their organization added them with (only those numbers can). */}
@@ -846,7 +856,7 @@ const Signup = () => {
                         )}
 
                         {/* Step 2: personal details */}
-                        {step === 2 && (
+                        {!asParent && step === 2 && (
                             <form className="lg-rise mt-6 space-y-5" onSubmit={handlePersonalDetailsNext} noValidate style={{ animationDelay: '0.2s' }}>
                                 {errorBox}
 
@@ -982,7 +992,7 @@ const Signup = () => {
                         )}
 
                         {/* Step 3: password */}
-                        {step === 3 && (
+                        {!asParent && step === 3 && (
                             <form className="lg-rise mt-6 space-y-5" onSubmit={handleRegistrationSubmit} style={{ animationDelay: '0.2s' }}>
                                 {errorBox}
 
@@ -1077,11 +1087,7 @@ const Signup = () => {
                         <p className="mt-5 text-center text-xs text-slate-400">
                             Already have an account? <Link to={loginLink} state={{ authSwapFrom: 'register' }} className="font-bold text-indigo-300 hover:underline">Sign in here</Link>
                         </p>
-                        <p className="mt-2 text-center text-xs text-slate-400">
-                            {asTeacher
-                                ? <>A student? <Link to="/signup" className="font-bold text-indigo-300 hover:underline">Create a student account</Link></>
-                                : <>A teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-300 hover:underline">Register a teacher card</Link></>}
-                        </p>
+                        {/* No "A teacher? / A student?" links (2026-11-19, the user: "this option is not needed"): the Student | Teacher | Parent switch above. */}
                             </>
                         )}
                     </div>

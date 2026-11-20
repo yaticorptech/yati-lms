@@ -1,6 +1,6 @@
 /**
  * A group room's invitation as a picture (2026-11-03): the game's picture, its name and what it is, the room code,
- * the link (it opens Group games with the code filled in), and "Powered by YATICORP" — shared to
+ * the link (it opens Group games with the code filled in), and "Powered by YATICORPX3" — shared to
  * WhatsApp, Instagram or email as a card, not just a line of text.
  */
 // Portrait (2026-11-04): the game's picture across the top, then the words, the code and the link.
@@ -9,7 +9,7 @@ const H = 1700;
 
 /** The link in an invitation: Group games, its Join box holding the code. */
 export const inviteLink = (code) => `${window.location.origin}/games?mode=group&code=${encodeURIComponent(code)}`;
-export const inviteText = (label, code) => `Join my ${label} room on YATICORP! Room code: ${code}\nOpen ${inviteLink(code)} and paste the code.`;
+export const inviteText = (label, code) => `Join my ${label} room on YATICORPX3! Room code: ${code}\nOpen ${inviteLink(code)} and paste the code.`;
 
 const load = (src) => new Promise((resolve) => {
     const img = new Image();
@@ -139,7 +139,7 @@ export async function drawInviteCard({ game, label, blurb, players, code, host }
         'that fits you — one step at a time.'
     ].forEach((l, i) => ctx.fillText(l, W / 2, 1416 + i * 50, W - 100));
 
-    // Powered by, and the YATICORP logo itself (the white wordmark with its blue O), centred together.
+    // Powered by, and the YATICORPX3 logo itself (the white wordmark with its blue O), centred together.
     const fy = 1650;
     ctx.textAlign = 'left';
     ctx.font = `600 38px ${SANS}`;
@@ -153,7 +153,7 @@ export async function drawInviteCard({ game, label, blurb, players, code, host }
     const x = (W - total) / 2;
     ctx.fillStyle = 'rgba(233,229,255,.8)'; ctx.fillText(lead, x, fy);
     if (logo) ctx.drawImage(logo, src.x, src.y, src.w, src.h, x + leadW + gapL, fy - lh + 6, lw, lh);
-    else { ctx.fillStyle = '#ffffff'; ctx.font = `900 40px ${SANS}`; ctx.fillText(' YATICORP', x + leadW, fy); }
+    else { ctx.fillStyle = '#ffffff'; ctx.font = `900 40px ${SANS}`; ctx.fillText(' YATICORPX3', x + leadW, fy); }
 
     return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }

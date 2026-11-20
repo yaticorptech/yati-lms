@@ -336,7 +336,7 @@ const placedLevel = (progress) => (courseOf(progress) === 'en' ? progress.placem
 const START = 'beginner';
 
 const MODULE_LABEL = { vocabulary: 'Vocabulary Builder', grammar: 'Grammar Practice', reading: 'Reading and Writing', speaking: 'Speaking and Listening', translation: 'Translation Practice' };
-const { LEVEL_LABEL, LEGACY_CUTOFF, LEGACY_SHOWN } = require('./levels');
+const { LEVEL_LABEL, LEGACY_CUTOFF, LEGACY_SHOWN, CERT_GROUPS, certHeadOf } = require('./levels');
 const lvl = (l) => LEVELS.indexOf(l);
 const idOf = (x) => String(x?._id ?? x);
 
@@ -851,11 +851,17 @@ const checkLevel = async (user, progress, level, lessons, config) => {
     const average = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
     const course = courseOf(progress);
     if (!progress.levelsCompleted.some((x) => x.level === level && inCourse(x, course))) progress.levelsCompleted.push({ level, completedAt: new Date(), average, course });
-    if (average < config.certificateMinAverage || progress.certificates.some((c) => c.level === level && inCourse(c, course))) return { events: [], certificate: null, average };
-    const certificate = { level, number: '', issuedAt: new Date(), average, course };
-    certificate.number = (await seriesNumber(user._id, certificate).catch(() => null)) || certificateNumber(user, level, course);
+    // The certificate is the group's (2026-11-17): every lesson of every section in it done (Beginner: Rookie, Daily
+    // life and Explorer), the average over all of them, stored under the group's first section.
+    const head = certHeadOf(level);
+    const group = lessons.filter((l) => (CERT_GROUPS[head] || [head]).includes(l.level));
+    if (!group.every((l) => isDone(progress, l._id))) return { events: [], certificate: null, average };
+    const groupAverage = Math.round(group.reduce((a, l) => a + (lessonEntry(progress, l._id)?.bestScore || 0), 0) / group.length);
+    if (groupAverage < config.certificateMinAverage || progress.certificates.some((c) => c.level === head && inCourse(c, course))) return { events: [], certificate: null, average };
+    const certificate = { level: head, number: '', issuedAt: new Date(), average: groupAverage, course };
+    certificate.number = (await seriesNumber(user._id, certificate).catch(() => null)) || certificateNumber(user, head, course);
     progress.certificates.push(certificate);
-    const paid = await pay(user._id, 'linguistic_level', course === 'en' ? `level:${level}` : `level:${course}:${level}`, { level, course });
+    const paid = await pay(user._id, 'linguistic_level', course === 'en' ? `level:${head}` : `level:${course}:${head}`, { level: head, course });
     return { events: paid.events, certificate, average };
 };
 

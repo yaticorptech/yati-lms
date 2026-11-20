@@ -40,7 +40,7 @@ export default function LegalShell({ title, intro, updated, children }) {
           </Link>
           <span className="inline-flex items-center gap-2 text-sm font-black tracking-tight text-slate-900">
             <ShieldCheck size={16} className="text-indigo-600" />
-            YATICORP
+            YATICORPX3
           </span>
         </div>
       </header>

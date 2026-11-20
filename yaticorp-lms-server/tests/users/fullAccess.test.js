@@ -66,8 +66,8 @@ test('Jobs opens for a demo card with no skills yet; not for anyone else', async
 test('with every section switched off, a demo card still sees them all', async () => {
     await allSwitchedOff(async () => {
         const mine = (await app.call(demo.token)('GET', '/settings')).body;
-        assert.deepEqual(mine, { isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true, isRewardsEnabled: false, isLinguisticEnabled: true, isGlobalQuizEnabled: true },
-            'all sections on; rewards follows the site-wide switch');
+        assert.deepEqual(mine, { isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true, isRewardsEnabled: true, isLinguisticEnabled: true, isGlobalQuizEnabled: true },
+            'all sections on; Rewards too (2026-11-18)');
         const theirs = (await app.call(plain.token)('GET', '/settings')).body;
         assert.deepEqual(theirs, { isCreditSystemEnabled: false, isCareerPathEnabled: false, isJobsEnabled: false, isRewardsEnabled: false, isLinguisticEnabled: false, isGlobalQuizEnabled: false });
     });

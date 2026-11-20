@@ -39,10 +39,9 @@ const passMarkFor = (total, user) => (total > 0 && hasFullAccess(user)
   ? Math.min(DEMO_QUIZ_PASS_SCORE, total)
   : Math.ceil(total * QUIZ_PASS_MARK));
 
-// A video counts as watched at 90% rather than 100%: end cards, outros and
-// sponsor reads mean the last tenth is rarely the lesson, and demanding the
-// final second strands anyone who clicks away a moment early.
-const VIDEO_WATCHED_FRACTION = 0.9;
+// A video counts as watched at 70% of its length (2026-11-20, the user: 90% → 50% → "70%"): the seconds played or
+// tapped past (YouTube's 10-second skip), not a drag of the bar to the end (LessonVideo.jsx).
+const VIDEO_WATCHED_FRACTION = 0.7;
 
 /**
  * Whether `seconds` of distinct playback is enough to call this video watched.
@@ -50,7 +49,7 @@ const VIDEO_WATCHED_FRACTION = 0.9;
  * The browser counts the seconds it saw play (LessonVideo), against the
  * player's own idea of the length; the stored length comes from the YouTube
  * Data API and can differ from it by a few seconds, so the bar here sits a
- * little under 90% — 5% of the video or ten seconds, whichever is more. A
+ * little under 70% — 5% of the video or ten seconds, whichever is more. A
  * video whose length was never stored cannot be measured against, and is
  * taken on trust as before.
  */

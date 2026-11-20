@@ -39,12 +39,17 @@ const hallTicket = (org, campus, exam, u) => {
 
 /** Whether the student has the Institution dashboard, and their organization's set-up when they do. */
 const access = async (userId, fields = {}) => {
-    const u = await User.findById(userId, { name: 1, email: 1, phone: 1, cardNumber: 1, profilePicture: 1, organizationId: 1, 'campus.departmentId': 1, 'campus.semester': 1, 'campus.section': 1, 'campus.rollNo': 1, 'campus.admissionNo': 1, 'campus.academicYear': 1, 'campus.admittedAt': 1, 'campus.status': 1, 'campus.endedAt': 1, 'campus.endReason': 1, ...fields }).lean();
-    if (!u?.organizationId) return { available: false, reason: 'no-organization' };
-    const org = await Organization.findById(u.organizationId).select('status campusAllowed').lean();
+    const read = () => User.findById(userId, { name: 1, email: 1, phone: 1, cardNumber: 1, profilePicture: 1, organizationId: 1, 'campus.departmentId': 1, 'campus.semester': 1, 'campus.section': 1, 'campus.rollNo': 1, 'campus.admissionNo': 1, 'campus.academicYear': 1, 'campus.admittedAt': 1, 'campus.status': 1, 'campus.endedAt': 1, 'campus.endReason': 1, ...fields }).lean();
+    let u = await read();
+    if (!u) return { available: false, reason: 'no-organization' };
+    // A demo card counts as a student of the demo institution, admitted there on first use (services/demoInstitution.js, 2026-11-18).
+    const orgId = await require('../services/demoInstitution').orgIdFor(userId);
+    if (!orgId) return { available: false, reason: 'no-organization' };
+    if (!u.organizationId && !u.campus?.departmentId) u = await read();
+    const org = await Organization.findById(orgId).select('status campusAllowed').lean();
     if (!org || org.status !== 'active' || !org.campusAllowed) return { available: false, reason: 'not-enabled' };
     if (!u.cardNumber) return { available: false, reason: 'no-card' };
-    const { org: full, campus } = await C.loadCampus(u.organizationId);
+    const { org: full, campus } = await C.loadCampus(orgId);
     const dept = u.campus?.departmentId ? C.find(campus, 'departments', u.campus.departmentId) : null;
     // Accepted but not admitted yet (2026-11-14): no Institution dashboard until the office admits them.
     const accepted = u.campus?.status === 'accepted';
@@ -254,3 +259,5 @@ router.post('/feedback/:id', safe(async (req, res) => {
 
 module.exports = router;
 module.exports.hallTicket = hallTicket;
+// The parent dashboard reads a child's Institution record the same way (src/parent/activity.js, 2026-11-19).
+module.exports.access = access;

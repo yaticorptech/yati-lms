@@ -85,7 +85,7 @@ export const PLAGIARISM_STEPS = [
             'Matches in quotations with citations, the reference list and standard phrases ("the results of this study show") are fine.',
             'A long match with no quotation marks is the problem: quote and cite it, or rewrite it and cite it.',
             'Many small matches from one source can mean patchwriting; rewrite that section from your understanding.',
-            'The check on this page compares with documents on YATICORP. Before submission, use your university\'s checker (such as Turnitin or Ouriginal).'
+            'The check on this page compares with documents on YATICORPX3. Before submission, use your university\'s checker (such as Turnitin or Ouriginal).'
         ]
     },
     {

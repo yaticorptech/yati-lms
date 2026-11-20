@@ -2,16 +2,16 @@
  * @description The frame the whole Career Path (FuturePath) section renders in.
  *
  * Replaces the standalone app's DashboardLayout. That one owned the page: its
- * own left sidebar, its own top bar, its own identity card. Inside the LMS all
+ * own left sidebar, its own top bar, its own identity card. Inside YATICORPX3 all
  * of that already exists one level up in StudentLayout, so this is deliberately
  * thinner — a tab strip for the section's ten screens, the level/XP chip and the
  * Career Path notification bell, and then the page.
  *
  * It also carries the three things the ported pages assume are above them:
  *   • the `.futurepath` wrapper, which is what scopes career.css (without it the
- *     section renders in the LMS's font on the LMS's background);
+ *     section renders in YATICORPX3's font on YATICORPX3's background);
  *   • the toast / confirm / celebration providers the pages call into;
- *   • the auth adapter that re-exposes the LMS session in FuturePath's shape.
+ *   • the auth adapter that re-exposes YATICORPX3 session in FuturePath's shape.
  */
 import { useContext, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';

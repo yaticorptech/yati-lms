@@ -111,8 +111,10 @@ FRAME_RATE = getattr(model.config.audio_encoder, "frame_rate", 86) or 86
 
 
 def max_tokens(text: str) -> int:
-    """Audio frames allowed: 1.4 s for a letter, then about 0.12 s a character, at most 30 s."""
-    seconds = 1.4 if len(text) <= 3 else min(30.0, 1.2 + 0.12 * len(text))
+    """Audio frames allowed: 0.8 s for a letter of one or two characters (2026-11-18: ਕ was said "ka katikatha hai",
+    made-up words after the letter in the 1.4 s it had), 1.4 s for three, then about 0.12 s a character, at most 30 s."""
+    n = len(text)
+    seconds = 0.8 if n <= 2 else 1.4 if n <= 3 else min(30.0, 1.2 + 0.12 * n)
     return int(seconds * FRAME_RATE)
 
 

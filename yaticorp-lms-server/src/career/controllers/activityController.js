@@ -3,7 +3,7 @@
  *
  * A puzzle pitched at the class they told Career Path, handed out once a day
  * and never repeated: hand-written puzzles first, then generated ones. It exists to make
- * arriving at the LMS feel like something rather than a list of courses.
+ * arriving at YATICORPX3 feel like something rather than a list of courses.
  *
  * No AI. See data/activities.js for why.
  */

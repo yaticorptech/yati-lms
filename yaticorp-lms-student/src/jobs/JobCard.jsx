@@ -1,7 +1,7 @@
 /**
  * @description One job listing: match ring, the facts, skill overlap, pay.
  *
- * Rebuilt in the LMS's own card style. The logic is the original's — what to
+ * Rebuilt in YATICORPX3's own card style. The logic is the original's — what to
  * link the company name to, which salary strings are real, how the four match
  * components are summarised — because each of those encodes a decision that
  * took a wrong answer to find.

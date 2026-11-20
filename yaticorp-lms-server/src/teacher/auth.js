@@ -240,12 +240,12 @@ const forgotPassword = async (req, res) => {
             await require('../utils/emailService').sendEmail({
                 to: teacher.email,
                 toName: teacher.name,
-                subject: 'Reset your YATICORP teacher password',
+                subject: 'Reset your YATICORPX3 teacher password',
                 htmlContent: `
                     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
                         <h2 style="color: #4f46e5; margin-bottom: 8px;">Password reset</h2>
                         <p style="color: #475569;">Hi ${teacher.name.replace(/[<>&"]/g, '')},</p>
-                        <p style="color: #475569;">We received a request to reset the password of your YATICORP teacher account.</p>
+                        <p style="color: #475569;">We received a request to reset the password of your YATICORPX3 teacher account.</p>
                         <a href="${resetUrl}" style="display: inline-block; margin: 24px 0; padding: 14px 28px; background: #4f46e5; color: white; font-weight: bold; text-decoration: none; border-radius: 8px;">Reset my password</a>
                         <p style="color: #94a3b8; font-size: 13px;">This link expires in 1 hour. If you did not ask for it, you can ignore this email.</p>
                     </div>`

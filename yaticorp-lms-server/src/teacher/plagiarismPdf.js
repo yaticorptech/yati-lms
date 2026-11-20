@@ -3,7 +3,7 @@
  * what it is made of, where the matches were found, and the checked text
  * with every match marked, to keep with a draft or show a supervisor.
  *
- * It says plainly what it is: a check against writing on YATICORP and the
+ * It says plainly what it is: a check against writing on YATICORPX3 and the
  * papers the teacher uploaded, not the internet or the journals, so not a
  * university's certificate. Marks are told apart by style as well as colour
  * (bold, italic, underline), so a black-and-white print still shows them.
@@ -85,7 +85,7 @@ const renderPlagiarismPdf = (report, teacherName, out) => {
     const others = Math.round(((report.score || 0) - (report.ownScore || 0)) * 10) / 10;
 
     write(doc, 'Similarity report', { weight: 'bold', size: 22 });
-    write(doc, 'YATICORP Plagiarism Check', { size: 10, color: MUTED });
+    write(doc, 'YATICORPX3 Plagiarism Check', { size: 10, color: MUTED });
     doc.moveDown(1);
 
     // What was checked, by whom and when.
@@ -114,7 +114,7 @@ const renderPlagiarismPdf = (report, teacherName, out) => {
     doc.font('latin-regular').fontSize(9).fillColor(MUTED).text('similar', LEFT + 22, top + 60, { width: 130 });
     doc.font('latin-bold').fontSize(14).fillColor(tone.color).text(tone.label, LEFT + 160, top + 16, { width: width - 180 });
     doc.font('latin-regular').fontSize(10).fillColor(INK)
-        .text(`In others' work (YATICORP, uploaded papers${report.outside?.checked ? ', open research, Wikipedia' : ''}): ${others}%`, LEFT + 160, top + 40, { width: width - 180 })
+        .text(`In others' work (YATICORPX3, uploaded papers${report.outside?.checked ? ', open research, Wikipedia' : ''}): ${others}%`, LEFT + 160, top + 40, { width: width - 180 })
         .text(`In the author's own documents: ${report.ownScore ?? 0}%`, { width: width - 180 });
     doc.x = LEFT; doc.y = top + 98;
     write(doc, `Citations found: ${num(report.citations?.found)}     Quotations without a citation: ${num(report.flags?.length)}`, { size: 10.5 });
@@ -155,8 +155,8 @@ const renderPlagiarismPdf = (report, teacherName, out) => {
     doc.x = LEFT;
     write(doc, 'About this report', { weight: 'bold', size: 10.5 });
     write(doc, report.outside?.checked
-        ? 'This check compares the text with writing on YATICORP (other teachers\' theses and writing, and the author\'s own), with the papers the author uploaded, and with open research papers (OpenAlex: abstracts, and the whole paper when it is open access) and Wikipedia found for its key sentences. It does not search the whole internet or paywalled journals, so it is not a university\'s plagiarism certificate. Use your university\'s checker (such as Turnitin, Urkund or DrillBit) before you submit.'
-        : 'This check compares the text with writing on YATICORP (other teachers\' theses and writing, and the author\'s own) and with the papers the author uploaded. It does not search the internet or published journals, so it is not a university\'s plagiarism certificate. Use your university\'s checker (such as Turnitin, Urkund or DrillBit) before you submit.', { size: 9.5, color: MUTED, width, lineGap: 2 });
+        ? 'This check compares the text with writing on YATICORPX3 (other teachers\' theses and writing, and the author\'s own), with the papers the author uploaded, and with open research papers (OpenAlex: abstracts, and the whole paper when it is open access) and Wikipedia found for its key sentences. It does not search the whole internet or paywalled journals, so it is not a university\'s plagiarism certificate. Use your university\'s checker (such as Turnitin, Urkund or DrillBit) before you submit.'
+        : 'This check compares the text with writing on YATICORPX3 (other teachers\' theses and writing, and the author\'s own) and with the papers the author uploaded. It does not search the internet or published journals, so it is not a university\'s plagiarism certificate. Use your university\'s checker (such as Turnitin, Urkund or DrillBit) before you submit.', { size: 9.5, color: MUTED, width, lineGap: 2 });
 
     // Page numbers on every page.
     const range = doc.bufferedPageRange();
@@ -165,7 +165,7 @@ const renderPlagiarismPdf = (report, teacherName, out) => {
         const bottom = doc.page.margins.bottom;
         doc.page.margins.bottom = 0;
         doc.font('latin-regular').fontSize(8.5).fillColor(MUTED)
-            .text(`YATICORP similarity report · page ${i + 1} of ${range.count}`, LEFT, doc.page.height - 44, { width, align: 'center', lineBreak: false });
+            .text(`YATICORPX3 similarity report · page ${i + 1} of ${range.count}`, LEFT, doc.page.height - 44, { width, align: 'center', lineBreak: false });
         doc.page.margins.bottom = bottom;
     }
     doc.end();

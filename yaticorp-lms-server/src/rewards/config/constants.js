@@ -9,7 +9,7 @@
 
 // Learning happens in the student's day, not the server's. A streak that rolls
 // over at UTC midnight breaks at 5:30am for a student in India, which is the
-// audience this LMS bills in rupees. One timezone for the whole platform keeps
+// audience this YATICORPX3 bills in rupees. One timezone for the whole platform keeps
 // "today" the same for the streak, the leaderboard week, and the monthly cap.
 const TIMEZONE = process.env.REWARDS_TIMEZONE || 'Asia/Kolkata';
 

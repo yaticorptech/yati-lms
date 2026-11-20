@@ -179,7 +179,7 @@ const generateRoadmap = async (req, res) => {
     claimed = true;
 
     // Call Gemini API
-    // The roadmap is written knowing which YATICORP courses this student can
+    // The roadmap is written knowing which YATICORPX3 courses this student can
     // already open, so a phase it covers points at their own shelf rather than
     // at a platform they would have to go and pay for.
     const { prompt: courseContext } = await getStudentCourseContext(req.user._id);

@@ -1,5 +1,5 @@
 /**
- * @description Reading the learning record the LMS already holds, for the
+ * @description Reading the learning record YATICORPX3 already holds, for the
  *              organization views.
  *
  * Nothing here computes or stores progress. Every number is read from the

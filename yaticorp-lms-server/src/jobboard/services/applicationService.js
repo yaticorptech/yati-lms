@@ -15,7 +15,7 @@ const { GUARDIAN_AGE } = Application;
  * The four steps, and where this application has got to.
  *
  * Two separate people answer, in order: the parent decides whether their child
- * may take the job, and only then does the LMS sign it off. A step names who
+ * may take the job, and only then does YATICORPX3 sign it off. A step names who
  * is being waited on, so nobody reads "waiting" and chases the wrong person.
  */
 const STEPS = ['Request sent', 'Parent review', 'Admin approval', 'Approved'];
@@ -28,12 +28,12 @@ const stepsFor = (status) => {
     const at = {
         'needs-guardian': [0, 0, 0, 0],
         'awaiting-guardian': [1, 2, 0, 0],
-        // The parent has agreed; the wait is now on the LMS, not on them.
+        // The parent has agreed; the wait is now on YATICORPX3, not on them.
         'awaiting-admin': [1, 1, 2, 0],
         approved: [1, 1, 1, 1],
         // A parent's no stops it at their own step ...
         declined: [1, 3, 3, 3],
-        // ... the LMS's no stops it one step later, with the parent's yes kept.
+        // ... YATICORPX3's no stops it one step later, with the parent's yes kept.
         rejected: [1, 1, 3, 3],
         ready: [1, 1, 1, 1],
         continued: [1, 1, 1, 1]
@@ -95,7 +95,7 @@ const studentView = (row, { currentGuardian = null } = {}) => ({
     mailFailed: !!row.mailError,
     mailBouncedAt: row.mailBouncedAt || null, fallbackSentAt: row.fallbackSentAt || null,
     decidedAt: row.decidedAt, declineReason: row.declineReason || '',
-    // The guardian's yes and the LMS's are separate events with separate dates,
+    // The guardian's yes and YATICORPX3's are separate events with separate dates,
     // so the student can see which of the two they are still waiting on.
     adminDecidedAt: row.adminDecidedAt, adminNote: row.adminNote || '',
     canContinue: row.status === 'ready' || row.status === 'approved' || row.status === 'continued',
@@ -117,7 +117,7 @@ const guardianView = (row) => ({
     requestedAt: row.requestedAt,
     decidedAt: row.decidedAt,
     declineReason: row.declineReason || '',
-    // Their own part is over the moment they answer; what the LMS does next is
+    // Their own part is over the moment they answer; what YATICORPX3 does next is
     // shown so a parent who returns to the link is not left wondering.
     guardianAnswered: row.status !== 'awaiting-guardian' && !!row.decidedAt,
     expired: !!(row.linkExpiresAt && row.linkExpiresAt.getTime() < Date.now())

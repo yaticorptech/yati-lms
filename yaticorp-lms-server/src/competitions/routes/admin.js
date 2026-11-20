@@ -106,7 +106,7 @@ const fromBody = (body, current = null, { host = false } = {}) => {
         .map((p) => ({ place: Number(p.place), title: String(p.title || '').slice(0, 120), xp: num(p.xp, 0, 100000, 0), rewardPoints: num(p.rewardPoints, 0, 100000, 0), description: String(p.description || '').slice(0, 300) }));
     return {
         name: name.slice(0, 140),
-        organizedBy: String(b.organizedBy ?? current?.organizedBy ?? 'YATICORP').trim().slice(0, 140) || 'YATICORP',
+        organizedBy: String(b.organizedBy ?? current?.organizedBy ?? 'YATICORPX3').trim().slice(0, 140) || 'YATICORPX3',
         description: String(b.description ?? current?.description ?? '').slice(0, 2000),
         game,
         startsAt,
