@@ -23,6 +23,8 @@ const ALIKE = [['family', 'mother', 'father'], ['book', 'read', 'write'], ['teac
 const alike = (a, b) => a === b || ALIKE.some((g) => g.includes(a) && g.includes(b));
 
 const englishOf = (w) => squash(w.course ? w.en : w.word);
+// A word's picture: the list's, else its own (a unit's new words carry theirs, 2026-11-17: "hand", "teeth" are not in the list).
+const picOf = (w) => pictureOf(englishOf(w)) || w.pic || null;
 
 /** Every word with a picture in the course as the student has it — { word, en, pic, level } — made once. */
 const picturedCache = new Map();
@@ -56,12 +58,12 @@ const picturedOf = (course, helper) => {
  */
 const pictureFor = ({ key, words, module, course = null, helper, level, sayLang = 'en-IN' }) => {
     // Not a word written the same in both languages (शिक्षक in Marathi and in Hindi): the question would hold its answer.
-    const mine = (words || []).filter((w) => pictureOf(englishOf(w)) && firstOf(w.word) && firstOf(w.kannada) && squash(firstOf(w.word)) !== squash(firstOf(w.kannada)));
+    const mine = (words || []).filter((w) => picOf(w) && firstOf(w.word) && firstOf(w.kannada) && squash(firstOf(w.word)) !== squash(firstOf(w.kannada)));
     if (!mine.length) return null;
     const turn = shuffle(mine, seeded(`${key}:picture:word`));
     const w = turn[(module === 'translation' ? 1 : 0) % turn.length];
     const en = englishOf(w);
-    const right = { word: firstOf(w.word), en, pic: pictureOf(en) };
+    const right = { word: firstOf(w.word), en, pic: picOf(w) };
     const meaning = firstOf(w.kannada);
     const pool = picturedOf(course, helper).filter((x) => !alike(x.en, en) && squash(x.word) !== squash(right.word) && x.pic !== right.pic);
     // The unit's own words first, then its level's, then any; two not alike each other either.
@@ -98,7 +100,7 @@ const spellFor = ({ key, words, course = null, sayLang = 'en-IN', not = null }) 
     const fit = (w) => {
         const word = firstOf(w.word);
         const n = letters(word).length;
-        return pictureOf(englishOf(w)) && word && !/\s/.test(word) && n >= 2 && n <= 10 && firstOf(w.kannada) && squash(word) !== squash(firstOf(w.kannada));
+        return picOf(w) && word && !/\s/.test(word) && n >= 2 && n <= 10 && firstOf(w.kannada) && squash(word) !== squash(firstOf(w.kannada));
     };
     const mine = (words || []).filter(fit);
     if (!mine.length) return null;
@@ -112,7 +114,7 @@ const spellFor = ({ key, words, course = null, sayLang = 'en-IN', not = null }) 
     if (mixed.join('') === parts.join('')) return null;
     const meaning = firstOf(w.kannada);
     return {
-        id: `spell~${en}`, type: 'letters', prompt: `Spell the word for "${meaning}".`, ask: meaning, pic: pictureOf(en),
+        id: `spell~${en}`, type: 'letters', prompt: `Spell the word for "${meaning}".`, ask: meaning, pic: picOf(w),
         words: mixed, answer: word, model: word, sayLang, explanation: `"${meaning}" is "${word}".`, ...(course ? { course } : {})
     };
 };
@@ -128,14 +130,14 @@ const spellRight = (q, given) => squash(String(given || '').replace(/\s+/g, ''))
  * meanings, pics: { meaning: picture }, answer / model: the right meaning, explanation }.
  */
 const seeFor = ({ key, words, course = null, helper, level, sayLang = 'en-IN', not = [] }) => {
-    const fit = (w) => pictureOf(englishOf(w)) && firstOf(w.word) && firstOf(w.kannada) && squash(firstOf(w.word)) !== squash(firstOf(w.kannada));
+    const fit = (w) => picOf(w) && firstOf(w.word) && firstOf(w.kannada) && squash(firstOf(w.word)) !== squash(firstOf(w.kannada));
     const mine = (words || []).filter(fit);
     if (!mine.length) return null;
     // Another word than the lesson's other picture questions ask, where the unit has one.
     const turn = shuffle(mine, seeded(`${key}:see:word`));
     const w = turn.find((x) => !not.includes(englishOf(x))) || turn[0];
     const en = englishOf(w);
-    const right = { en, pic: pictureOf(en), meaning: firstOf(w.kannada) };
+    const right = { en, pic: picOf(w), meaning: firstOf(w.kannada) };
     const pool = picturedOf(course, helper).filter((x) => !alike(x.en, en) && x.pic !== right.pic && x.meaning && squash(x.meaning) !== squash(right.meaning));
     const unit = new Set(mine.map(englishOf));
     const rnd = seeded(`${key}:see:others`);

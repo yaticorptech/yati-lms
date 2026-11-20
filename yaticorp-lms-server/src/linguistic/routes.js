@@ -541,7 +541,7 @@ router.get('/history', async (req, res, next) => {
 router.get('/certificates', async (req, res, next) => {
     try {
         const progress = await svc.numberCertificates(req.user._id, await svc.progressOf(req.user._id));
-        res.json({ certificates: progress.certificates.filter((c) => !c.hiddenAt).map((c) => ({ level: c.level, label: svc.LEVEL_LABEL[c.level], course: c.course || 'en', courseName: courseInfo(c.course || 'en').name, number: c.number, issuedAt: c.issuedAt, average: c.average })) });
+        res.json({ certificates: progress.certificates.filter((c) => !c.hiddenAt && ['beginner', 'advanced'].includes(c.level)).map((c) => ({ level: c.level, label: svc.LEVEL_LABEL[c.level], course: c.course || 'en', courseName: courseInfo(c.course || 'en').name, number: c.number, issuedAt: c.issuedAt, average: c.average })) });
     } catch (err) { next(err); }
 });
 // Drive linked first (2026-11-05).

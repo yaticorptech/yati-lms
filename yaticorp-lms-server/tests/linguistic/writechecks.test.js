@@ -2,7 +2,7 @@
  * The writing tasks' checklists tick themselves (2026-11-07, the user, of "I said what time I wake up" under a writing
  * box: "why did you put this?"; chose: each point ticks itself as they write, in the student's language).
  */
-const { test } = require('node:test');
+const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -58,4 +58,18 @@ test('the student\'s page runs the same rules (parts/speakTicks.js, kept alike)'
     const page = own(path.join(__dirname, '../../../yaticorp-lms-student/src/linguistic/parts/speakTicks.js'));
     assert.ok(server.length > 500);
     assert.equal(page.replace(/export const writeTicksOf[^;]*;/, '').trim(), server.trim());
+});
+
+// A letter's layout is not a sentence (2026-11-18, the user's letter that could not go on: "To:", "The Principal,",
+// "[College Name]," were each told to end with a full stop).
+describe('a letter or an email: its sentences checked, not its layout', () => {
+    const svc = require('../../src/linguistic/service');
+    test('the address, date, subject, greeting, closing and name are left out; a real slip is still found', () => {
+        const letter = 'To:\nThe Principal,\n[College Name],\n[Place].\n\nDate: 18 November 2026\n\nSubject: Leave for two days\n\nRespected Sir,\n\nI am a student of first year BCom. I was ill yesterday. Please give me leave for two days.\n\nThank you.\n\nYours faithfully,\nRavi Kumar';
+        const g = svc.grammarOf(letter, 'letter');
+        assert.deepEqual([g.clean, g.total], [3, 3], g.sentences.map((x) => x.text).join(' | '));
+        const email = svc.grammarOf('To: hr@company.com\nSubject: The trainee post\n\nDear Madam,\n\ni have a BCom degree.\n\nRegards,\nAsha', 'email');
+        assert.deepEqual([email.clean, email.total], [0, 1], 'its one sentence, put right');
+        assert.equal(svc.grammarOf('My name is Ravi\nI like cricket.', 'paragraph').total, 2, 'a paragraph: every line a sentence, as before');
+    });
 });

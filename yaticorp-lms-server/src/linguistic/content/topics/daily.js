@@ -112,9 +112,11 @@ const lessons = [
             mcq('q4', 'Where will they meet?', ['At the bus stand', 'At the library', 'At Meena\'s house', 'At college'], 'At the bus stand', 'Meena says: "Let\'s meet at the bus stand."')
         ],
         speaking: {
-            prompt: 'Make a plan with a friend in 4 or 5 sentences: ask if your friend is free, say where you want to go, suggest a time and a place to meet, and say goodbye.',
-            sample: 'Hi Asha! Are you free on Sunday? Let\'s go to the park. How about six o\'clock in the evening? Let\'s meet at the bus stand. See you on Sunday!',
-            checklist: ['I asked if my friend is free', 'I said where we can go', 'I suggested a time', 'I said where to meet', 'I said goodbye, like "See you!"', 'I spoke slowly and clearly']
+            // Easier in Beginner (2026-11-18, the user: "give some easy units; don't make speaking difficult — keep it, but a little
+            // easy"): three short sentences, each shown; three points to tick (two to go on).
+            prompt: 'Ask a friend to go out, in 3 short sentences, like this: "Are you free on Sunday?" "Let\'s go to the park." "See you!"',
+            sample: 'Are you free on Sunday? Let\'s go to the park. See you!',
+            checklist: ['I asked if my friend is free', 'I said where we can go', 'I said goodbye, like "See you!"']
         }
     },
     {
@@ -195,8 +197,8 @@ const asks = {
     },
     speaking: {
         'speaking-beginner-4': {
-            prompt: `${ENGLISH} 4 ಅಥವಾ 5 ವಾಕ್ಯಗಳಲ್ಲಿ ಸ್ನೇಹಿತರೊಂದಿಗೆ ಒಂದು ಯೋಜನೆ ಮಾಡಿ: ಸ್ನೇಹಿತರಿಗೆ ಬಿಡುವಿದೆಯೇ ಎಂದು ಕೇಳಿ, ಎಲ್ಲಿಗೆ ಹೋಗಬೇಕು ಎಂದು ಹೇಳಿ, ಭೇಟಿಯಾಗುವ ಸಮಯ ಮತ್ತು ಸ್ಥಳವನ್ನು ಸೂಚಿಸಿ, ನಂತರ ವಿದಾಯ ಹೇಳಿ.`,
-            checklist: ['ಸ್ನೇಹಿತರಿಗೆ ಬಿಡುವಿದೆಯೇ ಎಂದು ಕೇಳಿದೆ', 'ನಾವು ಎಲ್ಲಿಗೆ ಹೋಗಬಹುದು ಎಂದು ಹೇಳಿದೆ', 'ಒಂದು ಸಮಯವನ್ನು ಸೂಚಿಸಿದೆ', 'ಎಲ್ಲಿ ಭೇಟಿಯಾಗಬೇಕು ಎಂದು ಹೇಳಿದೆ', '"See you!" ಎಂಬಂತೆ ವಿದಾಯ ಹೇಳಿದೆ', 'ನಿಧಾನವಾಗಿ ಮತ್ತು ಸ್ಪಷ್ಟವಾಗಿ ಮಾತನಾಡಿದೆ']
+            prompt: `ಸ್ನೇಹಿತರನ್ನು ಹೊರಗೆ ಕರೆಯಿರಿ, ${ENGLISH} 3 ಚಿಕ್ಕ ವಾಕ್ಯಗಳಲ್ಲಿ, ಹೀಗೆ: "Are you free on Sunday?" "Let's go to the park." "See you!"`,
+            checklist: ['ಸ್ನೇಹಿತರಿಗೆ ಬಿಡುವಿದೆಯೇ ಎಂದು ಕೇಳಿದೆ', 'ನಾವು ಎಲ್ಲಿಗೆ ಹೋಗಬಹುದು ಎಂದು ಹೇಳಿದೆ', '\"See you!\" ಎಂದು ವಿದಾಯ ಹೇಳಿದೆ']
         }
     }
 };

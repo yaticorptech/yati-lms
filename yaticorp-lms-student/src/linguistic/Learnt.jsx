@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, X, BookOpen, NotebookText } from 'lucide-react';
 import { linguisticApi } from './api';
-import { COLORS, SHOWN_LEVELS } from './meta';
+import { COLORS, SHOWN_LEVELS, levelOf } from './meta';
 import { Loading, Mascot, Panel, Problem, Speaker } from './ui';
 
 const has = (q, ...texts) => !q || texts.some((t) => t && String(t).toLowerCase().includes(q));
@@ -19,9 +19,12 @@ const filtered = (lesson, q) => ({
     words: lesson.words?.filter((w) => has(q, w.word, w.say, w.meaning, w.en)),
     letters: lesson.letters?.filter((l) => has(q, l.letter, l.sound, l.word, l.sentence, l.sentenceEn)),
     sentences: lesson.sentences?.filter((s) => has(q, s.text, s.say, s.meaning, s.en)),
-    story: lesson.story && has(q, lesson.story.title, lesson.story.moral) ? lesson.story : null
+    story: lesson.story && has(q, lesson.story.title, lesson.story.moral, lesson.story.text) ? lesson.story : null,
+    // A conversation and a grammar rule (2026-11-18, the user: "what the student learns comes to the notes").
+    talk: lesson.talk && has(q, lesson.talk.scenario, ...(lesson.talk.lines || []).flatMap((x) => [x.text, x.meaning]), ...(lesson.talk.phrases || [])) ? lesson.talk : null,
+    rule: lesson.rule && has(q, lesson.title, lesson.rule.intro, ...(lesson.rule.points || []), ...(lesson.rule.examples || [])) ? lesson.rule : null
 });
-const any = (l) => !!(l.words?.length || l.letters?.length || l.sentences?.length || l.story);
+const any = (l) => !!(l.words?.length || l.letters?.length || l.sentences?.length || l.story || l.talk || l.rule);
 const Label = ({ children }) => <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#AFAFAF]">{children}</p>;
 
 function Words({ words, lang }) {
@@ -83,6 +86,65 @@ function Sentences({ sentences, lang }) {
     );
 }
 
+/** A story: its title, then its moral (a picture story) or its whole text, to read again (2026-11-18). */
+function Story({ story, lang }) {
+    return (
+        <div className="rounded-xl px-3.5 py-3" style={{ background: COLORS.gold.light }} data-notes-story>
+            <p className="text-[15px] font-extrabold text-[#3c3c3c]" lang={lang}>📖 {story.title}</p>
+            {story.moral && <p className="mt-1 text-[15px] font-semibold text-[#4b4b4b]" lang={lang}><span className="font-extrabold" style={{ color: COLORS.gold.ink }}>{story.moralLabel || 'Moral:'}</span> {story.moral}</p>}
+            {story.text && (
+                <details className="mt-1 group">
+                    <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide" style={{ color: COLORS.gold.ink }}>Read the story</summary>
+                    <p className="mt-1.5 whitespace-pre-line break-words text-[15px] font-semibold leading-relaxed text-[#4b4b4b]" lang={lang} data-notes-story-text>{story.text}</p>
+                </details>
+            )}
+        </div>
+    );
+}
+
+/** A conversation: who says what, each line with its meaning, and its useful phrases (2026-11-18). */
+function Talk({ talk, lang }) {
+    const speak = talk.locale || lang;
+    return (
+        <div className="space-y-2 rounded-xl bg-[#F2F5FF] px-3.5 py-3" data-notes-talk>
+            {talk.scenario && <p className="text-sm font-bold text-[#777]">💬 {talk.scenario}</p>}
+            <ul className="space-y-1.5">
+                {(talk.lines || []).map((x, i) => (
+                    <li key={i} className="flex items-start gap-2" data-notes-line>
+                        <span className="min-w-0 flex-1">
+                            <span className="block break-words text-[15px] font-semibold text-[#3c3c3c]"><span className="font-extrabold" style={{ color: COLORS.blue.ink }}>{x.speaker}:</span> <span lang={speak}>{x.text}</span></span>
+                            {x.meaning && x.meaning !== x.text && <span className="block break-words text-sm font-semibold text-[#777]">{x.meaning}</span>}
+                        </span>
+                        <Speaker text={x.text} lang={speak} size="sm" />
+                    </li>
+                ))}
+            </ul>
+            {talk.phrases?.length > 0 && (
+                <div>
+                    <Label>Useful phrases</Label>
+                    <ul className="mt-1 flex flex-wrap gap-1.5">{talk.phrases.map((p) => <li key={p} className="rounded-full bg-white px-2.5 py-1 text-sm font-bold text-[#4b4b4b] ring-1 ring-[#E5E5E5]" lang={speak}>{p}</li>)}</ul>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/** A grammar rule: what it is, its points and its examples (2026-11-18). */
+function Rule({ rule, lang }) {
+    return (
+        <div className="space-y-1.5 rounded-xl px-3.5 py-3" style={{ background: COLORS.green.light }} data-notes-rule>
+            {rule.intro && <p className="text-[15px] font-bold text-[#3c3c3c]">✏️ {rule.intro}</p>}
+            {rule.points?.length > 0 && <ul className="list-disc space-y-1 pl-5 text-[15px] font-semibold text-[#4b4b4b]">{rule.points.map((p) => <li key={p}>{p}</li>)}</ul>}
+            {rule.examples?.length > 0 && (
+                <div>
+                    <Label>Examples</Label>
+                    <ul className="mt-1 space-y-1">{rule.examples.map((e) => <li key={e} className="flex items-center gap-2 text-[15px] font-semibold text-[#3c3c3c]"><span className="min-w-0 flex-1 break-words" lang={lang}>{e}</span><Speaker text={e} lang={lang} size="sm" /></li>)}</ul>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function Unit({ unit, number, tone = COLORS.green, lang, locale }) {
     return (
         <Panel className="scroll-mt-24 overflow-hidden" id={`notes-${unit.id}`} data-notes-unit={unit.id}>
@@ -103,12 +165,9 @@ function Unit({ unit, number, tone = COLORS.green, lang, locale }) {
                     {l.letters?.length > 0 && <Letters letters={l.letters} lang={lang} />}
                     {l.words?.length > 0 && <Words words={l.words} lang={lang} />}
                     {l.sentences?.length > 0 && <Sentences sentences={l.sentences} lang={l.locale || locale} />}
-                    {l.story && (
-                        <div className="rounded-xl px-3.5 py-3" style={{ background: COLORS.gold.light }} data-notes-story>
-                            <p className="text-[15px] font-extrabold text-[#3c3c3c]" lang={lang}>📖 {l.story.title}</p>
-                            <p className="mt-1 text-[15px] font-semibold text-[#4b4b4b]" lang={lang}><span className="font-extrabold" style={{ color: COLORS.gold.ink }}>{l.story.moralLabel || 'Moral:'}</span> {l.story.moral}</p>
-                        </div>
-                    )}
+                    {l.story && <Story story={l.story} lang={lang} />}
+                    {l.talk && <Talk talk={l.talk} lang={locale} />}
+                    {l.rule && <Rule rule={l.rule} lang={locale} />}
                 </section>
             ))}
             </div>
@@ -133,7 +192,8 @@ export default function Learnt() {
     const counts = useMemo(() => {
         const all = (data?.levels || []).flatMap((s) => s.units.flatMap((u) => u.lessons));
         return [['words', all.reduce((n, l) => n + (l.words?.length || 0), 0)], ['letters', all.reduce((n, l) => n + (l.letters?.length || 0), 0)],
-            ['sentences', all.reduce((n, l) => n + (l.sentences?.length || 0), 0)], ['stories', all.filter((l) => l.story).length]].filter(([, n]) => n);
+            ['sentences', all.reduce((n, l) => n + (l.sentences?.length || 0), 0)], ['stories', all.filter((l) => l.story).length],
+            ['conversations', all.filter((l) => l.talk).length], ['grammar rules', all.filter((l) => l.rule).length]].filter(([, n]) => n);
     }, [data]);
     if (data === undefined) return <Loading label="Loading your notes…" />;
     if (!data) return <Problem error={error} onRetry={() => { setData(undefined); setTries((n) => n + 1); }} />;
@@ -181,7 +241,7 @@ export default function Learnt() {
                 <Panel className="flex flex-col items-center gap-2 p-8 text-center" data-notes-empty>
                     <Mascot pose="presenting" className="h-28 w-28" />
                     <p className="text-[17px] font-extrabold text-[#3c3c3c]">No notes yet</p>
-                    <p className="max-w-sm text-[15px] font-semibold text-[#777]">Finish a lesson and its words, letters, sentences and stories are written here for you.</p>
+                    <p className="max-w-sm text-[15px] font-semibold text-[#777]">Finish a lesson and what it taught — words, letters, sentences, stories, conversations and grammar — is written here for you.</p>
                     <Link to="/linguistic" className="lingo-btn mt-2 inline-flex h-11 items-center px-5 text-[15px]" style={{ background: COLORS.green.face, borderColor: COLORS.green.edge, color: '#fff' }}>Start learning</Link>
                 </Panel>
             ) : (
@@ -192,7 +252,7 @@ export default function Learnt() {
                                 to show the section number, so every Section 1 topic read "1 ·"). */}
                             {levels.map((s) => (
                                 <div key={s.level}>
-                                    {sections && <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-wider" style={{ color: toneOf(s.level).ink }}>Section {sectionOf(s.level)} · {s.label}</p>}
+                                    {sections && <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-wider" style={{ color: toneOf(s.level).ink }}>Section {sectionOf(s.level)} · {levelOf(s.level).label}</p>}
                                     <div className="flex flex-wrap gap-2">
                                         {s.units.map((u, ui) => (
                                             <button key={u.id} type="button" onClick={() => go(u.id)} className="lingo-tile inline-flex items-center gap-2 !rounded-full py-1 pl-1 pr-3.5 text-sm font-extrabold text-[#4b4b4b]" data-notes-topic={u.id}>
@@ -208,7 +268,7 @@ export default function Learnt() {
                     {levels.length === 0 && <Panel className="p-6 text-center text-[15px] font-semibold text-[#777]" data-notes-none>Nothing in your notes matches “{query.trim()}”.</Panel>}
                     {levels.map((s) => (
                         <section key={s.level} className="space-y-3" data-notes-section={s.level}>
-                            <h2 className="flex items-center gap-2 pt-2 text-sm font-extrabold uppercase tracking-wider" style={{ color: toneOf(s.level).ink }}><span className="h-2.5 w-2.5 rounded-full" style={{ background: toneOf(s.level).face }} />Section {sectionOf(s.level)} · {s.label}</h2>
+                            <h2 className="flex items-center gap-2 pt-2 text-sm font-extrabold uppercase tracking-wider" style={{ color: toneOf(s.level).ink }}><span className="h-2.5 w-2.5 rounded-full" style={{ background: toneOf(s.level).face }} />Section {sectionOf(s.level)} · {levelOf(s.level).label}</h2>
                             {s.units.map((u, ui) => <Unit key={u.id} unit={u} number={u.number ?? ui + 1} tone={toneOf(s.level)} lang={lang} locale={locale} />)}
                         </section>
                     ))}

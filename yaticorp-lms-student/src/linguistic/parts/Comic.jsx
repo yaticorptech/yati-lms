@@ -891,8 +891,9 @@ export default function Comic({ comic }) {
             <style>{MOTION}</style>
             {canRead && (
                 <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-bold text-slate-500" data-comic-hint>Tap a character to hear them speak.</p>
-                    <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#DCD3FA', color: LOOK.purple }} data-comic-read>
+                    {/* On a phone the line wraps, the button stays whole (2026-11-19, 344px: "READ / ALOUD"). */}
+                    <p className="min-w-0 flex-1 text-xs font-bold text-slate-500" data-comic-hint>Tap a character to hear them speak.</p>
+                    <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap px-3 text-sm" style={{ background: '#fff', borderColor: '#DCD3FA', color: LOOK.purple }} data-comic-read>
                         {reading ? <>{loading ? <Loader2 size={15} className="animate-spin" /> : <Square size={15} />} Stop</> : <><Headphones size={17} /> Read aloud</>}
                     </button>
                 </div>

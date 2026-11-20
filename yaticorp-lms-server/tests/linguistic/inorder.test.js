@@ -56,7 +56,7 @@ describe('units and sections in order', () => {
         const beginner = (await svc.lessonsFor(progress)).filter((l) => l.level === 'beginner');
         await finish(beginner.filter((l) => !l.review));
         let path = (await api('GET', '/path')).body;
-        assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional'], 'five sections (2026-11-14)');
+        assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional', 'everyday', 'services', 'workplace', 'opinions', 'society'], 'ten sections (2026-11-17)');
         assert.equal(path.levels[1].open, false, 'Advanced stays shut while unit reviews, listening and the level review are left');
         await finish(beginner.filter((l) => l.review && l.review !== 'assessment'));
         path = (await api('GET', '/path')).body;
@@ -78,7 +78,7 @@ describe('units and sections in order', () => {
         progress.lessons.push({ lessonId: adv[1]._id, module: adv[1].module, level: 'advanced', status: 'started', step: 'learn' });
         await progress.save();
         const path = (await oldApi('GET', '/path')).body;
-        assert.deepEqual(path.levels.map((l) => l.open), [true, false, false, false, false], 'only Section 1 open');
+        assert.deepEqual(path.levels.map((l) => l.open), [true, false, false, false, false, false, false, false, false, false], 'only Section 1 open');
         assert.equal(path.level, 'beginner', 'their level: Section 1, until it is finished');
         const shut = path.levels.find((l) => l.level === 'advanced').units.flatMap((u) => u.lessons).filter((x) => !x.stop);
         assert.ok(shut.every((x) => !x.open), 'every Advanced lesson shut, the begun and the done too');

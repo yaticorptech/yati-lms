@@ -18,11 +18,15 @@ import { Check, Lock, Crown, Trophy, BookOpen, X, Download, Dumbbell, Star, Mic,
 import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
 const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi, announceRewards } from './api';
-import { COLORS, MODULES, shortDirection, blurbOf, levelOf, hasAssessment, lastLesson } from './meta';
+import { COLORS, MODULES, shortDirection, blurbOf, levelOf, hasAssessment, lastLesson, sectionsText } from './meta';
 import { Bar, Chunky, Loading, Mascot, Problem, Panel } from './ui';
 import JumpTest from './parts/JumpTest';
 import ChestArt from './parts/ChestArt';
 import JumpUnit from './parts/JumpUnit';
+
+// The "Up next … Jump here?" card above a shut unit (2026-11-16): taken off the path (2026-11-17, the user: "remove this,
+// keep it the same as before"). True brings it back.
+const UNIT_JUMP_CARD = false;
 
 /** How far each node sits from the middle, in turn: the path winds right, back, left, back. */
 const OFFSETS = [0, 44, 70, 44, 0, -44, -70, -44];
@@ -229,7 +233,7 @@ function TrophyNode({ section, certificateMinAverage, courseName = 'English' }) 
                 <div className="lingo-pop mt-5 w-full max-w-[320px] rounded-2xl border-2 border-[#E5E5E5] bg-white p-4 text-center">
                     <p className="text-[17px] font-extrabold text-[#3c3c3c]">{section.label} certificate</p>
                     <p className="mt-1 text-[15px] font-semibold text-[#777]">
-                        {got ? `Earned · ${section.certificate.number}` : section.complete ? `All lessons done. Retake quizzes to lift your average to ${certificateMinAverage}% and earn it.` : `Finish every ${section.label} lesson with an average of ${certificateMinAverage}% or more.`}
+                        {got ? `Earned · ${section.certificate.number}` : section.complete ? `All lessons done. Retake quizzes to lift your average to ${certificateMinAverage}% and earn it.` : `Finish every lesson of ${sectionsText(section.sections)} with an average of ${certificateMinAverage}% or more.`}
                     </p>
                     {got && <Chunky color="gold" onClick={download} disabled={busy} className="mt-3 w-full" data-certificate={section.level}><Download size={17} /> {busy ? 'Preparing…' : 'Download'}</Chunky>}
                     {error && <p className="mt-2 text-sm font-bold" style={{ color: COLORS.red.ink }}>{error}</p>}
@@ -284,17 +288,20 @@ const LOCKED_TONE = { face: '#B9BEC7', edge: '#8F96A3' };
 const PATH_TONE = TOP_TONE;
 
 /** Phones: the section you are in as a bright hero card (2026-11-16, "redesign it, attractive"). */
-function SectionHero({ section: head, si, path, full = false }) {
-    // The whole group (2026-11-18, the user: "it should calculate the progress of the entire Beginner, to Section 3's
-    // review, before Advanced starts"): this section and the ones after it with no card of their own (`bare`).
-    let end = si + 1; while (end < path.levels.length && levelOf(path.levels[end].level).bare) end++;
-    const group = path.levels.slice(si, end);
-    const section = { ...head, total: group.reduce((a, g) => a + (g.total || 0), 0), completed: group.reduce((a, g) => a + (g.completed || 0), 0), complete: group.every((g) => g.complete) };
-    const pct = section.total ? Math.round((section.completed / section.total) * 100) : 0;
-    const here = group.some((g) => g.level === path.level);
-    // Each section its own colour; gold once finished, grey while locked.
+function SectionHero({ section, si, path, full = false }) {
+    // Its part's progress, not the section's alone (2026-11-19, the user: "Beginner is not completed till Section 3's end"):
+    // Beginner is Sections 1–3, Advanced 4–10 — "Completed" and the trophy only once every section of the part is.
+    const word = levelOf(section.level).label;
+    const part = path.levels.filter((l) => levelOf(l.level).label === word && l.total > 0);
+    const numbers = part.map((l) => path.levels.indexOf(l) + 1);
+    const completed = part.reduce((n, l) => n + l.completed, 0), total = part.reduce((n, l) => n + l.total, 0);
+    const complete = part.length > 0 && part.every((l) => l.complete);
+    const pct = total ? Math.round((completed / total) * 100) : 0;
+    // Here anywhere in the part (2026-11-18): the card is the whole Beginner or Advanced.
+    const here = section.level === path.level || part.some((l) => l.level === path.level);
+    // Gold once its part is finished, grey while locked.
     // The top card on phones is indigo (2026-11-16, "different colour"), so it stands apart from the green unit banner below it.
-    const tone = section.complete ? COLORS.gold : !section.open ? LOCKED_TONE : !full ? TOP_TONE : PATH_TONE;
+    const tone = complete ? COLORS.gold : !section.open ? LOCKED_TONE : !full ? TOP_TONE : PATH_TONE;
     const before = path.levels[si - 1];
     const Name = full ? 'h2' : 'p';
     return (
@@ -303,10 +310,14 @@ function SectionHero({ section: head, si, path, full = false }) {
             <span aria-hidden="true" className="lingo-hero-drift pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/15" />
             <span aria-hidden="true" className="lingo-hero-drift-2 pointer-events-none absolute -bottom-12 right-16 h-24 w-24 rounded-full bg-white/10" />
             <span aria-hidden="true" className="lingo-hero-bob pointer-events-none absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-2xl bg-white/20 text-2xl ring-2 ring-white/30">
-                {section.complete ? <Trophy size={24} strokeWidth={2.5} /> : !section.open ? <Lock size={22} strokeWidth={2.5} /> : <Crown size={24} strokeWidth={2.5} />}
+                {complete ? <Trophy size={24} strokeWidth={2.5} /> : !section.open ? <Lock size={22} strokeWidth={2.5} /> : <Crown size={24} strokeWidth={2.5} />}
             </span>
-            {/* No "Section 1 · A1" line (2026-11-18, the user: "why is it written"): the card is the whole Beginner or Advanced. */}
-            <Name {...(full ? { id: `sec-${section.level}`, 'data-section-name': true } : {})} className="relative pr-14 text-2xl font-black leading-tight drop-shadow-sm">{levelOf(section.level).section}{path.course?.name && <span className="font-extrabold text-white/85"> · {path.course.name}</span>}</Name>
+            {/* No "Section 1 · A1" line (2026-11-18, the user: "why is it written"): the card is the whole Beginner or Advanced.
+                The level first, highlighted, in front of the section's name (2026-11-18, as on the Sections page). */}
+            <Name {...(full ? { id: `sec-${section.level}`, 'data-section-name': true } : {})} className="relative flex flex-wrap items-center gap-x-2 gap-y-1 pr-14 text-2xl font-black leading-tight">
+                {levelOf(section.level).named && <span className="rounded-xl bg-white px-2.5 py-0.5 text-lg uppercase tracking-wide shadow-sm" style={{ color: section.open ? tone.edge : '#8F96A3' }} data-level-word>{levelOf(section.level).label}</span>}
+                <span className="drop-shadow-sm">{levelOf(section.level).section}{path.course?.name && <span className="font-extrabold text-white/85"> · {path.course.name}</span>}</span>
+            </Name>
             {here && (
                 <span className="relative mt-1.5 inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-[10.5px] font-black uppercase tracking-wider" style={{ color: tone.edge }}>
                     <Flag size={11} strokeWidth={3} /> You are here
@@ -314,12 +325,12 @@ function SectionHero({ section: head, si, path, full = false }) {
             )}
             {section.open ? (
                 <div className="relative mt-3">
-                    <div className="h-3 w-full overflow-hidden rounded-full bg-black/15" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${section.label}: ${section.completed} of ${section.total} lessons`}>
-                        <div className="lingo-hero-fill h-full rounded-full bg-white transition-all" style={{ width: `${Math.max(pct, section.completed ? 4 : 0)}%` }} />
+                    <div className="h-3 w-full overflow-hidden rounded-full bg-black/15" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${word}: ${completed} of ${total} lessons`} data-part-progress={`${completed}/${total}`}>
+                        <div className="lingo-hero-fill h-full rounded-full bg-white transition-all" style={{ width: `${Math.max(pct, completed ? 4 : 0)}%` }} />
                     </div>
                     <p className="mt-1.5 flex items-center justify-between text-xs font-extrabold text-white/90">
-                        <span>{section.completed} of {section.total} lessons</span>
-                        <span className="tabular-nums">{section.complete ? 'Completed' : `${pct}%`}</span>
+                        <span>{completed} of {total} {word} lessons{numbers.length > 1 ? ` · Sections ${numbers[0]}–${numbers[numbers.length - 1]}` : ''}</span>
+                        <span className="tabular-nums" data-part-complete={complete}>{complete ? 'Completed' : `${pct}%`}</span>
                     </p>
                 </div>
             ) : (
@@ -443,7 +454,7 @@ export default function LinguisticHome() {
                         return (
                             <div key={u.id} className="relative mb-10" data-unit={u.id} data-unit-kind={u.kind} data-open={u.open}>
                                 {/* "Up next … Jump here?" (2026-11-13, the user's Duolingo picture): under the unit before, the shut unit and its test. */}
-                                {u.jump && <JumpUnit unit={u} upNext={ui > 0 && section.units[ui - 1].open} />}
+                                {UNIT_JUMP_CARD && u.jump && <JumpUnit unit={u} upNext={ui > 0 && section.units[ui - 1].open} />}
                                 {/* A unit not open yet: its banner grey, with a lock (2026-10-28: it opens when the one before is finished). */}
                                 {/* Scrolls with the page (2026-11-12, "while scrolling this card also coming"): no longer held at the top over the circles. */}
                                 <div className="relative mb-10 flex items-center gap-3 rounded-2xl p-4 text-white" style={u.open ? { background: c.face, boxShadow: `0 4px 0 ${c.edge}` } : { background: '#C9CED6', boxShadow: '0 4px 0 #A9AFB8' }} data-unit-locked={u.open ? undefined : 'true'}>
@@ -477,15 +488,8 @@ export default function LinguisticHome() {
                             </div>
                         );
                     })}
-                    {/* One certificate per group (2026-11-17, "the certificate will be given of beginner after completing beginner
-                        lessons, before advanced starts"): the trophy stands after the group's last section (Explorer for
-                        Beginner), holding the certificate of its first (the server issues it there, levels.js CERT_GROUPS). */}
-                    {!levelOf(path.levels[si + 1]?.level).bare ? (() => {
-                        let h = si; while (h > 0 && levelOf(path.levels[h].level).bare) h--;
-                        const group = path.levels.slice(h, si + 1);
-                        const head = path.levels[h];
-                        return <TrophyNode section={{ ...head, complete: group.every((g) => g.complete) }} certificateMinAverage={path.certificateMinAverage} courseName={path.course?.name} />;
-                    })() : null}
+                    {/* Only at the end of Section 3 (Beginner) and the last section (Advanced) — 2026-11-18, two certificates. */}
+                    {section.cert && <TrophyNode section={{ level: section.cert.part, label: section.cert.label, sections: section.cert.sections, complete: section.cert.complete, certificate: section.cert.certificate }} certificateMinAverage={path.certificateMinAverage} courseName={path.course?.name} />}
                 </section>
             ))}
             {guide && <Guidebook unit={guide.unit} section={guide.section} language={path.language?.code} target={path.course?.code || 'en'} onClose={() => setGuide(null)} />}

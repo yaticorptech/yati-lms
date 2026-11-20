@@ -95,8 +95,9 @@ function LessonPage() {
     const lang = lesson.language;
     const T = tr(lang), F = trf(lang);
     const quizFrom = steps.findIndex((s) => s.part === 'quiz');
-    const runSteps = run.from === 'quiz' && quizFrom > 0 ? steps.slice(quizFrom) : steps;
-    const retry = () => { setDone(null); setRun((r) => ({ n: r.n + 1, from: 'quiz' })); linguisticApi.step(id, 'quiz').catch(() => {}); };
+    // A story's writing comes after its quiz (2026-11-19): the quiz again on a retry, the writing too only if not reached (out of hearts).
+    const runSteps = run.from === 'quiz' && quizFrom > 0 ? steps.slice(quizFrom).filter((s) => !s.afterQuiz || run.write) : steps;
+    const retry = () => { const write = !!done?.summary?.outOfHearts; setDone(null); setRun((r) => ({ n: r.n + 1, from: 'quiz', write })); linguisticApi.step(id, 'quiz').catch(() => {}); };
 
     const check = (step, given, value) => {
         if (step.kind === 'question') return step.section === 'quiz' ? linguisticApi.quizCheck(id, step.q.id, given) : linguisticApi.check(id, step.section, step.q.id, given);

@@ -32,36 +32,26 @@ const STUDY = ['stud*', 'college', 'university', 'school', 'degree', 'course', '
 const PACE = { pace: true };
 
 const CHECKS = {
+    // Beginner (2026-11-18, made easier: three short sentences, three points).
     'speaking-beginner-1': [
         { groups: [NAME] },
         { groups: [['from', 'i live in', 'i stay in', 'native', 'hometown', 'home town', 'village', 'city']] },
-        { groups: [STUDY] },
-        { groups: [['hobby', 'hobbies', 'free time', 'spare time', 'like*', 'love*', 'enjoy*', 'interest*', 'fond of', 'play*', 'favourite', 'favorite']] },
-        { words: 20 },
-        PACE
+        { groups: [['like*', 'love*', 'enjoy*', 'favourite', 'favorite', 'hobby', 'hobbies', 'play*']] }
     ],
     'speaking-beginner-2': [
         { groups: [GREET] },
-        { groups: [['how much', 'price', 'cost*', 'rate']], times: 2 },
-        { groups: [['give me', 'i want', 'i would like', "i'd like", 'i will take', "i'll take", 'i need', 'buy', 'can i have', 'can i get']] },
-        { groups: [['total', 'altogether', 'all together', 'in all', 'how much is it', 'how much will it be', 'bill', 'everything']] },
+        { groups: [['how much', 'price', 'cost*', 'rate']] },
         { groups: [THANKS] }
     ],
     'speaking-beginner-3': [
-        { groups: [['excuse me']] },
+        { groups: [['excuse me', 'sorry', ...GREET]] },
         { groups: [['which bus', 'what bus', 'bus to', 'bus for', 'bus goes', 'bus go', 'goes to', 'go to']] },
-        { groups: [['when', 'what time', 'leave*', 'depart*', 'start*', 'timing*']] },
-        { groups: [['how much', 'price', 'cost*', 'fare', 'charge']] },
-        { groups: [THANKS] },
-        PACE
+        { groups: [THANKS] }
     ],
     'speaking-beginner-4': [
         { groups: [['free', 'busy', 'available', 'do you have time']] },
         { groups: [["let's go", 'lets go', 'go to', 'we can go', 'shall we', 'want to go', 'how about', 'park', 'movie', 'cinema', 'beach', 'temple', 'mall', 'market', 'library', 'garden']] },
-        { groups: [TIME] },
-        { groups: [['meet*']] },
-        { groups: [['see you', 'bye', 'goodbye', 'good bye', 'take care', 'good night', 'talk later', 'catch you']] },
-        PACE
+        { groups: [['see you', 'bye', 'goodbye', 'good bye', 'take care', 'good night', 'talk later', 'catch you']] }
     ],
     'speaking-intermediate-1': [
         { groups: [[...GREET, 'excuse me', 'sorry to', 'do you have a minute', 'please', 'may i']] },
