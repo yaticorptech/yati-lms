@@ -45,7 +45,7 @@ describe('six lessons a unit', () => {
             const path = await learn(speak, course);
             // Five sections since 2026-11-14 (the user: "add more sections, six units in each … don't repeat"): Beginner,
             // Daily life, Intermediate (shown again), Advanced, Work and the world — every unit of each with six lessons.
-            assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional']);
+            assert.deepEqual(path.levels.map((l) => l.level), ['beginner', 'elementary', 'intermediate', 'advanced', 'professional', 'everyday', 'services', 'workplace', 'opinions', 'society']);
             // (The Letters unit's letters test, 2026-11-12, is its test, not one of its six lessons.)
             const six = (u) => real(u).filter((x) => x.review !== 'lettersExam');
             for (const lv of path.levels) for (const u of lv.units) assert.equal(six(u).length, 6, `${lv.level} ${u.title}: ${real(u).map((x) => x.title).join(', ')}`);
@@ -114,7 +114,9 @@ describe('six lessons a unit', () => {
         // heard, then the unit's words.
         assert.equal(p.items.length, 2);
         assert.equal(p.quiz.length, 10);
-        assert.deepEqual(p.quiz.slice(3, 5).map((q) => q.type), ['hear', 'hear']);
+        // Taking turns since 2026-11-17: one heard, the next filled in.
+        // (Which comes first: what the unit has not asked before it — no question twice in a unit, 2026-11-18.)
+        assert.deepEqual(p.quiz.slice(3, 5).map((q) => q.type).sort(), ['blanks', 'hear']);
         assert.ok(p.items.some((it) => it.source === 'ಗಾಳಿ ಜೋರಾಗಿ ಬೀಸುತ್ತಿದೆ.'), 'a sentence to read in Kannada');
         const pw = await whole(phrases.id, 'en');
         const passed = (await api('POST', `/lessons/${phrases.id}/quiz`, { answers: rightAnswers(pw) })).body;

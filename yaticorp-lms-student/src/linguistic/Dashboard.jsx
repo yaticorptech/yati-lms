@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { ensureDriveLinked, downloadWithDrive } from '../integrations/google/driveGate';
 const CERT_DRIVE_REASON = 'So the certificates you earn here are kept in your own Google Drive.';
 import { linguisticApi } from './api';
-import { COLORS, MODULES, MODULE_ORDER, levelOf, langOf } from './meta';
+import { COLORS, MODULES, MODULE_ORDER, levelOf, langOf, sectionsText } from './meta';
 import { Chunky, Mascot, Loading } from './ui';
 import KnowsPick from './parts/KnowsPick';
 import { planLabel, planStatus, markedDays } from './parts/plan';
@@ -433,7 +433,7 @@ function Skills({ dash }) {
     );
 }
 
-/** Beginner, Intermediate, Advanced: a medal each, the lessons done, and the certificate once earned. */
+/** The two certificates (2026-11-18): Beginner and Advanced — a medal each, the lessons done, and the certificate once earned. */
 const MEDALS = ['m-gold', 'm-silver', 'm-bronze'];
 function Levels({ dash }) {
     const [busy, setBusy] = useState('');
@@ -447,18 +447,17 @@ function Levels({ dash }) {
         <section className={CARD2} data-lingo-levels>
             <CardHead pic="h-levels" title="Levels & certificates" sub="Complete levels and earn certificates" action={<Go to="/linguistic/badges">All</Go>} />
             <ul className="space-y-3">
-                {dash.levels.map((l, i) => {
-                    const meta = levelOf(l.level);
+                {(dash.certs || []).map((l, i) => {
                     return (
                         <li key={l.level} className={`${ROW} flex items-center gap-3 p-3 pr-2`} data-level-row={l.level}>
                             <Pic name={MEDALS[i] || 'm-bronze'} className={`h-14 w-14 shrink-0 ${l.certificate || l.completed ? '' : 'opacity-90'}`} />
                             <Link to="/linguistic/badges" className="group flex min-w-0 flex-1 items-center gap-2">
                                 <span className="min-w-0 flex-1">
                                     <span className="flex items-baseline justify-between gap-2">
-                                        <span className="truncate text-[15px] font-bold text-[#14213D]">{meta.label} <span style={{ color: GREEN }}>· {meta.cefr}</span></span>
+                                        <span className="truncate text-[15px] font-bold text-[#14213D]">{l.label} <span style={{ color: GREEN }}>· {sectionsText(l.sections)}</span></span>
                                         <span className="shrink-0 text-[13px] tabular-nums text-slate-600">{l.completed} / {l.total}</span>
                                     </span>
-                                    <GreenBar value={pct(l.completed, l.total)} className="mt-2" label={`${meta.label}: ${l.completed} of ${l.total} lessons`} />
+                                    <GreenBar value={pct(l.completed, l.total)} className="mt-2" label={`${l.label}: ${l.completed} of ${l.total} lessons`} />
                                 </span>
                                 <ChevronRight size={20} strokeWidth={2.6} className="shrink-0 text-[#14213D] transition-transform group-hover:translate-x-0.5" />
                             </Link>
@@ -526,7 +525,9 @@ function KnowsCard({ dash, onSaved }) {
         <section className={CARD2} data-lingo-knows>
             <CardHead pic="h-lang" title="Your languages" sub="Learn, practise and explore new languages"
                 action={dash.knows && <button type="button" onClick={() => setOpen(true)} className={GREEN_LINK} style={{ color: GREEN }} data-knows-change>Change <ArrowRight size={16} strokeWidth={2.6} /></button>} />
-            <div className="flex flex-1 items-end gap-2">
+            {/* The rows right under the heading (2026-11-18, the user's picture: a big gap above them when the card is
+                as tall as the Skills card beside it). */}
+            <div className="flex flex-1 items-start gap-2">
                 {dash.knows ? (
                     <ul className="relative z-10 min-w-0 flex-1 space-y-3">
                         {KNOWS.map((k) => {

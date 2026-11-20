@@ -106,7 +106,8 @@ module.exports = [
         ],
         writing: [
             { id: 'w1', type: 'jumbled', prompt: 'Put the words in order.', words: ['honestly', 'She', 'the questions', 'answered'], answer: 'She answered the questions honestly.', model: 'She answered the questions honestly.' },
-            { id: 'w2', type: 'email', prompt: 'Write an email to your teacher asking for one day\'s leave because you are unwell. Include a subject line.', minWords: 45, model: 'Subject: Leave request for 12 March\n\nDear Ma\'am,\n\nI am not feeling well today and the doctor has advised me to rest. So I will not be able to attend college tomorrow, 12 March. Kindly grant me leave for one day. I will collect the notes from my classmates and complete the work I miss.\n\nThank you.\n\nYours sincerely,\nAsha R.\nII BCom, Section A', checklist: ['I wrote a clear subject line', 'I greeted my teacher politely', 'I gave the reason and the date', 'I ended with "Yours sincerely" and my name'] }
+            // On the story's own topic (2026-11-19, the user: "one topic in a unit — ask on it"; was a leave request to a teacher).
+            { id: 'w2', type: 'email', prompt: 'Imagine you are Asha and you got the job. Write an email to the bank manager: thank them for the interview and say that you accept the job. Include a subject line.', minWords: 45, model: 'Subject: Thank you for the job offer\n\nDear Sir,\n\nThank you for meeting me for the interview on Monday. I am very happy that you have offered me the job at your bank. I am writing to say that I accept the offer. I can join on 1 July. Could you please tell me if I need to bring any documents?\n\nThank you again for this chance.\n\nYours sincerely,\nAsha R.', checklist: ['I wrote a clear subject line', 'I greeted the manager politely', 'I thanked them for the interview', 'I said that I accept the job', 'I ended with "Yours sincerely" and my name'] }
         ]
     },
     {

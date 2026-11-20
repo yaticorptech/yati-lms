@@ -22,6 +22,12 @@ import StoryFilm, { FilmScript } from '../parts/StoryFilm';
 /* ── Shared pieces ────────────────────────────────────────────────────── */
 
 const Title = ({ children }) => <h1 className="text-[1.45rem] font-extrabold leading-tight text-[#3c3c3c] sm:text-[1.75rem]" style={{ textWrap: 'balance' }}>{children}</h1>;
+/** A spelling hint ("n_________ (9 letters)"): its letters spaced out, its count whole — on a narrow phone, on the next line. */
+const hintParts = (hint) => {
+    const m = /^(\S+)\s+(\(.+\))$/.exec(String(hint));
+    if (!m) return <span className="font-mono tracking-[0.25em]">{hint}</span>;
+    return <><span className="inline-block font-mono tracking-[0.25em]">{m[1]}</span> <span className="inline-block whitespace-nowrap">{m[2]}</span></>;
+};
 
 /*
  * A picture in a question or a choice (🐘, ⛵, ☂️) a little bigger than its words (2026-11-12, the user: "give this
@@ -281,7 +287,7 @@ export function PassageStep({ step }) {
             <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.blue.ink }}>{T('Read')}</p>
             <div className="flex items-start justify-between gap-3">
                 <Title>{p.title}</Title>
-                <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 shrink-0 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.blue.ink }}>
+                <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap px-3 text-sm" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.blue.ink }}>
                     {reading ? <>{loading ? <Loader2 size={15} className="animate-spin" /> : <Square size={15} />} {T('Stop')}</> : <><Headphones size={17} /> {T('Read aloud')}</>}
                 </button>
             </div>
@@ -607,21 +613,22 @@ function Tiles({ words, value, onChange, locked, tone, language, correction = nu
     // the comma?"): which tiles fit the right sentence in its order and which do not, and the words of it left out — "a"
     // here. Commas and full stops are not words, so never marked.
     const diff = tone === 'wrong' && correction ? tileDiff(placed.map((i) => words[i]), correction) : null;
-    // A tile tapped shows its meaning and stays; tapped again, it goes into the answer (2026-11-06, the user: "only show
-    // the meaning, don't send the tile up"; chose "tap again to place"). One with no meaning goes in at once.
+    // One tap (2026-11-17, the user: "a single tap — it goes and sits in the blank space, and gives the meaning of the
+    // word", in every language; it was tap once for the meaning, again to place, 2026-11-06): the tile goes into the answer,
+    // is read aloud in its own language, and its meaning shows where it always did — under the tile tapped (the user,
+    // the same day: "keep the meaning as before, only the single tap").
     const tap = (i, e) => {
         const w = words[i];
-        // Every tile heard as it is first tapped (2026-11-06, the user: "the voice for all tile words"), in its own language
-        // (`speak`: the voice given — tap what you hear); the second tap that puts it in, after its meaning, is not read again.
-        if (hint.open !== `t${i}` && soundOn()) play(null, w, speak || tileVoice(w, language));
-        if (meanings?.[w] && hint.open !== `t${i}`) { hint.show(`t${i}`, meanings[w], e, meaningLang, { toggle: false }); return; }
-        hint.close();
+        if (soundOn()) play(null, w, speak || tileVoice(w, language));
+        if (meanings?.[w]) hint.show(`t${i}`, meanings[w], e, meaningLang, { toggle: false }); else hint.close();
         onChange([...placed, i]);
     };
     return (
         <div className="relative space-y-6" ref={hintRef}>
-            <div className="flex min-h-[7.5rem] flex-wrap content-start gap-2 py-2" aria-label="Your answer" data-placed dir={dir}
-                style={{ backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent 3.45rem, ${line} 3.45rem, ${line} 3.6rem)` }}>
+            {/* Each row of words in the middle of two lines (2026-11-19, the user: "put the words in the middle of two lines"):
+                a line every 3.6rem from the top, the 3rem tiles 0.3rem from each. */}
+            <div className="flex min-h-[7.35rem] flex-wrap content-start gap-x-2 gap-y-[0.6rem] py-[0.3rem]" aria-label="Your answer" data-placed dir={dir}
+                style={{ backgroundImage: `repeating-linear-gradient(to bottom, ${line} 0, ${line} 0.15rem, transparent 0.15rem, transparent 3.6rem)` }}>
                 {placed.map((i, k) => (
                     <button key={`${i}-${k}`} type="button" disabled={locked} onClick={() => { hint.close(); onChange(placed.filter((_, x) => x !== k)); }}
                         className={`lingo-tile lingo-pop h-12 px-3.5 text-[17px] text-[#4b4b4b] ${says ? 'flex flex-col items-center justify-center leading-tight' : ''}`} lang={langFor(words[i], language)}
@@ -752,17 +759,14 @@ function BlanksBody({ q, value, onChange, locked, tone, lang, locale, hintLang, 
     const slots = q.parts.filter((p) => p === null).length;
     const filled = Array.from({ length: slots }, (_, k) => (Array.isArray(value) && Number.isInteger(value[k]) ? value[k] : null));
     const used = new Set(filled.filter((i) => i !== null));
-    // A tile tapped is read aloud and shows its meaning, and stays; tapped again, it goes into the next box (2026-11-06,
-    // the user: "only show the meaning, don't send the tile up"; chose "tap again to place"). One with no meaning goes in at once.
+    // One tap (2026-11-17, as the tiles): into the next box, read aloud, its meaning under the tile tapped, as before.
     const put = (i, e) => {
         if (locked || used.has(i)) return;
         const k = filled.indexOf(null);
         if (k === -1) return;
-        const peek = q.tileMeanings?.[i]?.length && hint.open !== `t${i}`;
-        // The word read aloud (2026-11-05, "like Duolingo"), in the language learnt, as it is first tapped; sound off, silent.
-        if (soundOn() && hint.open !== `t${i}`) play(null, q.words[i], locale);
-        if (peek) { hint.show(`t${i}`, q.tileMeanings[i], e, q.meaningLang, { toggle: false }); return; }
-        hint.close();
+        // The word read aloud (2026-11-05, "like Duolingo"), in the language learnt; sound off, silent.
+        if (soundOn()) play(null, q.words[i], locale);
+        if (q.tileMeanings?.[i]?.length) hint.show(`t${i}`, q.tileMeanings[i], e, q.meaningLang, { toggle: false }); else hint.close();
         onChange(filled.map((x, j) => (j === k ? i : x)));
     };
     const back = (k) => { if (!locked && filled[k] !== null) { hint.close(); onChange(filled.map((x, j) => (j === k ? null : x))); } };
@@ -829,7 +833,7 @@ function WriteWord({ q, step, value, onChange, locked, wrong, T }) {
                 <div className="min-w-0 flex-1">
                     <AnswerBox inputRef={ref} value={value} onChange={onChange} locked={locked} rows={1} lang={writeIn} wrong={wrong}
                         placeholder={writeIn === 'en' ? T('Type in English') : langOf(writeIn).placeholder} label={q.kannada ? writeWord(lang, q.kannada, writeIn, langOf(writeIn).name) : q.prompt} />
-                    {q.hint && <p className="mt-2 font-mono text-sm font-bold tracking-[0.25em] text-[#AFAFAF]" aria-label={`Hint: ${q.hint}`} data-write-hint>{q.hint}</p>}
+                    {q.hint && <p className="mt-2 text-sm font-bold text-[#AFAFAF]" aria-label={`Hint: ${q.hint}`} data-write-hint>{hintParts(q.hint)}</p>}
                 </div>
             </div>
             {keysIn && !locked && (
@@ -895,7 +899,7 @@ function HearBody({ q, value, onChange, locked, tone, correction, T }) {
                     <Turtle size={30} strokeWidth={2.5} />
                 </button>
             </div>
-            <Tiles words={q.words || []} value={value} onChange={onChange} locked={locked} tone={tone} language={String(q.sayLang || 'en').split('-')[0]} correction={correction} speak={q.sayLang || 'en-IN'} />
+            <Tiles words={q.words || []} value={value} onChange={onChange} locked={locked} tone={tone} language={String(q.sayLang || 'en').split('-')[0]} correction={correction} speak={q.sayLang || 'en-IN'} meanings={q.wordMeanings} meaningLang={q.meaningLang} />
         </>
     );
 }
@@ -968,7 +972,9 @@ function ChatBody({ q, value, onChange, locked, result, language, hint, T }) {
                 </div>
                 <span className="shrink-0 text-[3.5rem] leading-none sm:text-[4.5rem]" role="img" aria-label={q.who === 'm' ? 'A woman answers' : 'A man answers'} data-chat-replier>{q.who === 'm' ? '👩🏽‍🦱' : '👨🏽'}</span>
             </div>
-            <Choices options={q.options || []} value={value} onChange={pick} locked={locked} result={result} language={language} meanings={q.optionMeanings} hint={hint} meaningLang={q.meaningLang} />
+            {/* `silent`: the reply is said by the one who answers, in their voice (`pick`); the choices reading it again in
+                the default voice cut the woman's voice off at once (2026-11-18, the user: "the female voice is not coming"). */}
+            <Choices options={q.options || []} value={value} onChange={pick} locked={locked} result={result} language={language} meanings={q.optionMeanings} hint={hint} meaningLang={q.meaningLang} silent />
         </>
     );
 }
@@ -1006,11 +1012,13 @@ function PictureBody({ q, value, onChange, locked, result, T }) {
                             : chosen ? { borderColor: '#84D8FF', background: COLORS.blue.light, color: COLORS.blue.ink } : {};
                     return (
                         <button key={o} type="button" role="radio" aria-checked={chosen} aria-label={`${i + 1}: ${o}`} disabled={locked} onClick={() => pick(o)} data-option={i} data-picture-card={o}
-                            className={`lingo-tile flex min-h-[9.5rem] min-w-0 flex-col justify-between gap-2 p-2.5 text-[#4b4b4b] sm:min-h-[13rem] sm:p-4 ${locked && !right && !wrong ? 'opacity-60' : ''}`} style={look}>
+                            className={`lingo-tile relative flex min-h-[9.5rem] min-w-0 flex-col justify-between gap-2 p-2.5 text-[#4b4b4b] sm:min-h-[13rem] sm:p-4 ${locked && !right && !wrong ? 'opacity-60' : ''}`} style={look}>
                             <span className="flex flex-1 items-center justify-center text-[2.9rem] leading-none sm:text-[4.5rem]" aria-hidden="true" data-picture={q.pics?.[o] || ''}>{q.pics?.[o]}</span>
-                            <span className="flex items-end justify-between gap-1.5">
-                                <span className="min-w-0 break-words text-left text-[15px] font-bold sm:text-[17px]" lang={lang} dir="auto">{o}</span>
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 text-xs font-extrabold sm:h-8 sm:w-8 sm:text-sm"
+                            {/* On a phone (2026-11-19, 344px: "morni-ng", "daug-hter"): the number in the card's corner, the word
+                                the card's whole width, broken only where a long one must be. */}
+                            <span className="flex items-end justify-center gap-1.5 sm:justify-between">
+                                <span className="min-w-0 hyphens-auto break-words text-center text-[15px] font-bold sm:text-left sm:text-[17px]" lang={lang} dir="auto">{o}</span>
+                                <span className="absolute right-1.5 top-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 text-[11px] font-extrabold sm:static sm:h-8 sm:w-8 sm:text-sm"
                                     style={{ borderColor: chosen || right || wrong ? 'currentColor' : '#E5E5E5', color: chosen || right || wrong ? undefined : '#AFAFAF' }}>{i + 1}</span>
                             </span>
                         </button>
@@ -1139,7 +1147,7 @@ export function QuestionStep({ step, value, onChange, locked, result, correction
             </>
         );
     } else if (q.type === 'rearrange') {
-        body = <><Title>{q.prompt}</Title><Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={tone} language={step.language} correction={correction} /></>;
+        body = <><Title>{q.prompt}</Title><Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={tone} language={step.language} correction={correction} meanings={q.wordMeanings} meaningLang={q.meaningLang} /></>;
     } else if (q.type === 'blanks') {
         body = <BlanksBody q={q} value={value} onChange={onChange} locked={locked} tone={tone} lang={step.target && step.target !== 'en' ? step.target : 'en'} locale={step.targetLocale || 'en-IN'} hintLang={step.language} correction={correction} T={T} />;
     } else if (q.kind === 'letterType') {
@@ -1342,7 +1350,7 @@ export function WriteStep({ step, value, onChange, locked, result, correction })
         return (
             <div className="lingo-in space-y-5" data-writing={t.id}>
                 <Title>{T(WRITE_LABEL.jumbled)}</Title>
-                <Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={result ? (result.correct ? 'right' : 'wrong') : null} correction={correction} />
+                <Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={result ? (result.correct ? 'right' : 'wrong') : null} correction={correction} meanings={t.wordMeanings} meaningLang={t.meaningLang} />
             </div>
         );
     }

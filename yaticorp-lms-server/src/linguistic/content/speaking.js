@@ -45,9 +45,11 @@ module.exports = [
             mcq('q4', 'Which class are they in?', ['First-year BCom', 'Second-year BSc', 'Final-year BA', 'Class 10'], 'First-year BCom', 'Rahul asks: "Is this the first-year BCom class?" and Meera says yes.')
         ],
         speaking: {
-            prompt: 'Introduce yourself in 4 or 5 sentences: your name, where you are from, what you study, and one hobby.',
-            sample: 'Hello, my name is Kiran. I am from Tumakuru. I am studying in the first year of BSc. In my free time, I like playing football. Nice to meet you.',
-            checklist: ['I said my name clearly', 'I said where I am from', 'I talked about my studies', 'I mentioned a hobby', 'I spoke in full sentences', 'I spoke slowly and clearly']
+            // Easier in Beginner (2026-11-18, the user: "give some easy units; don't make speaking difficult — keep it, but a little
+            // easy"): three short sentences, each shown; three points to tick (two to go on).
+            prompt: 'Say 3 short sentences about yourself, like this: "My name is …" "I am from …" "I like …"',
+            sample: 'My name is Kiran. I am from Tumakuru. I like cricket.',
+            checklist: ['I said my name', 'I said where I am from', 'I said one thing I like']
         }
     },
     {
@@ -79,9 +81,11 @@ module.exports = [
             mcq('q4', 'What else does she buy?', ['A bunch of coriander', 'Potatoes', 'Bananas', 'Rice'], 'A bunch of coriander', '"I\'ll take one bunch."')
         ],
         speaking: {
-            prompt: 'Imagine you are at a shop. Ask the price of two things, buy them, and say thank you.',
-            sample: 'Good evening. How much is this notebook? And how much is that pen? Please give me two notebooks and one pen. How much is it altogether? Here you are. Thank you!',
-            checklist: ['I greeted the shopkeeper', 'I asked the price of two things', 'I said what I wanted to buy', 'I asked for the total', 'I said thank you']
+            // Easier in Beginner (2026-11-18, the user: "give some easy units; don't make speaking difficult — keep it, but a little
+            // easy"): three short sentences, each shown; three points to tick (two to go on).
+            prompt: 'At a shop, say 3 short sentences, like this: "Hello." "How much is this?" "Thank you."',
+            sample: 'Hello. How much is this pen? Thank you.',
+            checklist: ['I said hello', 'I asked the price', 'I said thank you']
         }
     },
     {

@@ -75,3 +75,12 @@ body:has([data-lingo-session]) [data-loop-avoid].mascot-clear[role="status"] {
 /* The bar running out before a wrong answer's question comes again (Session.jsx, 2026-11-05). */
 @keyframes lingo-run-out { from { width: 100%; } to { width: 0%; } }
 @media (prefers-reduced-motion: reduce) { [data-auto-next] > div { animation: none !important; width: 100%; } }
+
+/* A phone on its side (2026-11-19: 384px high, the lesson had some 200px left between its bars): the bars and gaps as on a
+   phone, not a laptop, so the screen is the lesson's. */
+@media (max-height: 500px) {
+    [data-lingo-session] > header { padding-top: max(0.5rem, env(safe-area-inset-top)); padding-bottom: 0.25rem; }
+    [data-lingo-session] > footer > div > div, [data-lingo-session] .lingo-sheet > div { padding-top: 0.5rem; padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+    [data-answer-area] > div { padding-top: 0.5rem; padding-bottom: 1.5rem; }
+    [data-answer-area] > div > div:first-child:empty { display: none; }
+}

@@ -112,9 +112,11 @@ const lessons = [
             mcq('q4', 'How much is the ticket?', ['Fifteen rupees', 'Fifty rupees', 'Ten rupees', 'Forty-five rupees'], 'Fifteen rupees', 'The conductor says: "Fifteen rupees."')
         ],
         speaking: {
-            prompt: 'Ask about a bus in 4 or 5 sentences: say "Excuse me", ask which bus goes to a place, when it leaves and how much the ticket is, and say thank you.',
-            sample: 'Excuse me. Which bus goes to the railway station? When does it leave? How much is the ticket? Thank you very much.',
-            checklist: ['I said "Excuse me" politely', 'I asked which bus goes to a place', 'I asked when it leaves', 'I asked the price of the ticket', 'I said thank you', 'I spoke slowly and clearly']
+            // Easier in Beginner (2026-11-18, the user: "give some easy units; don't make speaking difficult — keep it, but a little
+            // easy"): three short sentences, each shown; three points to tick (two to go on).
+            prompt: 'At the bus stand, say 3 short sentences, like this: "Excuse me." "Which bus goes to …?" "Thank you."',
+            sample: 'Excuse me. Which bus goes to Mysuru? Thank you.',
+            checklist: ['I said "Excuse me"', 'I asked which bus goes to a place', 'I said thank you']
         }
     },
     {
@@ -195,8 +197,8 @@ const asks = {
     },
     speaking: {
         'speaking-beginner-3': {
-            prompt: `${ENGLISH} 4 ಅಥವಾ 5 ವಾಕ್ಯಗಳಲ್ಲಿ ಒಂದು ಬಸ್ ಬಗ್ಗೆ ಕೇಳಿ: "Excuse me" ಎನ್ನಿ, ಒಂದು ಸ್ಥಳಕ್ಕೆ ಯಾವ ಬಸ್ ಹೋಗುತ್ತದೆ, ಅದು ಯಾವಾಗ ಹೊರಡುತ್ತದೆ ಮತ್ತು ಟಿಕೆಟ್ ಬೆಲೆ ಎಷ್ಟು ಎಂದು ಕೇಳಿ, ನಂತರ ಧನ್ಯವಾದ ಹೇಳಿ.`,
-            checklist: ['ವಿನಯದಿಂದ "Excuse me" ಎಂದೆ', 'ಒಂದು ಸ್ಥಳಕ್ಕೆ ಯಾವ ಬಸ್ ಹೋಗುತ್ತದೆ ಎಂದು ಕೇಳಿದೆ', 'ಅದು ಯಾವಾಗ ಹೊರಡುತ್ತದೆ ಎಂದು ಕೇಳಿದೆ', 'ಟಿಕೆಟ್ ಬೆಲೆ ಕೇಳಿದೆ', 'ಧನ್ಯವಾದ ಹೇಳಿದೆ', 'ನಿಧಾನವಾಗಿ ಮತ್ತು ಸ್ಪಷ್ಟವಾಗಿ ಮಾತನಾಡಿದೆ']
+            prompt: `ಬಸ್ ನಿಲ್ದಾಣದಲ್ಲಿ ${ENGLISH} 3 ಚಿಕ್ಕ ವಾಕ್ಯಗಳನ್ನು ಹೇಳಿ, ಹೀಗೆ: "Excuse me." "Which bus goes to …?" "Thank you."`,
+            checklist: ['\"Excuse me\" ಎಂದು ಹೇಳಿದೆ', 'ಒಂದು ಸ್ಥಳಕ್ಕೆ ಯಾವ ಬಸ್ ಹೋಗುತ್ತದೆ ಎಂದು ಕೇಳಿದೆ', 'ಧನ್ಯವಾದ ಹೇಳಿದೆ']
         }
     }
 };

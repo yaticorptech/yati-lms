@@ -31,6 +31,9 @@ export const MODULES = {
 export const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'translation'];
 // Each level is a section of the path, with its CEFR level. Named plainly since 2026-11-16 ("make it beginner");
 // it was Rookie / Explorer / Achiever from 2026-10-24.
+/** The sections a certificate is for (2026-11-18: two certificates, Beginner and Advanced): "Sections 1–3". */
+export const sectionsText = (s = []) => (s.length > 1 ? `Sections ${s[0]}–${s[s.length - 1]}` : s.length ? `Section ${s[0]}` : '');
+
 export const LEVELS = [
     // `named`: its level word written in the section's heading (2026-11-14). The level word (2026-11-16, the user: "section 1,
     // section 2 and section 3 will be Beginner, section 4 and section 5 will be Advanced"): two groups.
@@ -41,7 +44,14 @@ export const LEVELS = [
     { id: 'intermediate', label: 'Beginner', section: 'Explorer', cefr: 'B1', named: true, bare: true, chip: 'bg-amber-50 text-amber-700 ring-amber-200' },
     { id: 'advanced', label: 'Advanced', section: 'Achiever', cefr: 'B2', named: true, chip: 'bg-rose-50 text-rose-700 ring-rose-200' },
     // No heading card either (2026-11-16, the user: "remove this card also" — Section 5, part of Advanced).
-    { id: 'professional', label: 'Advanced', section: 'Work and the world', cefr: 'C1', named: true, bare: true, chip: 'bg-violet-50 text-violet-700 ring-violet-200' }
+    { id: 'professional', label: 'Advanced', section: 'Work and the world', cefr: 'C1', named: true, bare: true, chip: 'bg-violet-50 text-violet-700 ring-violet-200' },
+    // Sections 6–10 (2026-11-17, the user: "add more sections, in the end they should speak the language"; label Advanced,
+    // no heading card, like Section 5).
+    { id: 'everyday', label: 'Advanced', section: 'Everyday talk', cefr: 'C1', named: true, bare: true, chip: 'bg-teal-50 text-teal-700 ring-teal-200' },
+    { id: 'services', label: 'Advanced', section: 'Getting things done', cefr: 'C1', named: true, bare: true, chip: 'bg-orange-50 text-orange-700 ring-orange-200' },
+    { id: 'workplace', label: 'Advanced', section: 'Talking at work', cefr: 'C1', named: true, bare: true, chip: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
+    { id: 'opinions', label: 'Advanced', section: 'Sharing your views', cefr: 'C2', named: true, bare: true, chip: 'bg-pink-50 text-pink-700 ring-pink-200' },
+    { id: 'society', label: 'Advanced', section: 'The world around us', cefr: 'C2', named: true, bare: true, chip: 'bg-lime-50 text-lime-700 ring-lime-200' }
 ];
 export const levelOf = (id) => LEVELS.find((l) => l.id === id) || LEVELS[0];
 /** The sections a course shows (all five since 2026-11-14). */
@@ -193,7 +203,12 @@ const voiceFor = (lang, gender = null) => {
  * Hindi or Marathi one. All on the device: nothing is sent anywhere.
  */
 const KN_FROM = 0x0c80, KN_TO = 0x0cff;
-const STAND_INS = { kn: [{ lang: 'te-IN', base: 0x0c00 }, { lang: 'hi-IN', base: 0x0900, hindi: true }, { lang: 'mr-IN', base: 0x0900 }] };
+const STAND_INS = {
+    kn: [{ lang: 'te-IN', base: 0x0c00 }, { lang: 'hi-IN', base: 0x0900, hindi: true }, { lang: 'mr-IN', base: 0x0900 }],
+    // Hindi on a device with no Hindi voice (2026-11-17, the user: "in Hindi no voice is heard"): a Marathi or Nepali one
+    // reads the same Devanagari letters as they are.
+    hi: [{ lang: 'mr-IN' }, { lang: 'ne-NP' }]
+};
 // Devanagari reads the short e and o (ಎ ಒ, ೆ ೊ) best as its own e and o.
 const DEVANAGARI_SHORT = { 'ऎ': 'ए', 'ऒ': 'ओ', 'ॆ': 'े', 'ॊ': 'ो' };
 // A Hindi voice has no ḷa, ṟa or ḻa (Marathi's does): the nearest sound it says (2026-10-31, "the correct pronunciation").
@@ -218,7 +233,7 @@ const readerFor = (lang, gender = null) => {
     if (own) return { voice: own, lang, map: (t) => t };
     for (const s of STAND_INS[norm(lang).split('-')[0]] || []) {
         const v = voiceFor(s.lang, gender);
-        if (v) return { voice: v, lang: s.lang, map: (t) => kannadaIn(t, s.base, !!s.hindi) };
+        if (v) return { voice: v, lang: s.lang, map: s.base ? (t) => kannadaIn(t, s.base, !!s.hindi) : (t) => t };
     }
     return null;
 };
@@ -513,7 +528,10 @@ export const play = (src, text, lang = 'en-IN', on = {}) => {
         [text, lang] = r;
     }
     // A woman or a man speaking (the conversation's people): the device's voice of theirs — the AI voice has one voice.
-    if (text && usesServerVoice(lang) && !gender) {
+    // Or a language the device has no voice for at all (Hindi on a laptop with none, 2026-11-17): the server's voice, in a
+    // local run too — rather than an English voice handed Devanagari, which says nothing.
+    const noDeviceVoice = SERVER_LANGS.has(base(lang)) && typeof window !== 'undefined' && !!window.speechSynthesis && voices.length > 0 && !readerFor(lang);
+    if (text && (usesServerVoice(lang) || noDeviceVoice) && !gender) {
         stopAll();
         on.onLoading?.(true);
         // Not made yet on the server (2026-11-14, "don't make users wait"): after 3 s the device's voice reads it

@@ -47,7 +47,7 @@ const settingSchema = new mongoose.Schema({
     // score per level, the average a level's certificate needs, and the size
     // of the daily vocabulary challenge.
     linguistic: {
-        passingScore: { beginner: Number, elementary: Number, intermediate: Number, advanced: Number, professional: Number },
+        passingScore: { beginner: Number, elementary: Number, intermediate: Number, advanced: Number, professional: Number, everyday: Number, services: Number, workplace: Number, opinions: Number, society: Number },
         certificateMinAverage: Number,
         dailyChallengeSize: Number
     },
