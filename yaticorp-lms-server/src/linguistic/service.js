@@ -364,7 +364,8 @@ const courseDone = (progress, course = courseOf(progress)) => LEGACY_SHOWN.every
  * Bhagyashree's two accounts (2026-10-28, user: "I am working on that"): they change the language they learn at any
  * time, finished or not. By card number, so it holds whichever database the server uses.
  */
-const FREE_COURSE_CARDS = new Set(['240100045056', '240100019423']);
+// Akanksha's card (240100019664) added 2026-11-18: every language open, nothing locked.
+const FREE_COURSE_CARDS = new Set(['240100045056', '240100019423', '240100019664']);
 // The developer cards (DEVICE_LIMIT_EXEMPT_CARDS in .env) too (2026-11-05): they switch language any time.
 const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(user?.cardNumber))
     || require('../services/deviceGuard').isExemptCard(user?.cardNumber)
@@ -376,7 +377,7 @@ const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(
  * number, so it holds whichever database the server uses; the routes note the student on each request
  * (`noteOpenAll`), as `access` has only the progress record.
  */
-const OPEN_ALL_CARDS = new Set(['240100045056']);
+const OPEN_ALL_CARDS = new Set(['240100045056', '240100019664']);
 const openAllUsers = new Set();
 // The demo cards (services/fullAccess.js) open everything too (owner, 2026-11-04).
 // And the developer cards (DEVICE_LIMIT_EXEMPT_CARDS in .env, 2026-11-05): every level and lesson open.
@@ -1857,7 +1858,9 @@ const openCourses = () => {
     return set === 'all' ? null : set.split(',').map((x) => x.trim()).filter(Boolean);
 };
 const allCoursesUsers = new Set();
-const noteAllCourses = (user) => { if (user?._id && require('../services/deviceGuard').isExemptCard(user.cardNumber)) allCoursesUsers.add(String(user._id)); };
+// Plus Akanksha's card (2026-11-18): every language may be chosen.
+const ALL_COURSE_CARDS = new Set(['240100019664']);
+const noteAllCourses = (user) => { if (user?._id && (ALL_COURSE_CARDS.has(normaliseCardNumber(user.cardNumber)) || require('../services/deviceGuard').isExemptCard(user.cardNumber))) allCoursesUsers.add(String(user._id)); };
 /*
  * The demo cards (services/fullAccess.js; 2026-11-19, the owner: "English to Kannada is already downloaded — play our
  * TTS voice only; the other languages locked, working on it"). The voices of English and Kannada are the ones made

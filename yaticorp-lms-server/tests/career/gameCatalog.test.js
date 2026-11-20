@@ -17,7 +17,7 @@ describe('server catalogue', () => {
         const client = await import(pathToFileURL(file).href);
         const server = require('../../src/career/data/gameCatalog');
         const pick = (g) => ({ id: g.id, title: g.title, section: g.section, category: g.category });
-        assert.equal(server.CATALOG.length, 84);
+        assert.equal(server.CATALOG.length, client.CATALOG.length);
         assert.deepEqual(server.CATALOG.map(pick), client.CATALOG.map(pick));
         assert.deepEqual([...server.EXTRA], [...client.EXTRA]);
         assert.deepEqual([...server.SECTIONS], client.SECTIONS.map((s) => s.key));

@@ -3,6 +3,7 @@
 const tile = (fill) => <rect x="2" y="2" width="52" height="52" rx="12" fill={fill} />;
 
 export const THUMBS = {
+  get 'chess-master'() { return THUMBS['chess-challenge']; }, // Master Minds' Chess (2026-11-17)
   'sequence-vault': () => (
     <>
       {tile('#e0e7ff')}
@@ -87,15 +88,6 @@ export const THUMBS = {
       <rect x="21" y="38" width="14" height="6" rx="3" fill="#f59e0b" />
       <rect x="35" y="38" width="14" height="6" rx="3" fill="#2563eb" /><rect x="35" y="31" width="14" height="6" rx="3" fill="#e11d48" />
       <rect x="21" y="18" width="14" height="6" rx="3" fill="#f59e0b" />
-    </>
-  ),
-  'emoji-equations': () => (
-    <>
-      {tile('#fce7f3')}
-      <text x="28" y="20" textAnchor="middle" fontSize="8.5" fontWeight="900" fill="#0f172a">🍎+🍎=20</text>
-      <text x="28" y="32" textAnchor="middle" fontSize="8.5" fontWeight="900" fill="#0f172a">🍎+🍌=13</text>
-      <rect x="9" y="37" width="38" height="12" rx="3" fill="#ec4899" />
-      <text x="28" y="46" textAnchor="middle" fontSize="8" fontWeight="900" fill="#ffffff">🍌×🍎 = ?</text>
     </>
   ),
 };

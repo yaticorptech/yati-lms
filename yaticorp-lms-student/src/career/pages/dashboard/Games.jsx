@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Brain, Puzzle, Type, Zap, Play, Gamepad2, Layers, Star, Sparkles, History, Timer, Moon, User, Users, Loader2, Link2, DoorOpen, Globe, Trophy, X, ChevronRight, Check, Info, Lock, Plus, ArrowLeft, Smile, Lightbulb, Crown } from 'lucide-react';
+import { Brain, Puzzle, Type, Zap, Play, Gamepad2, Layers, Star, Sparkles, History, Timer, Moon, User, Users, Loader2, Link2, DoorOpen, Globe, Trophy, X, ChevronRight, Check, Info, Lock, Plus, ArrowLeft, Smile, Lightbulb, Crown, TrendingUp } from 'lucide-react';
 import api from '../../services/api';
 import useBackClose from '../../../native/useBackClose';
 import { useToast } from '../../components/ui/Toast';
@@ -16,6 +16,9 @@ const MathSprint = lazy(() => import('../../components/games/MathSprint'));
 const SentenceGap = lazy(() => import('../../components/games/SentenceGap'));
 const ColourMatch = lazy(() => import('../../components/games/ColourMatch'));
 const SpellingFix = lazy(() => import('../../components/games/SpellingFix'));
+const SpeedDistance = lazy(() => import('../../components/games/SpeedDistance'));
+const RunningTotalPro = lazy(() => import('../../components/games/RunningTotalPro'));
+const DataChartQuiz = lazy(() => import('../../components/games/DataChartQuiz'));
 const PercentSnap = lazy(() => import('../../components/games/PercentSnap'));
 const SpeedSort = lazy(() => import('../../components/games/SpeedSort'));
 const ReverseRecall = lazy(() => import('../../components/games/ReverseRecall'));
@@ -30,18 +33,13 @@ const TypingSprint = lazy(() => import('../../components/games/TypingSprint'));
 const IdiomSense = lazy(() => import('../../components/games/IdiomSense'));
 // New games (2026-11-12, "at least five in every category"): Logic had three, Math four.
 const PictureLogic = lazy(() => import('../../components/games/PictureLogic'));
-const TowerShift = lazy(() => import('../../components/games/TowerShift'));
 const NumberForge = lazy(() => import('../../components/games/NumberForge'));
 const ChessChallenge = lazy(() => import('../../components/games/ChessChallenge'));
 const WordLadder = lazy(() => import('../../components/games/WordLadder'));
-const AlgorithmBuilder = lazy(() => import('../../components/games/AlgorithmBuilder'));
-const ProbabilityLab = lazy(() => import('../../components/games/ProbabilityLab'));
 const TreasurePath = lazy(() => import('../../components/games/TreasurePath'));
 const ShadowDetective = lazy(() => import('../../components/games/ShadowDetective'));
-const Deduction = lazy(() => import('../../components/games/Deduction'));
 const OddOneOut = lazy(() => import('../../components/games/OddOneOut'));
 // The 84 games (2026-11-14): each section's new, split and extended games.
-const FractionBattle = lazy(() => import('../../components/games/FractionBattle'));
 // The 84 games (2026-11-14): each section's new, split and extended games.
 const AnimalPairSafari = lazy(() => import('../../components/games/AnimalPairSafari'));
 const WhatsMissing = lazy(() => import('../../components/games/WhatsMissing'));
@@ -59,51 +57,54 @@ const AudioEcho = lazy(() => import('../../components/games/AudioEcho'));
 const FocusFilter = lazy(() => import('../../components/games/FocusFilter'));
 const DualImageRecall = lazy(() => import('../../components/games/DualImageRecall'));
 const TowerStrategy = lazy(() => import('../../components/games/TowerStrategy'));
-const EmojiEquations = lazy(() => import('../../components/games/EmojiEquations'));
 const CrownGarden = lazy(() => import('../../components/games/CrownGarden'));
 const PipeFlow = lazy(() => import('../../components/games/PipeFlow'));
 const AnalogyMaster = lazy(() => import('../../components/games/AnalogyMaster'));
 const ContextDetective = lazy(() => import('../../components/games/ContextDetective'));
 const WordAssociationGrid = lazy(() => import('../../components/games/WordAssociationGrid'));
 const EquationRush = lazy(() => import('../../components/games/EquationRush'));
+const NumberMaze = lazy(() => import('../../components/games/NumberMaze'));
 const RatioRelay = lazy(() => import('../../components/games/RatioRelay'));
 const DataDash = lazy(() => import('../../components/games/DataDash'));
 const MentalMathCircuit = lazy(() => import('../../components/games/MentalMathCircuit'));
-const MatrixRecall = lazy(() => import('../../components/games/MatrixRecall'));
 const DepartureBoard = lazy(() => import('../../components/games/DepartureBoard'));
 const InterferenceRecall = lazy(() => import('../../components/games/InterferenceRecall'));
-const CipherLab = lazy(() => import('../../components/games/CipherLab'));
-const BooleanBreaker = lazy(() => import('../../components/games/BooleanBreaker'));
 const NetworkLogic = lazy(() => import('../../components/games/NetworkLogic'));
-const StrategicConstraintLab = lazy(() => import('../../components/games/StrategicConstraintLab'));
-const SemanticPrecision = lazy(() => import('../../components/games/SemanticPrecision'));
-const ArgumentAnalyzer = lazy(() => import('../../components/games/ArgumentAnalyzer'));
-const VerbalArchitect = lazy(() => import('../../components/games/VerbalArchitect'));
-const NuanceNavigator = lazy(() => import('../../components/games/NuanceNavigator'));
 const WordRelationMatrix = lazy(() => import('../../components/games/WordRelationMatrix'));
-const QuantitativeArena = lazy(() => import('../../components/games/QuantitativeArena'));
-const NumericalOptimization = lazy(() => import('../../components/games/NumericalOptimization'));
-const StatisticalInference = lazy(() => import('../../components/games/StatisticalInference'));
-const DecisionTheoryArena = lazy(() => import('../../components/games/DecisionTheoryArena'));
 // The 84 games (2026-11-14): each section's new, split and extended games.
 const LightUpGarden = lazy(() => import('../../components/games/LightUpGarden'));
 const FlashSequence = lazy(() => import('../../components/games/FlashSequence'));
 const PatternPath = lazy(() => import('../../components/games/PatternPath'));
 const PictureWordHunt = lazy(() => import('../../components/games/PictureWordHunt'));
 const LetterBuilder = lazy(() => import('../../components/games/LetterBuilder'));
-const ChefMemory = lazy(() => import('../../components/games/ChefMemory'));
 const SudokuChallenge = lazy(() => import('../../components/games/SudokuChallenge'));
-const NumberPatternLab = lazy(() => import('../../components/games/NumberPatternLab'));
 const RuleSwitch = lazy(() => import('../../components/games/RuleSwitch'));
-const SpatialRotationVault = lazy(() => import('../../components/games/SpatialRotationVault'));
+// Master Minds' relaxed set (2026-11-17): easier, calmer games for every stream.
+const Jigsaw = lazy(() => import('../../components/games/Jigsaw'));
+const ArrowEscape = lazy(() => import('../../components/games/ArrowEscape'));
+const SpeakUp = lazy(() => import('../../components/games/SpeakUp'));
+const WordCraft = lazy(() => import('../../components/games/WordCraft'));
+const FinalVault = lazy(() => import('../../components/games/FinalVault'));
+const ChessMaster = lazy(() => import('../../components/games/ChessMaster'));
+const WordSearch = lazy(() => import('../../components/games/WordSearch'));
+const SumPop = lazy(() => import('../../components/games/SumPop'));
+const ChangeMaker = lazy(() => import('../../components/games/ChangeMaker'));
+const BestBuy = lazy(() => import('../../components/games/BestBuy'));
+const NumberTrail = lazy(() => import('../../components/games/NumberTrail'));
+const QuickEstimate = lazy(() => import('../../components/games/QuickEstimate'));
 import GameLeaderboard from '../../components/games/GameLeaderboard';
-import { starsForGame, levelReached, pullProgress, markPlayed, lastPlayed, setGameXpTable, setAgeBand, totalStars, GAME_XP } from '../../components/games/levels';
+import { starsForGame, levelReached, pullProgress, markPlayed, lastPlayed, setGameXpTable, setAgeBand, GAME_XP } from '../../components/games/levels';
 import { ZONES, BANDS, DEFAULT_BAND, SKILLS, GAME_ZONES, zoneByKey, accessFor, ACCESS_MESSAGE, GROUP_ZONES, GROUP_TWIN, ZONE_DIFFICULTY } from '../../components/games/zones';
 import { statsOf } from '../../components/games/adaptive';
 import { CATALOG, EXTRA, SECTIONS, gamesIn } from '../../components/games/catalog';
 import { MULTIPLAYER } from '../../components/games/multiplayer';
 import MyProgress from '../../components/games/MyProgress';
-import YoungThinkersPage from '../../components/games/YoungThinkersPage';
+import GameProfilePopup from '../../components/games/GameProfilePopup';
+
+/** The student's saved date of birth and class, kept on this device per account (see profileDone below). */
+const profileKey = () => { try { const d = JSON.parse(localStorage.getItem('studentData') || '{}'); return `yati:game-profile:${d._id || d.id || d.student?._id || d.email || 'me'}`; } catch { return 'yati:game-profile:me'; } };
+const readSavedProfile = () => { try { return JSON.parse(localStorage.getItem(profileKey()) || 'null'); } catch { return null; } };
+const rememberProfile = (body) => { try { if (body) localStorage.setItem(profileKey(), JSON.stringify(body)); } catch { /* storage off */ } };
 import { useHideLoop } from '../../../components/loopVisibility';
 import { PlayClockContext, clock, limitWords } from '../../components/games/playClock';
 
@@ -214,18 +215,15 @@ const CATEGORIES = [
       { id: 'shadow-detective', name: 'Shadow Detective', blurb: 'Whose shadow is it? Spot the shape and tap the match.', Component: ShadowDetective },
       { id: 'light-up-garden', name: 'Light-Up Garden', blurb: 'Light-Up Garden', Component: LightUpGarden },
       { id: 'flash-sequence', name: 'Flash Sequence', blurb: 'Flash Sequence', Component: FlashSequence },
-      { id: 'pattern-recall', name: "Chef's Memory", blurb: 'Remember the recipe, then cook it perfectly!', Component: ChefMemory },
       { id: 'rule-switch', name: 'Rule Switch', blurb: 'Rule Switch', Component: RuleSwitch },
-      { id: 'spatial-rotation-vault', name: 'Spatial Rotation Vault', blurb: 'Recall a marked block figure, find it turned among mirror decoys, and place its marks.', Component: SpatialRotationVault },
       { id: 'animal-pair-safari', name: 'Animal Pair Safari', blurb: 'Pair each animal with its sound, home or baby.', Component: AnimalPairSafari },
       { id: 'whats-missing', name: 'What’s Missing?', blurb: 'Look, remember, and spot what disappeared.', Component: WhatsMissing },
       { id: 'sequence-vault', name: 'Sequence Vault', blurb: 'Remember the door codes — and keep up as the rules change them.', Component: SequenceVault },
       { id: 'grid-navigator', name: 'Audio Echo', blurb: 'Listening missions: count, catch and remember.', Component: AudioEcho },
       { id: 'focus-filter', name: 'Focus Filter', blurb: 'Ignore the distractors: middle arrows and hidden targets.', Component: FocusFilter },
       { id: 'dual-image-recall', name: 'Dual-Image Recall', blurb: 'Two scenes from memory: what changed, and what they shared.', Component: DualImageRecall },
-      { id: 'matrix-recall', name: 'Matrix Recall', blurb: 'Memorise a digit matrix and rebuild it — values and places.', Component: MatrixRecall },
       { id: 'departure-board', name: 'Departure Board', blurb: 'Memorise the flights — then keep up with the changes.', Component: DepartureBoard },
-      { id: 'interference-recall', name: 'Interference Recall', blurb: 'Hold one word list while a look-alike list tries to overwrite it.', Component: InterferenceRecall }
+      { id: 'interference-recall', name: 'Interference Recall', blurb: 'Hold one word list while a look-alike list tries to overwrite it.', Component: InterferenceRecall },
     ]
   },
   {
@@ -241,29 +239,26 @@ const CATEGORIES = [
     thumb: 'bg-sky-50',
     glow: 'shadow-sky-500/30',
     games: [
-      { id: 'next-in-sequence', name: 'Next in Sequence', blurb: 'Spot the rule, then continue the run.', Component: NextInSequence },
+      { id: 'next-in-sequence', name: 'Next in Sequence', blurb: 'Four logic challenges in every level.', Component: NextInSequence },
       { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', blurb: 'Beat a computer that gets sharper every level.', Component: TicTacToe },
       { id: 'mini-sudoku', name: 'Mini Sudoku', blurb: 'A four-by-four grid, solved against the clock.', Component: MiniSudoku },
-      { id: 'picture-logic', name: 'Colouring Book', blurb: 'Pick a crayon and colour the picture.', Component: PictureLogic },
-      { id: 'tower-shift', name: 'Tower Shift', blurb: 'Move the whole tower, ring by ring, in the fewest moves.', Component: TowerShift },
+      { id: 'picture-logic', name: 'Colouring Book', blurb: 'Remember the scene, then colour it in.', Component: PictureLogic },
       { id: 'treasure-path', name: 'Treasure Path', blurb: 'Plan a path with arrow cards and reach the treasure.', Component: TreasurePath },
-      { id: 'algorithm-builder', name: 'Algorithm Builder', blurb: 'Put instruction blocks in order — the fewest steps win.', Component: AlgorithmBuilder },
       // Named in the 84 games (2026-11-14): Odd One Out (Young Thinkers) and Deduction Chamber (Master Minds).
       { id: 'odd-one-out', name: 'Odd One Out', blurb: 'Which one does not belong — and why?', Component: OddOneOut },
-      { id: 'deduction', name: 'Deduction Chamber', blurb: 'Does the conclusion really follow from the facts?', Component: Deduction },
       { id: 'pattern-path', name: 'Pattern Path', blurb: 'Pattern Path', Component: PatternPath },
       { id: 'sudoku-challenge', name: 'Sudoku Challenge', blurb: 'Fill the grid so no number repeats in a row, column or box.', Component: SudokuChallenge },
       { id: 'shape-builder', name: 'Shape Builder', blurb: 'Fit shape pieces to fill the silhouette.', Component: ShapeBuilder },
       { id: 'mini-maze-mission', name: 'Mini Maze Mission', blurb: 'Steer the bunny through the maze to the carrot.', Component: MiniMazeMission },
-      { id: 'tower-strategy', name: 'Tower Strategy', blurb: 'Sort the blocks: one colour in each tower.', Component: TowerStrategy },
+      { id: 'tower-strategy', name: 'Tower Strategy', blurb: 'Sort the rings: one colour on each peg.', Component: TowerStrategy },
       { id: 'constraint-grid', name: 'Pipe Flow', blurb: 'Turn the pipes and water the plant!', Component: PipeFlow },
-      { id: 'emoji-equations', name: 'Emoji Equations', blurb: 'Crack what each picture is worth!', Component: EmojiEquations },
       { id: 'chess-challenge', name: 'Chess', blurb: 'Out-think the computer — checkmate its king!', Component: ChessChallenge },
       { id: 'clue-chain', name: 'Crown Garden', blurb: 'One crown in every row, column and garden — no touching!', Component: CrownGarden },
-      { id: 'cipher-lab', name: 'Cipher Lab', blurb: 'Break substitution, Vigenère and transposition ciphers with real cryptanalysis tools.', Component: CipherLab },
-      { id: 'boolean-breaker', name: 'Boolean Breaker', blurb: 'Reason through AND, OR, NOT, XOR and NAND circuits to light the lamp.', Component: BooleanBreaker },
       { id: 'network-logic', name: 'Network Logic', blurb: 'Shortest routes, tours and spanning trees on weighted networks.', Component: NetworkLogic },
-      { id: 'strategic-constraint-lab', name: 'Strategic Constraint Lab', blurb: 'Schedule tasks under live constraints — then at the lowest cost.', Component: StrategicConstraintLab }
+      { id: 'chess-master', name: 'Chess Master', blurb: 'Out-think the computer — checkmate its king!', Component: ChessMaster },
+      { id: 'final-vault', name: 'The Final Vault', blurb: 'Solve five temple chambers and open the treasure vault.', Component: FinalVault },
+      { id: 'jigsaw', name: 'Jigsaw', blurb: 'Remember the picture, then put the pieces back.', Component: Jigsaw },
+      { id: 'arrow-escape', name: 'Arrow Escape', blurb: 'Slide the arrows off the board — in the right order.', Component: ArrowEscape }
     ]
   },
   {
@@ -295,11 +290,10 @@ const CATEGORIES = [
       { id: 'context-detective', name: 'Context Detective', blurb: 'Context Detective', Component: ContextDetective },
       { id: 'word-association-grid', name: 'Word Association Grid', blurb: 'Word Association Grid', Component: WordAssociationGrid },
       { id: 'word-ladder', name: 'Word Ladder', blurb: 'Change one letter at a time to reach the goal word!', Component: WordLadder },
-      { id: 'semantic-precision', name: 'Semantic Precision', blurb: 'Swap the vague word for the precise one — and say why.', Component: SemanticPrecision },
-      { id: 'argument-analyzer', name: 'Argument Analyzer', blurb: 'Tag premises and conclusions, then find the weak point.', Component: ArgumentAnalyzer },
-      { id: 'verbal-architect', name: 'Verbal Architect', blurb: 'Rebuild a jumbled paragraph into a logical whole.', Component: VerbalArchitect },
-      { id: 'nuance-navigator', name: 'Nuance Navigator', blurb: 'Place words on scales of intensity, connotation and register.', Component: NuanceNavigator },
-      { id: 'word-relation-matrix', name: 'Word Relation Matrix', blurb: 'Complete a grid where every row and column relation holds.', Component: WordRelationMatrix }
+      { id: 'word-relation-matrix', name: 'Word Relation Matrix', blurb: 'Complete a grid where every row and column relation holds.', Component: WordRelationMatrix },
+      { id: 'speak-up', name: 'Speak Up', blurb: 'Read aloud, race a twister, answer an interview, retell a story.', Component: SpeakUp },
+      { id: 'wordcraft', name: 'WORDCRAFT', blurb: 'Vocabulary & communication: twisters, pitches, stories, captions and more.', Component: WordCraft },
+      { id: 'word-search', name: 'Word Search', blurb: 'Find themed words hidden in the letter grid.', Component: WordSearch },
     ]
   },
   {
@@ -317,25 +311,27 @@ const CATEGORIES = [
     games: [
       { id: 'math-sprint', name: 'Math Sprint', blurb: 'Sixty seconds. Answer as many as you can.', Component: MathSprint },
       { id: 'percent-snap', name: 'Percent Snap', blurb: 'Percentages, in your head, against the clock.', Component: PercentSnap },
+      { id: 'running-total-pro', name: 'Running Total Pro', blurb: 'Keep the running total — with bigger numbers and two totals at once.', Component: RunningTotalPro },
+      { id: 'data-chart-quiz', name: 'Data Chart Quiz', blurb: 'Read real-world charts — sales, population, money — and answer fast.', Component: DataChartQuiz },
+      { id: 'speed-distance', name: 'Speed, Time & Distance', blurb: 'Drag along the timeline: how far, when, and where they meet.', Component: SpeedDistance },
       { id: 'running-total', name: 'Running Total', blurb: 'Numbers arrive one at a time. Keep the total.', Component: RunningTotal },
       { id: 'speed-sort', name: 'Speed Sort', blurb: 'Tap the numbers from smallest to largest.', Component: SpeedSort },
       { id: 'number-forge', name: 'Number Forge', blurb: 'Join the tiles with + − × ÷ to hit the target.', Component: NumberForge },
-      { id: 'probability-lab', name: 'Probability Lab', blurb: 'Bags, dice and bets: weigh the chances, then decide.', Component: ProbabilityLab },
-      { id: 'number-pattern-lab', name: 'Number Pattern Lab', blurb: 'Number Pattern Lab', Component: NumberPatternLab },
       { id: 'number-hop', name: 'Number Hop', blurb: 'Hop the frog to the right number pad.', Component: NumberHop },
       { id: 'fruit-shop', name: 'Fruit Shop Challenge', blurb: 'Fill the basket, add up the bill and give the change.', Component: FruitShop },
       { id: 'count-and-catch', name: 'Count & Catch', blurb: 'Work out the sum, then catch that many in your basket.', Component: CountAndCatch },
       { id: 'missing-number-race', name: 'Missing Number Race', blurb: 'Fill the missing numbers in the train to win the race.', Component: MissingNumberRace },
       { id: 'shape-count-dash', name: 'Train Builder', blurb: 'Build trains that add up to the station number!', Component: TrainBuilder },
       { id: 'equation-rush', name: 'Equation Rush', blurb: 'Equation Rush', Component: EquationRush },
+      { id: 'number-pattern-lab', name: 'Number Maze', blurb: 'Find the path that keeps the rule!', Component: NumberMaze },
       { id: 'ratio-relay', name: 'Ratio Relay', blurb: 'Ratio problems in a relay — each answer runs the next leg.', Component: RatioRelay },
       { id: 'data-dash', name: 'Data Dash', blurb: 'Read charts and tables, then total, compare and average.', Component: DataDash },
       { id: 'mental-math-circuit', name: 'Mental Math Circuit', blurb: 'Switch the circuit so the number arrives on target.', Component: MentalMathCircuit },
-      { id: 'quantitative-arena', name: 'Quantitative Arena', blurb: 'GRE-style quantity comparisons and multi-step problems.', Component: QuantitativeArena },
-      { id: 'numerical-optimization', name: 'Numerical Optimization', blurb: 'Knapsacks, budgets and production plans: find the optimum.', Component: NumericalOptimization },
-      { id: 'statistical-inference', name: 'Statistical Inference', blurb: 'Read data plots and reason about centre, spread and evidence.', Component: StatisticalInference },
-      { id: 'decision-theory-arena', name: 'Decision Theory Arena', blurb: 'Payoff matrices and decision trees with a compounding bankroll.', Component: DecisionTheoryArena },
-      { id: 'fraction-battle', name: 'Fraction Battle', blurb: 'Out-fraction the bot in a best-of battle.', Component: FractionBattle }
+      { id: 'sum-pop', name: 'Sum Pop', blurb: 'Sums with negatives, then products — pop the target.', Component: SumPop },
+      { id: 'change-maker', name: 'Change Maker', blurb: 'Run the till: bill, discount, GST, change.', Component: ChangeMaker },
+      { id: 'best-buy', name: 'Best Buy', blurb: 'Unit prices, stacked discounts, EMIs, interest.', Component: BestBuy },
+      { id: 'number-trail', name: 'Number Trail', blurb: 'Order √, %, fractions and logs, smallest first.', Component: NumberTrail },
+      { id: 'quick-estimate', name: 'Estimate It', blurb: 'Sharp estimates against the clock.', Component: QuickEstimate }
     ]
   }
 ];
@@ -593,7 +589,7 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay, pill = n
 /** A picture fading to nothing at all four edges: the two fades, crossed. */
 const SOFT_EDGES = 'linear-gradient(to right, transparent, black 16%, black 84%, transparent), linear-gradient(to bottom, transparent, black 14%, black 80%, transparent)';
 
-const GROUP_ORDER = ['chess', 'memorymatrix', 'patternmaster', 'wordlogic', 'sequence', 'numberlogic', 'idiomsense', 'numberrecall', 'runningtotal', 'memorymatch', 'typingsprint', 'mathsprint', 'tictactoe', 'finalvault'];
+const GROUP_ORDER = ['chess', 'memorymatrix', 'patternmaster', 'wordlogic', 'sequence', 'numberlogic', 'numberrecall', 'runningtotal', 'memorymatch', 'typingsprint', 'mathsprint', 'tictactoe', 'finalvault'];
 /* The group cards' accents (2026-11-02, the reference sheets): a pale wash of the accent under the artwork, a
    glowing edge, a tinted chip and a glossy Play in the accent. `fade` is the wash's top, where the art fades in. */
 const GROUP_ACCENTS = {
@@ -613,7 +609,7 @@ const GROUP_ACCENTS = {
 // The banner picture's words, for a screen reader.
 const SOLO_HERO_WORDS = 'Individual games — Play solo. Sharpen your skills. A collection of quick, single-player games to improve your memory, logic, vocabulary, maths and speed.';
 // The three games added 2026-11-12 have drawn (SVG) pictures; the rest are photographs.
-const SOLO_SVG = new Set(['picture-logic', 'tower-shift', 'number-forge', 'logic-detective', 'algorithm-builder', 'probability-lab', 'treasure-path', 'shadow-detective']);
+const SOLO_SVG = new Set(['picture-logic', 'number-forge', 'logic-detective', 'algorithm-builder', 'probability-lab', 'treasure-path', 'shadow-detective']);
 // Games with a picture in public/games/solo; the rest (the 84 games' new ones, 2026-11-14) draw their GameThumb.
 const SOLO_PICTURE = new Set(['antonym-match', 'binary-blitz', 'clock-read', 'code-breaker', 'colour-match', 'deduction', 'dot-count', 'fraction-match', 'grid-recall', 'idiom-sense', 'last-stone', 'lights-out', 'match-back', 'math-sprint', 'memory-match', 'mini-sudoku', 'missing-operator', 'next-in-sequence', 'number-bonds', 'number-recall', 'odd-one-out', 'percent-snap', 'quick-compare', 'reverse-recall', 'rounding-rush', 'running-total', 'scale-balance', 'seen-before', 'sentence-gap', 'sequence-recall', 'shape-matrix', 'sound-alike', 'speed-sort', 'spelling-fix', 'spin-match', 'spot-the-change', 'synonym-match', 'tense-pick', 'tic-tac-toe', 'typing-sprint', 'word-roots', 'word-scramble', ...SOLO_SVG]);
 // The Young Thinkers pictures cut from the section's design (public/games/young).
@@ -623,7 +619,7 @@ const SMART_PICTURE = new Set(['sequence-recall', 'number-recall', 'sequence-vau
 // Every individual game card (2026-11-16, the user): the group cards' look, size and colours, in the group row's order.
 const CARD_CYCLE = ['gold', 'violet', 'green', 'orange', 'pink', 'violet', 'blue', 'violet', 'teal', 'blue'];
 // Master Minds (2026-11-16): its Memory & Focus pictures (public/games/master); otherwise styled exactly as Rising Brains.
-const MASTER_PICTURE = new Set(['grid-recall', 'reverse-recall', 'matrix-recall', 'departure-board', 'rule-switch', 'spatial-rotation-vault', 'interference-recall']);
+const MASTER_PICTURE = new Set(['grid-recall', 'reverse-recall', 'departure-board', 'rule-switch', 'interference-recall']);
 const MASTER_SVG = new Set(['departure-board']); // drawn as an SVG poster (2026-11-16)
 // Sudoku Challenge wears Mini Sudoku's picture (2026-11-16, the user: Mini Sudoku removed from Rising Brains).
 const ART_ALIAS = { 'sudoku-challenge': 'mini-sudoku' };
@@ -637,10 +633,11 @@ const soloArt = (game) => {
  * bright and friendly, Rising Brains structured and energetic, Master Minds dark and premium.
  */
 const SECTION_LOOK = {
+  // 2026-11-17 (the user): plain, as Rising Brains and Master Minds.
   young: {
-    panel: 'bg-gradient-to-br from-amber-50 via-rose-50 to-sky-50 ring-1 ring-amber-100', title: 'text-[#7c2d12]', sub: 'text-amber-800/80',
-    tab: 'bg-white text-amber-900 ring-1 ring-amber-200 hover:ring-amber-400', tabOn: 'from-orange-400 to-pink-500', emoji: '🌈',
-    words: 'Bright, friendly puzzles that grow memory, words, numbers and thinking.', colours: ['orange', 'pink', 'green', 'blue', 'violet', 'teal', 'gold']
+    panel: 'bg-gradient-to-br from-[#e6f0ff] via-[#eef0ff] to-[#f4f7ff]', title: 'text-[#1e1b4b]', sub: 'text-indigo-800/70',
+    tab: 'bg-white/90 text-[#16205c] ring-1 ring-white shadow-[0_6px_16px_-8px_rgba(37,62,160,0.35)] hover:bg-white [&>span:first-child]:text-[#2563eb]', tabOn: 'from-[#1fa2ff] to-[#1257e6] shadow-[0_10px_22px_-8px_rgba(18,87,230,0.75)] ring-2 ring-white/70', emoji: '🌈',
+    words: 'Bright, friendly puzzles that grow memory, words, numbers and thinking.', colours: ['blue', 'violet', 'teal', 'blue', 'violet', 'teal', 'blue']
   },
   smart: {
     panel: 'bg-gradient-to-br from-[#e6f0ff] via-[#eef0ff] to-[#f4f7ff]', title: 'text-[#1e1b4b]', sub: 'text-indigo-800/70',
@@ -720,7 +717,7 @@ const howToPlay = (id) => {
 
 function GroupHub({ zone = null, mine = null }) {
   // The zone's group games (2026-11-13): those suited to it, in the hub's usual order, then the rest of the zone's.
-  const zoneIds = zone ? [...GROUP_ORDER.filter((id) => GROUP_ZONES[id]?.includes(zone)), ...Object.keys(GROUP_ZONES).filter((id) => !GROUP_ORDER.includes(id) && GROUP_ZONES[id].includes(zone))] : GROUP_ORDER;
+  const zoneIds = zone ? [...GROUP_ORDER.filter((id) => GROUP_ZONES[id]?.includes(zone)), ...Object.keys(GROUP_ZONES).filter((id) => !GROUP_ORDER.includes(id) && GROUP_ZONES[id].includes(zone))] : [...GROUP_ORDER.filter((id) => GROUP_ZONES[id]), ...Object.keys(GROUP_ZONES).filter((id) => !GROUP_ORDER.includes(id))];
   const groupAccess = (id) => (zone ? accessFor(mine, zone, GROUP_TWIN[id] ? statsOf(GROUP_TWIN[id]) : null) : 'available');
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -828,70 +825,12 @@ function GroupHub({ zone = null, mine = null }) {
         </section>
       )}
 
-      {/* ---- The banner (2026-11-02): the reference picture itself (public/games/banner, 2910 × 540), with the live parts
-          laid exactly over its own — the play time over its pill, the code box and Join Room over its own box and
-          button. Positions are the picture's, in % of it; text in cqw of the banner. On a phone: the picture's left
-          part (the art and the words), and Join a Room under it. ---- */}
-      <section className="relative" data-group-hero>
-        <form onSubmit={join} className="relative hidden overflow-hidden rounded-[28px] md:block" style={{ aspectRatio: '2910 / 540', containerType: 'inline-size' }} data-join-room>
-          <img src="/games/banner/group-banner.jpg" alt="Group games — Bring your friends. Battle brains together!" draggable="false" className="absolute inset-0 h-full w-full select-none" />
-          {groupLeft !== null && !groupOut && (
-            <span className="absolute flex items-center justify-center gap-[0.5cqw] bg-[#15130f] font-black whitespace-nowrap text-white"
-              style={{ left: '23.7%', top: '78.1%', width: '16.3%', height: '10.4%', fontSize: '1.15cqw' }} data-group-time>
-              <Timer style={{ width: '1.3cqw', height: '1.3cqw' }} />
-              {`${clock(groupLeft)} of play left today`}
-            </span>
-          )}
-          {/* Time used up: no words (2026-11-05); the banner's own pill, with its sample time, covered over. */}
-          {(groupLeft === null || groupOut) && (
-            <span aria-hidden className="pointer-events-none absolute" style={{ left: '21.5%', top: '72%', width: '20.5%', height: '22%', background: 'radial-gradient(closest-side, #110f0c 78%, rgba(17,15,12,0))' }} />
-          )}
-          <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} aria-label="Room code" autoCapitalize="characters" data-room-code-input
-            className={`absolute rounded-[1.1cqw] text-center font-mono tracking-[0.3em] text-slate-900 outline-none focus:ring-2 focus:ring-violet-500/50 ${code ? 'bg-white' : 'bg-transparent'}`}
-            style={{ left: '73.75%', top: '40.2%', width: '22.8%', height: '19.4%', fontSize: '1.5cqw' }} />
-          <button type="submit" disabled={code.length !== 6 || !!busy || groupOut} aria-label="Join room"
-            className="absolute rounded-full transition hover:bg-white/10 disabled:cursor-not-allowed"
-            style={{ left: '73.65%', top: '65.2%', width: '23%', height: '18.5%' }}>
-            {busy === 'join' && <span className="absolute inset-0 flex items-center justify-center rounded-full bg-[#5b2ee0]"><Loader2 className="animate-spin text-white" style={{ width: '1.6cqw', height: '1.6cqw' }} /></span>}
-          </button>
-          {groupOut && <span aria-hidden className="pointer-events-none absolute rounded-[2cqw] bg-black/35" style={{ left: '71.6%', top: '10%', width: '27%', height: '81%' }} />}
-        </form>
-
-        {/* A phone (2026-11-04), as its reference: one dark card — the label, the words, the gold knight and
-            controller on their podiums (public/games/banner/group-phone-art.jpg), today's play time, and Join a Room
-            inside it on cream. */}
-        <div className="md:hidden">
-          <div className="relative overflow-hidden rounded-[24px] bg-[radial-gradient(110%_70%_at_50%_0%,#2b2214_0%,#121010_50%,#0a0909_100%)] px-3.5 pt-3.5 pb-3.5 text-center shadow-[0_24px_48px_-20px_rgba(20,14,6,.8)] ring-1 ring-[#e9b25a]/35" data-group-hero-phone>
-            <span aria-hidden className="pointer-events-none absolute -top-10 right-[-20%] h-40 w-[70%] -rotate-[30deg] bg-gradient-to-r from-transparent via-[#ffb43a]/25 to-transparent blur-2xl" />
-            <span className="relative inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-[#2a1f0e] to-[#120d05] px-4 py-1 font-serif text-[0.68rem] font-bold tracking-[0.12em] text-[#f6e7bd] uppercase ring-1 ring-[#e9b25a]/80 shadow-[0_0_14px_rgba(233,178,90,.35)]">Group games</span>
-            <h2 className="relative mt-2 font-serif text-[1.3rem] leading-[1.15] font-bold italic min-[400px]:text-[1.45rem]">
-              <span className="block text-white drop-shadow">Bring Your Friends,</span>
-              <span className="block bg-gradient-to-b from-[#ffe39a] to-[#d99a2b] bg-clip-text text-transparent">Battle Brains Together!</span>
-            </h2>
-            <span aria-hidden className="relative mx-auto mt-1.5 block h-[2px] w-36 rounded-full bg-[radial-gradient(closest-side,#ffb43a,transparent)]" />
-            <img src="/games/banner/group-phone-art.jpg" alt="" aria-hidden draggable="false" className="relative mx-auto mt-1 block w-[76%] max-w-[16rem]"
-              style={{ maskImage: 'radial-gradient(74% 72% at 50% 52%, black 70%, transparent 100%)', WebkitMaskImage: 'radial-gradient(74% 72% at 50% 52%, black 70%, transparent 100%)' }} />
-            {groupLeft !== null && !groupOut && (
-              <span className="relative mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3.5 py-1.5 text-xs font-bold text-white ring-1 ring-white/60" data-group-time>
-                <Timer className="h-3.5 w-3.5" />
-                {`${clock(groupLeft)} of play left today`}
-              </span>
-            )}
-            <form onSubmit={join} className="relative mt-3 rounded-2xl bg-[#fbf3e6] p-3 text-left shadow-[0_0_0_1.5px_rgba(233,178,90,.9),0_0_28px_rgba(245,180,70,.45)]" data-join-room>
-              <p className="flex items-center gap-1.5 text-sm font-black text-[#14122a]"><Users className="h-4 w-4 text-violet-600" /> Join a Room <span className="font-semibold text-slate-500">· enter your room code</span></p>
-              <div className="mt-2 flex gap-2">
-              <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="e.g. K7Q2XM" autoCapitalize="characters" aria-label="Room code"
-                className="min-w-0 flex-1 rounded-xl bg-white px-2 py-2.5 text-center font-mono text-base tracking-[0.25em] text-slate-900 shadow-sm placeholder:font-sans placeholder:text-base placeholder:tracking-normal placeholder:text-slate-400 focus:ring-2 focus:ring-violet-500/30 focus:outline-none" />
-              <button type="submit" disabled={code.length !== 6 || !!busy || groupOut}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-[#7442f0] to-[#4f22c9] px-4 py-2.5 text-sm font-black text-white shadow-[0_8px_18px_-8px_rgba(79,34,201,.7)] disabled:opacity-60">
-                {busy === 'join' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />} Join
-              </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-      </section>
+      {/* The group games banner: removed (2026-11-17, the user). Rooms are joined from each card's Join; today's play time stays, plainly. */}
+      {groupLeft !== null && !groupOut && (
+        <p className="flex items-center gap-1.5 text-xs font-black text-violet-700" data-group-time>
+          <Timer className="h-3.5 w-3.5" />{`${clock(groupLeft)} of play left today`}
+        </p>
+      )}
 
       {error && (
         <p role="alert" className="flex flex-wrap items-center gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ring-1 ring-rose-200 ring-inset">
@@ -909,7 +848,7 @@ function GroupHub({ zone = null, mine = null }) {
       )}
 
       {/* ---- Every group game, in the solo games' cards ---- */}
-      <div className={`grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 ${groupOut ? 'pointer-events-none opacity-50 grayscale' : ''}`} aria-disabled={groupOut || undefined} data-group-games>
+      <div className={`grid auto-rows-fr grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 ${groupOut ? 'pointer-events-none opacity-50 grayscale' : ''}`} aria-disabled={groupOut || undefined} data-group-games>
         {zoneIds.map((id, i) => {
           const g = GROUP_GAMES[id];
           const off = catalog[id]?.enabled === false;
@@ -1086,7 +1025,7 @@ function GroupHub({ zone = null, mine = null }) {
       {picking && (
         <Portal>
         <div className="gs-fade fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-4 sm:bg-slate-900/50 sm:backdrop-blur-sm" onClick={() => setPicking(null)}>
-          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Create a ${GROUP_GAMES[picking.id].label} room`} className="gs-pop-in w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+          <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Create a ${GROUP_GAMES[picking.id].label} room`} className="gs-pop-in max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:p-5">
             <div className="flex items-center gap-3">
               <GameThumb id={GROUP_THUMBS[picking.id]} className="h-14 w-14" />
               <div className="min-w-0">
@@ -1374,12 +1313,14 @@ function useGameZone() {
     api.get('/games/zone').then(({ data }) => { if (alive) setInfo(data); }).catch(() => { if (alive) setInfo({ zone: null, band: null, source: 'unknown' }); });
     return () => { alive = false; };
   }, []);
+  // After the student's details are saved (GameProfilePopup): the zone they give, and their own section shown.
+  const update = (data) => { if (!data) return; setInfo(data); if (data.zone) { setView(data.zone); try { localStorage.setItem(ZONE_KEY, data.zone); } catch { /* private window */ } } };
   const mine = info?.zone || null;
   const zone = zoneByKey(view) ? view : mine || 'smart';
   const band = zone === mine && info?.band ? info.band : DEFAULT_BAND[zone];
   useEffect(() => { setAgeBand(BANDS[band], band); }, [band]);
   const pick = (z) => { setView(z); try { localStorage.setItem(ZONE_KEY, z); } catch { /* private window */ } };
-  return { info, mine, zone, band, pick, ready: Boolean(info) };
+  return { info, mine, zone, band, pick, update, ready: Boolean(info) };
 }
 
 function ZonePicker({ zone, mine, band, info, onPick }) {
@@ -1439,8 +1380,36 @@ const SECTION_CARD = {
 function SectionCards({ active, onOpen, group, onMode }) {
   return (
     <section data-section-cards>
+      {/* A phone (2026-11-17, the user's picture): the three sections and the Individual ⇄ Group toggle as four tabs in
+          one row — an icon bubble standing on each tab's top edge, the name under it, the open one outlined. */}
+      <div className="grid grid-cols-4 gap-1.5 rounded-[22px] bg-violet-100/60 px-1.5 pt-7 pb-1.5 sm:hidden" data-section-tabs-phone>
+        {SECTIONS.map((sec) => {
+          const { Icon, grad } = SECTION_CARD[sec.key];
+          const on = !group && active === sec.key;
+          return (
+            <button key={sec.key} type="button" role="tab" aria-selected={active === sec.key} onClick={() => onOpen(sec.key)} data-open-section={sec.key}
+              className={`relative flex min-h-[4.25rem] flex-col items-center justify-end rounded-2xl px-1 pt-7 pb-2 text-center transition ${active === sec.key ? 'bg-white ring-2 ring-violet-500 shadow-[0_8px_18px_-10px_rgba(109,40,217,0.6)]' : 'bg-white/60 ring-1 ring-white'}`}>
+              <span className={`absolute -top-5 left-1/2 grid h-11 w-11 -translate-x-1/2 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-md ring-[3px] ring-white ${grad} ${on ? 'scale-105' : ''}`}>
+                <Icon className="h-5 w-5" strokeWidth={2.2} />
+              </span>
+              <span className={`text-[11px] leading-tight font-black ${active === sec.key ? 'text-slate-900' : 'text-violet-700'}`}>{sec.name}</span>
+            </button>
+          );
+        })}
+        <button type="button" role="switch" aria-checked={group} aria-label={group ? 'Group games: on' : 'Group games: off'} onClick={() => onMode(group ? 'solo' : 'group')} data-games-mode-phone
+          className={`relative flex min-h-[4.25rem] flex-col items-center justify-end gap-1 rounded-2xl px-1 pt-7 pb-2 text-center transition ${group ? 'bg-white ring-2 ring-fuchsia-500' : 'bg-white/60 ring-1 ring-white'}`}>
+          <span className={`absolute -top-5 left-1/2 grid h-11 w-11 -translate-x-1/2 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-md ring-[3px] ring-white ${group ? 'from-fuchsia-500 to-violet-600' : 'from-violet-600 to-indigo-600'}`}>
+            {group ? <Users className="h-5 w-5" /> : <User className="h-5 w-5" />}
+          </span>
+          <span className={`relative h-4 w-8 shrink-0 rounded-full transition-colors duration-300 ${group ? 'bg-fuchsia-500' : 'bg-violet-300'}`} aria-hidden>
+            <span className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-300 ${group ? 'translate-x-4' : ''}`} />
+          </span>
+          <span className={`text-[11px] leading-tight font-black ${group ? 'text-fuchsia-700' : 'text-violet-700'}`}>{group ? 'Group' : 'Individual'}</span>
+        </button>
+      </div>
+
       {/* One row (2026-11-16, the user): the three sections, then the Individual ⇄ Group switch after Master Minds. */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:gap-4">
+      <div className="hidden grid-cols-3 gap-2 sm:grid sm:gap-3 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:gap-4">
         <div className="contents" role="tablist" aria-label="Game sections">
           {SECTIONS.map((sec) => {
             const { Icon, grad, face, glow } = SECTION_CARD[sec.key];
@@ -1481,6 +1450,49 @@ function SectionCards({ active, onOpen, group, onMode }) {
   );
 }
 
+/**
+ * Slide to open (2026-11-18, the user: "the user has to slide it full, then the popup opens"): a knob dragged all the
+ * way along its track; let go short of the end and it springs back. Enter or Space opens it from the keyboard.
+ */
+function SlideToOpen({ label, onDone }) {
+  const track = useRef(null);
+  const drag = useRef(null);
+  const [x, setX] = useState(0);
+  const [room, setRoom] = useState(0); // how far the knob can travel: the track's width less the knob
+  const [moving, setMoving] = useState(false);
+  useLayoutEffect(() => {
+    const measure = () => setRoom(Math.max(0, (track.current?.clientWidth || 0) - 56));
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+  const finish = () => { setX(room); onDone(); setTimeout(() => setX(0), 350); };
+  const down = (e) => { drag.current = e.clientX - x; setMoving(true); e.currentTarget.setPointerCapture?.(e.pointerId); };
+  const move = (e) => { if (drag.current === null) return; setX(Math.min(room, Math.max(0, e.clientX - drag.current))); };
+  const up = () => {
+    if (drag.current === null) return;
+    drag.current = null;
+    setMoving(false);
+    if (room && x >= room * 0.9) finish(); else setX(0);
+  };
+  const share = room ? x / room : 0;
+  return (
+    <div ref={track} className="relative h-14 w-full overflow-hidden rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-orange-500 p-1 shadow-[0_10px_22px_-12px_rgba(234,88,12,0.7)] select-none" data-slide-progress>
+      <span className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-white/20" style={{ width: `${x + 56}px` }} aria-hidden />
+      <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 pl-12 text-sm font-black text-white transition-opacity" style={{ opacity: 1 - share * 1.4 }}>
+        {label}<span className="pp-chevrons tracking-[-0.15em]" aria-hidden>›››</span>
+      </span>
+      <button type="button" role="slider" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight') { e.preventDefault(); finish(); } }}
+        className={`relative grid h-12 w-12 touch-none place-items-center rounded-full bg-white text-orange-600 shadow-md ${moving ? '' : 'transition-transform duration-300'}`}
+        style={{ transform: `translateX(${x}px)` }}>
+        <TrendingUp className="h-5 w-5" />
+      </button>
+    </div>
+  );
+}
+
 /** My progress in a sheet over the page (2026-11-14: opened from "Your Progress"). */
 function ProgressSheet({ zone, band, onClose }) {
   useEffect(() => {
@@ -1491,11 +1503,22 @@ function ProgressSheet({ zone, band, onClose }) {
   return (
     <Portal>
       <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="My progress" onClick={onClose}>
-        <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white p-3 shadow-2xl sm:rounded-3xl sm:p-4" onClick={(e) => e.stopPropagation()}>
-          <div className="mb-2 flex justify-end">
-            <button type="button" onClick={onClose} className="rounded-full px-3 py-1 text-sm font-black text-ink-600 hover:bg-surface-100" aria-label="Close">✕ Close</button>
+        <div className="pp-sheet flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[26px] bg-[#f7f8ff] shadow-2xl sm:max-h-[90vh] sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
+          {/* The title bar stays put while the card scrolls under it. */}
+          <div className="relative shrink-0 bg-gradient-to-r from-violet-600 to-indigo-600 px-3.5 pt-2 pb-2.5 text-white sm:px-4 sm:pt-2.5 sm:pb-3">
+            <span className="mx-auto mb-1.5 block h-1 w-9 rounded-full bg-white/50 sm:hidden" aria-hidden />
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/20 sm:h-10 sm:w-10 sm:rounded-2xl"><TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-base leading-tight font-black sm:text-lg">My progress</p>
+                <p className="truncate text-[11px] font-semibold text-white/80 sm:text-xs">How you are doing across the brain games</p>
+              </div>
+              <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/20 hover:bg-white/30 sm:h-10 sm:w-10" aria-label="Close"><X className="h-4 w-4 sm:h-5 sm:w-5" /></button>
+            </div>
           </div>
-          <MyProgress zone={zone} band={band} />
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <MyProgress zone={zone} band={band} inSheet />
+          </div>
         </div>
       </div>
     </Portal>
@@ -1530,12 +1553,30 @@ export default function Games() {
     setCategoryKey(CATEGORIES[0].key);
   }
   useEffect(() => { if (!group && !choosing && ages.zone !== sectionKey) ages.pick(sectionKey); }, [sectionKey, ages, group, choosing]);
-  const [earnedCount, setEarnedCount] = useState(0);
+  // Date of birth and class (2026-11-17): asked after Individual / Group is chosen, until given (GET /games/profile).
+  // null while checking: no game opens until the details are known to be saved (the user: "without answering this
+  // don't allow him to play"). Saved once, never asked again.
+  // 2026-11-19 (the user: "it keeps appearing again and again"): once saved it is remembered on this device too, and a
+  // failed check (network, a slow server) no longer counts as "not saved" — only the server saying so does. If the
+  // server has lost the details but this device has them, they are sent again quietly instead of asking.
+  const [profileDone, setProfileDone] = useState(() => (readSavedProfile() ? true : null));
   useEffect(() => {
     let alive = true;
-    api.get('/games/performance').then(({ data }) => { if (alive) setEarnedCount((data?.achievements || []).filter((a) => a.earned).length); }).catch(() => {});
+    const check = (tries) => api.get('/games/profile')
+      .then(({ data }) => {
+        if (!alive) return;
+        if (data?.complete) { setProfileDone(true); return; }
+        const saved = readSavedProfile();
+        if (saved) { api.post('/games/profile', saved).catch(() => {}); setProfileDone(true); } else setProfileDone(false);
+      })
+      .catch(() => {
+        if (!alive) return;
+        if (tries > 0) setTimeout(() => alive && check(tries - 1), 1500);
+        else setProfileDone((v) => v ?? true); // could not check: let them play rather than ask again
+      });
+    check(2);
     return () => { alive = false; };
-  }, [active]);
+  }, []);
   const setMode = (m) => {
     const next = new URLSearchParams(params);
     next.set('mode', m === 'group' ? 'group' : 'solo');
@@ -1655,6 +1696,7 @@ export default function Games() {
       top: scroller ? scroller.scrollTop : window.scrollY,
       offset: card ? card.getBoundingClientRect().top - base : null
     };
+    if (profileDone !== true) return;
     setActive(game);
   };
   // "Try it" under a result, the daily challenge (2026-11-13): open that game, in its zone.
@@ -1687,6 +1729,10 @@ export default function Games() {
         </div>
       )}
 
+      {!choosing && profileDone === null && <div className="fixed inset-0 z-[125]" aria-hidden data-game-profile-checking />}
+      {!choosing && profileDone === false && (
+        <GameProfilePopup defaultClass={ages.info?.classNumber || null} onSaved={(zone, body) => { rememberProfile(body); setProfileDone(true); ages.update(zone); }} />
+      )}
       {/* Solo or group: asked each time Games opens. Black and gold, as the reference (2026-11-04): a crown, a cube
           and a bulb for Individual games, a trophy and three players for Group games (public/games/choose). */}
       {choosing && !active && (
@@ -1761,6 +1807,8 @@ export default function Games() {
         {/* Group games: the same three section cards as Individual games (2026-11-14). */}
         {/* The three sections and the Individual ⇄ Group switch, one row (2026-11-16). */}
         {(group || !choosing) && <SectionCards active={group ? ages.zone : sectionKey} onOpen={group ? ages.pick : openSection} group={group} onMode={setMode} />}
+        {/* A phone (2026-11-18, the user): under the sections, slide all the way to open My progress. */}
+        {!group && !choosing && <div className="-mt-1 sm:hidden"><SlideToOpen label="Slide to see My progress" onDone={() => setProgressOpen(true)} /></div>}
         {!group && playTime && left !== null && !outOfTime && (
           <p className={`-mt-2 hidden items-center gap-1.5 text-xs font-black lg:flex ${outOfTime ? 'text-slate-500' : 'text-violet-700'}`}>
             {outOfTime ? <Moon className="h-3.5 w-3.5" /> : <Timer className="h-3.5 w-3.5" />}
@@ -1769,29 +1817,9 @@ export default function Games() {
         )}
         {group && <GroupHub zone={ages.zone} mine={ages.mine} />}
 
-        {!group && !choosing && sectionKey === 'young' && (
-          <YoungThinkersPage
-            categories={CATEGORIES.map((c) => ({ key: c.key, name: c.name, icon: c.icon, band: c.band }))}
-            renderGames={(key) => (
-              <div data-solo-games className="fp-game-stage grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {zoneGames(CATEGORIES.find((c) => c.key === key)).map(({ game }, i) => (
-                  <GameCard key={game.id} game={{ ...game, blurb: `${MULTIPLAYER[game.id] ? '👥 Solo & group · ' : 'Solo · '}${game.blurb}` }}
-                    theme={GROUP_ACCENTS[CARD_CYCLE[i % CARD_CYCLE.length]]}
-                    art={YOUNG_PICTURE.has(game.id) ? `/games/young/${game.id}.jpg` : soloArt(game.id)} index={i}
-                    reached={levelReached(game.id)} stars={starsForGame(game.id)} recent={game.id === recentId} onPlay={play} />
-                ))}
-              </div>
-            )}
-            completed={gamesIn('young').filter((g) => levelReached(g.id) > 1).length}
-            classNumber={ages.mine === 'young' ? ages.info?.classNumber : null}
-            stars={totalStars()}
-            achievements={earnedCount}
-            onProgress={() => setProgressOpen(true)}
-            onGroup={() => setMode('group')}
-          />
-        )}
+        {/* Young Thinkers (2026-11-17, the user): the same plain page as Rising Brains and Master Minds, no picture banner. */}
         {progressOpen && <ProgressSheet zone={ages.zone} band={ages.band} onClose={() => setProgressOpen(false)} />}
-        {!group && !choosing && sectionKey && sectionKey !== 'young' && (() => {
+        {!group && !choosing && sectionKey && (() => {
           const category = CATEGORIES.find((c) => c.key === categoryKey) || CATEGORIES[0];
           const section = SECTIONS.find((x) => x.key === ages.zone) || SECTIONS[1];
           const look = SECTION_LOOK[section.key];
@@ -1823,6 +1851,14 @@ export default function Games() {
                 );
               })}
             </div>
+            {/* My progress (2026-11-17, every section): the progress popup, as the Young Thinkers banner had it. */}
+            {/* Tablets only: on a phone it is the slide switch beside the sections. */}
+            <div className="mb-2 hidden justify-end sm:flex lg:hidden">
+              <button type="button" onClick={() => setProgressOpen(true)} data-my-progress
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 py-2 pr-4 pl-2 text-xs font-black text-white shadow-md transition hover:brightness-110 sm:text-sm">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/25"><TrendingUp className="h-4 w-4" /></span>My progress
+              </button>
+            </div>
             {/* Wider screens: the category tabs on their own row, apart from the cards' panel (2026-11-16, the user). */}
             <div className="mb-3 hidden gap-2 overflow-x-auto pb-1 lg:flex" role="tablist" aria-label="Game categories" data-solo-categories>
               {CATEGORIES.map((c) => {
@@ -1838,6 +1874,10 @@ export default function Games() {
                   </button>
                 );
               })}
+              <button type="button" onClick={() => setProgressOpen(true)} data-my-progress
+                className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 py-2 pr-4 pl-2 text-xs font-black text-white shadow-md transition hover:brightness-110 sm:text-sm">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/25"><TrendingUp className="h-4 w-4" /></span>My progress
+              </button>
             </div>
             <section className={`rounded-[26px] p-3.5 sm:p-5 ${look.panel}`} data-section={section.key}>
               <div key={`${section.key}-${category.key}`} data-solo-games className={`fp-game-stage grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5`}>
@@ -1846,7 +1886,7 @@ export default function Games() {
                     key={game.id}
                     game={{ ...game, blurb: `${MULTIPLAYER[game.id] ? '👥 Solo & group · ' : 'Solo · '}${game.blurb}` }}
                     theme={GROUP_ACCENTS[CARD_CYCLE[i % CARD_CYCLE.length]]}
-                    art={section.key === 'smart' && SMART_PICTURE.has(game.id) ? `/games/smart/${game.id}.jpg` : section.key === 'master' && MASTER_PICTURE.has(game.id) ? `/games/master/${game.id}.${MASTER_SVG.has(game.id) ? 'svg' : 'jpg'}` : soloArt(game.id)}
+                    art={section.key === 'young' && YOUNG_PICTURE.has(game.id) ? `/games/young/${game.id}.jpg` : section.key === 'smart' && SMART_PICTURE.has(game.id) ? `/games/smart/${game.id}.jpg` : section.key === 'master' && MASTER_PICTURE.has(game.id) ? `/games/master/${game.id}.${MASTER_SVG.has(game.id) ? 'svg' : 'jpg'}` : soloArt(game.id)}
                     index={i}
                     reached={levelReached(game.id)}
                     stars={starsForGame(game.id)}

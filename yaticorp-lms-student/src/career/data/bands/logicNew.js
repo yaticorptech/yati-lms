@@ -23,7 +23,8 @@ const STEP = { [N]: [-1, 0, S], [E]: [0, 1, W], [S]: [1, 0, N], [W]: [0, -1, E] 
 
 export const pipeConfig = (ageBand, difficulty, levelNo) => {
   const s = stepOf(ageBand, difficulty, levelNo);
-  return { cols: s <= 2 ? 4 : s <= 5 ? 5 : 6, rows: s <= 2 ? 4 : s <= 5 ? 5 : 6, puzzles: 3 };
+  // 2026-11-19 (the user: "add more pipes", a tall board that fills a phone): more rows than columns.
+  return { cols: s <= 5 ? 5 : 6, rows: s <= 2 ? 6 : s <= 5 ? 7 : 8, puzzles: 3 };
 };
 
 /** Does water run from the tap (west of the source cell) to the plant (east of the sink cell)? */
@@ -293,3 +294,59 @@ export const makeTowerPuzzle = (rng, config) => {
 
 /** Stars for a sorted puzzle: par → 3, par + 3 → 2, else 1. */
 export const towerStars = (par, moves) => (moves <= par ? 3 : moves <= par + 3 ? 2 : 1);
+
+/* ───────────────────────────── Tower of Hanoi (Tower Strategy, 2026-11-19) ─────────────────────────────
+ * The user: "make it completely like Tower of Hanoi". Rings of different sizes on three pegs; move one top ring at a
+ * time, never a bigger ring onto a smaller one, until every ring stands on the goal peg. Towers are bottom → top,
+ * each ring its size (1 = smallest). Levels add rings; the first puzzle is the classic full tower, the others start
+ * from a mixed (legal) position so each one needs fresh planning. `par` is the fewest moves (breadth-first).
+ */
+export const hanoiConfig = (ageBand, difficulty, levelNo) => {
+  const s = stepOf(ageBand, difficulty, levelNo);
+  return { discs: s <= 1 ? 3 : s <= 4 ? 4 : s <= 9 ? 5 : 6, puzzles: 3 };
+};
+export const hanoiCanMove = (towers, from, to) => {
+  if (from === to || !towers[from].length) return false;
+  const ring = towers[from][towers[from].length - 1];
+  const top = towers[to][towers[to].length - 1];
+  return top === undefined || top > ring;
+};
+export const hanoiSolved = (towers, goal, discs) => towers[goal].length === discs;
+export const hanoiPar = (start, goal, discs) => {
+  const key = (t) => t.map((x) => x.join('')).join('|');
+  const seen = new Set([key(start)]);
+  let frontier = [start];
+  for (let depth = 0; frontier.length; depth += 1) {
+    const next = [];
+    for (const t of frontier) {
+      if (hanoiSolved(t, goal, discs)) return depth;
+      for (let a = 0; a < 3; a += 1) for (let b = 0; b < 3; b += 1) {
+        if (!hanoiCanMove(t, a, b)) continue;
+        const n = moveBlock(t, a, b);
+        const k = key(n);
+        if (!seen.has(k)) { seen.add(k); next.push(n); }
+      }
+    }
+    frontier = next;
+  }
+  return -1;
+};
+/** Puzzle `index` of a level: 0 is the classic tower; the rest start mixed. { towers, goal, par }. */
+export const makeHanoiPuzzle = (rng, config, index = 0) => {
+  const n = config.discs;
+  const full = 2 ** n - 1;
+  if (index === 0) {
+    const from = intBetween(rng, 0, 2);
+    const goal = (from + intBetween(rng, 1, 2)) % 3;
+    const towers = [[], [], []];
+    for (let d = n; d >= 1; d -= 1) towers[from].push(d);
+    return { towers, goal, par: full };
+  }
+  for (;;) {
+    const towers = [[], [], []];
+    for (let d = n; d >= 1; d -= 1) towers[intBetween(rng, 0, 2)].push(d); // biggest first: always a legal position
+    const goal = intBetween(rng, 0, 2);
+    const par = hanoiPar(towers, goal, n);
+    if (par >= Math.ceil(full * 0.45) && par <= full && towers.filter((t) => t.length).length >= 2) return { towers, goal, par };
+  }
+};

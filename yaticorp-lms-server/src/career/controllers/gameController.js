@@ -195,7 +195,13 @@ const saveProgress = async (req, res) => {
     }
 
     const claimedLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(Number(req.body?.level) || 1)));
-    const incoming = cleanStars(req.body?.stars);
+    let incoming = cleanStars(req.body?.stars);
+    // WORDCRAFT (2026-11-20): its stars are earned on the server (wordcraft/service.js), so a save may not claim more
+    // on a level than the server verified.
+    if (gameId === 'wordcraft') {
+      const verified = await require('../wordcraft/service').verifiedStars(userId);
+      incoming = Object.fromEntries(Object.entries(incoming).map(([lv, st]) => [lv, Math.min(st, verified[lv] || 0)]).filter(([, st]) => st > 0));
+    }
 
     const before = await GameProgress.findOne({ userId, gameId }).lean();
     const stored = before ? shapeProgress(before) : { gameId, level: 1, stars: {} };

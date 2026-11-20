@@ -5,28 +5,30 @@ import useRecordStars from './useRecordStars';
 import { sfx } from './gameSfx';
 import { SECTION_BANDS } from './catalog';
 import { seeded } from '../../data/seeded';
+import ringRed from '../../assets/tower/ring-red.png';
+import ringBlue from '../../assets/tower/ring-blue.png';
+import ringYellow from '../../assets/tower/ring-yellow.png';
 import { canMove, makeTowerPuzzle, moveBlock, towerConfig, towersSolved } from '../../data/bands/logicNew';
 
 const freshSeed = () => Math.floor(Math.random() * 4294967296);
-const RING = ['#ef4444', '#3b82f6', '#facc15'];
-const RING_DARK = ['#b91c1c', '#1d4ed8', '#ca8a04'];
-const RING_LIGHT = ['#fecaca', '#bfdbfe', '#fef9c3'];
 const SLACK = 4; // a puzzle counts as "solved well" within the best number of moves + SLACK
-// The scene picture's size and where its pegs stand, in percent (measured from the picture).
-const SCENE_W = 944;
-const SCENE_H = 564;
-const PEG_X = [20.76, 49.84, 79.34]; // peg centres, % of width
-const PEG_TOP = 34.2; // top of the pegs, % of height
-const BOARD_Y = 87.6; // top of the board, % of height
-const RING_W = 16; // a ring's width, % of the scene's width
-const RING_STEP = 6.6; // one ring above the next, % of height
-const RING_BOTTOM = 84; // centre of the lowest ring, % of height
-const LIFT_Y = 27; // a lifted ring floats here, above the pegs
+// The rings are cut from the user's own picture (2026-11-19, "same as the uploaded image"): assets/tower/ring-*.png.
+const RING_IMG = [ringRed, ringBlue, ringYellow];
+// The scene, in SVG units.
+const VW = 300;
+const PEG_X = [52, 150, 248];
+const BOARD_Y = 300; // top of the board
+const RING_H = 30; // the picture's ring is 146 × 51
+const RING_STEP = 21;
+const RING_RX = 43;
+const pegTop = (cap) => BOARD_Y - cap * RING_STEP - 34;
+const LIFT_GAP = 30; // a lifted ring floats this far above the peg's top
 
 /**
- * 🧱 Tower Strategy (2026-11-16, the user's design: a wooden board with three pegs and flat rings on a soft scene).
- * Tap a peg to lift its top ring, tap the NEXT peg to drop it (1 ⇄ 2, 2 ⇄ 3). Sort so each peg holds one colour.
- * Scored like the other games: puzzles solved well (within a few moves of the best) out of the level's puzzles.
+ * 🧱 Tower Strategy (2026-11-16; colour sorting again from 2026-11-19 — the user tried Tower of Hanoi for a day and
+ * asked for this back). Three pegs of mixed coloured rings. Tap a peg to lift its top ring, tap the NEXT peg to drop
+ * it: rings move only 1 ⇄ 2 and 2 ⇄ 3, so a ring going from peg 1 to peg 3 must pass through the middle. Sort so
+ * each peg holds one colour. Scored like the other games: puzzles solved well (within a few moves of the best).
  */
 export default function TowerStrategy({ onExit }) {
   const progress = useGameProgress('tower-strategy', { bands: SECTION_BANDS.smart });
@@ -62,7 +64,8 @@ function Round({ progress, onExit }) {
     if (lifted === t) { setLifted(null); return; }
     if (!canMove(towers, lifted, t, rules)) {
       setShake(t);
-      setWarn(Math.abs(lifted - t) !== 1 ? 'Rings move only to the next peg!' : 'That peg is full.');
+      sfx.wrong?.();
+      setWarn(Math.abs(lifted - t) !== 1 ? 'No jumping! Go through the middle peg.' : 'That peg is full.');
       timers.current.push(setTimeout(() => { setShake(null); setWarn(null); }, 1400));
       return;
     }
@@ -87,10 +90,11 @@ function Round({ progress, onExit }) {
     }
   };
 
-  const objective = `Three pegs of mixed coloured rings. Tap a peg to lift its top ring, then tap the NEXT peg to drop it — rings move only 1 ⇄ 2 or 2 ⇄ 3. Sort them so each peg holds ONE colour. Solve each puzzle in as few moves as you can — ${puzzles.length} puzzles.`;
+  const objective = `Three pegs of mixed coloured rings. Tap a peg to lift its top ring, then tap the NEXT peg to drop it. Rings cannot jump: from peg 1 to peg 3 (or 3 to 1) they must pass through the middle peg. Sort them so each peg holds ONE colour. Solve each puzzle in as few moves as you can — ${puzzles.length} puzzles.`;
 
   return (
     <GameShell
+      dark
       title="Tower Strategy"
       blurb="Sort the rings: one colour on each peg."
       tone="bg-gradient-to-br from-violet-400 to-amber-300"
@@ -108,65 +112,77 @@ function Round({ progress, onExit }) {
       } : null}
       footer={<p className="text-sm font-bold text-indigo-900/80">Goal: one colour on each peg. Rings move only to the next peg.</p>}
     >
-      {started && !over && (
-        <div className="mx-auto w-full max-w-3xl select-none">
-          {/* The scene is the user's own picture (public/games/smart/tower-scene.jpg: its rings removed); the rings are
-              drawn over its pegs, at the pegs' places in the picture (percent of its width and height). */}
-          <div className="relative w-full overflow-hidden rounded-[1.75rem] shadow-[0_16px_36px_-20px_rgba(109,40,217,0.45)]"
-            style={{ aspectRatio: `${SCENE_W} / ${SCENE_H}`, backgroundImage: 'url(/games/smart/tower-scene.jpg)', backgroundSize: '100% 100%' }}>
-            <p className={`absolute inset-x-0 top-[5%] z-20 text-center text-sm font-black sm:text-base ${warn ? 'text-rose-600' : 'text-violet-900/75'}`} role="status" aria-live="polite">
-              {won ? `Sorted in ${moves} moves! 🎉` : warn || (lifted === null ? 'Tap a peg to lift its top ring' : 'Tap the next peg to drop it')}
+      {started && !over && (() => {
+        const top = pegTop(config.cap);
+        const vTop = top - LIFT_GAP - RING_H; // the view starts above a lifted ring
+        const ringY = (k) => BOARD_Y - RING_H + 4 - k * RING_STEP; // top edge of ring k on a peg
+        return (
+          /* Pure dark, full screen on a phone (2026-11-19, the user: "like Pipe Flow"); pegs, board and rings are drawn. */
+          <div className="mx-auto flex w-full max-w-xl select-none flex-col justify-center gap-4 max-sm:flex-1 max-sm:justify-center">
+
+            <div className="relative w-full">
+              <svg viewBox={`0 ${vTop} ${VW} ${BOARD_Y + 34 - vTop}`} className="block w-full" role="group" aria-label="Three pegs with coloured rings">
+                <defs>
+                  <linearGradient id="ts-wood" x1="0" x2="1"><stop offset="0" stopColor="#5a2a10" /><stop offset="0.35" stopColor="#a85a26" /><stop offset="0.55" stopColor="#c9783a" /><stop offset="1" stopColor="#6b3414" /></linearGradient>
+                  <linearGradient id="ts-board" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#b5652b" /><stop offset="0.35" stopColor="#8a4519" /><stop offset="1" stopColor="#4a220b" /></linearGradient>
+                  <linearGradient id="ts-gold" x1="0" x2="1"><stop offset="0" stopColor="#a16207" /><stop offset="0.45" stopColor="#fde68a" /><stop offset="1" stopColor="#b45309" /></linearGradient>
+                </defs>
+
+                {/* The board */}
+                <ellipse cx={VW / 2} cy={BOARD_Y + 30} rx="150" ry="6" fill="#f59e0b" opacity="0.18" />
+                <rect x="2" y={BOARD_Y} width={VW - 4} height="28" rx="9" fill="url(#ts-board)" />
+                <rect x="6" y={BOARD_Y + 2} width={VW - 12} height="5" rx="2.5" fill="#e0a063" opacity="0.55" />
+
+                {/* Pegs, with a glow where the ring can drop / where a colour is sorted */}
+                {towers.map((t, i) => {
+                  const canDrop = lifted !== null && lifted !== i && canMove(towers, lifted, i, rules);
+                  const pure = won || (lifted !== i && t.length === config.per && t.every((c) => c === t[0]));
+                  return (
+                    <g key={i}>
+                      {(canDrop || pure) && <rect x={PEG_X[i] - 14} y={top - 6} width="28" height={BOARD_Y - top + 6} rx="14" fill={canDrop ? '#ffffff' : '#34d399'} opacity="0.28" style={{ filter: 'blur(6px)' }} />}
+                      <rect x={PEG_X[i] - 6} y={top} width="12" height={BOARD_Y - top + 2} fill="url(#ts-wood)" />
+                    </g>
+                  );
+                })}
+
+                {/* Rings */}
+                {towers.map((t, i) => t.map((c, k) => {
+                  const up = k === t.length - 1 && lifted === i;
+                  const y = up ? top - LIFT_GAP - RING_H + 4 : ringY(k);
+                  return (
+                    /* Placed with the SVG's own transform (not CSS): the same in every browser and under the desktop zoom. */
+                    <g key={`${i}-${k}`} transform={`translate(${PEG_X[i]} ${y})`} className={up ? 'ts-float' : ''}>
+                      <image href={RING_IMG[c]} x={-RING_RX} y="0" width={RING_RX * 2} height={RING_H} preserveAspectRatio="none" />
+                    </g>
+                  );
+                }))}
+
+                {/* Each peg again, above its top ring (so the ring sits around the peg), and its gold cap */}
+                {towers.map((t, i) => {
+                  const n = lifted === i ? t.length - 1 : t.length;
+                  const to = n > 0 ? ringY(n - 1) + 9 : BOARD_Y;
+                  return (
+                    <g key={i}>
+                      {n > 0 && <rect x={PEG_X[i] - 6} y={top} width="12" height={Math.max(0, to - top)} fill="url(#ts-wood)" />}
+                      {n > 0 && <ellipse cx={PEG_X[i]} cy={to} rx="6" ry="2" fill="#6b3414" />}
+                      <rect x={PEG_X[i] - 7.5} y={top - 9} width="15" height="11" rx="4.5" fill="url(#ts-gold)" />
+                      <ellipse cx={PEG_X[i] - 2} cy={top - 6} rx="2.2" ry="1.4" fill="#fff" opacity="0.8" />
+                    </g>
+                  );
+                })}
+              </svg>
+              {towers.map((t, i) => (
+                <button key={i} type="button" onClick={() => tapPeg(i)} aria-label={`Peg ${i + 1}: ${t.length} rings${lifted === i ? ', top ring lifted' : ''}`}
+                  className={`absolute top-0 z-10 h-full touch-manipulation rounded-2xl ${shake === i ? 'gs-wrong bg-rose-500/15' : ''}`} style={{ left: `${i * 33.33}%`, width: '33.34%' }} />
+              ))}
+            </div>
+
+            <p className={`rounded-2xl px-4 py-3 text-center text-base font-black ${won ? 'gs-rise bg-emerald-400 text-emerald-950' : warn ? 'bg-rose-500 text-white' : 'bg-white/10 text-white ring-1 ring-white/15'}`} role="status" aria-live="polite">
+              {won ? `Sorted in ${moves} moves! 🎉` : warn || (lifted === null ? 'One colour on each peg · tap a peg to lift its top ring' : 'Tap the NEXT peg to drop it · no jumping over the middle')}
             </p>
-
-            {towers.map((t, i) => {
-              const isLifted = lifted === i;
-              const canDrop = lifted !== null && lifted !== i && canMove(towers, lifted, i, rules);
-              const pure = t.length === config.per && t.every((c) => c === t[0]);
-              return (
-                <div key={i}>
-                  {/* A soft glow behind a peg that can take the ring, or a sorted one */}
-                  {(canDrop || pure || won) && (
-                    <span aria-hidden className="absolute rounded-full blur-md" style={{
-                      left: `${PEG_X[i] - 3}%`, width: '6%', top: `${PEG_TOP}%`, height: `${BOARD_Y - PEG_TOP}%`,
-                      background: canDrop ? 'rgba(255,255,255,0.75)' : 'rgba(52,211,153,0.55)'
-                    }} />
-                  )}
-                  {t.map((c, k) => {
-                    const up = k === t.length - 1 && isLifted;
-                    const centre = up ? LIFT_Y : RING_BOTTOM - k * RING_STEP;
-                    return <Ring key={k} colour={c} x={PEG_X[i]} y={centre} lifted={up} />;
-                  })}
-                  <button type="button" onClick={() => tapPeg(i)} aria-label={`Peg ${i + 1}: ${t.length} rings${isLifted ? ', top ring lifted' : ''}`}
-                    className={`absolute z-10 h-full ${shake === i ? 'gs-wrong' : ''}`} style={{ left: `${i * 33.33}%`, width: '33.34%', top: 0 }} />
-                </div>
-              );
-            })}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </GameShell>
-  );
-}
-
-/**
- * A thin round ring seen a little from above, like the rings in the picture: a coloured band with a light top edge.
- * The peg is drawn over the back half of the band, so the ring sits around the peg.
- */
-function Ring({ colour, x, y, lifted }) {
-  const [main, dark, light] = [RING[colour], RING_DARK[colour], RING_LIGHT[colour]];
-  return (
-    <svg viewBox="0 0 160 40" aria-hidden className={`pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 transition-[top] duration-200 ease-out ${lifted ? 'drop-shadow-[0_6px_6px_rgba(60,30,10,0.35)]' : 'drop-shadow-[0_2px_2px_rgba(60,30,10,0.35)]'}`}
-      style={{ left: `${x}%`, top: `${y}%`, width: `${RING_W}%` }}>
-      <ellipse cx="80" cy="21" rx="73" ry="13" fill="none" stroke={dark} strokeWidth="11" />
-      <ellipse cx="80" cy="19" rx="73" ry="13" fill="none" stroke={main} strokeWidth="9" />
-      <path d="M12 16 A73 13 0 0 1 148 16" fill="none" stroke={light} strokeWidth="2.5" strokeLinecap="round" opacity="0.9" />
-      {/* the peg in front of the ring's back half (hidden while the ring is lifted off the peg) */}
-      {!lifted && <rect x="67" y="0" width="26" height="19" fill="url(#ts-peg)" />}
-      <defs>
-        <linearGradient id="ts-peg" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#7a3f17" /><stop offset="0.4" stopColor="#b8672c" /><stop offset="0.55" stopColor="#d48a4a" /><stop offset="1" stopColor="#9a5524" />
-        </linearGradient>
-      </defs>
-    </svg>
   );
 }

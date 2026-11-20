@@ -279,6 +279,29 @@ const deviceHasOwn = (lang) => typeof window !== 'undefined' && !!window.speechS
 const usesServerVoice = (lang) => SERVER_LANGS.has(norm(lang).split('-')[0]) && (SERVER_VOICE_ON || !deviceHasOwn(lang));
 const base = (lang) => norm(lang).split('-')[0];
 /*
+ * The Hindi stories in Kokoro's voices (2026-11-18, the user: "use Kokoro for the Hindi stories section completely"):
+ * every line recorded ahead (scripts/storyHindiKokoro.mjs) into public/linguistic/story-hi, each person in their own
+ * Hindi voice. Its index — "<text>|<voice spec>" → file — is fetched once; a line found there plays that recording,
+ * on any device and before any other voice.
+ */
+const STORY_HI_DIR = `${ENV.BASE_URL || '/'}linguistic/story-hi/`;
+let storyHi = null; // { byKey, byText }
+if (typeof window !== 'undefined' && typeof fetch === 'function') {
+    fetch(`${STORY_HI_DIR}index.json`).then((r) => (r.ok ? r.json() : null)).then((index) => {
+        if (!index) return;
+        const byText = {};
+        for (const [k, f] of Object.entries(index)) { const t = k.slice(0, k.lastIndexOf('|')); if (!byText[t]) byText[t] = f; }
+        storyHi = { byKey: index, byText };
+    }).catch(() => {});
+}
+/** The Kokoro recording of a Hindi story line (its own speaker's voice when there is one), or null. */
+const storyClip = (text, lang, voice) => {
+    if (!storyHi || !text || base(lang) !== 'hi') return null;
+    const t = String(text).trim();
+    const f = storyHi.byKey[`${t}|${voice || 'f'}`] || storyHi.byText[t];
+    return f ? `${STORY_HI_DIR}${f}` : null;
+};
+/*
  * English is spoken by Kokoro-82M in the browser itself (2026-11-07): the model is downloaded once, kept on the
  * device, and makes each clip locally, with no call to the server. If it cannot load, the server voice reads it.
  */
@@ -472,7 +495,7 @@ const pump = () => {
 export const prefetch = (items) => {
     const mine = [];
     for (const [text, lang = 'en-IN', voice] of items || []) {
-        if (!text || !String(text).trim() || !usesServerVoice(lang)) continue;
+        if (!text || !String(text).trim() || !usesServerVoice(lang) || storyClip(text, lang, voice)) continue;
         const key = clipKey(text, lang, voice);
         if (clips.has(key) || queue.some((q) => q.key === key)) continue;
         const job = { key, text, lang, voice };
@@ -557,6 +580,17 @@ export const play = (src, text, lang = 'en-IN', on = {}) => {
         if (!r) return null; // English beside a Kannada word, say: not read
         [text, lang] = r;
     }
+    // A Hindi story line: its Kokoro recording, whatever the voice settings (2026-11-18).
+    const story = storyClip(text, lang, voice);
+    if (story) {
+        stopAll();
+        const a = new Audio(story);
+        playing = a;
+        if (rate) a.playbackRate = rate;
+        talkWith(a, gender, text);
+        a.play().catch(() => {});
+        return a;
+    }
     // A Punjabi letter alone (ਕ, ਆ, ਅਂ): the device's voice — Punjabi's own, else a Hindi one reading it in Devanagari
     // (2026-11-18). The AI voice, made for sentences, says a lone letter wrong or adds made-up words ("ka katikatha hai").
     if (text && !gender && norm(lang).startsWith('pa') && /^[\u0A00-\u0A7F]{1,3}$/u.test(text.trim())
@@ -616,9 +650,15 @@ export const readAloud = (texts, lang = 'en-IN', on = {}) => {
         for (let k = 0; k < parts.length; k += 1) {
             const part = parts[k], prev = parts[k - 1];
             if (stopped || me !== asked) return;
-            if (prev) await rest(prev.line === part.line ? 250 : prev.voice !== part.voice ? gap + 250 : gap);
+            // Longer breaths (2026-11-18, "it must take pauses"): between sentences of a line, and more when the speaker changes.
+            if (prev) await rest(prev.line === part.line ? 420 : prev.voice !== part.voice ? gap + 400 : gap + 150);
             if (stopped || me !== asked) return;
             on.onLine?.(part.line);
+            const story = storyClip(part.text, part.lang, part.voice);
+            if (story) {
+                await new Promise((resolve) => { const a = new Audio(story); playing = a; a.onended = resolve; a.onerror = resolve; a.play().catch(resolve); });
+                continue;
+            }
             if (usesServerVoice(part.lang)) {
                 on.onLoading?.(true);
                 let url = null;

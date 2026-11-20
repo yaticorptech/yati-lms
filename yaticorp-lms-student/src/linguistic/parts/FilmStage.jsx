@@ -10,7 +10,8 @@
  * (`Figure`, `LOOK`) — Arjun after his character sheet, Ravi and the interviewer to match — and the camera moves in on
  * whoever speaks.
  */
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
+import { MOTION, Person } from './Comic';
 
 const W = 1280;
 const H = 720;
@@ -69,6 +70,18 @@ const LOOK = {
         top: 'suit', cloth: ['#3b528f', '#2a3d73', '#1c2a55'], edge: '#16214a', legs: ['#2a3d73', '#1c2a55'], shoes: 'formal', tie: '#4f7dd1', shirt: '#ffffff'
     }
 };
+/*
+ * The same people in the picture stories' style (2026-11-18, the user: "Arjun, Ravi, the interviewer — all in this
+ * character style, dressed as who they are"): Comic.jsx Person, in today's clothes. Arjun, the young job-seeker: a
+ * blue shirt, navy trousers, sneakers, curly hair, a backpack. Ravi, the old man (2026-11-18: no beard, fair): a cream kurta and
+ * pyjama, a grey shawl, grey hair, a white moustache, glasses, sandals. The interviewer: a navy suit, a blue tie, a moustache.
+ */
+const BOOK = {
+    arjun: { name: 'Arjun', skin: '#f1c6a0', outfit: 'shirt', shirt: '#8fb4ee', pants: '#2f3c66', hair: 'hair', curly: true, backpack: '#3d4a5c' },
+    ravi: { name: 'Ravi', skin: '#efc29a', outfit: 'kurta', kurta: '#f2e6cc', pants: '#f7f3e8', shawl: '#8e8e8e', hair: 'grey', moustache: true, glasses: true },
+    interviewer: { name: 'the interviewer', skin: '#f3cba6', outfit: 'suit', coat: '#2a3d73', pants: '#22305c', tie: '#4f7dd1', hair: 'hair', moustache: true }
+};
+const BOOK_SIZE = 4;
 
 /** Arms by pose: [elbow dx, dy, hand dx, dy] from the shoulder — the back arm, then the front one. */
 const ARMS = {
@@ -430,7 +443,7 @@ function Auto({ leaving }) {
 }
 
 /** The scene: the place, its light, the people where the line puts them, the camera on them. */
-export default function FilmStage({ scene, line, talking, mouth, onTap }) {
+function FilmStage({ scene, line, talking, mouth, onTap, narrow = false }) {
     const place = line?.place || scene.place;
     const light = line?.light || scene.light;
     const at = line?.at || {};
@@ -475,13 +488,24 @@ export default function FilmStage({ scene, line, talking, mouth, onTap }) {
     const onArjun = at.arjun && !moving.arjun && (talking === 'arjun' || line?.cam === 'close');
     const focusX = onArjun ? at.arjun.x : line?.cam === 'left' ? 32 : line?.cam === 'right' ? 68 : line?.cam === 'close' ? (at[talking]?.x ?? Object.values(at)[0]?.x ?? 50) : 50;
     const focusY = onArjun ? 30 : 62;
-    const scale = onArjun ? 1.85 : line?.cam === 'wide' ? 1 : line?.cam === 'pan' ? 1.12 : line?.cam === 'close' ? 1.45 : 1.28;
+    // A narrow (phone) picture is already cropped at its sides: no zoom there, so both people stay in view; close-ups
+    // only a little closer (2026-11-18).
+    const wideScale = onArjun ? 1.85 : line?.cam === 'wide' ? 1 : line?.cam === 'pan' ? 1.12 : line?.cam === 'close' ? 1.45 : 1.28;
+    const xs = Object.values(at).map((p) => p.x).filter((x) => typeof x === 'number');
+    const middle = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : 50;
+    // A square card (2026-11-18, "bigger") sees 56.25% of the scene's width; its left edge in % of the scene.
+    const SEEN = 56.25;
+    const viewLeft = Math.min(100 - SEEN, Math.max(0, middle - SEEN / 2));
+    const scale = narrow ? (onArjun || line?.cam === 'close' ? 1.2 : 1) : wideScale;
     const tint = light === 'rain' ? 'rgba(40,60,90,.25)' : light === 'evening' ? 'rgba(80,40,120,.15)' : light === 'morning' ? 'rgba(255,200,120,.1)' : 'transparent';
     return (
         <div className="absolute inset-0 overflow-hidden" data-film-stage={place}>
-            <style>{CSS}</style>
+            <style>{CSS}{MOTION}</style>
+            {/* A phone's 4:3 card sees three quarters of the 16:9 scene: that window slides to where the people stand, so
+                no one is cut off at the edge (2026-11-18). */}
+            <div className="absolute inset-y-0" style={narrow ? { left: 0, width: `${10000 / SEEN}%`, transform: `translate3d(${-viewLeft}%, 0, 0)`, transition: 'transform 1.2s ease', willChange: 'transform' } : { left: 0, right: 0 }}>
             <div className="absolute inset-0" style={{ transform: `scale(${scale})`, transformOrigin: `${Math.min(88, Math.max(12, focusX))}% ${focusY}%`, transition: `transform ${line?.cam === 'pan' ? 9 : 2.2}s cubic-bezier(.4,.1,.3,1), transform-origin 2.2s ease` }}>
-                <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full" preserveAspectRatio="xMidYMid slice">
+                <svg viewBox={`0 0 ${W} ${H}`} className="cm-on h-full w-full" preserveAspectRatio="xMidYMid slice" shapeRendering="geometricPrecision" textRendering="geometricPrecision">
                     <defs>
                         <linearGradient id="fs-dusk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2a1f4f" /><stop offset=".55" stopColor="#8a4f7d" /><stop offset="1" stopColor="#f2a65a" /></linearGradient>
                         <linearGradient id="fs-storm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#3c4656" /><stop offset="1" stopColor="#8592a3" /></linearGradient>
@@ -501,9 +525,10 @@ export default function FilmStage({ scene, line, talking, mouth, onTap }) {
                         return (
                             <g key={who} className={`sf-fig ${state}`} style={{ transform: `translate(${p.x}px, ${GROUND}px) scale(${LOOK[who]?.height || 1})`, '--dur': `${p.dur}s` }} onClick={() => tap(who)} data-film-person={who}>
                                 <g key={hops[who] || 0} className={hops[who] ? 'sf-hop' : undefined}>
-                                    <g transform={a.face === 'left' ? 'scale(-1 1)' : undefined}>
-                                        <Figure who={who} pose={moving[who] ? 'stand' : a.pose} sit={a.sit} holds={a.holds} mouth={talking === who ? mouth : 0} moving={!!moving[who]} run={moving[who] === 'run'} />
-                                    </g>
+                                    {a.sit && !moving[who] && <Seat hip={-42 * 0.75 * BOOK_SIZE} office={place === 'office'} />}
+                                    {BOOK[who]
+                                        ? <Person look={BOOK[who]} x={0} y={0} size={BOOK_SIZE} face={moving[who] ? (a.face === 'left' ? 'left' : 'right') : (a.face === 'left' ? 'left' : 'right')} pose="stand" calm sit={!!a.sit && !moving[who]} facing={!moving[who]} holds={a.holds} speaking={talking === who} talking={talking === who} />
+                                        : <g transform={a.face === 'left' ? 'scale(-1 1)' : undefined}><Figure who={who} pose={moving[who] ? 'stand' : a.pose} sit={a.sit} holds={a.holds} mouth={talking === who ? mouth : 0} moving={!!moving[who]} run={moving[who] === 'run'} /></g>}
                                 </g>
                             </g>
                         );
@@ -511,9 +536,13 @@ export default function FilmStage({ scene, line, talking, mouth, onTap }) {
                     {place === 'office' && <g pointerEvents="none"><rect x="740" y={GROUND - 190} width="460" height="34" rx="6" fill="#6d4c41" {...stroke} /><rect x="760" y={GROUND - 158} width="420" height="158" fill="#795548" {...stroke} /><rect x="980" y={GROUND - 238} width="92" height="50" rx="4" fill="#263238" {...stroke} strokeWidth="3" /></g>}
                 </svg>
             </div>
+            </div>
             <div className="pointer-events-none absolute inset-0" style={{ background: tint }} />
-            {light === 'rain' && <div className="sf-rain pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">{Array.from({ length: 90 }, (_, i) => <i key={i} style={{ left: `${(i * 37.3) % 100}%`, '--delay': `${-((i * 131) % 97) / 100}s`, '--dur': `${0.5 + ((i * 17) % 11) / 40}s`, opacity: 0.35 + ((i * 7) % 6) / 12, height: `${9 + (i % 5) * 1.5}%` }} />)}</div>}
+            {light === 'rain' && <div className="sf-rain pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">{Array.from({ length: narrow ? 36 : 70 }, (_, i) => <i key={i} style={{ left: `${(i * 37.3) % 100}%`, '--delay': `${-((i * 131) % 97) / 100}s`, '--dur': `${0.5 + ((i * 17) % 11) / 40}s`, opacity: 0.35 + ((i * 7) % 6) / 12, height: `${9 + (i % 5) * 1.5}%` }} />)}</div>}
             <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.45) 100%)' }} />
         </div>
     );
 }
+
+// Redrawn only when the scene, the line, who is talking or the view changes (2026-11-18, "it lags").
+export default memo(FilmStage);

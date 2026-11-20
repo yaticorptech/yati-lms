@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { AuthContext as LmsAuthContext } from '../../../context/AuthContext';
 import { ArrowLeft, Brain, Layers, Pause, Play, RotateCcw, Star, Target, Timer, Trophy, Zap } from 'lucide-react';
 import { LevelIntro, LevelResult } from './LevelPanels';
 import HowToPlay from './HowToPlay';
-import SessionFeedback from './SessionFeedback';
 import MissionArt from '../plan/MissionArt';
 import GameCelebration from '../../../components/GameCelebration';
 import { starsForGame, starsOn, gameXpTable, GAME_XP } from './levels';
 import { useReportPlaying } from './playClock';
+import { pickRival, rivalSeconds, timeText } from './rivalNames';
 
 /**
  * The frame every game sits in: who you are playing, how you are doing, which
@@ -179,20 +180,54 @@ export default function GameShell({
   totalSeconds,
   best,
   progress,
-  onRestart,
+  onRestart, // 2026-11-20 (the user): no restart button in the header while playing — only on the result screen, as before
   onExit,
   intro,
   result,
   children,
   footer: _footer, // the long in-game line: left out, the How to play box is kept short (2026-11-14)
-  variant,
+  variant: _variant, // kept so callers need not change; every game uses the standard header now
   paused = false,
-  onPause
+  onPause,
+  dark = false // 2026-11-19 (Pipe Flow): on a phone the board is a full-width, pure-dark game screen, no card around it
 }) {
-  const premium = variant === 'premium';
+  // 2026-11-19 (the user): every game, Master Minds' too, uses the same header — the colourful band of Rising Brains.
+  const premium = false;
+  // Young Thinkers (Classes 1–5): the in-game How to play is left out below desktop width.
+  const youngThinker = progress?.ageBand === 'foundation' || progress?.ageBand === 'developing';
+  // Rising Brains (Classes 6–10, 2026-11-18, the user): no How to play on the game page at all — the intro's demo shows it.
+  const risingBrain = progress?.ageBand === 'intermediate' || progress?.ageBand === 'analytical';
+  // Master Minds (Classes 11–12, 2026-11-19, the user): no How to play on a phone — the game board takes its place.
+  const masterMind = progress?.ageBand === 'advanced';
   // Neither the briefing nor the result: the level is being played, and only
   // this counts against the day's play time (see playClock.js).
   useReportPlaying(!intro && !result);
+
+  /* After a cleared level (2026-11-17, the user): the student's own time, and another player's quicker one to aim at —
+     "You finished in 1 min · Ananya completed this in 50 seconds" — a different Indian first name each time. */
+  const user = useContext(LmsAuthContext)?.user;
+  const firstName = String(user?.name || user?.firstName || '').trim().split(/\s+/)[0];
+  const playing = !intro && !result;
+  const startedAt = useRef(null);
+  const [took, setTook] = useState(null);
+  /* Keyed on whether a result is showing, not on the result object: games hand over a new
+     result object on every render, which used to cancel the pending time before it landed
+     (2026-11-18, the user: the celebration showed no times). */
+  const hasResult = Boolean(result);
+  const passedNow = Boolean(result?.passed);
+  useEffect(() => {
+    if (playing) { if (startedAt.current === null) startedAt.current = Date.now(); return; }
+    if (!hasResult || startedAt.current === null) return;
+    const secs = Math.max(1, Math.round((Date.now() - startedAt.current) / 1000));
+    startedAt.current = null;
+    const rival = passedNow ? { name: pickRival(firstName), secs: rivalSeconds(secs) } : null;
+    setTook({ secs, rival });
+  }, [playing, hasResult, passedNow]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (intro && took !== null) setTook(null); // a new level's briefing: forget the last time
+  const times = result?.passed && took?.rival
+    ? { mine: timeText(took.secs), other: `${took.rival.name} completed this in ${timeText(took.rival.secs)}`, otherName: took.rival.name, otherTime: timeText(took.rival.secs) }
+    : null;
+  const finishLine = times;
 
   /* A cleared level gets the full-screen celebration (GameCelebration), once
      each time a result arrives, until it is closed or Next level is pressed.
@@ -229,7 +264,7 @@ export default function GameShell({
 
   if (premium) {
     const playing = !intro && !result;
-    const levelLabel = progress?.tier === 'super hard' ? 'Super hard' : progress?.tier === 'hard' ? 'Hard level' : 'Level';
+    const levelLabel = 'Level'; // no easy / medium / hard shown (2026-11-17, the user)
     const timePct = seconds !== undefined && totalSeconds ? Math.max(0, Math.min(100, (seconds / totalSeconds) * 100)) : null;
     const rewards = (
       <>
@@ -310,9 +345,6 @@ export default function GameShell({
               {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
             </button>
           )}
-          <button type="button" onClick={onRestart} aria-label="Start over" className={roundBtn}>
-            <RotateCcw className="h-4 w-4" />
-          </button>
         </header>
 
         {playing && meterFrom(score) !== null && (
@@ -323,38 +355,41 @@ export default function GameShell({
 
         {!playing ? (
           <div className="p-3 sm:p-6">
-            {intro ? <LevelIntro {...intro} tone={tone} /> : <><LevelResult {...result} tone={tone} /><SessionFeedback gameId={progress?.gameId} /></>}
+            {intro ? <LevelIntro {...intro} tone={tone} /> : <><LevelResult {...result} headline={result.passed && !result.atEnd ? `Level ${progress?.level ?? ''} cleared` : result.headline} tone={tone} finishLine={finishLine} /></>}
             {cheering && (
               <GameCelebration
                 eyebrow={result.atEnd ? 'Every level cleared' : 'Level complete'}
-                title={result.headline}
+                title={result.atEnd ? result.headline : `Level ${progress?.level ?? ''} cleared`}
                 subtitle={title}
                 detail={result.detail}
                 stars={typeof result.stars === 'number' ? result.stars : null}
                 xp={cheerXp}
+                times={times}
                 primary={!result.atEnd && result.onNext ? { label: 'Next level', onClick: () => { setCheerClosed(true); result.onNext(); } } : null}
                 onClose={() => setCheerClosed(true)}
               />
             )}
           </div>
         ) : (
-          <div className="p-3 min-[400px]:p-4 sm:p-6">
-            <div className="grid w-full items-start gap-3 sm:gap-5 xl:grid-cols-[14rem_minmax(0,1fr)_14rem]">
+          <div className={dark ? 'bg-[#05060b] p-0 sm:p-6' : 'p-3 min-[400px]:p-4 sm:p-6'}>
+            <div className="grid w-full items-start gap-3 sm:gap-5 xl:grid-cols-[14rem_minmax(0,1fr)]">
               {/* Left: how to play — the goal, the steps, the tip, and what to do now (2026-11-14). */}
               {/* Phones and tablets: How to play first, then the board (2026-11-16, the user). */}
-              <aside className="order-1 xl:order-none">
+              {/* Young Thinkers on a phone or tablet (2026-11-18, the user): no How to play here — the intro's demo shows it. */}
+              <aside className={`order-1 xl:order-none ${risingBrain ? 'hidden' : youngThinker ? 'hidden xl:block' : masterMind ? 'max-sm:hidden' : ''}`}>
                 <HowToPlay gameId={progress?.gameId} />
               </aside>
 
               {/* Centre: the board */}
               <div className="order-2 min-w-0 xl:order-none">
-                <div className="gs-rise flex min-h-[17rem] items-center justify-center rounded-[22px] bg-white px-3 py-5 min-[400px]:px-4 min-[400px]:py-6 sm:rounded-[26px] ring-1 ring-[#e6e3f6] ring-inset shadow-[0_1px_2px_rgba(27,36,86,0.05),0_28px_56px_-30px_rgba(76,58,180,0.4)] sm:min-h-[24rem] sm:px-8 sm:py-9">
-                  <div className="relative w-full"><div className="lg:[zoom:1.15] xl:[zoom:1.25]">{children}</div>{paused && <PauseCover onResume={onPause} />}</div>
+                <div className={`gs-board gs-rise flex min-h-[17rem] items-center justify-center ${dark ? 'gs-dark ' : ''}rounded-[22px] bg-white px-3 py-5 min-[400px]:px-4 min-[400px]:py-6 sm:rounded-[26px] ring-1 ring-[#e6e3f6] ring-inset shadow-[0_1px_2px_rgba(27,36,86,0.05),0_28px_56px_-30px_rgba(76,58,180,0.4)] sm:min-h-[24rem] sm:px-8 sm:py-9`}>
+                  <div className="gs-inner relative w-full"><div className="gs-zoom lg:[zoom:1.15] xl:[zoom:1.25]">{children}</div>{paused && <PauseCover onResume={onPause} />}</div>
                 </div>
               </div>
 
               {/* Right: rewards (a row of three under the board below xl) */}
-              <aside className="order-3 grid gap-2.5 sm:grid-cols-3 sm:gap-3 xl:order-none xl:grid-cols-1">{rewards}</aside>
+              {/* Stars and XP on offer are worked out in the background, never shown while playing (2026-11-19, the user). */}
+              <aside className="hidden">{rewards}</aside>
             </div>
           </div>
         )}
@@ -367,11 +402,14 @@ export default function GameShell({
       {/* A sky band in every game, not the game's own colour: the level
           briefing below carries the colour, and the band's job is to hold the
           objective legibly and the target art beside it. */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-sky-100 via-blue-50 to-indigo-100 text-[#1b2456]">
+      <div className={`gs-band relative overflow-hidden rounded-b-[1.75rem] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-[0_14px_30px_-16px_rgba(124,58,237,0.9)]`}>
+        {/* 2026-11-19 (the user: "attractive, proper edges, colour shining"): a vivid band with rounded lower corners and a slow shine. */}
+        <span aria-hidden className="gs-shine pointer-events-none absolute inset-0" />
+        <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/60" />
         {/* Soft shapes behind the band, so it has weather rather than being a
             flat rectangle of colour. */}
-        <span aria-hidden className="fp-float pointer-events-none absolute -top-28 -left-20 h-64 w-80 rounded-full bg-sky-200/70 blur-3xl" />
-        <span aria-hidden className="fp-float-slow pointer-events-none absolute -right-10 -bottom-24 h-56 w-80 rounded-full bg-violet-300/50 blur-3xl" />
+        <span aria-hidden className="fp-float pointer-events-none absolute -top-28 -left-20 h-64 w-80 rounded-full bg-sky-400/50 blur-3xl" />
+        <span aria-hidden className="fp-float-slow pointer-events-none absolute -right-10 -bottom-24 h-56 w-80 rounded-full bg-pink-400/50 blur-3xl" />
         {/* The target, and the arrow on its way to it: the section's mission
             art, here for the two screens with room for it. During play the
             console sits where it would go. */}
@@ -386,7 +424,7 @@ export default function GameShell({
             type="button"
             onClick={onExit}
             aria-label="Back to all games"
-            className="fp-press relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#1b2456] shadow-md shadow-sky-900/10 ring-1 ring-sky-100 ring-inset transition-colors hover:bg-sky-50"
+            className="fp-press relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-white shadow-[0_6px_14px_-6px_rgba(0,0,0,0.5)] ring-1 ring-white/45 ring-inset backdrop-blur transition-colors hover:bg-white/30"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
@@ -399,13 +437,13 @@ export default function GameShell({
                 is the objective, and "One tile changes eac…" is not an
                 objective. Wide screens keep the single truncating line — there
                 the console sits beside it and the width is genuinely limited. */}
-            <h2 className="line-clamp-2 text-base leading-snug font-black text-[#1b2456] sm:truncate sm:text-2xl sm:leading-tight">
+            <h2 className="line-clamp-2 text-lg leading-snug font-black text-white drop-shadow-[0_2px_3px_rgba(49,16,120,0.55)] sm:truncate sm:text-2xl sm:leading-tight">
               {title}
             </h2>
             {/* The section's own line, only on the briefing: during play the
                 band has a console to carry and no room for a flourish. */}
             {intro && (
-              <p className="mt-1 hidden items-center gap-1.5 text-[0.95rem] text-[#2b4bd8] sm:flex">
+              <p className="mt-1 hidden items-center gap-1.5 text-[0.95rem] text-amber-200 sm:flex">
                 <span className="lb-script relative inline-block">
                   Small steps. Big dreams!
                   <svg aria-hidden viewBox="0 0 200 10" preserveAspectRatio="none" className="absolute -bottom-1 left-[6%] h-1.5 w-[88%] text-amber-400">
@@ -423,8 +461,8 @@ export default function GameShell({
               sends the console below the restart button in the wrap, and
               `basis-full` gives it the whole width there. */}
           {!intro && !result && (
-            <div className="order-last flex basis-full items-stretch justify-center divide-x divide-sky-100 overflow-hidden rounded-2xl bg-white/85 shadow-md shadow-sky-900/10 ring-1 ring-sky-100 ring-inset backdrop-blur sm:order-none sm:shrink-0 sm:basis-auto sm:justify-start">
-              {progress && <Readout label={progress.tier === 'super hard' ? 'Super hard' : progress.tier === 'hard' ? 'Hard level' : 'Level'} value={progress.level} icon={Star} urgent={progress.tier === 'super hard'} />}
+            <div className="order-last flex basis-full items-stretch justify-center divide-x divide-violet-100 overflow-hidden rounded-2xl bg-white/95 shadow-[0_10px_24px_-12px_rgba(49,16,120,0.7)] ring-1 ring-white ring-inset backdrop-blur sm:order-none sm:shrink-0 sm:basis-auto sm:justify-start">
+              {progress && <Readout label="Level" value={progress.level} icon={Star} />}
               {score !== undefined && <Readout label={scoreLabel} value={score} />}
               {seconds !== undefined && (
                 <Readout label="Time" value={`${seconds}s`} icon={Timer} urgent={seconds <= 10} />
@@ -434,24 +472,26 @@ export default function GameShell({
           )}
 
           {onPause && !intro && !result && (
-            <button type="button" onClick={onPause} aria-label={paused ? 'Resume' : 'Pause'} data-game-pause className="fp-press relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#1b2456] shadow-md shadow-sky-900/10 ring-1 ring-sky-100 ring-inset transition-colors hover:bg-sky-50">
+            <button type="button" onClick={onPause} aria-label={paused ? 'Resume' : 'Pause'} data-game-pause className="fp-press relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-white shadow-[0_6px_14px_-6px_rgba(0,0,0,0.5)] ring-1 ring-white/45 ring-inset backdrop-blur transition-colors hover:bg-white/30">
               {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
             </button>
           )}
-          <button
-            type="button"
-            onClick={onRestart}
-            aria-label="Start over"
-            className="fp-press relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#1b2456] shadow-md shadow-sky-900/10 ring-1 ring-sky-100 ring-inset transition-colors hover:bg-sky-50"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </button>
+          {result && (
+            <button
+              type="button"
+              onClick={onRestart}
+              aria-label="Start over"
+              className="fp-press relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-white shadow-[0_6px_14px_-6px_rgba(0,0,0,0.5)] ring-1 ring-white/45 ring-inset backdrop-blur transition-colors hover:bg-white/30"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
       {/* How far through the level, under the band where the eye already is. */}
       {!intro && !result && meterFrom(score) !== null && (
-        <div className="h-1.5 w-full bg-line-100" role="presentation">
+        <div className={`mx-5 mt-1.5 h-1.5 overflow-hidden rounded-full ${dark ? 'bg-white/10' : 'bg-line-100'}`} role="presentation">
           <div
             className={`h-full rounded-r-full transition-[width] duration-500 ease-out ${tone}`}
             style={{ width: `${meterFrom(score)}%` }}
@@ -474,22 +514,23 @@ export default function GameShell({
           without a single one of them having to say so. */}
       {intro || result ? (
         <div className="p-3 sm:p-6">
-          {intro ? <LevelIntro {...intro} tone={tone} /> : <><LevelResult {...result} tone={tone} /><SessionFeedback gameId={progress?.gameId} /></>}
+          {intro ? <LevelIntro {...intro} tone={tone} /> : <><LevelResult {...result} headline={result.passed && !result.atEnd ? `Level ${progress?.level ?? ''} cleared` : result.headline} tone={tone} finishLine={finishLine} /></>}
           {cheering && (
             <GameCelebration
               eyebrow={result.atEnd ? 'Every level cleared' : 'Level complete'}
-              title={result.headline}
+              title={result.atEnd ? result.headline : `Level ${progress?.level ?? ''} cleared`}
               subtitle={title}
               detail={result.detail}
               stars={typeof result.stars === 'number' ? result.stars : null}
               xp={cheerXp}
+              times={times}
               primary={!result.atEnd && result.onNext ? { label: 'Next level', onClick: () => { setCheerClosed(true); result.onNext(); } } : null}
               onClose={() => setCheerClosed(true)}
             />
           )}
         </div>
       ) : (
-        <div className="relative overflow-hidden bg-surface-50 p-4 sm:p-6">
+        <div className={`relative overflow-hidden ${dark ? 'gs-darkwrap bg-[#05060b] p-0 sm:p-6' : 'bg-surface-50 p-4 sm:p-6'}`}>
           {/* Soft shapes in the corners, the same language as the band above. */}
           <span aria-hidden className={`pointer-events-none absolute -top-24 -left-20 h-56 w-72 rounded-full opacity-[0.14] blur-3xl ${tone}`} />
           <span aria-hidden className="pointer-events-none absolute -right-24 -bottom-28 h-64 w-80 rounded-full bg-violet-300/25 blur-3xl" />
@@ -506,19 +547,20 @@ export default function GameShell({
           {/* The full width of the shell, rails at its edges: the band above
               runs edge to edge, and a stage capped narrower than it left the
               rails floating in from both sides on a wide screen. */}
-          <div className="relative z-10 grid w-full items-start gap-4 xl:grid-cols-[12.5rem_minmax(0,1fr)_12rem]">
+          <div className="relative z-10 grid w-full items-start gap-4 xl:grid-cols-[12.5rem_minmax(0,1fr)]">
             {/* Left rail: what to do, said once and left there, and the day's
                 play time while it is running. */}
             <aside className="hidden flex-col gap-2.5 xl:flex">
-              <HowToPlay gameId={progress?.gameId} />
+              {!risingBrain && <HowToPlay gameId={progress?.gameId} />}
             </aside>
 
             {/* The board itself. */}
             <div className="min-w-0">
               {/* Narrower screens: the rails are gone, so How to play comes first, above the board (2026-11-16). */}
-              <div className="mb-3 xl:hidden"><HowToPlay gameId={progress?.gameId} compact /></div>
-              <div className="flex min-h-[15rem] items-center justify-center rounded-3xl bg-surface px-4 py-6 shadow-card ring-1 ring-line-200 ring-inset sm:min-h-[20rem] sm:px-7 sm:py-8 lg:min-h-[28rem]">
-                <div className="relative w-full"><div className="lg:[zoom:1.15] xl:[zoom:1.25]">{children}</div>{paused && <PauseCover onResume={onPause} />}</div>
+              {!youngThinker && !risingBrain && <div className={`mb-3 xl:hidden ${masterMind ? 'max-sm:hidden' : ''}`}><HowToPlay gameId={progress?.gameId} compact /></div>}
+              {/* Phones (2026-11-18, the user): the board fills the screen's height, the game centred in it. */}
+              <div className={`gs-board flex min-h-[15rem] items-center justify-center ${dark ? 'gs-dark ' : ''}rounded-3xl bg-surface px-4 py-6 shadow-card ring-1 ring-line-200 ring-inset sm:min-h-[20rem] sm:px-7 sm:py-8 lg:min-h-[28rem]`}>
+                <div className="gs-inner relative w-full"><div className="gs-zoom lg:[zoom:1.15] xl:[zoom:1.25]">{children}</div>{paused && <PauseCover onResume={onPause} />}</div>
               </div>
 
             </div>
@@ -528,7 +570,7 @@ export default function GameShell({
                 level's best has already paid. The level and the score are
                 not repeated here or under the board: the console at the top
                 already shows them. */}
-            <aside className="hidden flex-col gap-2.5 xl:flex">
+            <aside className="hidden">
               <RailCard
                 tint="bg-amber-50 ring-amber-100"
                 icon={Star}

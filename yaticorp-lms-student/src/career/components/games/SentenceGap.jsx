@@ -29,6 +29,7 @@ export default function SentenceGap({ onExit }) {
   return (
     <QuizGame
       gameId="sentence-gap"
+      dark={['intermediate', 'analytical'].includes(currentAgeBand())}
       title="Sentence Gap"
       tone="bg-gradient-to-br from-pink-500 to-rose-700"
       questions={questions}
@@ -36,7 +37,7 @@ export default function SentenceGap({ onExit }) {
       renderPrompt={(q) => (
         <p className={`leading-relaxed font-bold text-ink-900 ${q.picture ? 'text-2xl sm:text-3xl' : 'text-xl'}`}>
           {q.text.split('___')[0]}
-          <span className="mx-1 inline-block min-w-16 border-b-4 border-pink-400 align-bottom" />
+          <span className="mx-1 inline-block min-w-16 border-b-4 border-amber-300 align-bottom" />
           {q.text.split('___')[1]}
         </p>
       )}

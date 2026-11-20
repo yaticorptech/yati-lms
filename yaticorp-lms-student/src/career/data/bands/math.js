@@ -336,7 +336,15 @@ export const runningConfig = (band, difficulty, levelNo) => {
   if (key === 'developing') return { ...base, mode: 'plain', length: L(4, 6), lo: 2, hi: L(9, 15), ops: ['+', '−'], min: 0, max: 50, stepMs: L(1600, 1100) };
   if (key === 'intermediate') return { ...base, mode: 'plain', length: L(5, 8), lo: 2, hi: L(12, 20), ops: ['+', '−'], min: -50, max: 50, stepMs: L(1400, 900) };
   if (key === 'analytical') return { ...base, mode: 'plain', length: L(5, 8), lo: 2, hi: L(10, 20), ops: ['+', '−', '×', '÷'], min: -100, max: 100, stepMs: L(1500, 1000) };
-  return { ...base, mode: ['alternate', 'mixed', 'lanes'][tier], length: L(6, 9), lo: 2, hi: L(9, 15), ops: ['+', '−', '×', '÷'], min: -150, max: 150, stepMs: L(1700, 1150) };
+  // Master Minds (Running Total Pro, 2026-11-19, the user: "short and small at the start, then increase"): level 1 is
+  // three small + and − numbers; each level adds a little — longer runs, bigger numbers, then × ÷ and two totals.
+  const g = Math.max(0, Math.min(1, ((levelNo || 1) - 1 + ((difficulty || 1) - 1) * 10) / 29));
+  const mode = g < 0.25 ? 'plain' : g < 0.5 ? 'alternate' : g < 0.75 ? 'mixed' : 'lanes';
+  return {
+    ...base, mode, length: Math.round(3 + 6 * g), lo: 1, hi: Math.round(5 + 10 * g),
+    ops: mode === 'plain' ? ['+', '−'] : ['+', '−', '×', '÷'], min: mode === 'plain' ? 0 : -150, max: mode === 'plain' ? 40 : 150,
+    stepMs: Math.round(1900 - 750 * g)
+  };
 };
 
 /** a op v for a Running Total step. */

@@ -27,13 +27,18 @@ const Item = ({ set, value, big }) => (set === 'colours'
  * (`lit`) and taps the same places. The others dim while one is lit.
  */
 const Pad = ({ r, lit = null, onTap, disabled }) => (
-    <div className={`mx-auto grid gap-3 ${r.items.length <= 4 ? 'max-w-xs grid-cols-2' : 'max-w-md grid-cols-3'}`} data-pad>
-        {r.items.map((item, i) => (
-            <button key={item} type="button" onClick={onTap ? () => onTap(i) : undefined} disabled={disabled || !onTap} data-item={i} data-lit={lit === i || undefined}
-                className={`flex h-20 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-white to-slate-200 p-2 text-slate-900 ring-1 shadow-[0_8px_18px_-8px_rgba(0,0,0,.6),inset_0_1px_0_rgba(255,255,255,.9)] transition-all duration-150 disabled:cursor-default sm:h-24 ${lit === i ? 'z-10 scale-110 shadow-[0_0_30px_rgba(244,63,94,0.55)] ring-4 ring-rose-400' : lit != null ? 'opacity-35 ring-slate-200' : 'shadow-sm ring-slate-200 hover:-translate-y-0.5 active:scale-95'}`}>
-                <Item set={r.set} value={item} />
-            </button>
-        ))}
+    // Plain coloured squares (2026-11-17, the user): no white frame or outline; square on every screen, phones too.
+    <div className={`mx-auto grid w-full gap-2.5 sm:gap-3 ${r.items.length <= 4 ? 'max-w-[16rem] grid-cols-2 sm:max-w-xs' : 'max-w-[20rem] grid-cols-3 sm:max-w-sm'}`} data-pad>
+        {r.items.map((item, i) => {
+            const colour = r.set === 'colours' ? COLOURS[item] : null;
+            return (
+                <button key={item} type="button" onClick={onTap ? () => onTap(i) : undefined} disabled={disabled || !onTap} data-item={i} data-lit={lit === i || undefined} aria-label={item}
+                    className={`flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl text-slate-900 outline-none transition-all duration-150 disabled:cursor-default ${colour ? '' : 'bg-slate-100'} ${lit === i ? 'z-10 scale-110 brightness-125 shadow-[0_0_34px_rgba(255,255,255,0.35)]' : lit != null ? 'opacity-30' : 'shadow-[0_8px_18px_-10px_rgba(0,0,0,.7)] hover:-translate-y-0.5 active:scale-95'}`}
+                    style={colour ? { background: colour } : undefined}>
+                    {!colour && <Item set={r.set} value={item} />}
+                </button>
+            );
+        })}
     </div>
 );
 
@@ -103,8 +108,10 @@ export default function SequenceTable({ view, onAction, busy }) {
                                 const v = shown[k];
                                 const right = view.phase === 'reveal' && r.sequence ? r.sequence[k] === v : null;
                                 return (
-                                    <span key={k} className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl text-slate-900 ring-2 ${right === true ? 'bg-white ring-emerald-500' : right === false ? 'bg-rose-100 ring-rose-500 gs-wrong' : 'bg-white ring-slate-200'}`}>
-                                        {v != null ? <Item set={r.set} value={r.items[v]} /> : <span className="text-slate-300">{k + 1}</span>}
+                                    // Each slot fills with the colour tapped: a plain square, no white frame (2026-11-17).
+                                    <span key={k} className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl text-slate-900 sm:h-11 sm:w-11 ${v != null && r.set === 'colours' ? '' : view.dark ? 'bg-white/10' : 'bg-slate-200'} ${right === false ? 'gs-wrong' : ''}`}
+                                        style={v != null && r.set === 'colours' ? { background: COLOURS[r.items[v]] } : undefined}>
+                                        {v == null ? <span className={`text-sm ${view.dark ? 'text-white/40' : 'text-slate-400'}`}>{k + 1}</span> : r.set === 'colours' ? null : <Item set={r.set} value={r.items[v]} />}
                                     </span>
                                 );
                             })}

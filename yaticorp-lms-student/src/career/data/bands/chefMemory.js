@@ -67,7 +67,34 @@ export const makeOrder = (rng, config) => {
   return { dish: pick(rng, DISHES), shown, twist, answer, pantry: shuffle(rng, [...needed, ...decoys]) };
 };
 
-export const makeChefLevel = (rng, config) => Array.from({ length: config.rounds }, () => makeOrder(rng, config));
+/*
+ * More than one way to remember (2026-11-18, the user: "it's a memory game — make it creative, not just remember and
+ * add"). Each round has a style, and they change through the level:
+ *   card   — the whole recipe at once, as before;
+ *   flash  — a cooking show: one ingredient at a time, then gone — remember the sequence;
+ *   tables — two tables order at once; when both hide, the waiter says which table to cook for.
+ */
+export const STYLES = ['card', 'flash', 'tables', 'flash', 'tables'];
+const makeTables = (rng, config) => {
+  const cfg = { ...config, steps: Math.max(2, config.steps - 1), twist: 0 };
+  const a = makeOrder(rng, cfg);
+  let b = makeOrder(rng, cfg);
+  for (let k = 0; k < 20 && b.shown.some(([e]) => a.shown.some(([f]) => f === e)); k++) b = makeOrder(rng, cfg);
+  const ask = intBetween(rng, 0, 1);
+  const chosen = ask ? b : a;
+  const needed = new Set([...a.shown, ...b.shown].map(([e]) => e));
+  const decoys = shuffle(rng, INGREDIENTS.map(([e]) => e).filter((e) => !needed.has(e))).slice(0, Math.max(0, config.pantry + 1 - needed.size));
+  return {
+    style: 'tables', dish: chosen.dish, shown: chosen.shown, tables: [a.shown, b.shown], ask,
+    twist: { kind: 'table', text: `Table ${ask + 1} is hungry — cook Table ${ask + 1}'s order!` },
+    answer: chosen.shown.map((x) => [...x]), pantry: shuffle(rng, [...needed, ...decoys])
+  };
+};
+export const makeChefLevel = (rng, config) => Array.from({ length: config.rounds }, (_, i) => {
+  const style = STYLES[i % STYLES.length];
+  if (style === 'tables') return makeTables(rng, config);
+  return { ...makeOrder(rng, config), style };
+});
 
 /** Does the pot (a list of single taps) cook the answer? In order when `ordered`, else any order. */
 export const cooks = (order, pot, ordered) => {

@@ -47,7 +47,7 @@ test('Animal Pair Safari: each animal pairs with exactly one partner nobody else
     }
   });
   assert.ok(count >= 2500);
-  assert.ok(A.safariConfig('developing', 3, 30).pairs > A.safariConfig('foundation', 1, 1).pairs);
+  assert.equal(A.safariConfig('foundation', 1, 1).pairs * 2, 8); assert.equal(A.safariConfig('developing', 1, 1).pairs * 2, 8); // level 1: 2 rows of 4 (2026-11-18)
 });
 
 test("What's Missing?: the missing things are in the tray once, and only they are right", () => {

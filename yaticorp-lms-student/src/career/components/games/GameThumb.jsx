@@ -128,14 +128,6 @@ const THUMBS = {
       <path d="M41 30 l2.8 6.4 6.9 0.7 -5.2 4.6 1.5 6.8 -6 -3.5 -6 3.5 1.5 -6.8 -5.2 -4.6 6.9 -0.7z" fill="#fbbf24" />
     </>
   ),
-  deduction: () => (
-    <>
-      <rect {...tile(6, 8, '#dbeafe', 44, 11, 4)} />
-      <rect {...tile(6, 23, '#dbeafe', 44, 11, 4)} />
-      <path d="M28 36 l0 6 m-4 -3 l4 4 4 -4" stroke="#1d4ed8" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <rect {...tile(10, 43, '#1d4ed8', 36, 9, 4)} />
-    </>
-  ),
   'lights-out': () => (
     <TileGrid
       cells={[
@@ -348,16 +340,6 @@ const THUMBS = {
       <text x="28" y="12" textAnchor="middle" fontSize="9" fontWeight="800" fill="#0369a1">½</text>
     </>
   ),
-  'algorithm-builder': () => (
-    <>
-      <rect {...tile(8, 8, '#fde68a', 40, 9, 3)} />
-      <rect {...tile(14, 20, '#a5b4fc', 34, 9, 3)} />
-      <rect {...tile(14, 32, '#a5b4fc', 34, 9, 3)} />
-      <rect {...tile(8, 44, '#86efac', 40, 9, 3)} />
-      <path d="M11 17 v26" stroke="#b45309" strokeWidth="2" />
-      <text x="28" y="15" textAnchor="middle" fontSize="6" fontWeight="800" fill="#92400e">REPEAT 3</text>
-    </>
-  ),
   // New 2026-11-12.
   'picture-logic': () => (
     <>
@@ -368,16 +350,6 @@ const THUMBS = {
       <text x="8" y="32" textAnchor="middle" fontSize="7" fontWeight="800" fill="#0369a1">4</text>
       <text x="23" y="10" textAnchor="middle" fontSize="7" fontWeight="800" fill="#0369a1">2</text>
       <text x="33" y="10" textAnchor="middle" fontSize="7" fontWeight="800" fill="#0369a1">4</text>
-    </>
-  ),
-  'tower-shift': () => (
-    <>
-      <rect {...tile(4, 46, '#a16207', 48, 5, 2)} />
-      {[12, 28, 44].map((x) => <rect key={x} {...tile(x - 1.5, 16, '#ca8a04', 3, 30, 1.5)} />)}
-      <rect {...tile(3, 39, '#6366f1', 18, 7, 3)} />
-      <rect {...tile(5, 32, '#0ea5e9', 14, 7, 3)} />
-      <rect {...tile(37, 39, '#f43f5e', 14, 7, 3)} />
-      <rect {...tile(23, 39, '#10b981', 10, 7, 3)} />
     </>
   ),
   'number-forge': () => (
@@ -618,6 +590,39 @@ const THUMBS = {
   )
   ,
   // Group Brain's The Final Vault: a golden vault door.
+  'final-vault': (...a) => THUMBS.vault(...a),
+  'running-total-pro': (...a) => THUMBS['running-total'](...a),
+  'jigsaw': () => (
+    <>
+      <rect x="4" y="4" width="48" height="48" rx="10" fill="#ede9fe" />
+      <path d="M10 10 H24 c0 -4 6 -4 6 0 H38 V24 c4 0 4 6 0 6 V38 H24 c0 4 -6 4 -6 0 H10 Z" fill="#8b5cf6" stroke="#fff" strokeWidth="2" />
+      <path d="M30 30 H46 V46 H30 Z" fill="#f59e0b" stroke="#fff" strokeWidth="2" />
+    </>
+  ),
+  'arrow-escape': () => (
+    <>
+      <rect x="6" y="6" width="44" height="44" rx="9" fill="#f8fafc" stroke="#e2e8f0" />
+      <path d="M14 16 H30 M30 16 l-5 -4 M30 16 l-5 4" stroke="#1e293b" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M40 42 V24 M40 24 l-4 5 M40 24 l4 5" stroke="#1e293b" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M28 40 H14 M14 40 l5 -4 M14 40 l5 4" stroke="#10b981" strokeWidth="3" strokeLinecap="round" fill="none" />
+    </>
+  ),
+  'wordcraft': () => (
+    <>
+      <defs><linearGradient id="thumb-wc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#7c3aed" /><stop offset="0.6" stopColor="#c026d3" /><stop offset="1" stopColor="#f97316" /></linearGradient></defs>
+      <rect x="6" y="6" width="44" height="44" rx="11" fill="url(#thumb-wc)" />
+      <path d="M14 18 h20 a4 4 0 0 1 4 4 v8 a4 4 0 0 1 -4 4 h-11 l-6 5 v-5 h-3 a4 4 0 0 1 -4 -4 v-8 a4 4 0 0 1 4 -4 z" fill="#fff" />
+      <text x="24" y="30" textAnchor="middle" fontSize="9" fontWeight="900" fill="#7c3aed">Aa</text>
+      <circle cx="41" cy="38" r="6" fill="#fde68a" /><rect x="39.5" y="34" width="3" height="6" rx="1.5" fill="#c2410c" />
+    </>
+  ),
+  'speak-up': () => (
+    <>
+      <rect x="6" y="8" width="44" height="40" rx="10" fill="#7c3aed" />
+      <rect x="22" y="14" width="12" height="20" rx="6" fill="#fff" />
+      <path d="M17 28 a11 11 0 0 0 22 0 M28 39 V44" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+    </>
+  ),
   vault: () => (
     <>
       <circle cx="28" cy="28" r="20" fill="#78350f" stroke="#fbbf24" strokeWidth="2.5" />

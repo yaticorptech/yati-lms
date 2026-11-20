@@ -262,7 +262,10 @@ export const xpIn = (events) => (events || []).filter((e) => e.kind === 'xp').re
  * without spaces, by their letters. The words heard, not how each sound was made: the browser cannot tell that.
  */
 const NUMBERS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
-const plain = (t) => String(t || '').toLowerCase().normalize('NFKC').replace(/[\p{P}\p{S}]+/gu, ' ').split(/\s+/).filter(Boolean).map((w) => (/^\d+$/.test(w) && NUMBERS[Number(w)] ? NUMBERS[Number(w)] : w));
+// Hindi spellings the browser writes either way (2026-11-17: "मैं विद्यार्थी हूं" heard for "हूँ"): chandrabindu as
+// anusvara, and no nukta (ज़ = ज), so the same words said match.
+const devanagari = (t) => t.replace(/\u0901/g, '\u0902').replace(/\u093C/g, '');
+const plain = (t) => devanagari(String(t || '').toLowerCase().normalize('NFKC')).replace(/[\p{P}\p{S}]+/gu, ' ').split(/\s+/).filter(Boolean).map((w) => (/^\d+$/.test(w) && NUMBERS[Number(w)] ? NUMBERS[Number(w)] : w));
 export const saidRight = (heard, sentence, locale = 'en') => {
     const want = plain(sentence), got = plain(heard);
     if (!want.length || !got.length) return false;

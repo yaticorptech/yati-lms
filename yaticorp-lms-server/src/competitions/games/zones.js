@@ -16,51 +16,13 @@ const ZONE_DIFFICULTY = { young: 'easy', smart: 'medium', master: 'hard' };
 
 // 2026-11-14 (the 84-game catalogue): a room game whose solo twin is one of the 84 games is played in that game's
 // section only (./multiplayer.js maps them); one with no twin among the 84 keeps the zones it had.
+const ALL = Object.freeze(['young', 'smart', 'master']);
 const GROUP_ZONES = {
-    // No twin among the 84 (or twins in two sections): as before.
-    chess: ['smart', 'master'],
-    spatialiq: ['master'],
-    finalvault: ['young', 'smart', 'master'],
-    spotthechange: ['young', 'smart'],
-    dotcount: ['young'],
-    deduction: ['smart', 'master'], // logic-detective (smart) and deduction (master)
-    // Young Thinkers
-    memorymatch: ['young'],
-    colourmatch: ['young'],
-    tictactoe: ['young'],
-    oddoneout: ['young'],
-    spellingfix: ['young'],
-    soundalike: ['young'],
-    typingsprint: ['young'],
-    mathsprint: ['young'],
-    speedsort: ['young'],
-    animalpairs: ['young'],
-    rhymes: ['young'],
-    numberhop: ['young'],
-    missingnumber: ['young'],
-    // Rising Brains
-    sequence: ['smart'],
-    numberrecall: ['smart'],
-    patternmaster: ['smart'],
-    sudoku: ['smart'],
-    wordlogic: ['smart'],
-    sentencegap: ['smart'],
-    tensepick: ['smart'],
-    runningtotal: ['smart'],
-    analogies: ['smart'],
-    equationrush: ['smart'],
-    ratiorelay: ['smart'],
-    // Master Minds
-    memorymatrix: ['master'],
-    reverserecall: ['master'],
-    synonymmatch: ['master'],
-    idiomsense: ['master'],
-    percentsnap: ['master'],
-    numberlogic: ['master'],
-    cipherlab: ['master'],
-    probability: ['master'],
-    quantarena: ['master'],
-    decisions: ['master']
+    // 2026-11-17 (the user): the group games exactly as they were just before the three sections — the same 14 in all
+    // three (Lost Kingdom, deleted 2026-11-11, aside). Each room's zone still sets its difficulty.
+    chess: ALL, memorymatrix: ALL, patternmaster: ALL, wordlogic: ALL, sequence: ALL,
+    numberlogic: ALL, numberrecall: ALL, runningtotal: ALL, memorymatch: ALL,
+    typingsprint: ALL, mathsprint: ALL, tictactoe: ALL, finalvault: ALL
 };
 
 const zonesOfGroupGame = (game) => GROUP_ZONES[game] || [];

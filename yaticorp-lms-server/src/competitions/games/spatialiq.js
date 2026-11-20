@@ -18,5 +18,6 @@ module.exports = makeEngine({
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 10, max: 60, fallback: 30 },
     revealMs: 5000,
+    quickReveal: true, // group play: the options coloured for a moment, no answer box, then on (2026-11-17)
     pick: (count, rng, level, met, zone) => make(SPATIAL, count, rng, zone === 'master' ? 'hard' : zone === 'smart' ? 'medium' : zone === 'young' ? 'easy' : level)
 });

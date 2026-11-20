@@ -307,7 +307,7 @@ const running = (rng, d, zone) => {
     if (zone === 'young') {
         const steps = [int(rng, 1, 6), int(rng, 1, 6), int(rng, 1, 6)]; const total = steps.reduce((a, b) => a + b, 0);
         return {
-            topic: 'Running total', prompt: 'What was the total?', show: { kind: 'sequence', items: steps.map((x, i) => (i === 0 ? String(x) : `+ ${x}`)), stepMs: 1400 }, showMs: 3 * 1400 + 400,
+            topic: 'Running total', prompt: 'What was the total?', show: { kind: 'sequence', items: steps.map((x, i) => (i === 0 ? String(x) : `+ ${x}`)), stepMs: 2200 }, showMs: 3 * 2200 + 600, // slower (2026-11-17, the user)
             options: [total, ...wrongs(rng, total, [total - 2, total - 1, total + 1, total + 2], (v) => v >= 0 && v <= 20)].map(String), answer: 0, explain: `${steps.join(' + ')} = ${total}.`
         };
     }
@@ -321,7 +321,7 @@ const running = (rng, d, zone) => {
     }
     const near = Array.from({ length: 10 }, () => total + int(rng, 1, Math.max(3, Math.round(total * 0.3))) * (rng() < 0.5 ? -1 : 1));
     return {
-        topic: 'Running total', prompt: 'What was the total?', show: { kind: 'sequence', items: steps.map((x, i) => (i === 0 ? String(x) : x < 0 ? `− ${-x}` : `+ ${x}`)), stepMs: 1200 - d * 150 }, showMs: len * (1200 - d * 150) + 400,
+        topic: 'Running total', prompt: 'What was the total?', show: { kind: 'sequence', items: steps.map((x, i) => (i === 0 ? String(x) : x < 0 ? `− ${-x}` : `+ ${x}`)), stepMs: 2000 }, showMs: len * 2000 + 600, // 2 s a number (2026-11-17, the user: "a little slower")
         options: [total, ...wrongs(rng, total, near, (v) => v >= 0)].map(String), answer: 0, explain: `${steps.map((x, i) => (i === 0 ? x : x < 0 ? `− ${-x}` : `+ ${x}`)).join(' ')} = ${total}.`
     };
 };

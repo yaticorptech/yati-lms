@@ -21,7 +21,8 @@ const SETS = {
     symbols: ['★', '●', '▲', '■', '◆', '♥'],
     digits: ['1', '2', '3', '4', '5', '6']
 };
-const KINDS = Object.keys(SETS);
+// Colours only, in every zone (2026-11-17, the user: "colours only, no shapes"); the other sets stay for old rooms.
+const KINDS = ['colours'];
 const START = { easy: 3, medium: 4, hard: 5 };
 const CHOICES = { easy: 4, medium: 5, hard: 6 };
 const STEP_MS = 800;
@@ -32,7 +33,7 @@ const STEP_MS = 800;
  * choices, ten rounds. A room made before zones goes by its difficulty.
  */
 const ZONE = {
-    young: { rounds: 7, startLength: 2, maxLength: 5, choices: 4, kinds: ['colours', 'symbols'], stepMs: 1000 },
+    young: { rounds: 7, startLength: 2, maxLength: 5, choices: 4, kinds: ['colours'], stepMs: 1000 },
     smart: { rounds: 9, startLength: 4, choices: 5 },
     master: { rounds: 10, startLength: 6, choices: 6, stepMs: 700 }
 };
@@ -45,7 +46,7 @@ module.exports = makeRoundEngine({
     emoji: '🎯',
     summary: 'Watch a sequence, then tap it back — longer every round. Reaction rounds: wait for Go, then tap first.',
     maxSeats: 20,
-    setup: (o) => ({ ...(ZONE[zoneOf(o)] || { rounds: 9, startLength: START[o.difficulty], choices: CHOICES[o.difficulty] }), reaction: o.reaction !== false }),
+    setup: (o) => ({ ...(ZONE[zoneOf(o)] || { rounds: 9, startLength: START[o.difficulty], choices: CHOICES[o.difficulty] }), reaction: o.reaction === true }), // 2026-11-17 (the user): every round a sequence to tap back; no reaction rounds unless asked,
     round: (g, index, rng) => {
         if (isReaction(g, index)) {
             return { kind: 'reaction', early: true, showMs: 1500 + Math.floor(rng() * 2500), answerMs: 3000 };

@@ -121,8 +121,8 @@ function Round({ progress, onExit }) {
     >
       {started && (
         <div
-          className="mx-auto grid gap-2 sm:gap-3"
-          style={{ gridTemplateColumns: `repeat(${config.cols}, minmax(0, 1fr))`, maxWidth: `${config.cols * 7}rem` }}
+          className="mx-auto grid grid-cols-4 gap-1.5 sm:gap-3"
+          style={{ maxWidth: `${config.cols * 7}rem` }}
         >
           {deck.map((card, index) => {
             const solved = matched.includes(card.id);
@@ -135,7 +135,7 @@ function Round({ progress, onExit }) {
                 onClick={() => turn(index)}
                 disabled={solved}
                 aria-label={faceUp ? (card.kind === 'animal' ? card.word : `${KIND_LABEL[card.kind]} ${card.word}`) : `Hidden card ${index + 1}`}
-                className={`fp-press relative flex aspect-[4/5] min-h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-2xl p-1 transition-all duration-200 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
+                className={`fp-press relative flex aspect-[3/4] min-h-[5.5rem] flex-col items-center justify-center gap-0.5 rounded-xl p-1 sm:rounded-2xl transition-all duration-200 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
                   solved
                     ? 'gs-right scale-95 bg-emerald-50 ring-2 ring-emerald-300 ring-inset'
                     : wrong
@@ -147,11 +147,11 @@ function Round({ progress, onExit }) {
               >
                 {faceUp ? (
                   <>
-                    <span className="text-4xl leading-none sm:text-5xl" aria-hidden="true">{card.pic}</span>
+                    <span className="text-3xl leading-none sm:text-5xl" aria-hidden="true">{card.pic}</span>
                     {card.kind !== 'animal' && (
-                      <span className="text-[0.65rem] font-black tracking-wide text-sky-700 uppercase sm:text-[0.7rem]">{KIND_LABEL[card.kind]}</span>
+                      <span className="text-[0.6rem] font-black tracking-wide text-sky-700 uppercase sm:text-[0.7rem]">{KIND_LABEL[card.kind]}</span>
                     )}
-                    <span className={`max-w-full truncate text-center font-black text-ink-800 ${card.word.length > 10 ? 'text-[0.7rem] sm:text-xs' : 'text-xs sm:text-sm'} ${card.kind === 'animal' ? 'capitalize' : ''}`}>
+                    <span className={`w-full text-center leading-tight font-black break-words text-ink-900 [overflow-wrap:anywhere] ${card.word.length > 10 ? 'text-[0.7rem] sm:text-xs' : 'text-sm sm:text-sm'} ${card.kind === 'animal' ? 'capitalize' : ''}`}>
                       {card.kind === 'sound' ? `${card.word}!` : card.word}
                     </span>
                   </>

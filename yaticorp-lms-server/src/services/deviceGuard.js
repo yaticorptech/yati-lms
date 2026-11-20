@@ -59,13 +59,15 @@ const isExemptCard = (cardNumber) => {
     return Boolean(n) && exemptCards().includes(n);
 };
 
+// Cards with no device or session limit only (none of the developer-card extras above).
+// Akanksha's card (240100019664) added 2026-11-18: any number of devices at once.
+const DEVICE_UNLIMITED_CARDS = new Set(['240100019664']);
+
 const exempt = async (user, impersonatedBy) => {
     if (impersonatedBy) return true;
-    const cards = exemptCards();
-    if (cards.length) {
-        const card = user.cardNumber ?? (await User.findById(user._id).select('cardNumber').lean())?.cardNumber;
-        if (card && isExemptCard(card)) return true;
-    }
+    const card = user.cardNumber ?? (await User.findById(user._id).select('cardNumber').lean())?.cardNumber;
+    const n = String(card ?? '').replace(/\D/g, '');
+    if (n && (DEVICE_UNLIMITED_CARDS.has(n) || isExemptCard(n))) return true;
     try { return require('./fullAccess').hasFullAccess(user); } catch { return false; }
 };
 

@@ -52,8 +52,8 @@ describe('Group Brain rooms', () => {
         assert.match(room.code, /^[A-Z0-9]{6}$/);
         assert.equal(room.status, 'waiting');
         assert.equal(room.host, true);
-        // Memory Matrix is played in Master Minds only (games/zones.js, 2026-11-14): the zone sets the difficulty.
-        assert.equal(room.options.difficulty, 'hard');
+        // Every group game is in every section since 2026-11-17: the room is in the host's own zone, which sets the difficulty.
+        assert.equal(room.options.difficulty, 'easy');
 
         // Not in it: no look inside without the code.
         assert.equal((await p[1].call('GET', `/play/${room.id}`)).status, 403);
@@ -178,7 +178,7 @@ describe('Group Brain rooms', () => {
     });
 
     test('one open room at a time; the host leaving hands the room on; the last out closes it', async () => {
-        const room = await make(p[0], 'sudoku');
+        const room = await make(p[0], 'memorymatch');
         const again = await p[0].call('POST', '/rooms', { game: 'wordlogic' });
         assert.equal(again.status, 409);
         assert.equal(again.body.roomId, room.id);

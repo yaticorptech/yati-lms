@@ -30,6 +30,7 @@ const quiz = (id, label, emoji, summary, pick, seconds) => makeEngine({
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 8, max: 90, fallback: seconds },
     revealMs: 4000,
+    quickReveal: true, // group play: the options coloured for a moment, no answer box, then on (2026-11-17)
     pick
 });
 

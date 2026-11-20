@@ -37,7 +37,7 @@ const LOOK = {
 };
 
 /* The movement (2026-11-07), only while a panel is in view (.cm-on) and only for those who do not ask for less motion. */
-const MOTION = `
+export const MOTION = `
 @media (prefers-reduced-motion: no-preference) {
   .cm-on .cm-walk { animation: cm-walk 1.7s cubic-bezier(.3,.7,.4,1) both; }
   .cm-on .cm-walk .cm-step { animation: cm-step .34s ease-in-out 5 alternate; }
@@ -58,6 +58,8 @@ const MOTION = `
   .cm-on .cm-wing { transform-box: fill-box; transform-origin: center; animation: cm-flap .5s ease-in-out infinite alternate; }
   .cm-person .cm-lift { transition: transform .2s ease; }
   .cm-person:hover .cm-lift, .cm-person:focus-visible .cm-lift { transform: translateY(-5px); }
+  /* Its own centre, wherever it is drawn (2026-11-18: in the film, outside .cm-on, it scaled from the feet and slid down the chin). */
+  .cm-mouth { transform-box: fill-box; transform-origin: center; }
   .cm-talking .cm-mouth { animation: cm-mouth .2s ease-in-out infinite alternate; }
   .cm-burst > * { transform-box: fill-box; transform-origin: center; animation: cm-pop .9s ease-out both; }
   .cm-tapme { transform-box: fill-box; transform-origin: center; animation: cm-ring 1.6s ease-out infinite; }
@@ -457,6 +459,8 @@ function Held({ what }) {
     if (what === 'bundle') return <g><ellipse rx="17" ry="9" fill="#d7bde2" {...line} strokeWidth="1.6" /><path d="M -4 -9 L 0 -15 L 4 -9" fill="#d7bde2" {...line} strokeWidth="1.4" /></g>;
     if (what === 'thread') return <g>{['#e74c3c', '#2e86c1', '#f4d03f'].map((c, i) => <rect key={c} x={-12 + i * 8} y="-8" width="7" height="14" rx="2" fill={c} {...line} strokeWidth="1.2" />)}</g>;
     if (what === 'kite') return <g transform="translate(4 -20) scale(.55)"><g className="cm-kite"><path d="M 0 -26 L 18 0 L 0 26 L -18 0 Z" fill="#e91e63" {...line} /><path d="M 0 -26 L 0 26 M -18 0 L 18 0" stroke="rgba(0,0,0,.35)" strokeWidth="1.3" /><path d="M 0 26 q 8 10 0 18" stroke="#5d4037" strokeWidth="1.3" fill="none" /></g></g>;
+    if (what === 'phone') return <g transform="translate(-3 -14)"><rect width="7" height="13" rx="1.6" fill="#263238" {...line} strokeWidth="1" /><rect x="1.2" y="1.5" width="4.6" height="9" fill="#4fc3f7" /></g>;
+    if (what === 'file') return <g transform="rotate(-8) translate(-2 -16)"><rect width="16" height="20" rx="1.5" fill="#2f6fb5" {...line} strokeWidth="1.2" /><rect x="2.5" y="2.5" width="11" height="15" fill="#f7f4ea" /></g>;
     if (what === 'papers') return <g transform="rotate(-20)"><rect x="-4" y="-14" width="8" height="26" rx="3" fill="#fdfefe" {...line} strokeWidth="1.4" /></g>;
     // The prize cloth, three silver coins woven in its border.
     if (what === 'cloth') return <g><rect x="-4" y="-24" width="40" height="34" fill="#c0392b" {...line} strokeWidth="1.6" /><rect x="-4" y="2" width="40" height="8" fill="#f5cba7" />{[4, 16, 28].map((cx) => <circle key={cx} cx={cx} cy="6" r="3" fill="#d5d8dc" stroke={INK} strokeWidth="1" />)}</g>;
@@ -478,13 +482,17 @@ const ARMS = {
 const MOUTH = { talk: 'talk', point: 'talk', cheer: 'happy', give: 'happy', sad: 'sad', surprise: 'oh' };
 const GOLD = '#f4c542';
 
-function Arm({ pts, skin }) {
+function Arm({ pts, skin, sleeve = null, full = false }) {
     const p = pts.join(' ');
     const [hx, hy] = pts.slice(-2);
+    // A sleeve over the arm: to the elbow (a shirt), or nearly to the wrist (a kurta, a jacket).
+    const sl = sleeve && (full ? [...pts.slice(0, 4), pts[2] + (pts[4] - pts[2]) * 0.78, pts[3] + (pts[5] - pts[3]) * 0.78] : pts.slice(0, 4)).join(' ');
     return (
         <g>
             <polyline points={p} fill="none" stroke={INK} strokeWidth="10.5" strokeLinecap="round" strokeLinejoin="round" />
             <polyline points={p} fill="none" stroke={skin} strokeWidth="7.4" strokeLinecap="round" strokeLinejoin="round" />
+            {sleeve && <polyline points={sl} fill="none" stroke={INK} strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />}
+            {sleeve && <polyline points={sl} fill="none" stroke={sleeve} strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />}
             <circle cx={hx} cy={hy} r="5.2" fill={skin} {...line} strokeWidth="1.5" />
         </g>
     );
@@ -495,7 +503,14 @@ function Arm({ pts, skin }) {
  * a happy face — eyes with a shine, eyebrows, pink cheeks — clothes with gold borders, a soft shadow at their feet.
  * Their look (skin, clothes, hair), how they stand, which way they face, what they hold; `size` for a close-up.
  */
-function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, speaking, size = 1, walkFrom = null, hop = 0, onTap, delay = 0, talking = false, hint = false }) {
+export function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, speaking, size = 1, walkFrom = null, hop = 0, onTap, delay = 0, talking = false, hint = false, sit = false, facing = false, calm = false }) {
+    // Today's clothes (2026-11-18, the story film's people in the picture-book style): look.outfit 'shirt' (a shirt,
+    // trousers, sneakers), 'kurta' (a long kurta, pyjama, sandals) or 'suit' (a jacket, tie, trousers, formal shoes);
+    // look.pants, look.coat, look.tie, look.glasses, look.backpack, look.curly. `sit`: seated, thighs forward.
+    const outfit = look.outfit || null;
+    const top = outfit === 'suit' ? look.coat : outfit === 'kurta' ? look.kurta : outfit === 'shirt' ? look.shirt : null;
+    const sleeve = outfit ? top : null;
+    const sdy = sit ? 24 : 0;
     const s = (look.child ? 0.58 : 0.75) * size;
     const w = look.big ? 1.15 : 1;
     const skin = look.skin || '#c68642';
@@ -521,8 +536,15 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
         <g className="cm-lift">
         <g className="cm-step">
             {/* The feet stay on the ground while the rest breathes; they step while walking. */}
-            <ellipse className="cm-foot-a" cx="-8" cy="-3" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.4" />
-            <ellipse className="cm-foot-b" cx="11" cy="-3" rx="8" ry="4" fill={skin} {...line} strokeWidth="1.4" />
+            {[[sit && !facing ? 24 : -8, 'cm-foot-a'], [sit && !facing ? 36 : 11, 'cm-foot-b']].map(([fx, cls]) => (
+                <g key={cls} className={cls}>
+                    <ellipse cx={fx + (outfit && outfit !== 'kurta' ? 2 : 0)} cy="-3" rx={outfit && outfit !== 'kurta' ? 10 : 8} ry={outfit && outfit !== 'kurta' ? 5 : 4}
+                        fill={outfit === 'suit' ? '#2b211c' : outfit === 'shirt' ? '#f4f4f4' : skin} {...line} strokeWidth="1.4" />
+                    {outfit === 'shirt' && <path d={`M ${fx - 7} -2 L ${fx + 11} -2`} stroke="#e74c3c" strokeWidth="2" />}
+                    {outfit === 'kurta' && <path d={`M ${fx - 4} -6 L ${fx + 4} -1`} stroke="#7a4a2a" strokeWidth="2.4" />}
+                </g>
+            ))}
+        <g transform={sdy ? `translate(0 ${sdy})` : undefined}>
         <g className={body} style={{ animationDelay: `${delay}s` }}>
             {/* Long hair down the back; a braid with a flower at its end. */}
             {long && !['bun', 'greybun', 'braid'].includes(look.hair) && look.hair !== 'cap' && look.hair !== 'turban' && <path d="M -18 -132 C -24 -112 -20 -98 -12 -92 L -6 -104 C -12 -112 -12 -124 -10 -134 Z" fill={hairColor} {...line} strokeWidth="1.4" />}
@@ -534,9 +556,21 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
                     <circle cx="-20" cy="-74" r="3" fill="#ff6fa3" stroke={INK} strokeWidth="1" />
                 </g>
             )}
-            <Arm pts={back} skin={skin} />
+            {look.backpack && <rect x={-31 * w} y="-104" width="18" height="40" rx="7" fill={look.backpack} {...line} />}
+            <Arm pts={back} skin={skin} sleeve={sleeve} full={outfit === 'kurta' || outfit === 'suit'} />
             {/* Below the waist: a dhoti with its folds, or a sari's skirt with its gold border and pleats. */}
-            {look.woman ? (
+            {outfit ? (
+                sit && facing ? (
+                    <path d={`M ${-15 * w} -66 L ${15 * w} -66 L ${16 * w} ${-6 - sdy} L 3 ${-6 - sdy} L 0 -50 L -3 ${-6 - sdy} L ${-16 * w} ${-6 - sdy} Z`} fill={look.pants} {...line} />
+                ) : sit ? (
+                    <path d={`M ${-15 * w} -66 L 36 -66 L 36 ${-6 - sdy} L 22 ${-6 - sdy} L 22 -53 L ${-15 * w} -53 Z`} fill={look.pants} {...line} />
+                ) : (
+                    <>
+                        <path d={`M ${-15 * w} -66 L ${15 * w} -66 L ${16 * w} -6 L 3 -6 L 0 -44 L -3 -6 L ${-16 * w} -6 Z`} fill={look.pants} {...line} />
+                        <path d="M 0 -60 L 0 -46" stroke="rgba(0,0,0,.2)" strokeWidth="1.4" />
+                    </>
+                )
+            ) : look.woman ? (
                 <>
                     <path d={`M ${-14 * w} -66 L ${14 * w} -66 L ${22 * w} -4 L ${-22 * w} -4 Z`} fill={look.cloth} {...line} />
                     <path d={`M ${-21 * w} -11 L ${21 * w} -11`} stroke={GOLD} strokeWidth="5" />
@@ -549,17 +583,25 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
                 </>
             )}
             {/* The body: bare with a shawl across it, a shirt, or a blouse under the sari's end — gold along their edges. */}
-            <path d={`M ${-14 * w} -102 Q ${-17 * w} -84 ${-14 * w} -64 L ${14 * w} -64 Q ${17 * w} -84 ${14 * w} -102 Q 0 -106 ${-14 * w} -102 Z`} fill={look.woman ? look.blouse : look.shirt || skin} {...line} />
+            {outfit === 'kurta'
+                ? <path d={`M ${-14 * w} -102 Q ${-18 * w} -70 ${-19 * w} ${sit ? -52 : -36} L ${19 * w} ${sit ? -52 : -36} Q ${18 * w} -70 ${14 * w} -102 Q 0 -106 ${-14 * w} -102 Z`} fill={look.kurta} {...line} />
+                : <path d={`M ${-14 * w} -102 Q ${-17 * w} -84 ${-14 * w} -64 L ${14 * w} -64 Q ${17 * w} -84 ${14 * w} -102 Q 0 -106 ${-14 * w} -102 Z`} fill={look.woman ? look.blouse : top || look.shirt || skin} {...line} />}
+            {outfit === 'shirt' && <><path d="M -6 -104 L 1 -96 L 8 -104" fill="none" stroke={INK} strokeWidth="1.4" /><path d="M 1 -96 L 1 -66" stroke="rgba(0,0,0,.2)" strokeWidth="1.2" />{[-90, -80, -71].map((by) => <circle key={by} cx="2.6" cy={by} r="1" fill={INK} />)}<rect x={-15 * w} y="-68" width={30 * w} height="4" fill="#5d4037" /></>}
+            {outfit === 'suit' && <><path d="M -7 -104 L 1 -84 L 9 -104 Z" fill="#fff" stroke={INK} strokeWidth="1.2" /><path d="M -1 -101 L 3 -101 L 4.5 -82 L 1 -77 L -2.5 -82 Z" fill={look.tie} stroke={INK} strokeWidth="1" /><path d="M -7 -104 L -2 -80 M 9 -104 L 4 -80" stroke="rgba(0,0,0,.35)" strokeWidth="1.6" /><circle cx="1" cy="-70" r="1.4" fill={INK} /></>}
+            {outfit === 'kurta' && <path d="M 2 -104 L 2 -86" stroke="rgba(0,0,0,.25)" strokeWidth="1.4" />}
+            {look.backpack && <path d={`M ${-12 * w} -102 L ${-6 * w} -66`} stroke={look.backpack} strokeWidth="4" strokeLinecap="round" />}
             {look.woman
                 ? <><path d={`M ${14 * w} -102 L ${4 * w} -105 L ${-16 * w} -74 L ${-15 * w} -64 L ${-5 * w} -64 Z`} fill={look.cloth} {...line} /><path d={`M ${4 * w} -104 L ${-15 * w} -72`} stroke={GOLD} strokeWidth="2.6" /></>
                 : look.shawl && <><path d={`M ${-14 * w} -102 L ${-4 * w} -105 L ${16 * w} -76 L ${15 * w} -64 L ${6 * w} -64 Z M ${-14 * w} -102 L ${-20 * w} -96 L ${-21 * w} -78 L ${-15 * w} -78 Z`} fill={look.shawl} {...line} /><path d={`M ${-4 * w} -104 L ${16 * w} -74`} stroke={GOLD} strokeWidth="2.4" /></>}
             <rect x="-4.5" y="-111" width="9" height="10" fill={skin} {...line} strokeWidth="1.4" />
-            <g className={speaking ? 'cm-nod' : undefined} style={{ transformOrigin: '2px -108px', animationDelay: `${delay}s` }}>
+            <g className={speaking && !calm ? 'cm-nod' : undefined} style={{ transformOrigin: '2px -108px', animationDelay: `${delay}s` }}>
             <g transform={pose === 'sad' ? 'rotate(10 0 -110)' : undefined}>
                 {['bun', 'greybun'].includes(look.hair) && <circle cx="-18" cy="-138" r="8.5" fill={hairColor} {...line} strokeWidth="1.5" />}
                 <circle cx="2" cy="-128" r="21" fill={skin} {...line} data-head />
                 <ellipse cx="-12" cy="-127" rx="4" ry="5.5" fill={skin} {...line} strokeWidth="1.3" />
                 {/* The face, turned the way they look: eyes with a shine, eyebrows, pink cheeks, the mouth. */}
+                {facing && <ellipse cx="16" cy="-127" rx="4" ry="5.5" fill={skin} {...line} strokeWidth="1.3" />}
+                <g transform={facing ? (face === 'left' ? 'translate(4 0) scale(-1 1) translate(-4 0) translate(-9.5 0)' : 'translate(-9.5 0)') : undefined}>
                 <g className="cm-eyes" style={{ animationDelay: `${delay * 2}s` }}>
                 {[6.5, 15.5].map((ex) => (
                     <g key={ex}>
@@ -572,7 +614,8 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
                 <path d={pose === 'sad' ? 'M 3 -138.5 L 9 -136.5 M 13 -136.5 L 19 -138.5' : 'M 3 -137 Q 6.5 -139.8 10 -137.6 M 12 -137.6 Q 15.5 -139.8 19 -137'} stroke={grey ? '#9a9a9a' : '#2b211c'} strokeWidth="1.5" fill="none" strokeLinecap="round" />
                 <circle cx="3" cy="-121.5" r="3.2" fill="#f28b82" opacity=".45" />
                 <circle cx="19" cy="-121.5" r="3.2" fill="#f28b82" opacity=".45" />
-                <path d="M 21.5 -128 Q 24 -125 21 -123.5" stroke={INK} strokeWidth="1.3" fill="none" strokeLinecap="round" />
+                {facing ? <path d="M 9.5 -126 Q 11.5 -122 13.5 -126" stroke={INK} strokeWidth="1.3" fill="none" strokeLinecap="round" /> : <path d="M 21.5 -128 Q 24 -125 21 -123.5" stroke={INK} strokeWidth="1.3" fill="none" strokeLinecap="round" />}
+                {look.glasses && <g fill="rgba(255,255,255,.25)" stroke="#3b2b22" strokeWidth="1.3">{[6.5, 15.5].map((ex) => <circle key={ex} cx={ex} cy="-131" r="5.2" />)}<path d="M 11.7 -131 L 10.3 -131" /></g>}
                 {look.moustache && <path d="M 7 -119.6 Q 12 -123 17.5 -119.6 Q 12 -117.6 7 -119.6 Z" fill={hairColor} stroke={INK} strokeWidth=".8" />}
                 {mouth === 'talk' && <ellipse className={speaking ? 'cm-mouth' : undefined} cx="12.5" cy="-115.5" rx="3.2" ry="2.6" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
                 {mouth === 'oh' && <ellipse className={speaking ? 'cm-mouth' : undefined} cx="12.5" cy="-115.5" rx="2.4" ry="3.2" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
@@ -580,7 +623,10 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
                 {mouth === 'sad' && speaking && <ellipse className="cm-mouth" cx="12.5" cy="-114.5" rx="2.2" ry="1.6" fill="#8a2f25" stroke={INK} strokeWidth="1" />}
                 {mouth === 'sad' && <path d="M 8.5 -113.5 Q 12.5 -117.5 16.5 -113.5" stroke={INK} strokeWidth="1.5" fill="none" strokeLinecap="round" />}
                 {mouth === 'calm' && <path d="M 8 -117 Q 12.5 -112.8 17 -117" stroke={INK} strokeWidth="1.5" fill="none" strokeLinecap="round" />}
-                {look.beard && <path d="M -9 -122 C -8 -98 10 -94 22 -108 C 24 -112 23 -117 22 -119 C 19 -112 6 -112 -1 -116 C -4 -118 -7 -120 -9 -122 Z" fill={hairColor} {...line} strokeWidth="1.3" />}
+                {look.beard && (facing
+                    ? <path d="M -6.5 -121 C -6 -100 6 -94 11.5 -94 C 17 -94 29 -100 29.5 -121 C 25 -113 18 -112 11.5 -113.5 C 5 -112 -2 -113 -6.5 -121 Z" fill={hairColor} {...line} strokeWidth="1.3" />
+                    : <path d="M -9 -122 C -8 -98 10 -94 22 -108 C 24 -112 23 -117 22 -119 C 19 -112 6 -112 -1 -116 C -4 -118 -7 -120 -9 -122 Z" fill={hairColor} {...line} strokeWidth="1.3" />)}
+                </g>
                 {/* Hair on top: hair parted on the side, a turban, a cap, or none. */}
                 {['hair', 'bun', 'braid', 'grey', 'greybun'].includes(look.hair) && <path d="M -19 -130 C -22 -152 8 -160 22 -142 C 24 -138 23 -134 22 -132 C 16 -142 6 -144 -2 -141 C -8 -139 -14 -135 -19 -130 Z" fill={hairColor} {...line} strokeWidth="1.4" />}
                 {look.hair === 'turban' && (
@@ -589,15 +635,17 @@ function Person({ look, pose = 'stand', face = 'right', x, y = GROUND, holds, sp
                         <path d="M -17 -142 C -2 -150 12 -150 22 -142 M -13 -152 C 0 -156 12 -156 19 -150" stroke="rgba(0,0,0,.25)" strokeWidth="1.3" fill="none" />
                     </>
                 )}
+                {look.curly && <g fill={hairColor} {...line} strokeWidth="1.2">{[[-16, -138, 6], [-10, -147, 7], [0, -152, 7.5], [10, -151, 7], [18, -144, 6.5], [-18, -128, 5]].map(([cx, cy, r]) => <circle key={`${cx}${cy}`} cx={cx} cy={cy} r={r} />)}</g>}
                 {look.hair === 'cap' && <path d="M -19 -138 L 24 -140 L 19 -156 C 6 -160 -9 -159 -17 -150 Z" fill="#fdfefe" {...line} strokeWidth="1.5" />}
             </g>
             </g>
-            <g className={speaking && !['cheer', 'carry', 'dig'].includes(pose) ? 'cm-gesture' : undefined} style={{ transformOrigin: `${14 * w}px -100px` }}>
-                <Arm pts={front} skin={skin} />
+            <g className={speaking && !calm && !['cheer', 'carry', 'dig'].includes(pose) ? 'cm-gesture' : undefined} style={{ transformOrigin: `${14 * w}px -100px` }}>
+                <Arm pts={front} skin={skin} sleeve={sleeve} full={outfit === 'kurta' || outfit === 'suit'} />
                 {holds && pose !== 'carry' && <g transform={`translate(${hand[0] + 3} ${hand[1]})`}><Held what={holds} /></g>}
             </g>
             {holds && pose === 'carry' && <g transform="translate(2 -160)"><Held what={holds} /></g>}
             {pose === 'dig' && <path d="M 30 -88 L 50 -10 M 42 -14 L 58 -6 L 54 6 L 40 -2 Z" fill="#95a5a6" {...line} />}
+        </g>
         </g>
         </g>
         </g>

@@ -5,19 +5,13 @@ const tile = (fill) => <rect x="2" y="2" width="52" height="52" rx="12" fill={fi
 export const THUMBS = {
   'number-pattern-lab': () => (
     <>
-      {tile('#cffafe')}
-      <rect x="21" y="9" width="14" height="11" rx="3" fill="#0891b2" />
-      <text x="28" y="17.5" textAnchor="middle" fontSize="7" fontWeight="900" fill="#fff">?</text>
-      <rect x="14" y="22" width="14" height="11" rx="3" fill="#ffffff" />
-      <rect x="28" y="22" width="14" height="11" rx="3" fill="#ffffff" />
-      <text x="21" y="30.5" textAnchor="middle" fontSize="7" fontWeight="900" fill="#155e75">7</text>
-      <text x="35" y="30.5" textAnchor="middle" fontSize="7" fontWeight="900" fill="#155e75">9</text>
-      {[0, 1, 2].map((i) => (
-        <g key={i}>
-          <rect x={7 + i * 14} y="35" width="14" height="11" rx="3" fill={i === 1 ? '#67e8f9' : '#ffffff'} />
-          <text x={14 + i * 14} y="43.5" textAnchor="middle" fontSize="7" fontWeight="900" fill="#155e75">{[3, 4, 5][i]}</text>
+      {tile('#312e81')}
+      {[[2, 5, 9], [4, 8, 3], [6, 7, 12]].map((row, r) => row.map((v, c) => (
+        <g key={`${r}${c}`}>
+          <rect x={9 + c * 13} y={9 + r * 13} width="12" height="12" rx="3" fill={[[0, 0], [1, 0], [1, 1], [2, 1], [2, 2]].some(([pr, pc]) => pr === r && pc === c) ? '#fcd34d' : '#ffffff'} />
+          <text x={15 + c * 13} y={17.5 + r * 13} textAnchor="middle" fontSize="7" fontWeight="900" fill="#1e1b4b">{v}</text>
         </g>
-      ))}
+      )))}
     </>
   ),
   'ratio-relay': () => (
@@ -30,6 +24,17 @@ export const THUMBS = {
       <rect x="12" y="12" width="32" height="16" rx="5" fill="#ffffff" />
       <text x="28" y="23.5" textAnchor="middle" fontSize="10" fontWeight="900" fill="#c2410c">2 : 3</text>
       <rect x="33" y="30" width="12" height="4" rx="2" fill="#e11d48" transform="rotate(-25 39 32)" />
+    </>
+  ),
+  'data-chart-quiz': (...a) => THUMBS['data-dash'](...a),
+  'speed-distance': () => (
+    <>
+      {tile('#1e3a8a')}
+      <rect x="6" y="34" width="44" height="5" rx="2.5" fill="#475569" />
+      <rect x="6" y="34" width="28" height="5" rx="2.5" fill="#f59e0b" />
+      <circle cx="34" cy="36.5" r="5" fill="#fbbf24" stroke="#fff" strokeWidth="2" />
+      <text x="20" y="28" textAnchor="middle" fontSize="14">🚆</text>
+      <text x="28" y="50" textAnchor="middle" fontSize="6" fontWeight="900" fill="#fff">km</text>
     </>
   ),
   'data-dash': () => (
@@ -54,18 +59,6 @@ export const THUMBS = {
       <text x="39" y="31" textAnchor="middle" fontSize="6.5" fontWeight="900" fill="#cbd5e1">+5</text>
       <path d="M17 33 V40 H28 V42" stroke="#fbbf24" strokeWidth="2" fill="none" />
       <rect x="20" y="42" width="16" height="9" rx="3" fill="#10b981" />
-    </>
-  ),
-  'matrix-recall': () => (
-    <>
-      {tile('#ede9fe')}
-      {[0, 1, 2, 3].map((r) => [0, 1, 2, 3].map((c) => {
-        const lit = (r === 1 && c === 2) || (r === 3 && c === 0);
-        return <rect key={`${r}${c}`} x={9 + c * 10} y={9 + r * 10} width="8.5" height="8.5" rx="2" fill={lit ? '#7c3aed' : r === 0 ? '#ffffff' : '#ddd6fe'} />;
-      }))}
-      {['4', '7', '2', '9'].map((d, i) => (
-        <text key={i} x={13.25 + i * 10} y="15.5" textAnchor="middle" fontSize="6.5" fontWeight="900" fill="#4c1d95">{d}</text>
-      ))}
     </>
   ),
   'departure-board': () => (

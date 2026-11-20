@@ -145,6 +145,8 @@ function Round({ progress, onExit, title }) {
   }, [config.tiles, started, over]);
 
   const young = config.tiles;
+  // Rising Brains (2026-11-19, the user): a dark premium stage, full screen on a phone.
+  const dark = !young && (progress.ageBand === 'intermediate' || progress.ageBand === 'analytical');
 
   return (
     <GameShell
@@ -195,18 +197,26 @@ function Round({ progress, onExit, title }) {
       }
     >
       {started && !over && (
-        <div className="mx-auto max-w-md text-center">
+        <div className={`mx-auto w-full max-w-md text-center ${dark ? 'vx-t0 flex flex-col justify-start max-sm:flex-1' : ''}`}>
+          {/* A coloured stage (2026-11-18 redesign): the picture in a glowing bubble, the word built on a wooden shelf,
+              the letters as candy tiles. */}
+          <div className={`relative overflow-hidden p-4 sm:p-5 ${dark ? 'vx-card py-7' : 'rounded-[1.75rem] bg-gradient-to-br from-sky-400 via-indigo-400 to-fuchsia-500 shadow-[0_14px_30px_-14px_rgba(79,70,229,0.6)]'}`}>
+          <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+            {[['A', 6, 8, -12], ['b', 86, 6, 10], ['✦', 4, 70, 0], ['Z', 88, 72, -8], ['c', 48, 90, 0]].map(([c, x, y, r]) => <span key={c} className="absolute text-4xl font-black text-white/20" style={{ left: `${x}%`, top: `${y}%`, transform: `rotate(${r}deg)` }}>{c}</span>)}
+          </span>
+          <span className="relative inline-block rounded-full bg-white/90 px-3 py-1 text-xs font-black text-indigo-700 shadow-sm">🔤 {young ? 'Build the word' : 'Unscramble the word'}</span>
           {entry.picture && (
-            <div className="mb-3 text-7xl leading-none sm:text-8xl" role="img" aria-label={entry.clue}>
-              {entry.picture}
+            <div className="relative mx-auto mt-3 grid size-28 place-items-center rounded-full bg-white/95 shadow-[0_8px_20px_-8px_rgba(30,27,75,0.5)] ring-4 ring-white/50 sm:size-32" role="img" aria-label={entry.clue}>
+              <span className="text-7xl leading-none drop-shadow sm:text-8xl">{entry.picture}</span>
             </div>
           )}
+          <div className="relative mt-4">
 
           {young ? (
             <>
               {/* The answer slots: tap a placed letter to send it back. Drop a tile here with a mouse. */}
               <div
-                className={`flex flex-wrap justify-center gap-2 ${flash === 'wrong' ? 'gs-wrong' : ''}`}
+                className={`flex flex-wrap justify-center gap-2 rounded-2xl bg-white/25 px-3 pt-3 pb-4 shadow-[inset_0_-6px_0_rgba(120,53,15,0.35)] ring-1 ring-white/40 ${flash === 'wrong' ? 'gs-wrong' : ''}`}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -224,14 +234,14 @@ function Round({ progress, onExit, title }) {
                       onClick={() => ch && unplace(slot)}
                       disabled={!ch || locked}
                       aria-label={ch ? `Remove ${ch}` : `Empty space ${slot + 1}`}
-                      className={`flex h-14 w-12 items-center justify-center rounded-xl border-2 border-dashed text-2xl font-black transition-colors ${
+                      className={`flex h-14 w-12 items-center justify-center rounded-xl text-2xl font-black transition-all ${
                         flash === 'right'
-                          ? 'border-emerald-400 bg-emerald-100 text-emerald-700'
+                          ? 'oo-win bg-emerald-500 text-white shadow-[0_4px_0_#047857]'
                           : flash === 'wrong'
-                            ? 'border-rose-400 bg-rose-50 text-rose-600'
+                            ? 'bg-rose-500 text-white shadow-[0_4px_0_#be123c]'
                             : ch
-                              ? 'border-fuchsia-300 bg-fuchsia-50 text-ink-900'
-                              : 'border-line-200 bg-surface text-transparent'
+                              ? 'bg-white text-indigo-800 shadow-[0_4px_0_rgba(15,23,42,0.18)]'
+                              : 'border-2 border-dashed border-white/80 bg-white/15 text-transparent'
                       }`}
                     >
                       {ch || '·'}
@@ -253,8 +263,9 @@ function Round({ progress, onExit, title }) {
                       onClick={() => tap(i)}
                       disabled={used || locked}
                       aria-label={`Letter ${letter}`}
-                      className={`fp-press flex h-14 w-12 items-center justify-center rounded-xl text-2xl font-black shadow-sm transition-all ${
-                        used ? 'bg-surface-100 text-transparent shadow-none' : 'bg-gradient-to-b from-fuchsia-400 to-purple-600 text-white'
+                      className={`fp-press flex h-14 w-12 items-center justify-center rounded-xl text-2xl font-black transition-all ${
+                        used ? 'scale-90 bg-white/20 text-transparent shadow-none'
+                          : ['bg-gradient-to-b from-amber-300 to-orange-500 shadow-[0_4px_0_#c2410c]', 'bg-gradient-to-b from-pink-400 to-rose-600 shadow-[0_4px_0_#9f1239]', 'bg-gradient-to-b from-emerald-300 to-teal-600 shadow-[0_4px_0_#115e59]', 'bg-gradient-to-b from-sky-300 to-blue-600 shadow-[0_4px_0_#1e40af]'][i % 4] + ' text-white hover:-translate-y-0.5 active:translate-y-0.5'
                       }`}
                     >
                       {letter}
@@ -269,7 +280,7 @@ function Round({ progress, onExit, title }) {
                   onClick={() => placed.length && unplace(placed.length - 1)}
                   disabled={locked || !placed.length}
                   aria-label="Take back the last letter"
-                  className="fp-press inline-flex min-h-12 items-center gap-1.5 rounded-xl bg-surface-100 px-4 text-sm font-black text-ink-600 disabled:opacity-50"
+                  className="fp-press inline-flex min-h-12 items-center gap-1.5 rounded-xl bg-white px-4 text-sm font-black text-indigo-700 shadow-[0_3px_0_rgba(15,23,42,0.15)] disabled:opacity-50"
                 >
                   <Delete className="h-4 w-4" />
                   Back
@@ -278,7 +289,7 @@ function Round({ progress, onExit, title }) {
                   type="button"
                   onClick={() => nextWord(word)}
                   disabled={locked}
-                  className="fp-press inline-flex min-h-12 items-center gap-1.5 rounded-xl bg-surface-100 px-4 text-sm font-black text-ink-600 disabled:opacity-50"
+                  className="fp-press inline-flex min-h-12 items-center gap-1.5 rounded-xl bg-white/25 px-4 text-sm font-black text-white ring-1 ring-white/50 disabled:opacity-50"
                 >
                   <SkipForward className="h-4 w-4" />
                   Skip
@@ -293,7 +304,7 @@ function Round({ progress, onExit, title }) {
                   <span
                     key={i}
                     className={`flex h-11 w-9 items-center justify-center rounded-xl text-xl font-black transition-colors sm:h-12 sm:w-10 ${
-                      flash === 'right' ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-100 text-ink-900'
+                      flash === 'right' ? 'bg-emerald-500 text-white shadow-[0_4px_0_#047857]' : dark ? ['bg-gradient-to-b from-violet-400 to-purple-600 shadow-[0_4px_0_#4c1d95]', 'bg-gradient-to-b from-fuchsia-400 to-pink-600 shadow-[0_4px_0_#9d174d]', 'bg-gradient-to-b from-sky-400 to-blue-600 shadow-[0_4px_0_#1e3a8a]', 'bg-gradient-to-b from-amber-300 to-orange-500 shadow-[0_4px_0_#9a3412]'][i % 4] + ' text-white' : 'bg-white text-indigo-800 shadow-[0_4px_0_rgba(15,23,42,0.18)]'
                     }`}
                   >
                     {letter}
@@ -313,8 +324,8 @@ function Round({ progress, onExit, title }) {
                   autoCorrect="off"
                   autoCapitalize="characters"
                   spellCheck={false}
-                  className={`min-h-11 min-w-0 flex-1 basis-48 rounded-xl border bg-surface px-4 text-center text-base font-black tracking-widest text-ink-900 uppercase transition-colors placeholder:font-semibold placeholder:tracking-normal placeholder:normal-case focus:outline-none ${
-                    busy ? 'border-rose-400 text-rose-600' : 'border-line-200 focus:border-journey-400'
+                  className={`min-h-12 min-w-0 flex-1 basis-48 rounded-xl border px-4 text-center text-lg font-black tracking-widest uppercase transition-colors placeholder:font-semibold placeholder:tracking-normal placeholder:normal-case focus:outline-none ${dark ? 'bg-white/10 text-white placeholder:text-white/40' : 'bg-surface text-ink-900'} ${
+                    busy ? 'border-rose-400 text-rose-400' : dark ? 'border-white/20 focus:border-violet-400' : 'border-line-200 focus:border-journey-400'
                   }`}
                 />
                 <button
@@ -328,19 +339,21 @@ function Round({ progress, onExit, title }) {
                   type="button"
                   onClick={() => nextWord(word)}
                   disabled={locked}
-                  className="min-h-11 shrink-0 rounded-xl bg-surface-100 px-4 text-sm font-black text-ink-600"
+                  className="min-h-11 shrink-0 rounded-xl bg-white/25 px-4 text-sm font-black text-white ring-1 ring-white/50"
                 >
                   <SkipForward className="mr-1 inline h-3.5 w-3.5" />
                   Skip
                 </button>
               </form>
               {busy && (
-                <p className="mt-3 text-sm font-bold text-ink-500" role="status">
-                  It was <span className="font-black tracking-widest text-emerald-600">{word}</span>
+                <p className="mt-3 text-sm font-bold text-white" role="status">
+                  It was <span className="rounded-md bg-white px-2 font-black tracking-widest text-emerald-600">{word}</span>
                 </p>
               )}
             </>
           )}
+          </div>
+          </div>
         </div>
       )}
     </GameShell>

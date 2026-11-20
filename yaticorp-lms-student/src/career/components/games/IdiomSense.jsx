@@ -34,6 +34,7 @@ export default function IdiomSense({ onExit }) {
   return (
     <QuizGame
       gameId="idiom-sense"
+      dark={['intermediate', 'analytical', 'advanced'].includes(currentAgeBand())}
       title="Idiom Sense"
       tone="bg-gradient-to-br from-pink-500 to-fuchsia-700"
       questions={questions}

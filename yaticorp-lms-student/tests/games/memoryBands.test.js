@@ -143,7 +143,7 @@ test('grid recall: patterns fit, are distinct, two-stage patterns never overlap'
   for (const c of everyCase()) {
     const cfg = M.gridConfig(c);
     if (cfg.band === 'foundation') assert.ok(cfg.size === 3 && cfg.lit >= 2 && cfg.lit <= 3);
-    assert.equal(cfg.twoStage, cfg.band === 'advanced');
+    assert.equal(cfg.twoStage, false); // one pattern for every band (2026-11-18)
     for (const r of M.gridRounds(cfg, rng)) {
       const cells = cfg.size * cfg.size;
       assert.equal(new Set(r.first).size, r.first.length);

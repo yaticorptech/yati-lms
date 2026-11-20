@@ -120,7 +120,7 @@ function Ring({ value, color = '#8b5cf6', size = 56, label = null }) {
                 <circle cx="28" cy="28" r={r} fill="none" stroke="#eef0f6" strokeWidth="6" />
                 <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${(v / 100) * c} ${c}`} />
             </svg>
-            <span className="relative text-[13px] font-black text-slate-800 tabular-nums">{value == null ? '—' : `${value}%`}</span>
+            <span className="relative font-black tracking-tight text-slate-800 tabular-nums" style={{ fontSize: Math.max(9, Math.round(size * 0.2)) }}>{value == null ? '—' : `${value}%`}</span>
         </span>
     );
 }
@@ -135,11 +135,11 @@ function Trend({ points, color }) {
 
 function StatTile({ Icon, grad, label, value, children }) {
     return (
-        <div className="flex min-w-0 items-center gap-3 rounded-2xl bg-white p-3 shadow-[0_6px_20px_-12px_rgba(30,41,99,.25)] ring-1 ring-slate-100 sm:p-4">
-            {children || <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-md ${grad}`}><Icon className="h-5 w-5" /></span>}
+        <div className="flex min-w-0 items-center gap-2.5 rounded-2xl bg-white p-2.5 shadow-[0_6px_20px_-12px_rgba(30,41,99,.25)] ring-1 ring-slate-100 sm:gap-3 sm:p-4">
+            {children || <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-md sm:h-11 sm:w-11 ${grad}`}><Icon className="h-4 w-4 sm:h-5 sm:w-5" /></span>}
             <span className="min-w-0">
-                <span className="block truncate text-[11px] font-bold tracking-wide text-slate-500 uppercase">{label}</span>
-                <span className="block truncate text-xl font-black text-slate-900 tabular-nums">{value}</span>
+                <span className="block truncate text-[10px] font-bold tracking-wide text-slate-500 uppercase sm:text-[11px]">{label}</span>
+                <span className="block truncate text-lg font-black text-slate-900 tabular-nums sm:text-xl">{value}</span>
             </span>
         </div>
     );
@@ -149,17 +149,17 @@ function CategoryCard({ k, c, strength, practice }) {
     const look = CATEGORY_LOOK[k];
     const { Icon } = look;
     return (
-        <div className="relative min-w-0 overflow-hidden rounded-2xl bg-white p-4 shadow-[0_6px_20px_-12px_rgba(30,41,99,.25)] ring-1 ring-slate-100" data-category={k}>
+        <div className="relative min-w-0 overflow-hidden rounded-2xl bg-white p-3 shadow-[0_6px_20px_-12px_rgba(30,41,99,.25)] ring-1 ring-slate-100 sm:p-4" data-category={k}>
             <span aria-hidden className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${look.grad}`} />
             <div className="flex items-center gap-2.5">
-                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow ${look.grad}`}><Icon className="h-4.5 w-4.5" /></span>
-                <span className="min-w-0 flex-1 truncate text-sm font-black text-slate-900">{look.name}</span>
+                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow sm:h-9 sm:w-9 ${look.grad}`}><Icon className="h-4 w-4" /></span>
+                <span className="min-w-0 flex-1 truncate text-[13px] font-black text-slate-900 sm:text-sm">{look.name}</span>
                 {strength && <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-700 ring-1 ring-emerald-200">Strength</span>}
                 {practice && <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-black text-amber-700 ring-1 ring-amber-200">Practise more</span>}
             </div>
-            <div className="mt-3 flex items-center gap-4">
-                <Ring value={c.accuracy ?? null} color={look.ring} label={`${look.name} accuracy`} />
-                <div className="min-w-0 flex-1 space-y-0.5 text-[13px] text-slate-600">
+            <div className="mt-2.5 flex items-center gap-3 sm:mt-3 sm:gap-4">
+                <Ring value={c.accuracy ?? null} color={look.ring} size={52} label={`${look.name} accuracy`} />
+                <div className="min-w-0 flex-1 space-y-0.5 text-xs text-slate-600 sm:text-[13px]">
                     <p><b className="text-slate-900 tabular-nums">{c.completed || 0}</b> levels completed</p>
                     <p><b className="text-slate-900 tabular-nums">{c.stars || 0}</b> stars</p>
                     <p className="truncate">{c.best ? <>Best: <b className={look.text}>{c.best.title}</b></> : <span className="text-slate-400">No best game yet</span>}</p>
@@ -172,7 +172,7 @@ function CategoryCard({ k, c, strength, practice }) {
 
 const TABS = [['skills', 'Skills'], ['improve', 'Improvement'], ['bests', 'Personal bests'], ['badges', 'Achievements'], ['group', 'Group games']];
 
-export default function MyProgress({ zone, band }) {
+export default function MyProgress({ zone, band, inSheet = false }) {
     const [tick, setTick] = useState(0);
     const [tab, setTab] = useState('skills');
     useEffect(() => {
@@ -205,8 +205,10 @@ export default function MyProgress({ zone, band }) {
     const strengths = new Set(perf?.individual?.strengths || []), practice = new Set(perf?.individual?.practice || []);
 
     return (
-        <section className="min-w-0 rounded-[24px] bg-gradient-to-b from-[#f7f8ff] to-white p-3 sm:p-6" data-my-progress>
+        <section className={`min-w-0 bg-gradient-to-b from-[#f7f8ff] to-white p-3 sm:p-6 ${inSheet ? '' : 'rounded-[24px]'}`} data-my-progress>
             {/* Header */}
+            {/* In the popup the sheet's own title bar says this; only the section shows. */}
+            {inSheet ? (z && <p className="mb-1 flex justify-end"><span className="truncate rounded-full bg-white px-3 py-1.5 text-xs font-black text-violet-700 shadow-sm ring-1 ring-violet-100">{z.name}{BANDS[band] ? ` · ${BANDS[band].label}` : ''}</span></p>) : (
             <div className="flex flex-wrap items-center gap-3">
                 <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg shadow-violet-500/30"><BarChart3 className="h-5 w-5" /></span>
                 <div className="min-w-0 flex-1">
@@ -215,26 +217,27 @@ export default function MyProgress({ zone, band }) {
                 </div>
                 {z && <span className="truncate rounded-full bg-white px-3 py-1.5 text-xs font-black text-violet-700 shadow-sm ring-1 ring-violet-100">{z.name}{BANDS[band] ? ` · ${BANDS[band].label}` : ''}</span>}
             </div>
+            )}
 
             {/* Totals */}
-            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+            <div className={`${inSheet ? 'mt-1' : 'mt-4'} grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4`}>
                 <StatTile Icon={Gamepad2} grad="from-violet-500 to-indigo-500" label="Rounds played" value={sessions.length} />
-                <StatTile Icon={Trophy} grad="from-amber-400 to-orange-500" label="Levels completed" value={cleared} />
-                <StatTile label="Avg accuracy" value={avgAcc != null ? `${Math.round(avgAcc)}%` : '—'}><Ring value={avgAcc != null ? Math.round(avgAcc) : null} color="#10b981" size={44} /></StatTile>
+                <StatTile Icon={Trophy} grad="from-amber-400 to-orange-500" label="Levels done" value={cleared} />
+                <StatTile label="Avg accuracy" value={avgAcc != null ? `${Math.round(avgAcc)}%` : '—'}><Ring value={avgAcc != null ? Math.round(avgAcc) : null} color="#10b981" size={40} /></StatTile>
                 <StatTile Icon={Timer} grad="from-sky-500 to-cyan-500" label="Avg time" value={secs(avg(times))} />
             </div>
 
             {/* By category */}
-            <h3 className="mt-6 mb-2.5 text-sm font-black tracking-wide text-slate-700 uppercase">By category</h3>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2" data-category-performance>
+            <h3 className="mt-5 mb-2 text-xs font-black tracking-wide text-slate-700 uppercase sm:mt-6 sm:mb-2.5 sm:text-sm">By category</h3>
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 md:gap-3" data-category-performance>
                 {Object.keys(CATEGORY_LOOK).map((k) => <CategoryCard key={k} k={k} c={cats[k] || {}} strength={strengths.has(k)} practice={practice.has(k)} />)}
             </div>
 
             {/* The rest, as tabs */}
-            <div className="mt-6 flex gap-1.5 overflow-x-auto rounded-2xl bg-slate-100/80 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="More about your progress">
+            <div className="mt-5 flex flex-wrap justify-center gap-1 rounded-2xl bg-slate-100/80 p-1 sm:mt-6 sm:flex-nowrap sm:justify-start sm:gap-1.5 sm:overflow-x-auto" role="tablist" aria-label="More about your progress">
                 {TABS.map(([key, label]) => (
                     <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
-                        className={`shrink-0 rounded-xl px-3.5 py-2 text-sm font-black whitespace-nowrap transition ${tab === key ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                        className={`shrink-0 rounded-xl px-2.5 py-1.5 text-xs font-black whitespace-nowrap transition sm:px-3.5 sm:py-2 sm:text-sm ${tab === key ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
                         {label}{key === 'badges' && <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800">{earned}/{badges.length}</span>}
                     </button>
                 ))}
@@ -245,12 +248,12 @@ export default function MyProgress({ zone, band }) {
                         {BARS.map(([key, label]) => {
                             const x = skills[key];
                             return (
-                                <li key={key} className="grid grid-cols-[minmax(0,8rem)_1fr_auto] items-center gap-2.5 text-[13px]">
+                                <li key={key} className="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1 text-[13px] sm:grid-cols-[minmax(0,8rem)_1fr_auto] sm:gap-2.5">
                                     <span className="truncate font-bold text-slate-700">{SKILL_EMOJI[key]} {label}</span>
-                                    <span className="h-2.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={x?.level ?? 0}>
+                                    <span className="col-span-2 row-start-2 h-2 overflow-hidden rounded-full bg-slate-100 sm:col-span-1 sm:row-start-auto sm:h-2.5" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={x?.level ?? 0}>
                                         <span className="block h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500" style={{ width: `${x?.level ?? 0}%` }} />
                                     </span>
-                                    <span className="w-12 text-right font-black text-slate-800 tabular-nums">{x ? <>{x.level}{x.trend ? <span className={`ml-0.5 text-[10px] ${x.trend > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{x.trend > 0 ? '▲' : '▼'}</span> : null}</> : <span className="text-slate-300">—</span>}</span>
+                                    <span className="w-12 text-right font-black text-slate-800 tabular-nums sm:col-start-3 sm:row-start-1">{x ? <>{x.level}{x.trend ? <span className={`ml-0.5 text-[10px] ${x.trend > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{x.trend > 0 ? '▲' : '▼'}</span> : null}</> : <span className="text-slate-300">—</span>}</span>
                                 </li>
                             );
                         })}

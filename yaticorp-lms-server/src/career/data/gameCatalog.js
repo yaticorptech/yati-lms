@@ -1,5 +1,5 @@
 /**
- * The 84 brain games on the server (2026-11-14): each game's id, title, age section and category — a CommonJS copy of
+ * The brain games on the server (2026-11-14; trimmed since by the user): each game's id, title, age section and category — a CommonJS copy of
  * the student app's catalogue (yaticorp-lms-student/src/career/components/games/catalog.js), so the server can decide
  * who may play what without trusting the browser. tests/career/gameCatalog.test.js imports the student file and fails
  * when the two drift apart: a game added or moved there must be changed here too.
@@ -59,7 +59,6 @@ const RAW = {
             ['number-recall', 'Number Recall'],
             ['sequence-vault', 'Sequence Vault'],
             ['grid-navigator', 'Audio Echo'],
-            ['pattern-recall', "Chef's Memory"],
             ['focus-filter', 'Focus Filter'],
             ['dual-image-recall', 'Dual-Image Recall']
         ],
@@ -68,12 +67,10 @@ const RAW = {
             ['sudoku-challenge', 'Sudoku Challenge'],
             ['tower-strategy', 'Tower Strategy'],
             ['constraint-grid', 'Pipe Flow'],
-            ['emoji-equations', 'Emoji Equations'],
             ['clue-chain', 'Crown Garden'],
             ['chess-challenge', 'Chess']
         ],
         vocab: [
-            ['word-scramble', 'Word Scramble'],
             ['sentence-gap', 'Sentence Gap'],
             ['tense-pick', 'Tense Pick'],
             ['analogy-master', 'Analogy Master'],
@@ -84,8 +81,7 @@ const RAW = {
         math: [
             ['running-total', 'Running Total'],
             ['equation-rush', 'Equation Rush'],
-            ['fraction-battle', 'Fraction Battle'],
-            ['number-pattern-lab', 'Number Pattern Lab'],
+            ['number-pattern-lab', 'Number Maze'],
             ['ratio-relay', 'Ratio Relay'],
             ['data-dash', 'Data Dash'],
             ['mental-math-circuit', 'Mental Math Circuit']
@@ -95,38 +91,30 @@ const RAW = {
         memory: [
             ['grid-recall', 'Grid Recall'],
             ['reverse-recall', 'Reverse Recall'],
-            ['matrix-recall', 'Matrix Recall'],
             ['departure-board', 'Departure Board'],
             ['rule-switch', 'Rule Switch'],
-            ['spatial-rotation-vault', 'Spatial Rotation Vault'],
             ['interference-recall', 'Interference Recall']
         ],
         logic: [
-            ['tower-shift', 'Tower Shift'],
-            ['cipher-lab', 'Cipher Lab'],
-            ['algorithm-builder', 'Algorithm Architect'],
-            ['deduction', 'Deduction Chamber'],
-            ['boolean-breaker', 'Boolean Breaker'],
+            ['chess-master', 'Chess Master'],
             ['network-logic', 'Network Logic'],
-            ['strategic-constraint-lab', 'Strategic Constraint Lab']
+            ['final-vault', 'The Final Vault'],
+            ['jigsaw', 'Jigsaw'],
+            ['arrow-escape', 'Arrow Escape']
         ],
         vocab: [
             ['synonym-match', 'Synonyms & Antonyms'],
             ['idiom-sense', 'Idiom Sense'],
-            ['semantic-precision', 'Semantic Precision'],
-            ['argument-analyzer', 'Argument Analyzer'],
-            ['verbal-architect', 'Verbal Architect'],
-            ['nuance-navigator', 'Nuance Navigator'],
-            ['word-relation-matrix', 'Word Relation Matrix']
+            ['word-search', 'Word Search'],
+            ['word-relation-matrix', 'Word Relation Matrix'],
+            ['speak-up', 'Speak Up'],
+            ['wordcraft', 'WORDCRAFT']
         ],
         math: [
             ['percent-snap', 'Percent Snap'],
-            ['number-forge', 'Number Forge'],
-            ['probability-lab', 'Probability Lab'],
-            ['quantitative-arena', 'Quantitative Arena'],
-            ['numerical-optimization', 'Numerical Optimization'],
-            ['statistical-inference', 'Statistical Inference'],
-            ['decision-theory-arena', 'Decision Theory Arena']
+            ['running-total-pro', 'Running Total Pro'],
+            ['data-chart-quiz', 'Data Chart Quiz'],
+            ['speed-distance', 'Speed, Time & Distance']
         ]
     }
 };
@@ -135,7 +123,7 @@ const RAW = {
 const CATALOG = Object.freeze(Object.entries(RAW).flatMap(([section, cats]) =>
     Object.entries(cats).flatMap(([category, games]) => games.map(([id, title]) => Object.freeze({ id, title, section, category })))));
 
-const EXTRA = Object.freeze(['code-breaker', 'lights-out', 'shape-matrix', 'word-roots', 'antonym-match', 'binary-blitz', 'number-bonds', 'rounding-rush', 'clock-read']);
+const EXTRA = Object.freeze(['code-breaker', 'lights-out', 'shape-matrix', 'word-roots', 'antonym-match', 'number-bonds', 'clock-read']);
 
 /**
  * The category of every accepted game outside the 84 (server only, for the performance page): the EXTRA classics and
@@ -151,7 +139,19 @@ const CLASSIC_CATEGORY = Object.freeze({
   // Removed from Rising Brains on 2026-11-16 (the user); their records stay on the performance page.
   'logic-detective': 'logic', 'cipher-challenge': 'vocab',
   // Removed from Master Minds on 2026-11-16 (the user); its records stay on the performance page.
-  'dual-stream-memory': 'memory'
+  'dual-stream-memory': 'memory',
+  // Removed from Master Minds on 2026-11-17 (the user: too hard, replaced by easier, relaxing games); records stay.
+  'spatial-rotation-vault': 'memory', 'cipher-lab': 'logic', 'algorithm-builder': 'logic', 'deduction': 'logic',
+  'boolean-breaker': 'logic', 'strategic-constraint-lab': 'logic', 'argument-analyzer': 'vocab', 'verbal-architect': 'vocab',
+  'nuance-navigator': 'vocab', 'probability-lab': 'math', 'quantitative-arena': 'math', 'numerical-optimization': 'math',
+  'statistical-inference': 'math', 'decision-theory-arena': 'math',
+  // Removed from Master Minds · Logic on 2026-11-17 (the user), for Chess Master; records stay.
+  'colour-flood': 'logic',
+  // Removed by the user on 2026-11-18/19 (Rising Brains and Master Minds trimmed); records stay.
+  'tower-shift': 'logic', 'word-scramble': 'vocab', 'number-forge': 'math', 'pattern-recall': 'memory', 'emoji-equations': 'logic',
+  'fraction-battle': 'math', 'matrix-recall': 'memory', 'star-trail': 'memory', 'tile-slide': 'logic', 'light-beam': 'logic',
+  'path-painter': 'logic', 'ice-glide': 'logic', 'word-lock': 'vocab', 'emoji-phrase': 'vocab', 'sum-pop': 'math',
+  'change-maker': 'math', 'best-buy': 'math', 'number-trail': 'math', 'quick-estimate': 'math', 'semantic-precision': 'vocab', 'brain-heist': 'logic', 'pixel-logic': 'logic', 'water-sort': 'logic'
 });
 
 const BY_ID = new Map(CATALOG.map((g) => [g.id, g]));
